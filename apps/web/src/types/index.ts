@@ -55,3 +55,30 @@ export type Product = {
   compatibility: string;
   leadTime: string;
 };
+
+export type DemoSummaryItem = {
+  label: string;
+  value: string;
+};
+
+export type ProductResolutionRow = {
+  id: string;
+  requirement: string;
+  extracted: string;
+  compatibleProducts: string[];
+  compliance: string;
+  confidence: number;
+  selectedProduct: string;
+};
+
+export type DemoMaterialLine = {
+  line: number;
+  productCategory: string;
+  requirement: string;
+  selectedProduct: string;
+  supplier: string;
+  quantity: number;
+  unit: string;
+  confidence: number;
+  notes: string;
+};

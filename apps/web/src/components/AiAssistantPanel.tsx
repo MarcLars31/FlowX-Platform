@@ -1,7 +1,21 @@
 import { Bot, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/Badge";
 
-export function AiAssistantPanel() {
+type AiAssistantPanelProps = {
+  prompt?: string;
+  response?: string;
+  description?: string;
+  badge?: string;
+  contextLabel?: string;
+};
+
+export function AiAssistantPanel({
+  prompt = "Why was this sprinkler selected?",
+  response = "This sprinkler was selected because it matches the selected system type, hazard classification and supplier preference. The result is based on the active engineering rules and product compatibility data.",
+  description = "AI explanation based on verified FlowX engineering results.",
+  badge = "Assistant",
+  contextLabel = "FlowX context"
+}: AiAssistantPanelProps) {
   return (
     <aside
       id="assistant"
@@ -21,11 +35,9 @@ export function AiAssistantPanel() {
               AI Assistant
             </h2>
           </div>
-          <p className="mt-3 text-sm leading-6 text-ink-600">
-            AI explanation based on verified FlowX engineering results.
-          </p>
+          <p className="mt-3 text-sm leading-6 text-ink-600">{description}</p>
         </div>
-        <Badge tone="teal">Assistant</Badge>
+        <Badge tone="teal">{badge}</Badge>
       </div>
 
       <div className="mt-5 space-y-4">
@@ -33,21 +45,14 @@ export function AiAssistantPanel() {
           <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-500">
             User prompt
           </p>
-          <p className="mt-2 text-sm font-medium text-ink-900">
-            Why was this sprinkler selected?
-          </p>
+          <p className="mt-2 text-sm font-medium text-ink-900">{prompt}</p>
         </div>
         <div className="rounded-lg border border-flow-200 bg-flow-50 p-4">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-flow-800">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            FlowX context
+            {contextLabel}
           </div>
-          <p className="text-sm leading-6 text-ink-700">
-            This sprinkler was selected because it matches the selected system
-            type, hazard classification and supplier preference. The result is
-            based on the active engineering rules and product compatibility
-            data.
-          </p>
+          <p className="text-sm leading-6 text-ink-700">{response}</p>
         </div>
       </div>
     </aside>

@@ -4,7 +4,16 @@ import {
   Clock3,
   FolderKanban
 } from "lucide-react";
-import type { MaterialLine, PipelineStep, Product, Project, Stat } from "@/types";
+import type {
+  DemoMaterialLine,
+  DemoSummaryItem,
+  MaterialLine,
+  PipelineStep,
+  Product,
+  ProductResolutionRow,
+  Project,
+  Stat
+} from "@/types";
 
 export const stats: Stat[] = [
   {
@@ -44,8 +53,9 @@ export const recentProjects: Project[] = [
     customer: "Nordbygg Eiendom",
     address: "Sognsveien 80, Oslo",
     country: "Norway",
-    standard: "NS-EN 12845",
-    systemType: "Wet sprinkler system",
+    standard: "NFPA 13 / NFPA 14",
+    systemType:
+      "Wet sprinkler system, deluge facade system, dry riser/fire department connection",
     supplier: "Ahlsell",
     status: "Validation",
     updatedAt: "Today 09:30",
@@ -92,6 +102,24 @@ export const recentProjects: Project[] = [
   }
 ];
 
+export const demoProjectProfile = {
+  project: "Oslo Health Campus",
+  customer: "Nordbygg Eiendom",
+  standard: "NFPA 13 / NFPA 14",
+  preferredSupplier: "Ahlsell",
+  fileName: "1403 AB - 33 Brannslokking.pdf",
+  status: "Review ready",
+  supplierStrategy: "Ahlsell preferred, equivalents allowed",
+  confidenceScore: "94%"
+};
+
+export const demoFlowPages = [
+  { label: "Upload", href: "/projects/demo/upload" },
+  { label: "Analysis", href: "/projects/demo/analysis" },
+  { label: "Products", href: "/projects/demo/product-resolution" },
+  { label: "Material List", href: "/projects/demo/material-list" }
+];
+
 export const pipelineSteps: PipelineStep[] = [
   {
     name: "Validation",
@@ -128,6 +156,67 @@ export const pipelineSteps: PipelineStep[] = [
     status: "ready",
     detail: "Export templates are prepared."
   }
+];
+
+export const demoAnalysisPipelineSteps: PipelineStep[] = [
+  {
+    name: "Reading document",
+    status: "completed",
+    detail: "Imported the technical specification structure and file metadata."
+  },
+  {
+    name: "Finding headings",
+    status: "completed",
+    detail: "Located fire extinguishing, pipework and sprinkler requirement sections."
+  },
+  {
+    name: "Identifying systems",
+    status: "completed",
+    detail: "Mapped wet sprinkler, deluge facade and dry riser systems."
+  },
+  {
+    name: "Extracting quantities",
+    status: "completed",
+    detail: "Detected pipe lengths, fittings, valves, flow switches and sprinkler heads."
+  },
+  {
+    name: "Detecting standards",
+    status: "completed",
+    detail: "Recognized NFPA 13 and NFPA 14 references in the project text."
+  },
+  {
+    name: "Matching product requirements",
+    status: "completed",
+    detail: "Compared dimensions, pressure rating, material and approval needs."
+  },
+  {
+    name: "Preparing review",
+    status: "completed",
+    detail: "Prepared supplier alternatives and engineering questions for approval."
+  }
+];
+
+export const demoAnalysisSummary: DemoSummaryItem[] = [
+  {
+    label: "Detected systems",
+    value:
+      "Wet sprinkler system, deluge facade system, dry riser/fire department connection"
+  },
+  { label: "Standards detected", value: "NFPA 13, NFPA 14" },
+  {
+    label: "Pipe material",
+    value: "Powder coated steel, galvanized steel, PP-R Red Pipe"
+  },
+  { label: "Pressure", value: "12 bar" },
+  { label: "Sprinkler heads", value: "QR K80 68°C and QR K115 68°C" },
+  { label: "Preferred supplier", value: "Ahlsell" },
+  { label: "Confidence score", value: "94%" }
+];
+
+export const demoReviewQuestions = [
+  "Confirm preferred supplier: Ahlsell / Onninen / Victaulic",
+  "Prioritize lowest price or shortest lead time?",
+  "Allow equivalent products?"
 ];
 
 export const materialLines: MaterialLine[] = [
@@ -184,6 +273,264 @@ export const materialLines: MaterialLine[] = [
     quantity: 196,
     unit: "pcs",
     notes: "EPDM seal"
+  }
+];
+
+export const demoProductResolutionRows: ProductResolutionRow[] = [
+  {
+    id: "qr-k80-dn15",
+    requirement: "Sprinkler head QR K80 68°C DN15",
+    extracted: "Standard Spray, K=80, 68°C",
+    compatibleProducts: ["Ahlsell", "Victaulic", "Viking"],
+    compliance: "NFPA 13, FM/UL listed",
+    confidence: 97,
+    selectedProduct: "Ahlsell QR K80 standard spray DN15"
+  },
+  {
+    id: "qr-k115-dn20",
+    requirement: "Sprinkler head QR K115 68°C DN20",
+    extracted: "Quick Response, K=115, 68°C",
+    compatibleProducts: ["Ahlsell", "Viking", "Tyco"],
+    compliance: "NFPA 13, FM/UL listed",
+    confidence: 95,
+    selectedProduct: "Ahlsell QR K115 standard spray DN20"
+  },
+  {
+    id: "grooved-pipe-dn100",
+    requirement: "Grooved pipe DN100",
+    extracted: "Powder coated grooved pipe, DN100",
+    compatibleProducts: ["Ahlsell", "Victaulic", "Onninen"],
+    compliance: "12 bar, grooved joint",
+    confidence: 96,
+    selectedProduct: "Ahlsell powder coated grooved pipe DN100"
+  },
+  {
+    id: "grooved-coupling-dn65",
+    requirement: "Grooved coupling DN65",
+    extracted: "Grooved joint fitting, DN65",
+    compatibleProducts: ["Victaulic", "Ahlsell"],
+    compliance: "12 bar, sprinkler approved",
+    confidence: 93,
+    selectedProduct: "Victaulic Style 009N coupling DN65"
+  },
+  {
+    id: "butterfly-valve-dn65",
+    requirement: "Monitored butterfly valve DN65",
+    extracted: "Zone valve with monitoring, DN65",
+    compatibleProducts: ["Ahlsell", "Tyco", "Victaulic"],
+    compliance: "sprinkler zone valve",
+    confidence: 91,
+    selectedProduct: "Ahlsell monitored butterfly valve DN65"
+  },
+  {
+    id: "flex-hose-dn25",
+    requirement: "Flexible sprinkler hose DN25",
+    extracted: "Flexible sprinkler connection, DN25",
+    compatibleProducts: ["Ahlsell", "Victaulic", "FlexHead"],
+    compliance: "max equivalent length 15 m",
+    confidence: 89,
+    selectedProduct: "Ahlsell flexible sprinkler hose DN25"
+  }
+];
+
+export const demoMaterialLines: DemoMaterialLine[] = [
+  {
+    line: 1,
+    productCategory: "Pipe",
+    requirement: "Powder coated grooved pipe DN100",
+    selectedProduct: "Ahlsell powder coated grooved pipe DN100",
+    supplier: "Ahlsell",
+    quantity: 29.16,
+    unit: "m",
+    confidence: 96,
+    notes: "12 bar grooved sprinkler pipe"
+  },
+  {
+    line: 2,
+    productCategory: "Pipe",
+    requirement: "Powder coated grooved pipe DN80",
+    selectedProduct: "Ahlsell powder coated grooved pipe DN80",
+    supplier: "Ahlsell",
+    quantity: 72.78,
+    unit: "m",
+    confidence: 95,
+    notes: "Detected from pipe schedule"
+  },
+  {
+    line: 3,
+    productCategory: "Pipe",
+    requirement: "Powder coated grooved pipe DN65",
+    selectedProduct: "Ahlsell powder coated grooved pipe DN65",
+    supplier: "Ahlsell",
+    quantity: 57.32,
+    unit: "m",
+    confidence: 95,
+    notes: "Zone valve branch dimensions"
+  },
+  {
+    line: 4,
+    productCategory: "Pipe",
+    requirement: "Powder coated grooved pipe DN50",
+    selectedProduct: "Ahlsell powder coated grooved pipe DN50",
+    supplier: "Ahlsell",
+    quantity: 496.46,
+    unit: "m",
+    confidence: 94,
+    notes: "Main distribution and branch pipe"
+  },
+  {
+    line: 5,
+    productCategory: "Pipe",
+    requirement: "Powder coated grooved pipe DN40",
+    selectedProduct: "Ahlsell powder coated grooved pipe DN40",
+    supplier: "Ahlsell",
+    quantity: 223.83,
+    unit: "m",
+    confidence: 94,
+    notes: "Detected from sprinkler branch schedule"
+  },
+  {
+    line: 6,
+    productCategory: "Pipe",
+    requirement: "Powder coated grooved pipe DN32",
+    selectedProduct: "Ahlsell powder coated grooved pipe DN32",
+    supplier: "Ahlsell",
+    quantity: 910.05,
+    unit: "m",
+    confidence: 93,
+    notes: "Largest detected branch quantity"
+  },
+  {
+    line: 7,
+    productCategory: "Pipe",
+    requirement: "Powder coated grooved pipe DN25",
+    selectedProduct: "Ahlsell powder coated grooved pipe DN25",
+    supplier: "Ahlsell",
+    quantity: 54.75,
+    unit: "m",
+    confidence: 92,
+    notes: "Terminal branch pipe"
+  },
+  {
+    line: 8,
+    productCategory: "Fittings",
+    requirement: "Grooved bend DN32",
+    selectedProduct: "Ahlsell grooved bend DN32",
+    supplier: "Ahlsell",
+    quantity: 188,
+    unit: "pcs",
+    confidence: 91,
+    notes: "Equivalent Victaulic alternative available"
+  },
+  {
+    line: 9,
+    productCategory: "Fittings",
+    requirement: "Grooved bend DN25",
+    selectedProduct: "Ahlsell grooved bend DN25",
+    supplier: "Ahlsell",
+    quantity: 127,
+    unit: "pcs",
+    confidence: 91,
+    notes: "Matched by dimension and joint type"
+  },
+  {
+    line: 10,
+    productCategory: "Sprinkler connection",
+    requirement: "Flexible sprinkler hose DN25",
+    selectedProduct: "Ahlsell flexible sprinkler hose DN25",
+    supplier: "Ahlsell",
+    quantity: 386,
+    unit: "pcs",
+    confidence: 89,
+    notes: "Max equivalent length 15 m"
+  },
+  {
+    line: 11,
+    productCategory: "Sprinkler heads",
+    requirement: "QR K80 68°C sprinkler head DN15",
+    selectedProduct: "Ahlsell QR K80 standard spray DN15",
+    supplier: "Ahlsell",
+    quantity: 306,
+    unit: "pcs",
+    confidence: 97,
+    notes: "NFPA 13, FM/UL listed"
+  },
+  {
+    line: 12,
+    productCategory: "Sprinkler heads",
+    requirement: "QR K80 upright sprinkler head",
+    selectedProduct: "Viking QR K80 upright sprinkler head",
+    supplier: "Viking",
+    quantity: 220,
+    unit: "pcs",
+    confidence: 94,
+    notes: "Equivalent product selected"
+  },
+  {
+    line: 13,
+    productCategory: "Sprinkler heads",
+    requirement: "QR K80 pendent sprinkler head",
+    selectedProduct: "Ahlsell QR K80 pendent sprinkler head",
+    supplier: "Ahlsell",
+    quantity: 118,
+    unit: "pcs",
+    confidence: 94,
+    notes: "Matched to ceiling mounted areas"
+  },
+  {
+    line: 14,
+    productCategory: "Valves",
+    requirement: "Drain valve DN32",
+    selectedProduct: "Ahlsell drain valve DN32",
+    supplier: "Ahlsell",
+    quantity: 9,
+    unit: "pcs",
+    confidence: 90,
+    notes: "Review location before ordering"
+  },
+  {
+    line: 15,
+    productCategory: "Valves",
+    requirement: "Monitored butterfly valve DN65",
+    selectedProduct: "Ahlsell monitored butterfly valve DN65",
+    supplier: "Ahlsell",
+    quantity: 5,
+    unit: "pcs",
+    confidence: 91,
+    notes: "Sprinkler zone valve"
+  },
+  {
+    line: 16,
+    productCategory: "Valves",
+    requirement: "Check valve DN65",
+    selectedProduct: "Victaulic check valve DN65",
+    supplier: "Victaulic",
+    quantity: 5,
+    unit: "pcs",
+    confidence: 90,
+    notes: "Compatible equivalent selected"
+  },
+  {
+    line: 17,
+    productCategory: "Monitoring",
+    requirement: "Flow switch",
+    selectedProduct: "Ahlsell sprinkler flow switch",
+    supplier: "Ahlsell",
+    quantity: 6,
+    unit: "pcs",
+    confidence: 88,
+    notes: "Coordinate with fire alarm interface"
+  },
+  {
+    line: 18,
+    productCategory: "Monitoring",
+    requirement: "I/O unit for flow switch",
+    selectedProduct: "Ahlsell I/O unit for flow switch",
+    supplier: "Ahlsell",
+    quantity: 6,
+    unit: "pcs",
+    confidence: 88,
+    notes: "Accessory for monitored flow switch"
   }
 ];
 

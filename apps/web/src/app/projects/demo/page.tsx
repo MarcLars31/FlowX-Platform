@@ -8,13 +8,22 @@ import {
   Factory,
   FileCheck2,
   Gauge,
-  RotateCw
+  RotateCw,
+  UploadCloud
 } from "lucide-react";
 import { AiAssistantPanel } from "@/components/AiAssistantPanel";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { DemoBadge } from "@/components/DemoBadge";
+import { DemoFlowNav } from "@/components/DemoFlowNav";
 import { PipelineStep } from "@/components/PipelineStep";
-import { pipelineSteps, recentProjects } from "@/lib/mock-data";
+import {
+  demoFlowPages,
+  demoMaterialLines,
+  demoProjectProfile,
+  pipelineSteps,
+  recentProjects
+} from "@/lib/mock-data";
 
 const demoProject = recentProjects[0];
 
@@ -27,11 +36,14 @@ export default function EngineeringWorkspacePage() {
 
   return (
     <div className="space-y-6">
+      <DemoFlowNav />
+
       <header className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="teal">Project</Badge>
+              <DemoBadge />
               <Badge tone={generated ? "green" : "amber"}>
                 {generated ? "Material list generated" : "Pipeline ready"}
               </Badge>
@@ -44,7 +56,13 @@ export default function EngineeringWorkspacePage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button onClick={() => setGenerated(true)}>
+            <Link href="/projects/demo/upload">
+              <Button className="w-full justify-center sm:w-auto">
+                <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                Upload Technical Specification
+              </Button>
+            </Link>
+            <Button variant="secondary" onClick={() => setGenerated(true)}>
               {generated ? (
                 <FileCheck2 className="h-4 w-4" aria-hidden="true" />
               ) : (
@@ -91,17 +109,16 @@ export default function EngineeringWorkspacePage() {
               Workspace navigation
             </h2>
             <div className="mt-4 space-y-2">
-              {["Input", "Engineering", "Products", "Material List"].map(
-                (item) => (
-                  <button
-                    key={item}
-                    className="flex min-h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-medium text-ink-700 transition hover:bg-ink-100"
-                  >
-                    {item}
-                    <ArrowRight className="h-4 w-4 text-ink-400" />
-                  </button>
-                )
-              )}
+              {demoFlowPages.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex min-h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-medium text-ink-700 transition hover:bg-ink-100"
+                >
+                  {item.label}
+                  <ArrowRight className="h-4 w-4 text-ink-400" />
+                </Link>
+              ))}
             </div>
           </div>
         </div>
@@ -140,8 +157,8 @@ export default function EngineeringWorkspacePage() {
             </div>
             <div className="mt-5 grid gap-3">
               {[
-                ["Lines", generated ? "6" : "Pending"],
-                ["Supplier", demoProject.supplier],
+                ["Lines", generated ? `${demoMaterialLines.length}` : "Pending"],
+                ["Supplier", demoProjectProfile.preferredSupplier],
                 ["Rule status", generated ? "Verified" : "Ready"],
                 ["Export status", generated ? "Available" : "Pending"]
               ].map(([label, value]) => (
