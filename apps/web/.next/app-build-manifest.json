@@ -6,40 +6,45 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/projects/layout": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/projects/layout.js"
+      "static/chunks/app/page.js"
     ],
-    "/projects/demo/upload/page": [
+    "/admin/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/projects/demo/upload/page.js"
+      "static/chunks/app/admin/layout.js"
     ],
-    "/projects/demo/page": [
+    "/admin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/projects/demo/page.js"
+      "static/chunks/app/admin/page.js"
     ],
-    "/projects/demo/analysis/page": [
+    "/products/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/projects/demo/analysis/page.js"
+      "static/chunks/app/products/layout.js"
     ],
-    "/dashboard/layout": [
+    "/products/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/layout.js"
+      "static/chunks/app/products/page.js"
     ],
-    "/dashboard/page": [
+    "/api/pkms/products/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/page.js"
+      "static/chunks/app/api/pkms/products/route.js"
     ],
-    "/projects/new/page": [
+    "/admin/review/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/projects/new/page.js"
+      "static/chunks/app/admin/review/page.js"
+    ],
+    "/api/pkms/review-queue/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/pkms/review-queue/route.js"
     ]
   }
 }

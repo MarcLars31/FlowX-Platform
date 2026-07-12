@@ -1,0 +1,33 @@
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\marcu\Documents\GitHub\FlowX-Platform\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\package-lock.json
+
+<w> [webpack.cache.PackFileCacheStrategy] Restoring failed for Compilation/modules|javascript/auto|C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\next-flight-css-loader.js??ruleSet[1].rules[14].oneOf[10].use[0]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\compiled\mini-css-extract-plugin\loader.js??ruleSet[1].rules[14].oneOf[10].use[1]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[2]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[3]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\src\app\globals.css|app-pages-browser from pack: Error: incorrect data check
+<w> [webpack.cache.PackFileCacheStrategy] Restoring failed for Compilation/modules|C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[2]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[3]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\src\app\globals.css from pack: Error: incorrect data check
+<w> [webpack.cache.PackFileCacheStrategy] Restoring failed for Compilation/codeGeneration|C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[2]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[3]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\src\app\globals.css|build time from pack: Error: incorrect data check
+<w> [webpack.cache.PackFileCacheStrategy] Restoring failed for Compilation/modules|css|C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[2]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[3]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\src\app\globals.css|0 from pack: Error: incorrect data check
+<w> [webpack.cache.PackFileCacheStrategy] Restoring failed for FlagDependencyExportsPlugin|C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[2]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[3]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\src\app\globals.css from pack: Error: incorrect data check
+<w> [webpack.cache.PackFileCacheStrategy] Restoring failed for Compilation/codeGeneration|css|C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[2]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[14].oneOf[10].use[3]!C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\src\app\globals.css|0|webpack from pack: Error: incorrect data check
+<w> [webpack.cache.PackFileCacheStrategy] Restoring failed for Compilation/assets|mini-css-extract-plugin.app/layout from pack: Error: incorrect data check
+ ⨯ Error: Cannot find module './331.js'
+Require stack:
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\.next\server\webpack-runtime.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\.next\server\app\api\pdf-extractor\extract\route.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\server\require.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\server\load-components.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\utils.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\swc\options.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\swc\index.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\server\config.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\server\next.js
+- C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\.next\server\app\projects\demo\material-list\page.js:2:14965)
+    at Object.<anonymous> (C:\Users\marcu\Documents\GitHub\FlowX-Platform\apps\web\.next\server\app\projects\demo\material-list\page.js:2:15030) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/projects/demo/material-list'
+}

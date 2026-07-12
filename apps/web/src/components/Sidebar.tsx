@@ -3,26 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bot,
-  ClipboardList,
-  FolderKanban,
-  LayoutDashboard,
-  PackageSearch,
-  Settings
+  ClipboardCheck,
+  FileJson,
+  PackageSearch
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Projects", href: "/projects/demo", icon: FolderKanban },
-  { name: "Products", href: "/products", icon: PackageSearch },
+  { name: "JSON Import", href: "/admin", icon: FileJson, exact: true },
   {
-    name: "Material Lists",
-    href: "/projects/demo/material-list",
-    icon: ClipboardList
+    name: "Till godkännande",
+    href: "/admin/review",
+    icon: ClipboardCheck,
+    exact: true
   },
-  { name: "AI Assistant", href: "/projects/demo#assistant", icon: Bot },
-  { name: "Settings", href: "/dashboard", icon: Settings }
+  { name: "Products", href: "/products", icon: PackageSearch }
 ];
 
 export function Sidebar() {
@@ -44,9 +39,9 @@ export function Sidebar() {
         {navigation.map((item) => {
           const Icon = item.icon;
           const hrefPath = item.href.split("#")[0];
-          const isActive =
-            pathname === hrefPath ||
-            (hrefPath !== "/dashboard" && pathname.startsWith(hrefPath));
+          const isActive = item.exact
+            ? pathname === hrefPath
+            : pathname === hrefPath || pathname.startsWith(`${hrefPath}/`);
 
           return (
             <Link

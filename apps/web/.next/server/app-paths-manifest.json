@@ -1,7 +1,7 @@
 {
-  "/projects/demo/upload/page": "app/projects/demo/upload/page.js",
-  "/projects/demo/page": "app/projects/demo/page.js",
-  "/projects/demo/analysis/page": "app/projects/demo/analysis/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/projects/new/page": "app/projects/new/page.js"
+  "/api/pkms/products/route": "app/api/pkms/products/route.js",
+  "/api/pkms/review-queue/route": "app/api/pkms/review-queue/route.js",
+  "/admin/page": "app/admin/page.js",
+  "/products/page": "app/products/page.js",
+  "/admin/review/page": "app/admin/review/page.js"
 }

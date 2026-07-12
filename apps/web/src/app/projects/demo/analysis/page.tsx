@@ -1,11 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import {
   ArrowRight,
+  BarChart3,
   ClipboardCheck,
   HelpCircle,
   ListChecks,
+  PackageCheck,
+  SearchX,
   ShieldCheck
 } from "lucide-react";
+import { Badge } from "@/components/Badge";
 import { AnalysisPipeline } from "@/components/AnalysisPipeline";
 import { Button } from "@/components/Button";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
@@ -14,11 +20,105 @@ import { DemoFlowNav } from "@/components/DemoFlowNav";
 import {
   demoAnalysisPipelineSteps,
   demoAnalysisSummary,
+  demoMaterialLines,
+  demoProductResolutionRows,
   demoProjectProfile,
   demoReviewQuestions
 } from "@/lib/mock-data";
+import {
+  buildCategoryBreakdown,
+  getAverageConfidence,
+  getDetectedCategories,
+  getMissingProducts
+} from "@/lib/pipeline-analysis";
+import {
+  useActiveUploadDocument,
+  useMaterialListConsistencyWarning
+} from "@/lib/upload-session";
+import type { DemoSummaryItem } from "@/types";
+import type { PdfExtractionResult } from "@/modules/pdf-extractor";
 
 export default function AnalysisPage() {
+  const uploadState = useActiveUploadDocument();
+  const activeDocument =
+    uploadState.status === "ready" ? uploadState.activeDocument : null;
+  const sessionError =
+    uploadState.status === "ready" ? uploadState.error : null;
+  const materialItems =
+    uploadState.status === "loading"
+      ? []
+      : activeDocument?.materialList ?? demoMaterialLines;
+  const productMatches =
+    uploadState.status === "loading"
+      ? []
+      : activeDocument?.productMatches ?? demoProductResolutionRows;
+  const missingProducts =
+    uploadState.status === "loading"
+      ? []
+      : activeDocument?.missingProducts ?? getMissingProducts(materialItems);
+  const averageConfidence = getAverageConfidence(materialItems);
+  const detectedCategories = getDetectedCategories(materialItems);
+  const isBalanced =
+    productMatches.length + missingProducts.length === materialItems.length;
+  const categoryBreakdown =
+    activeDocument?.categoryBreakdown ??
+    buildCategoryBreakdown({
+      materialItems,
+      matchedProducts: productMatches
+    });
+  const analysisSummary = activeDocument
+    ? buildUploadedAnalysisSummary(
+        activeDocument.extractionResult,
+        averageConfidence
+      )
+    : demoAnalysisSummary;
+  const summaryCards = [
+    {
+      label: "Material List Items",
+      value: `${materialItems.length}`,
+      icon: ClipboardCheck
+    },
+    {
+      label: "Matched Products",
+      value: `${productMatches.length}`,
+      icon: PackageCheck
+    },
+    {
+      label: "Missing Products",
+      value: `${missingProducts.length}`,
+      icon: SearchX
+    },
+    {
+      label: "Categories Found",
+      value: `${detectedCategories.length}`,
+      icon: BarChart3
+    },
+    {
+      label: "Average Confidence",
+      value: `${averageConfidence}%`,
+      icon: ShieldCheck
+    }
+  ];
+
+  useMaterialListConsistencyWarning({
+    materialListLength: materialItems.length,
+    matchedProductsLength: productMatches.length,
+    missingProductsLength: missingProducts.length
+  });
+
+  if (uploadState.status === "loading") {
+    return <DocumentState title="Loading current document" />;
+  }
+
+  if (sessionError) {
+    return (
+      <DocumentState
+        title="Analysis needs to be refreshed"
+        message={sessionError}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <DemoFlowNav />
@@ -27,7 +127,11 @@ export default function AnalysisPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <DemoBadge />
+              {activeDocument ? (
+                <Badge tone="green">Uploaded document</Badge>
+              ) : (
+                <DemoBadge />
+              )}
               <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
                 Analysis complete
               </span>
@@ -36,7 +140,9 @@ export default function AnalysisPage() {
               Technical Specification Analysis
             </h1>
             <p className="mt-2 text-sm leading-6 text-ink-600">
-              {demoProjectProfile.fileName} - {demoProjectProfile.project}
+              {activeDocument?.fileName ?? demoProjectProfile.fileName} -{" "}
+              {activeDocument?.extractionResult.project.name ??
+                demoProjectProfile.project}
             </p>
           </div>
           <Link href="/projects/demo/product-resolution">
@@ -47,6 +153,79 @@ export default function AnalysisPage() {
           </Link>
         </div>
       </header>
+
+      <section className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-ink-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-ink-950">
+              Extraction Workflow Dashboard
+            </h2>
+            <p className="mt-1 text-sm text-ink-600">
+              Technical specification to consolidated material items, matched
+              products and missing database products.
+            </p>
+          </div>
+          <Badge tone={isBalanced ? "green" : "rose"}>
+            {isBalanced
+              ? "Matched + missing = material list"
+              : "Pipeline count mismatch"}
+          </Badge>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {summaryCards.map((card) => {
+            const Icon = card.icon;
+
+            return (
+              <div key={card.label} className="rounded-lg bg-ink-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-ink-500">{card.label}</p>
+                  <Icon className="h-4 w-4 text-flow-700" aria-hidden="true" />
+                </div>
+                <p className="mt-2 text-2xl font-semibold text-ink-950">
+                  {card.value}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold text-ink-950">
+            Category Breakdown
+          </h3>
+          <p className="mt-1 text-sm text-ink-500">
+            Consolidated material items, database matches, and missing products
+            by category.
+          </p>
+        </div>
+
+        <div className="mt-3 overflow-x-auto rounded-lg border border-ink-200">
+          <table className="min-w-[620px] divide-y divide-ink-200 text-left text-sm">
+            <thead className="bg-ink-50 text-xs uppercase tracking-normal text-ink-500">
+              <tr>
+                {["Category", "Material Items", "Matched", "Missing"].map((heading) => (
+                  <th key={heading} className="px-4 py-3 font-semibold">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100 bg-white">
+              {categoryBreakdown.map((row) => (
+                <tr key={row.category}>
+                  <td className="px-4 py-3 font-semibold text-ink-950">
+                    {row.category}
+                  </td>
+                  <td className="px-4 py-3 text-ink-700">{row.materialItems}</td>
+                  <td className="px-4 py-3 text-emerald-700">{row.matched}</td>
+                  <td className="px-4 py-3 text-amber-700">{row.missing}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
         <AnalysisPipeline steps={demoAnalysisPipelineSteps} />
@@ -60,7 +239,7 @@ export default function AnalysisPage() {
                 </div>
                 <div>
                   <h2 className="text-base font-semibold text-ink-950">
-                    AI Summary
+                    Extraction Summary
                   </h2>
                   <p className="text-sm text-ink-500">
                     Extracted document signals
@@ -70,7 +249,7 @@ export default function AnalysisPage() {
               <ConfidenceBadge score={94} />
             </div>
             <dl className="mt-5 space-y-4 text-sm">
-              {demoAnalysisSummary.map((item) => (
+              {analysisSummary.map((item) => (
                 <div
                   key={item.label}
                   className="border-b border-ink-100 pb-3 last:border-0 last:pb-0"

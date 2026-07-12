@@ -6,11 +6,18 @@ import { DemoBadge } from "@/components/DemoBadge";
 import { DemoFlowNav } from "@/components/DemoFlowNav";
 import { MaterialListDemoTable } from "@/components/MaterialListDemoTable";
 import { demoMaterialLines, demoProjectProfile } from "@/lib/mock-data";
+import {
+  getMatchedProducts,
+  getMissingProducts
+} from "@/lib/pipeline-analysis";
 
 const assistantResponse =
   "Yes. FlowX found compatible Victaulic alternatives for selected grooved components. Compatibility is based on dimension, pressure rating, joint type, system type and compliance requirements. Final approval should be reviewed by the responsible engineer.";
 
 export default function MaterialListPage() {
+  const matchedProducts = getMatchedProducts(demoMaterialLines);
+  const missingProducts = getMissingProducts(demoMaterialLines);
+
   return (
     <div className="space-y-6">
       <DemoFlowNav />
@@ -55,9 +62,9 @@ export default function MaterialListPage() {
         <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-5">
           {[
             ["Project", demoProjectProfile.project],
-            ["Status", demoProjectProfile.status],
-            ["Standard", demoProjectProfile.standard],
-            ["Supplier strategy", demoProjectProfile.supplierStrategy],
+            ["Material items", `${demoMaterialLines.length}`],
+            ["Matched", `${matchedProducts.length}`],
+            ["Missing", `${missingProducts.length}`],
             ["Confidence score", demoProjectProfile.confidenceScore]
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg bg-ink-50 px-3 py-3">

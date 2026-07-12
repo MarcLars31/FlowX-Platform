@@ -56,23 +56,51 @@ export type Product = {
   leadTime: string;
 };
 
+export type ItemCategory =
+  | "Pipe"
+  | "Fitting"
+  | "Valve"
+  | "Sprinkler"
+  | "Equipment"
+  | "Support"
+  | "Fastener"
+  | "Accessory"
+  | "Other"
+  | "Unknown";
+
 export type DemoSummaryItem = {
   label: string;
   value: string;
 };
 
+export type AnalysisStep = {
+  name: string;
+  detail: string;
+  sourceReference: string;
+  result: string;
+};
+
 export type ProductResolutionRow = {
   id: string;
+  category: ItemCategory;
   requirement: string;
   extracted: string;
+  postNumber?: string;
+  sourcePage?: number;
+  documentHref?: string;
+  sourceReference: string;
+  matchedProduct?: string;
+  product_id?: string;
   compatibleProducts: string[];
   compliance: string;
   confidence: number;
   selectedProduct: string;
+  status: "Verified" | "Needs review";
 };
 
 export type DemoMaterialLine = {
   line: number;
+  category: ItemCategory;
   productCategory: string;
   requirement: string;
   selectedProduct: string;
@@ -81,4 +109,13 @@ export type DemoMaterialLine = {
   unit: string;
   confidence: number;
   notes: string;
+  postNumber?: string;
+  sourcePage?: number;
+  documentHref?: string;
+  sourceReference?: string;
+  sourceText?: string;
+  dimension?: string;
+  matchedProduct?: string;
+  product_id?: string;
+  missing_from_database?: boolean;
 };

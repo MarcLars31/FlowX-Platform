@@ -196,6 +196,14 @@ export const demoAnalysisPipelineSteps: PipelineStep[] = [
   }
 ];
 
+export const demoExtractedLineCategoryCounts = {
+  Pipe: 72,
+  Fitting: 31,
+  Valve: 18,
+  Sprinkler: 12,
+  Equipment: 7
+};
+
 export const demoAnalysisSummary: DemoSummaryItem[] = [
   {
     label: "Detected systems",
@@ -279,63 +287,146 @@ export const materialLines: MaterialLine[] = [
 export const demoProductResolutionRows: ProductResolutionRow[] = [
   {
     id: "qr-k80-dn15",
+    category: "Sprinkler",
     requirement: "Sprinkler head QR K80 68°C DN15",
     extracted: "Standard Spray, K=80, 68°C",
+    matchedProduct: "Ahlsell QR K80 standard spray DN15",
+    product_id: "sprinkler-qr-k80-pendent",
     compatibleProducts: ["Ahlsell", "Victaulic", "Viking"],
+    postNumber: "1403.33.333.1.1",
+    sourcePage: 3,
+    documentHref: "/projects/demo/upload?postnr=1403.33.333.1.1",
+    sourceReference: "Page 3, post 1403.33.333.1.1",
     compliance: "NFPA 13, FM/UL listed",
     confidence: 97,
-    selectedProduct: "Ahlsell QR K80 standard spray DN15"
+    selectedProduct: "Ahlsell QR K80 standard spray DN15",
+    status: "Verified"
   },
   {
-    id: "qr-k115-dn20",
-    requirement: "Sprinkler head QR K115 68°C DN20",
-    extracted: "Quick Response, K=115, 68°C",
-    compatibleProducts: ["Ahlsell", "Viking", "Tyco"],
-    compliance: "NFPA 13, FM/UL listed",
+    id: "grooved-pipe-dn80",
+    category: "Pipe",
+    requirement: "Grooved pipe DN80",
+    extracted: "Powder coated grooved pipe, DN80",
+    matchedProduct: "Ahlsell powder coated grooved pipe DN80",
+    product_id: "pipe-dn80",
+    compatibleProducts: ["Ahlsell", "Victaulic", "Onninen"],
+    postNumber: "1403.33.332.1.2",
+    sourcePage: 2,
+    documentHref: "/projects/demo/upload?postnr=1403.33.332.1.2",
+    sourceReference: "Page 2, post 1403.33.332.1.2",
+    compliance: "12 bar, grooved joint",
     confidence: 95,
-    selectedProduct: "Ahlsell QR K115 standard spray DN20"
+    selectedProduct: "Ahlsell powder coated grooved pipe DN80",
+    status: "Verified"
   },
   {
     id: "grooved-pipe-dn100",
+    category: "Pipe",
     requirement: "Grooved pipe DN100",
     extracted: "Powder coated grooved pipe, DN100",
+    matchedProduct: "Ahlsell powder coated grooved pipe DN100",
+    product_id: "pipe-dn100",
     compatibleProducts: ["Ahlsell", "Victaulic", "Onninen"],
+    postNumber: "1403.33.332.1.1",
+    sourcePage: 2,
+    documentHref: "/projects/demo/upload?postnr=1403.33.332.1.1",
+    sourceReference: "Page 2, post 1403.33.332.1.1",
     compliance: "12 bar, grooved joint",
     confidence: 96,
-    selectedProduct: "Ahlsell powder coated grooved pipe DN100"
+    selectedProduct: "Ahlsell powder coated grooved pipe DN100",
+    status: "Verified"
   },
   {
-    id: "grooved-coupling-dn65",
-    requirement: "Grooved coupling DN65",
-    extracted: "Grooved joint fitting, DN65",
+    id: "grooved-pipe-dn65",
+    category: "Pipe",
+    requirement: "Grooved pipe DN65",
+    extracted: "Powder coated grooved pipe, DN65",
+    matchedProduct: "Ahlsell powder coated grooved pipe DN65",
+    product_id: "pipe-dn65",
+    compatibleProducts: ["Ahlsell", "Victaulic", "Onninen"],
+    postNumber: "1403.33.332.1.3",
+    sourcePage: 2,
+    documentHref: "/projects/demo/upload?postnr=1403.33.332.1.3",
+    sourceReference: "Page 2, post 1403.33.332.1.3",
+    compliance: "12 bar, grooved joint",
+    confidence: 95,
+    selectedProduct: "Ahlsell powder coated grooved pipe DN65",
+    status: "Verified"
+  },
+  {
+    id: "grooved-pipe-dn50",
+    category: "Pipe",
+    requirement: "Grooved pipe DN50",
+    extracted: "Powder coated grooved pipe, DN50",
+    matchedProduct: "Ahlsell powder coated grooved pipe DN50",
+    product_id: "pipe-dn50",
+    compatibleProducts: ["Ahlsell", "Victaulic", "Onninen"],
+    postNumber: "1403.33.332.1.4",
+    sourcePage: 2,
+    documentHref: "/projects/demo/upload?postnr=1403.33.332.1.4",
+    sourceReference: "Page 2, post 1403.33.332.1.4",
+    compliance: "12 bar, grooved joint",
+    confidence: 94,
+    selectedProduct: "Ahlsell powder coated grooved pipe DN50",
+    status: "Verified"
+  },
+  {
+    id: "grooved-bend-dn32",
+    category: "Fitting",
+    requirement: "Grooved bend DN32",
+    extracted: "Grooved bend fitting, DN32",
+    matchedProduct: "Ahlsell grooved bend DN32",
+    product_id: "bend-dn32",
     compatibleProducts: ["Victaulic", "Ahlsell"],
+    postNumber: "1403.33.332.2.1",
+    sourcePage: 2,
+    documentHref: "/projects/demo/upload?postnr=1403.33.332.2.1",
+    sourceReference: "Page 2, post 1403.33.332.2.1",
     compliance: "12 bar, sprinkler approved",
     confidence: 93,
-    selectedProduct: "Victaulic Style 009N coupling DN65"
+    selectedProduct: "Ahlsell grooved bend DN32",
+    status: "Verified"
   },
   {
     id: "butterfly-valve-dn65",
+    category: "Valve",
     requirement: "Monitored butterfly valve DN65",
     extracted: "Zone valve with monitoring, DN65",
+    matchedProduct: "Ahlsell monitored butterfly valve DN65",
+    product_id: "monitored-valve-dn65",
     compatibleProducts: ["Ahlsell", "Tyco", "Victaulic"],
+    postNumber: "1403.33.334.1.2",
+    sourcePage: 3,
+    documentHref: "/projects/demo/upload?postnr=1403.33.334.1.2",
+    sourceReference: "Page 3, post 1403.33.334.1.2",
     compliance: "sprinkler zone valve",
     confidence: 91,
-    selectedProduct: "Ahlsell monitored butterfly valve DN65"
+    selectedProduct: "Ahlsell monitored butterfly valve DN65",
+    status: "Verified"
   },
   {
-    id: "flex-hose-dn25",
-    requirement: "Flexible sprinkler hose DN25",
-    extracted: "Flexible sprinkler connection, DN25",
-    compatibleProducts: ["Ahlsell", "Victaulic", "FlexHead"],
-    compliance: "max equivalent length 15 m",
-    confidence: 89,
-    selectedProduct: "Ahlsell flexible sprinkler hose DN25"
+    id: "flow-switch",
+    category: "Equipment",
+    requirement: "Flow switch",
+    extracted: "Strømningsvakt",
+    matchedProduct: "Ahlsell sprinkler flow switch",
+    product_id: "flow-switch",
+    compatibleProducts: ["Ahlsell", "Tyco", "Viking"],
+    postNumber: "1403.33.335.1.1",
+    sourcePage: 3,
+    documentHref: "/projects/demo/upload?postnr=1403.33.335.1.1",
+    sourceReference: "Page 3, post 1403.33.335.1.1",
+    compliance: "Fire alarm interface required",
+    confidence: 88,
+    selectedProduct: "Ahlsell sprinkler flow switch",
+    status: "Verified"
   }
 ];
 
 export const demoMaterialLines: DemoMaterialLine[] = [
   {
     line: 1,
+    category: "Pipe",
     productCategory: "Pipe",
     requirement: "Powder coated grooved pipe DN100",
     selectedProduct: "Ahlsell powder coated grooved pipe DN100",
@@ -343,10 +434,15 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 29.16,
     unit: "m",
     confidence: 96,
-    notes: "12 bar grooved sprinkler pipe"
+    notes: "12 bar grooved sprinkler pipe",
+    postNumber: "1403.33.332.1.1",
+    dimension: "DN100",
+    product_id: "pipe-dn100",
+    matchedProduct: "Ahlsell powder coated grooved pipe DN100"
   },
   {
     line: 2,
+    category: "Pipe",
     productCategory: "Pipe",
     requirement: "Powder coated grooved pipe DN80",
     selectedProduct: "Ahlsell powder coated grooved pipe DN80",
@@ -354,10 +450,15 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 72.78,
     unit: "m",
     confidence: 95,
-    notes: "Detected from pipe schedule"
+    notes: "Detected from pipe schedule",
+    postNumber: "1403.33.332.1.2",
+    dimension: "DN80",
+    product_id: "pipe-dn80",
+    matchedProduct: "Ahlsell powder coated grooved pipe DN80"
   },
   {
     line: 3,
+    category: "Pipe",
     productCategory: "Pipe",
     requirement: "Powder coated grooved pipe DN65",
     selectedProduct: "Ahlsell powder coated grooved pipe DN65",
@@ -365,10 +466,15 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 57.32,
     unit: "m",
     confidence: 95,
-    notes: "Zone valve branch dimensions"
+    notes: "Zone valve branch dimensions",
+    postNumber: "1403.33.332.1.3",
+    dimension: "DN65",
+    product_id: "pipe-dn65",
+    matchedProduct: "Ahlsell powder coated grooved pipe DN65"
   },
   {
     line: 4,
+    category: "Pipe",
     productCategory: "Pipe",
     requirement: "Powder coated grooved pipe DN50",
     selectedProduct: "Ahlsell powder coated grooved pipe DN50",
@@ -376,10 +482,15 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 496.46,
     unit: "m",
     confidence: 94,
-    notes: "Main distribution and branch pipe"
+    notes: "Main distribution and branch pipe",
+    postNumber: "1403.33.332.1.4",
+    dimension: "DN50",
+    product_id: "pipe-dn50",
+    matchedProduct: "Ahlsell powder coated grooved pipe DN50"
   },
   {
     line: 5,
+    category: "Pipe",
     productCategory: "Pipe",
     requirement: "Powder coated grooved pipe DN40",
     selectedProduct: "Ahlsell powder coated grooved pipe DN40",
@@ -387,10 +498,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 223.83,
     unit: "m",
     confidence: 94,
-    notes: "Detected from sprinkler branch schedule"
+    notes: "Detected from sprinkler branch schedule",
+    postNumber: "1403.33.332.1.5",
+    dimension: "DN40",
+    missing_from_database: true
   },
   {
     line: 6,
+    category: "Pipe",
     productCategory: "Pipe",
     requirement: "Powder coated grooved pipe DN32",
     selectedProduct: "Ahlsell powder coated grooved pipe DN32",
@@ -398,10 +513,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 910.05,
     unit: "m",
     confidence: 93,
-    notes: "Largest detected branch quantity"
+    notes: "Largest detected branch quantity",
+    postNumber: "1403.33.332.1.6",
+    dimension: "DN32",
+    missing_from_database: true
   },
   {
     line: 7,
+    category: "Pipe",
     productCategory: "Pipe",
     requirement: "Powder coated grooved pipe DN25",
     selectedProduct: "Ahlsell powder coated grooved pipe DN25",
@@ -409,10 +528,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 54.75,
     unit: "m",
     confidence: 92,
-    notes: "Terminal branch pipe"
+    notes: "Terminal branch pipe",
+    postNumber: "1403.33.332.1.7",
+    dimension: "DN25",
+    missing_from_database: true
   },
   {
     line: 8,
+    category: "Fitting",
     productCategory: "Fittings",
     requirement: "Grooved bend DN32",
     selectedProduct: "Ahlsell grooved bend DN32",
@@ -420,10 +543,15 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 188,
     unit: "pcs",
     confidence: 91,
-    notes: "Equivalent Victaulic alternative available"
+    notes: "Equivalent Victaulic alternative available",
+    postNumber: "1403.33.332.2.1",
+    dimension: "DN32",
+    product_id: "bend-dn32",
+    matchedProduct: "Ahlsell grooved bend DN32"
   },
   {
     line: 9,
+    category: "Fitting",
     productCategory: "Fittings",
     requirement: "Grooved bend DN25",
     selectedProduct: "Ahlsell grooved bend DN25",
@@ -431,10 +559,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 127,
     unit: "pcs",
     confidence: 91,
-    notes: "Matched by dimension and joint type"
+    notes: "Missing database product for dimension and joint type",
+    postNumber: "1403.33.332.2.2",
+    dimension: "DN25",
+    missing_from_database: true
   },
   {
     line: 10,
+    category: "Equipment",
     productCategory: "Sprinkler connection",
     requirement: "Flexible sprinkler hose DN25",
     selectedProduct: "Ahlsell flexible sprinkler hose DN25",
@@ -442,10 +574,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 386,
     unit: "pcs",
     confidence: 89,
-    notes: "Max equivalent length 15 m"
+    notes: "Max equivalent length 15 m",
+    postNumber: "1403.33.332.3.1",
+    dimension: "DN25",
+    missing_from_database: true
   },
   {
     line: 11,
+    category: "Sprinkler",
     productCategory: "Sprinkler heads",
     requirement: "QR K80 68°C sprinkler head DN15",
     selectedProduct: "Ahlsell QR K80 standard spray DN15",
@@ -453,10 +589,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 306,
     unit: "pcs",
     confidence: 97,
-    notes: "NFPA 13, FM/UL listed"
+    notes: "NFPA 13, FM/UL listed",
+    postNumber: "1403.33.333.1.1",
+    product_id: "sprinkler-qr-k80-pendent",
+    matchedProduct: "Ahlsell QR K80 standard spray DN15"
   },
   {
     line: 12,
+    category: "Sprinkler",
     productCategory: "Sprinkler heads",
     requirement: "QR K80 upright sprinkler head",
     selectedProduct: "Viking QR K80 upright sprinkler head",
@@ -464,10 +604,13 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 220,
     unit: "pcs",
     confidence: 94,
-    notes: "Equivalent product selected"
+    notes: "Missing upright sprinkler database match",
+    postNumber: "1403.33.333.1.2",
+    missing_from_database: true
   },
   {
     line: 13,
+    category: "Sprinkler",
     productCategory: "Sprinkler heads",
     requirement: "QR K80 pendent sprinkler head",
     selectedProduct: "Ahlsell QR K80 pendent sprinkler head",
@@ -475,10 +618,13 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 118,
     unit: "pcs",
     confidence: 94,
-    notes: "Matched to ceiling mounted areas"
+    notes: "Missing pendent sprinkler database match",
+    postNumber: "1403.33.333.1.3",
+    missing_from_database: true
   },
   {
     line: 14,
+    category: "Valve",
     productCategory: "Valves",
     requirement: "Drain valve DN32",
     selectedProduct: "Ahlsell drain valve DN32",
@@ -486,10 +632,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 9,
     unit: "pcs",
     confidence: 90,
-    notes: "Review location before ordering"
+    notes: "Review location before ordering",
+    postNumber: "1403.33.334.1.1",
+    dimension: "DN32",
+    missing_from_database: true
   },
   {
     line: 15,
+    category: "Valve",
     productCategory: "Valves",
     requirement: "Monitored butterfly valve DN65",
     selectedProduct: "Ahlsell monitored butterfly valve DN65",
@@ -497,10 +647,15 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 5,
     unit: "pcs",
     confidence: 91,
-    notes: "Sprinkler zone valve"
+    notes: "Sprinkler zone valve",
+    postNumber: "1403.33.334.1.2",
+    dimension: "DN65",
+    product_id: "monitored-valve-dn65",
+    matchedProduct: "Ahlsell monitored butterfly valve DN65"
   },
   {
     line: 16,
+    category: "Valve",
     productCategory: "Valves",
     requirement: "Check valve DN65",
     selectedProduct: "Victaulic check valve DN65",
@@ -508,10 +663,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 5,
     unit: "pcs",
     confidence: 90,
-    notes: "Compatible equivalent selected"
+    notes: "Missing check valve database match",
+    postNumber: "1403.33.334.1.3",
+    dimension: "DN65",
+    missing_from_database: true
   },
   {
     line: 17,
+    category: "Equipment",
     productCategory: "Monitoring",
     requirement: "Flow switch",
     selectedProduct: "Ahlsell sprinkler flow switch",
@@ -519,10 +678,14 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 6,
     unit: "pcs",
     confidence: 88,
-    notes: "Coordinate with fire alarm interface"
+    notes: "Coordinate with fire alarm interface",
+    postNumber: "1403.33.335.1.1",
+    product_id: "flow-switch",
+    matchedProduct: "Ahlsell sprinkler flow switch"
   },
   {
     line: 18,
+    category: "Equipment",
     productCategory: "Monitoring",
     requirement: "I/O unit for flow switch",
     selectedProduct: "Ahlsell I/O unit for flow switch",
@@ -530,7 +693,9 @@ export const demoMaterialLines: DemoMaterialLine[] = [
     quantity: 6,
     unit: "pcs",
     confidence: 88,
-    notes: "Accessory for monitored flow switch"
+    notes: "Accessory for monitored flow switch",
+    postNumber: "1403.33.335.1.2",
+    missing_from_database: true
   }
 ];
 

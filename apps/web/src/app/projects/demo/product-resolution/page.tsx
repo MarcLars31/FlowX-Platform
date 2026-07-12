@@ -6,14 +6,21 @@ import { DemoBadge } from "@/components/DemoBadge";
 import { DemoFlowNav } from "@/components/DemoFlowNav";
 import { ProductResolutionTable } from "@/components/ProductResolutionTable";
 import {
+  demoMaterialLines,
   demoProductResolutionRows,
   demoProjectProfile
 } from "@/lib/mock-data";
+import { getMissingProducts } from "@/lib/pipeline-analysis";
 
 const explanation =
   "FlowX selected this product because it matches the detected standard, pressure rating, dimension, system type and supplier preference. Alternative products are shown when they meet the same compliance requirements.";
 
 export default function ProductResolutionPage() {
+  const missingProducts = getMissingProducts(demoMaterialLines);
+  const isBalanced =
+    demoProductResolutionRows.length + missingProducts.length ===
+    demoMaterialLines.length;
+
   return (
     <div className="space-y-6">
       <DemoFlowNav />
@@ -46,11 +53,12 @@ export default function ProductResolutionPage() {
 
       <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             {[
-              ["Requirements", `${demoProductResolutionRows.length}`],
-              ["Standard", demoProjectProfile.standard],
-              ["Supplier", demoProjectProfile.preferredSupplier]
+              ["Material items", `${demoMaterialLines.length}`],
+              ["Matched", `${demoProductResolutionRows.length}`],
+              ["Missing", `${missingProducts.length}`],
+              ["Validation", isBalanced ? "Balanced" : "Review"]
             ].map(([label, value], index) => {
               const Icon = index === 0 ? Route : index === 1 ? ShieldCheck : PackageCheck;
 
@@ -75,7 +83,10 @@ export default function ProductResolutionPage() {
             })}
           </div>
 
-          <ProductResolutionTable rows={demoProductResolutionRows} />
+          <ProductResolutionTable
+            materialItems={demoMaterialLines}
+            rows={demoProductResolutionRows}
+          />
         </div>
 
         <div className="space-y-6">

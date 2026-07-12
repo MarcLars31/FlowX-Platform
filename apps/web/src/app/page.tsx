@@ -60,7 +60,7 @@ export default function LoginPage() {
               className="space-y-5"
               onSubmit={(event) => {
                 event.preventDefault();
-                router.push("/dashboard");
+                router.push("/admin");
               }}
             >
               <Input
