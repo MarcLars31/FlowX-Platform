@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
     "test:authz": "node --import tsx --test src/lib/platform-role.test.ts",
+    "test:rbac": "node --import tsx --test src/lib/organization-rbac.test.ts",
     "test:extractor": "node --import tsx --test src/modules/pdf-extractor/extractor.test.ts",
     "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts"
   },

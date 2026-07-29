@@ -1,117 +1,107 @@
 import Link from "next/link";
-import { ArrowRight, Plus } from "lucide-react";
-import { Badge } from "@/components/Badge";
-import { Button } from "@/components/Button";
-import { ProjectCard } from "@/components/ProjectCard";
-import { StatCard } from "@/components/StatCard";
-import { recentProjects, stats } from "@/lib/mock-data";
+import {
+  ArrowRight,
+  Building2,
+  Newspaper,
+  PackageSearch,
+  Sparkles
+} from "lucide-react";
+import { getOrganizationContext } from "@/lib/organization-context";
 
-function projectTone(status: string) {
-  if (status === "Issue") return "rose";
-  if (status === "Procurement") return "teal";
-  if (status === "Validation") return "amber";
-  return "blue";
-}
+const news = [
+  {
+    category: "FlowX",
+    title: "Säkrare samarbete med personliga konton",
+    description:
+      "Organisation, team och projektåtkomst är separerade för tydlig spårbarhet."
+  },
+  {
+    category: "Branschnyhet",
+    title: "Teknisk produktdata får en tydligare roll i projektflödet",
+    description:
+      "Samlad produktinformation minskar manuella överlämningar mellan roller."
+  }
+];
 
-export default function DashboardPage() {
-  const highlightedProject = recentProjects[0];
+export default async function DashboardPage() {
+  const context = await getOrganizationContext();
+  if (!context) return null;
+  const canSearchProducts =
+    context.permissions.includes("product.search") ||
+    context.permissions.includes("product.view");
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-            Dashboard
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink-950">
-            Welcome back, Marcus
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-600">
-            Project activity, engineering throughput and supplier-ready outputs
-            for Demo VVS AS.
-          </p>
-        </div>
-        <Link href="/projects/new">
-          <Button>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Create New Project
-          </Button>
-        </Link>
-      </div>
+    <div className="space-y-8">
+      <header className="rounded-xl bg-ink-950 px-6 py-8 text-white shadow-sm sm:px-8">
+        <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-300">
+          Välkommen till FlowX
+        </p>
+        <h1 className="mt-3 max-w-3xl text-3xl font-semibold">
+          Produktkunskap och branschnyheter för {context.organization.name}
+        </h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-300">
+          Startsidan är gemensam för alla kundroller. Företagsspecifika
+          arbetsytor visas endast i den behörighetsstyrda navigationen.
+        </p>
+      </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.label} stat={stat} />
-        ))}
+      <section className="grid gap-4 md:grid-cols-3">
+        {canSearchProducts && (
+          <Link
+            href="/products"
+            className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm transition hover:border-flow-300"
+          >
+            <PackageSearch className="h-6 w-6 text-flow-700" aria-hidden="true" />
+            <h2 className="mt-4 font-semibold text-ink-950">Produktdatabas</h2>
+            <p className="mt-2 text-sm leading-6 text-ink-600">
+              Sök produkter, teknisk information och datablad.
+            </p>
+          </Link>
+        )}
+        <article className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm">
+          <Building2 className="h-6 w-6 text-flow-700" aria-hidden="true" />
+          <h2 className="mt-4 font-semibold text-ink-950">
+            Företag och leverantörer
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-ink-600">
+            En plats för leverantörsnyheter, lanseringar och relevant
+            marknadsföring.
+          </p>
+        </article>
+        <article className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm">
+          <Sparkles className="h-6 w-6 text-flow-700" aria-hidden="true" />
+          <h2 className="mt-4 font-semibold text-ink-950">Nya produkter</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-600">
+            Nya och uppdaterade produkter från FlowX produktdatabas.
+          </p>
+        </article>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
-        <div className="overflow-hidden rounded-lg border border-ink-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-ink-200 px-5 py-4">
-            <h2 className="text-base font-semibold text-ink-950">
-              Recent projects
-            </h2>
-            <Link
-              href="/projects/demo"
-              className="inline-flex items-center gap-1 text-sm font-semibold text-flow-700"
-            >
-              Open workspace
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-ink-200">
-              <thead className="bg-ink-50">
-                <tr>
-                  {["Project", "Customer", "Standard", "Status", "Updated"].map(
-                    (heading) => (
-                      <th
-                        key={heading}
-                        scope="col"
-                        className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-ink-500"
-                      >
-                        {heading}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100">
-                {recentProjects.map((project) => (
-                  <tr key={project.id} className="hover:bg-ink-50/70">
-                    <td className="whitespace-nowrap px-5 py-4">
-                      <Link
-                        href="/projects/demo"
-                        className="text-sm font-semibold text-ink-950 hover:text-flow-700"
-                      >
-                        {project.name}
-                      </Link>
-                      <p className="mt-1 text-xs text-ink-500">
-                        {project.systemType}
-                      </p>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-4 text-sm text-ink-600">
-                      {project.customer}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-4 text-sm text-ink-600">
-                      {project.standard}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-4">
-                      <Badge tone={projectTone(project.status)}>
-                        {project.status}
-                      </Badge>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-4 text-sm text-ink-500">
-                      {project.updatedAt}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <section>
+        <div className="flex items-center gap-3">
+          <Newspaper className="h-5 w-5 text-flow-700" aria-hidden="true" />
+          <h2 className="text-xl font-semibold text-ink-950">Senaste nytt</h2>
         </div>
-
-        <ProjectCard project={highlightedProject} />
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {news.map((item) => (
+            <article
+              key={item.title}
+              className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-flow-700">
+                {item.category}
+              </p>
+              <h3 className="mt-2 font-semibold text-ink-950">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-ink-600">
+                {item.description}
+              </p>
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-flow-700">
+                Läs mer
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </span>
+            </article>
+          ))}
+        </div>
       </section>
     </div>
   );

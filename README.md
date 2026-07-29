@@ -11,7 +11,7 @@ produktmatchning och versionshanterad materiallista.
 
 **Version:** 0.1
 
-**Status:** arkitekturfas och aktiv prototyputveckling
+**Status:** fas 1 för organisation/RBAC färdig i koden, ännu inte driftsatt
 
 **Ägare:** Marcus Larsson
 
@@ -24,10 +24,13 @@ Nuvarande prototyp innehåller:
 - Granskningskö innan en produkt publiceras.
 - PDF-textutvinning och teknisk normalisering.
 - Lokalt analys- och materiallisteflöde.
+- Organisations-, medlems-, roll- och behörighetsgrund.
+- Team- och projektspecifik åtkomst skyddad av RLS.
+- Soft delete och audit-logg för projektlivscykeln.
 
 Projekt-PDF, analysresultat och materiallista är ännu inte permanent kopplade
-till projektet. Organisationer, team, fullständig RBAC, soft delete och
-audit-logg återstår.
+till projektets nya organisationsstruktur. E-postleverans för inbjudningar
+och fullständiga administrationsflöden fortsätter i nästa fas.
 
 > **Säkerhetsstatus:** prototypen är inte produktionsredo. Läs
 > [säkerhetsgranskningen](docs/15-security-risks.md) före driftsättning eller
@@ -81,6 +84,9 @@ Lägg aldrig miljövariabelvärden, tokens eller Supabase-nycklar i Git.
 ```powershell
 cd apps/web
 npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd run test:authz
+npm.cmd run test:rbac
 npm.cmd run test:extractor
 npm.cmd run test:normalizer
 npm.cmd run build
@@ -105,6 +111,10 @@ ska inte versionshanteras.
 - [Developer handover](docs/13-developer-handover.md)
 - [Startprompt för ett nytt Codex-konto](docs/14-new-codex-start-prompt.md)
 - [Verifierade säkerhetsrisker](docs/15-security-risks.md)
+- [Organisation/RBAC-baseline](docs/16-organization-rbac-foundation.md)
+- [Organisation/RBAC-drift och manuella steg](docs/17-organization-rbac-operations.md)
+- [Fas 1 – slutförd leverans och handover](docs/18-phase-1-completion-handover.md)
+- [Startprompt för nästa Codex-agent](docs/19-next-codex-phase-2-prompt.md)
 
 ### Strategisk arkitektur
 
@@ -133,6 +143,7 @@ ska inte versionshanteras.
 1. Bevara och dela upp befintliga ocommittade kodändringar.
 2. Åtgärda P0-riskerna i admin- och produktreviewflödet.
 3. Synkronisera live-schema och migrationshistorik.
-4. Inför organisationer, medlemskap, roller och projektåtkomst.
-5. Spara projekt-PDF, analyser och materiallistor permanent.
-6. Inför soft delete, audit-logg och versionshanterade tekniska resultat.
+4. Driftsätt och verifiera organisation/RBAC-migrationerna i staging.
+5. Slutför inbjudnings-, medlems- och teamadministration.
+6. Spara projekt-PDF, analyser och materiallistor permanent.
+7. Inför versionshanterade tekniska resultat och retention-jobb.

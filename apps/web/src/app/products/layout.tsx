@@ -5,5 +5,9 @@ export default function ProductsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <AuthenticatedAppShell>{children}</AuthenticatedAppShell>;
+  return (
+    <AuthenticatedAppShell anyPermissions={["product.search", "product.view"]}>
+      {children}
+    </AuthenticatedAppShell>
+  );
 }

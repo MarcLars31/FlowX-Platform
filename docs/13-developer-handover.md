@@ -1,5 +1,8 @@
 # FlowX developer handover
 
+> Historisk nulägesbild före organisation/RBAC-arbetet. För den aktuella
+> leveransen, läs `18-phase-1-completion-handover.md`.
+
 > Senast verifierad: 2026-07-26
 > Repository: `MarcLars31/FlowX-Platform`
 > Arbetsbranch vid granskningen: `Frontend-`

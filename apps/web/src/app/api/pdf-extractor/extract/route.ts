@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireAuthenticatedApi } from "@/lib/platform-api-authorization";
+import { requireOrganizationApi } from "@/lib/organization-api-authorization";
+import { getCurrentUser } from "@/lib/supabase-auth";
+import { isPlatformAdmin } from "@/lib/platform-role";
 import { extractTechnicalSpecificationFromPages } from "@/modules/pdf-extractor/extractor";
 import {
   samplePdfFileName,
@@ -12,8 +14,18 @@ export const runtime = "nodejs";
 const maxPdfBytes = 30 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  const authorizationError = await requireAuthenticatedApi();
-  if (authorizationError) return authorizationError;
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: "Authentication is required." },
+      { status: 401 }
+    );
+  }
+
+  if (!isPlatformAdmin(user)) {
+    const authorization = await requireOrganizationApi(["analysis.create"]);
+    if (authorization.error) return authorization.error;
+  }
 
   try {
     const formData = await request.formData();

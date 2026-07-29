@@ -3,13 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
+  Building2,
   ClipboardCheck,
   FileJson,
-  PackageSearch
+  FolderKanban,
+  Home,
+  PackageSearch,
+  Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
 
-const navigation = [
+type SidebarItem = {
+  name: string;
+  href: string;
+  icon: typeof Home;
+  exact?: boolean;
+};
+
+const adminNavigation: SidebarItem[] = [
   { name: "JSON Import", href: "/admin", icon: FileJson, exact: true },
   {
     name: "Till godkännande",
@@ -20,8 +33,32 @@ const navigation = [
   { name: "Products", href: "/products", icon: PackageSearch }
 ];
 
-export function Sidebar() {
+const organizationIcons = {
+  home: Home,
+  products: PackageSearch,
+  projects: FolderKanban,
+  organization: Building2,
+  trash: Trash2,
+  activity: Activity
+} satisfies Record<OrganizationNavigationItem["icon"], typeof Home>;
+
+export function Sidebar({
+  navigation,
+  workspaceName = "FlowX",
+  workspaceLabel = "Platform"
+}: {
+  navigation?: readonly OrganizationNavigationItem[];
+  workspaceName?: string;
+  workspaceLabel?: string;
+}) {
   const pathname = usePathname();
+  const items: SidebarItem[] = navigation
+    ? navigation.map((item) => ({
+        name: item.name,
+        href: item.href,
+        icon: organizationIcons[item.icon]
+      }))
+    : adminNavigation;
 
   return (
     <aside className="flex h-full w-full flex-col bg-ink-950 text-white">
@@ -30,13 +67,15 @@ export function Sidebar() {
           FX
         </div>
         <div>
-          <p className="text-base font-semibold leading-5">FlowX</p>
-          <p className="text-xs text-ink-400">Platform</p>
+          <p className="max-w-40 truncate text-base font-semibold leading-5">
+            {workspaceName}
+          </p>
+          <p className="text-xs text-ink-400">{workspaceLabel}</p>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navigation.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const hrefPath = item.href.split("#")[0];
           const isActive = item.exact
@@ -61,8 +100,10 @@ export function Sidebar() {
 
       <div className="border-t border-white/10 p-4">
         <div className="rounded-lg bg-white/6 p-3">
-          <p className="text-sm font-medium text-white">Demo VVS AS</p>
-          <p className="mt-1 text-xs text-ink-400">Prototype workspace</p>
+          <p className="truncate text-sm font-medium text-white">
+            {workspaceName}
+          </p>
+          <p className="mt-1 text-xs text-ink-400">{workspaceLabel}</p>
         </div>
       </div>
     </aside>

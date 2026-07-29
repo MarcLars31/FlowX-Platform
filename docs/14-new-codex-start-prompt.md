@@ -1,5 +1,8 @@
 # Startprompt för ett nytt Codex-konto
 
+> Den här prompten beskriver läget före fas 1. Använd i stället den aktuella
+> prompten i `19-next-codex-phase-2-prompt.md`.
+
 Kopiera prompten nedan till en ny Codex-task efter att repositoryt har öppnats.
 
 ---

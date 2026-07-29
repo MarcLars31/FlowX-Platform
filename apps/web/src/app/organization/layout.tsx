@@ -1,6 +1,6 @@
 import { AuthenticatedAppShell } from "@/components/AuthenticatedAppShell";
 
-export default function ProjectsLayout({
+export default function OrganizationLayout({
   children
 }: {
   children: React.ReactNode;
@@ -8,11 +8,12 @@ export default function ProjectsLayout({
   return (
     <AuthenticatedAppShell
       anyPermissions={[
-        "project.view_own",
-        "project.view_team",
-        "project.view_organization",
-        "project.view_all",
-        "project.create"
+        "organization.update",
+        "member.view",
+        "team.view",
+        "subscription.view",
+        "audit_log.view",
+        "project.restore"
       ]}
     >
       {children}
