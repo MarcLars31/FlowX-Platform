@@ -1,8 +1,0 @@
-node_modules/
-apps/web/node_modules/
-.next/
-apps/web/.next/
-dist/
-build/
-.env
-.env.local

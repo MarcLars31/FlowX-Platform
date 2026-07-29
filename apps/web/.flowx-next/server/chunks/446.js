@@ -1,1 +1,0 @@
-"use strict";exports.id=446,exports.ids=[446],exports.modules={36446:(a,b,c)=>{c.a(a,async(a,d)=>{try{c.d(b,{extractPdfTextPages:()=>g});var e=c(80526),f=a([e]);async function g(a){let b=new e.PDFParse({data:a});try{return(await b.getText()).pages.map(a=>({pageNumber:a.num,text:a.text}))}finally{await b.destroy()}}e=(f.then?(await f)():f)[0],d()}catch(a){d(a)}})}};
