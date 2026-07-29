@@ -1,0 +1,149 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin",
+      "regex": "^/admin(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin(?:/)?$"
+    },
+    {
+      "page": "/admin/review",
+      "regex": "^/admin/review(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/review(?:/)?$"
+    },
+    {
+      "page": "/company",
+      "regex": "^/company(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/company(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/intelligence",
+      "regex": "^/intelligence(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/intelligence(?:/)?$"
+    },
+    {
+      "page": "/news",
+      "regex": "^/news(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/news(?:/)?$"
+    },
+    {
+      "page": "/partners",
+      "regex": "^/partners(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/partners(?:/)?$"
+    },
+    {
+      "page": "/products",
+      "regex": "^/products(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/products(?:/)?$"
+    },
+    {
+      "page": "/profile",
+      "regex": "^/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/profile(?:/)?$"
+    },
+    {
+      "page": "/projects/demo",
+      "regex": "^/projects/demo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/projects/demo(?:/)?$"
+    },
+    {
+      "page": "/projects/demo/analysis",
+      "regex": "^/projects/demo/analysis(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/projects/demo/analysis(?:/)?$"
+    },
+    {
+      "page": "/projects/demo/material-list",
+      "regex": "^/projects/demo/material\\-list(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/projects/demo/material\\-list(?:/)?$"
+    },
+    {
+      "page": "/projects/demo/product-resolution",
+      "regex": "^/projects/demo/product\\-resolution(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/projects/demo/product\\-resolution(?:/)?$"
+    },
+    {
+      "page": "/projects/demo/upload",
+      "regex": "^/projects/demo/upload(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/projects/demo/upload(?:/)?$"
+    },
+    {
+      "page": "/projects/new",
+      "regex": "^/projects/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/projects/new(?:/)?$"
+    },
+    {
+      "page": "/settings",
+      "regex": "^/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

@@ -1,0 +1,1082 @@
+{
+  "id": "05d94a59-6dae-4430-ab5a-25c4465ddd1d",
+  "originalFileName": "06.13.pdf",
+  "storedFileName": "05d94a59-6dae-4430-ab5a-25c4465ddd1d-06.13.pdf",
+  "sizeBytes": 387065,
+  "uploadedAt": "2026-07-25T06:40:08.142Z",
+  "status": "Reviewed - ready for export",
+  "analysis": {
+    "extractedAt": "2026-07-25T06:40:08.864Z",
+    "extractor": {
+      "pageCount": 5,
+      "method": "PDF Product Extractor 1.0",
+      "textMethod": "pdfplumber"
+    },
+    "productData": {
+      "products": [
+        {
+          "sin": "HP-70ES-2.375",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 2\" / DN50",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "2\" / DN50",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "2",
+            "nominalSizeDN": "DN50",
+            "actualOutsideDiameterInches": 2.375,
+            "actualOutsideDiameterMm": 60.3,
+            "maximumAllowablePipeEndSeparationInches": 0.19,
+            "maximumAllowablePipeEndSeparationMm": 4.8,
+            "boltQuantity": 2,
+            "boltSizeInches": "5/8 x 2 3/4",
+            "dimensionXInches": 3.5,
+            "dimensionXMm": 89,
+            "dimensionYInches": 6.5,
+            "dimensionYMm": 165,
+            "dimensionZInches": 1.88,
+            "dimensionZMm": 48,
+            "weightLb": 3.3,
+            "weightKg": 1.5,
+            "maximumWorkingPressureKPa": 17237,
+            "maximumEndLoadLb": 11075,
+            "maximumEndLoadN": 49264,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 2500,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-2.875",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 2 1/2\" / OD 73 mm",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "2 1/2\" / OD 73 mm",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "2 1/2",
+            "actualOutsideDiameterInches": 2.875,
+            "actualOutsideDiameterMm": 73,
+            "maximumAllowablePipeEndSeparationInches": 0.19,
+            "maximumAllowablePipeEndSeparationMm": 4.8,
+            "boltQuantity": 2,
+            "boltSizeInches": "5/8 x 3 1/2",
+            "dimensionXInches": 4,
+            "dimensionXMm": 102,
+            "dimensionYInches": 7.13,
+            "dimensionYMm": 181,
+            "dimensionZInches": 1.88,
+            "dimensionZMm": 48,
+            "weightLb": 4,
+            "weightKg": 1.8,
+            "maximumWorkingPressureKPa": 17237,
+            "maximumEndLoadLb": 16230,
+            "maximumEndLoadN": 72195,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 2500,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-3.5",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 3\" / DN80",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "3\" / DN80",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "3",
+            "nominalSizeDN": "DN80",
+            "actualOutsideDiameterInches": 3.5,
+            "actualOutsideDiameterMm": 88.9,
+            "maximumAllowablePipeEndSeparationInches": 0.19,
+            "maximumAllowablePipeEndSeparationMm": 4.8,
+            "boltQuantity": 2,
+            "boltSizeInches": "5/8 x 3 1/2",
+            "dimensionXInches": 4.75,
+            "dimensionXMm": 121,
+            "dimensionYInches": 7.75,
+            "dimensionYMm": 197,
+            "dimensionZInches": 1.88,
+            "dimensionZMm": 48,
+            "weightLb": 4.6,
+            "weightKg": 2.1,
+            "maximumWorkingPressureKPa": 17237,
+            "maximumEndLoadLb": 24053,
+            "maximumEndLoadN": 106993,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 2500,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-4.25",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - OD 4.250\" / OD 108 mm",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "OD 4.250\" / OD 108 mm",
+          "specifications": {
+            "style": "HP-70ES",
+            "actualOutsideDiameterInches": 4.25,
+            "actualOutsideDiameterMm": 108,
+            "maximumAllowablePipeEndSeparationInches": 0.19,
+            "maximumAllowablePipeEndSeparationMm": 4.8,
+            "boltQuantity": 2,
+            "boltSizeInches": "3/4 x 4 1/4",
+            "dimensionXInches": 5.75,
+            "dimensionXMm": 146,
+            "dimensionYInches": 9.63,
+            "dimensionYMm": 244,
+            "dimensionZInches": 2.25,
+            "dimensionZMm": 57,
+            "weightLb": 7.7,
+            "weightKg": 3.5,
+            "maximumWorkingPressureKPa": 17237,
+            "maximumEndLoadLb": 35465,
+            "maximumEndLoadN": 157756,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 2500,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-4.5",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 4\" / DN100",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "4\" / DN100",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "4",
+            "nominalSizeDN": "DN100",
+            "actualOutsideDiameterInches": 4.5,
+            "actualOutsideDiameterMm": 114.3,
+            "maximumAllowablePipeEndSeparationInches": 0.19,
+            "maximumAllowablePipeEndSeparationMm": 4.8,
+            "boltQuantity": 2,
+            "boltSizeInches": "3/4 x 4 1/4",
+            "dimensionXInches": 6,
+            "dimensionXMm": 152,
+            "dimensionYInches": 9.63,
+            "dimensionYMm": 244,
+            "dimensionZInches": 2.13,
+            "dimensionZMm": 54,
+            "weightLb": 7.7,
+            "weightKg": 3.5,
+            "maximumWorkingPressureKPa": 17237,
+            "maximumEndLoadLb": 39761,
+            "maximumEndLoadN": 176866,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 2500,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-5.563",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 5\" / OD 141.3 mm",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "5\" / OD 141.3 mm",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "5",
+            "actualOutsideDiameterInches": 5.563,
+            "actualOutsideDiameterMm": 141.3,
+            "maximumAllowablePipeEndSeparationInches": 0.27,
+            "maximumAllowablePipeEndSeparationMm": 6.9,
+            "boltQuantity": 2,
+            "boltSizeInches": "7/8 x 5 1/2",
+            "dimensionXInches": 7.5,
+            "dimensionXMm": 191,
+            "dimensionYInches": 11.38,
+            "dimensionYMm": 289,
+            "dimensionZInches": 2.38,
+            "dimensionZMm": 60,
+            "weightLb": 14.8,
+            "weightKg": 6.7,
+            "maximumWorkingPressureKPa": 13790,
+            "maximumEndLoadLb": 48611,
+            "maximumEndLoadN": 216233,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 2000,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-6.25",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - OD 6.250\" / OD 159 mm",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "OD 6.250\" / OD 159 mm",
+          "specifications": {
+            "style": "HP-70ES",
+            "actualOutsideDiameterInches": 6.25,
+            "actualOutsideDiameterMm": 159,
+            "maximumAllowablePipeEndSeparationInches": 0.27,
+            "maximumAllowablePipeEndSeparationMm": 6.9,
+            "boltQuantity": 2,
+            "boltSizeInches": "7/8 x 5 1/2",
+            "dimensionXInches": 8.25,
+            "dimensionXMm": 210,
+            "dimensionYInches": 12.63,
+            "dimensionYMm": 321,
+            "dimensionZInches": 2.5,
+            "dimensionZMm": 64,
+            "weightLb": 15.8,
+            "weightKg": 7.2,
+            "maximumWorkingPressureKPa": 13790,
+            "maximumEndLoadLb": 61359,
+            "maximumEndLoadN": 272938,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 2000,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-6.625",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 6\" / DN150",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "6\" / DN150",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "6",
+            "nominalSizeDN": "DN150",
+            "actualOutsideDiameterInches": 6.625,
+            "actualOutsideDiameterMm": 168.3,
+            "maximumAllowablePipeEndSeparationInches": 0.27,
+            "maximumAllowablePipeEndSeparationMm": 6.9,
+            "boltQuantity": 2,
+            "boltSizeInches": "7/8 x 5 1/2",
+            "dimensionXInches": 8.5,
+            "dimensionXMm": 216,
+            "dimensionYInches": 12.63,
+            "dimensionYMm": 321,
+            "dimensionZInches": 2.5,
+            "dimensionZMm": 64,
+            "weightLb": 15.8,
+            "weightKg": 7.2,
+            "maximumWorkingPressureKPa": 13790,
+            "maximumEndLoadLb": 68943,
+            "maximumEndLoadN": 306674,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 2000,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-8.625",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 8\" / DN200",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "8\" / DN200",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "8",
+            "nominalSizeDN": "DN200",
+            "actualOutsideDiameterInches": 8.625,
+            "actualOutsideDiameterMm": 219.1,
+            "maximumAllowablePipeEndSeparationInches": 0.27,
+            "maximumAllowablePipeEndSeparationMm": 6.9,
+            "boltQuantity": 2,
+            "boltSizeInches": "1 x 5 1/2",
+            "dimensionXInches": 11,
+            "dimensionXMm": 279,
+            "dimensionYInches": 15,
+            "dimensionYMm": 381,
+            "dimensionZInches": 2.75,
+            "dimensionZMm": 70,
+            "weightLb": 26.6,
+            "weightKg": 12.1,
+            "maximumWorkingPressureKPa": 10342,
+            "maximumEndLoadLb": 87640,
+            "maximumEndLoadN": 389842,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 1500,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-10.75",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 10\" / DN250",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "10\" / DN250",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "10",
+            "nominalSizeDN": "DN250",
+            "actualOutsideDiameterInches": 10.75,
+            "actualOutsideDiameterMm": 273,
+            "maximumAllowablePipeEndSeparationInches": 0.28,
+            "maximumAllowablePipeEndSeparationMm": 7.1,
+            "boltQuantity": 2,
+            "boltSizeInches": "1 x 6 1/2",
+            "dimensionXInches": 13.38,
+            "dimensionXMm": 340,
+            "dimensionYInches": 17.25,
+            "dimensionYMm": 438,
+            "dimensionZInches": 3,
+            "dimensionZMm": 76,
+            "weightLb": 33.7,
+            "weightKg": 15.3,
+            "maximumWorkingPressureKPa": 8618,
+            "maximumEndLoadLb": 113453,
+            "maximumEndLoadN": 504664,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 1250,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "HP-70ES-12.75",
+          "productName": "Victaulic EndSeal Coupling - Style HP-70ES - 12\" / DN300",
+          "productType": "Rigid EndSeal Coupling",
+          "variantName": "12\" / DN300",
+          "specifications": {
+            "style": "HP-70ES",
+            "nominalSizeInches": "12",
+            "nominalSizeDN": "DN300",
+            "actualOutsideDiameterInches": 12.75,
+            "actualOutsideDiameterMm": 323.9,
+            "maximumAllowablePipeEndSeparationInches": 0.28,
+            "maximumAllowablePipeEndSeparationMm": 7.1,
+            "boltQuantity": 2,
+            "boltSizeInches": "1 x 6 1/2",
+            "dimensionXInches": 15.5,
+            "dimensionXMm": 394,
+            "dimensionYInches": 19,
+            "dimensionYMm": 483,
+            "dimensionZInches": 3,
+            "dimensionZMm": 76,
+            "weightLb": 41.5,
+            "weightKg": 18.8,
+            "maximumWorkingPressureKPa": 8618,
+            "maximumEndLoadLb": 159596,
+            "maximumEndLoadN": 709918,
+            "pipeMaterials": "Carbon steel",
+            "function": "Rigid pipe joint restricting axial or angular movement",
+            "pipePreparation": "Cut or roll grooved to Victaulic EndSeal (ES) specifications",
+            "system": "Victaulic EndSeal (ES)",
+            "housingCoating": "Black enamel. (standard); Hot dipped galvanized conforming to ASTM A153. (optional); Contact Victaulic with your requirements for other coatings. (optional)",
+            "gasketOptions": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "gasketGradeHMTMaxTemperatureC": 82,
+            "gasketGradeT607MaxTemperatureC": 82,
+            "gasketGradeT607Compliance": "API 607 fire testing; NFPA 11 foam systems",
+            "vacuumRating": "Full vacuum, 29.9 in Hg / 760 mm Hg",
+            "heavyWallFittingsRequirement": "Required above 1000 psi/69 bar for 2-6 inch sizes and above 800 psi/55 bar for 8-12 inch sizes"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [],
+          "maxWorkingPressure": [
+            {
+              "pressure": 1250,
+              "units": "psi",
+              "agencies": []
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic Grade \"HMT\" High Modulus Nitrile (EndSeal); Victaulic Grade \"T-607\" Nitrile (EndSeal)",
+            "coverPlate": null
+          },
+          "connectionType": "Victaulic EndSeal (ES) grooved pipe",
+          "adjustment": null
+        }
+      ],
+      "accessories": [],
+      "documentInfo": {
+        "documentNumber": "06.13",
+        "revisionDate": "2021-08-01",
+        "manufacturer": "Victaulic"
+      }
+    },
+    "pages": [
+      {
+        "page": 1,
+        "characterCount": 869,
+        "preview": "Victaulic® EndSeal™ Coupling\nStyle HP-70ES\n06.13\n1.0 PRODUCT DESCRIPTION\nAvailable Sizes\n• 2 – 12\"/DN50 – DN300\nPipe Material\n• Carbon steel\nMaximum Working Pressure\n• Accommodates pressures ranging from full vacuum (29.9 in Hg/760 mm Hg) up to 2500psi/17235 kPa\nOperating Temperature\n• Dependent on gasket selection from section 3.0.\nFunction\n• Provides a rigid pipe joint designed to restrict axial or angular movement\nPipe Preparation\n• Cut or roll grooved in accordance with publication 25.02: Vi"
+      },
+      {
+        "page": 2,
+        "characterCount": 2571,
+        "preview": "victaulic.com\n3.0 SPECIFICATIONS – MATERIAL\nHousing: Ductile iron conforming to ASTM A536, Grade 65-45-12.\nHousing Coating: (specify choice)\nStandard: Black enamel.\nOptional: Hot dipped galvanized conforming to ASTM A153.\nOptional: Contact Victaulic with your requirements for other coatings.\nGasket: (specify choice1)\nVictaulic Grade “HMT” High Modulus Nitrile (EndSeal™)\nHigh Modulus Nitrile (Orange and silver stripe color code). May be specified for oil related services, including air\nwith oil v"
+      },
+      {
+        "page": 3,
+        "characterCount": 2245,
+        "preview": "victaulic.com\n4.0 DIMENSIONS\nStyle HP-70 ES\nY Z\nX\nSize Dimensions Weight\nActual Maximum\nOutside Allowable No. Bolts Imperial Bolt/ Approximate\nNominal Diameter Pipe End Sep.2 Required3 Nut Size4 X Y Z (Each)\ninches inches inches inches inches inches lb\nDN mm mm Qty. inches mm mm mm kg\n2 2.375 0.19 3.50 6.50 1.88 3.3\n2 5/8 x 2 3/4\nDN50 60.3 4.8 89 165 48 1.5\n2 1/2 2.875 0.19 4.00 7.13 1.88 4.0\n2 5/8 x 3 1/2\n73.0 4.8 102 181 48 1.8\n3 3.500 0.19 4.75 7.75 1.88 4.6\n2 5/8 x 3 1/2\nDN80 88.9 4.8 121 19"
+      },
+      {
+        "page": 4,
+        "characterCount": 1989,
+        "preview": "victaulic.com\n5.0 PERFORMANCE\nSize Performance\nActual\nOutside\nNominal Diameter Maximum Working Pressure5 Maximum End Load5\ninches inches psi Lbs.\nDN mm kPa N\n2 2.375 2500 11075\nDN50 60.3 17237 49264\n2 1/2 2.875 2500 16230\n73.0 17237 72195\n3 3.500 2500 24053\nDN80 88.9 17237 106993\n4.250 2500 35465\n108.0 17237 157756\n4 4.500 2500 39761\nDN100 114.3 17237 176866\n5 5.563 2000 48611\n141.3 13790 216233\n6.250 2000 61359\n159.0 13790 272938\n6 6.625 2000 68943\nDN150 168.3 13790 306674\n8 8.625 1500 87640\nDN"
+      },
+      {
+        "page": 5,
+        "characterCount": 2820,
+        "preview": "victaulic.com\n7.0 REFERENCE MATERIALS\n05.01: Victaulic Seal Selection Guide\n07.03 Extra Strong EndSeal Fittings\n10.01: Victaulic Products for Fire Protection Piping Systems - Regulatory Approval Reference Guide\n25.02: EndSeal™ Groove Specifications\n26.01 Victaulic Design Data\n29.01: Victaulic Terms and Conditions of Sale\nI-100: Victaulic Field Installation Handbook\nI-ENDCAP: Victaulic End Cap Installation Safety Instructions\nI-IMPACT: Victaulic Impact Tool Usage Guidelines\nUser Responsibility fo"
+      }
+    ],
+    "sections": [
+      {
+        "id": "section-1",
+        "title": "Document start",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 1,
+        "textPreview": "Victaulic® EndSeal™ Coupling\nStyle HP-70ES\n06.13",
+        "lineCount": 3
+      },
+      {
+        "id": "section-2",
+        "title": "PRODUCT DESCRIPTION",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 1,
+        "textPreview": "Available Sizes\n• 2 – 12\"/DN50 – DN300\nPipe Material\n• Carbon steel\nMaximum Working Pressure\n• Accommodates pressures ranging from full vacuum (29.9 in Hg/760 mm Hg) up to 2500psi/17235 kPa\nOperating Temperature\n• Dependent on gasket selection from section 3.0.\nFunction\n• Provides a rigid pipe joint designed to restrict axial or angular movement\nPipe Preparation\n• Cut or roll grooved in accordance with publication 25.02: Victaulic EndSeal™ Groove Specifications.",
+        "lineCount": 12
+      },
+      {
+        "id": "section-3",
+        "title": "CERTIFICATION/LISTINGS",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 1,
+        "textPreview": "NOTE\n• See publication 10.01 for Fire Protection Certifications/Listings Reference Guide\nALWAYS REFER TO ANY NOTIFICATIONS AT THE END OF THIS DOCUMENT REGARDING PRODUCT INSTALLATION, MAINTENANCE OR SUPPORT.\nvictaulic.com",
+        "lineCount": 4
+      },
+      {
+        "id": "section-4",
+        "title": "1943 Rev H Updated 08/2021 © 2021 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 2,
+        "textPreview": "1\nvictaulic.com",
+        "lineCount": 2
+      },
+      {
+        "id": "section-5",
+        "title": "SPECIFICATIONS – MATERIAL",
+        "sourcePageStart": 2,
+        "sourcePageEnd": 2,
+        "textPreview": "Housing: Ductile iron conforming to ASTM A536, Grade 65-45-12.\nHousing Coating: (specify choice)\nStandard: Black enamel.\nOptional: Hot dipped galvanized conforming to ASTM A153.\nOptional: Contact Victaulic with your requirements for other coatings.\nGasket: (specify choice1)\nVictaulic Grade “HMT” High Modulus Nitrile (EndSeal™)\nHigh Modulus Nitrile (Orange and silver stripe color code). May be specified for oil related services, including air\nwith oil vapor, this gasket may be specified for temperatures rated up to +180°F/+82°C. For water related services,\nthis gasket may be specified for temperatures rated up to +150°F/+66°C. For oil free, dry air services, this gasket\nmay be specified for temperatures rated up to +140°F/+60°C. NOT COMPATIBLE FOR USE WITH HOT WATER\nSERVICES OR STEAM SERVICES.\nVictaulic Grade “T-607” Nitrile (EndSeal™)\nNitrile (Grey gasket color code). May be specified fo",
+        "lineCount": 31
+      },
+      {
+        "id": "section-6",
+        "title": "1943 Rev H Updated 08/2021 © 2021 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 2,
+        "sourcePageEnd": 3,
+        "textPreview": "victaulic.com\n2\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-7",
+        "title": "DIMENSIONS",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "Style HP-70 ES\nY Z\nX\nSize Dimensions Weight\nActual Maximum\nOutside Allowable No. Bolts Imperial Bolt/ Approximate\nNominal Diameter Pipe End Sep.2 Required3 Nut Size4 X Y Z (Each)\ninches inches inches inches inches inches lb\nDN mm mm Qty. inches mm mm mm kg",
+        "lineCount": 9
+      },
+      {
+        "id": "section-8",
+        "title": "2.375 0.19 3.50 6.50 1.88 3.3",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2 5/8 x 2 3/4\nDN50 60.3 4.8 89 165 48 1.5",
+        "lineCount": 2
+      },
+      {
+        "id": "section-9",
+        "title": "1/2 2.875 0.19 4.00 7.13 1.88 4.0",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2 5/8 x 3 1/2",
+        "lineCount": 1
+      },
+      {
+        "id": "section-10",
+        "title": "4.8 102 181 48 1.8",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "3 3.500 0.19 4.75 7.75 1.88 4.6",
+        "lineCount": 1
+      },
+      {
+        "id": "section-11",
+        "title": "5/8 x 3 1/2",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "DN80 88.9 4.8 121 197 48 2.1",
+        "lineCount": 1
+      },
+      {
+        "id": "section-12",
+        "title": "0.19 5.75 9.63 2.25 7.7",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2 3/4 x 4 1/4",
+        "lineCount": 1
+      },
+      {
+        "id": "section-13",
+        "title": "4.8 146 244 57 3.5",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "4 4.500 0.19 6.00 9.63 2.13 7.7",
+        "lineCount": 1
+      },
+      {
+        "id": "section-14",
+        "title": "3/4 x 4 1/4",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "DN100 114.3 4.8 152 244 54 3.5",
+        "lineCount": 1
+      },
+      {
+        "id": "section-15",
+        "title": "5.563 0.27 7.50 11.38 2.38 14.8",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2 7/8 x 5 1/2",
+        "lineCount": 1
+      },
+      {
+        "id": "section-16",
+        "title": "6.9 191 289 60 6.7",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "6.250 0.27 8.25 12.63 2.50 15.8",
+        "lineCount": 1
+      },
+      {
+        "id": "section-17",
+        "title": "7/8 x 5 1/2",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "159.0 6.9 210 321 64 7.2",
+        "lineCount": 1
+      },
+      {
+        "id": "section-18",
+        "title": "6.625 0.27 8.50 12.63 2.50 15.8",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2 7/8 x 5 1/2\nDN150 168.3 6.9 216 321 64 7.2",
+        "lineCount": 2
+      },
+      {
+        "id": "section-19",
+        "title": "8.625 0.27 11.00 15.00 2.75 26.6",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2 1 x 5 1/2\nDN200 219.1 6.9 279 381 70 12.1",
+        "lineCount": 2
+      },
+      {
+        "id": "section-20",
+        "title": "10.750 0.28 13.38 17.25 3.00 33.7",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2 1 x 6 1/2\nDN250 273.0 7.1 340 438 76 15.3",
+        "lineCount": 2
+      },
+      {
+        "id": "section-21",
+        "title": "12.750 0.28 15.50 19.00 3.00 41.5",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2 1 x 6 1/2\nDN300 323.9 7.1 394 483 76 18.8\n2 The Maximum Allowable Pipe End Separation dimension is for system layout purposes only. Style HP-70ES EndSeal couplings are considered rigid connections\nand will not accommodate expansion/contraction or angular movement of the piping system. Contact Victaulic for torsional resistance information.",
+        "lineCount": 4
+      },
+      {
+        "id": "section-22",
+        "title": "Number of bolts required equals number of housing segments.",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "4 Metric thread size bolts are available (color coded gold) for all coupling sizes upon request. Contact Victaulic for details.\nNOTES\n• Pipe shall be grooved to Victaulic® EndSeal™ Pipe Groove Specifications found in Victaulic publication 25.02.\n• Victaulic® Original Groove System (OGS) ductile iron fittings may be used with HP-70ES couplings up to the maximum working pressure of the fittings (1000psi",
+        "lineCount": 4
+      },
+      {
+        "id": "section-23",
+        "title": "– 6”/DN50 – DN150, 800psi 8 – 12”/DN200 – DN300)",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "• Victaulic EndSeal Extra Strong fittings may be used with HP-70ES couplings up to the maximum working pressure of HP-70ES couplings.\n• HP-70ES couplings cannot be used with Victaulic Series 700 Butterfly Valves.",
+        "lineCount": 2
+      },
+      {
+        "id": "section-24",
+        "title": "1943 Rev H Updated 08/2021 © 2021 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 4,
+        "textPreview": "victaulic.com\n3\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-25",
+        "title": "PERFORMANCE",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "Size Performance\nActual\nOutside\nNominal Diameter Maximum Working Pressure5 Maximum End Load5\ninches inches psi Lbs.\nDN mm kPa N",
+        "lineCount": 6
+      },
+      {
+        "id": "section-26",
+        "title": "2.375 2500 11075",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN50 60.3 17237 49264",
+        "lineCount": 1
+      },
+      {
+        "id": "section-27",
+        "title": "1/2 2.875 2500 16230",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "73.0 17237 72195",
+        "lineCount": 1
+      },
+      {
+        "id": "section-28",
+        "title": "3.500 2500 24053",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN80 88.9 17237 106993",
+        "lineCount": 1
+      },
+      {
+        "id": "section-29",
+        "title": "2500 35465",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "108.0 17237 157756",
+        "lineCount": 1
+      },
+      {
+        "id": "section-30",
+        "title": "4.500 2500 39761",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN100 114.3 17237 176866",
+        "lineCount": 1
+      },
+      {
+        "id": "section-31",
+        "title": "5.563 2000 48611",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "141.3 13790 216233",
+        "lineCount": 1
+      },
+      {
+        "id": "section-32",
+        "title": "2000 61359",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "159.0 13790 272938",
+        "lineCount": 1
+      },
+      {
+        "id": "section-33",
+        "title": "6.625 2000 68943",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN150 168.3 13790 306674",
+        "lineCount": 1
+      },
+      {
+        "id": "section-34",
+        "title": "8.625 1500 87640",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN200 219.1 10342 389842",
+        "lineCount": 1
+      },
+      {
+        "id": "section-35",
+        "title": "10.750 1250 113453",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN250 273.0 8618 504664",
+        "lineCount": 1
+      },
+      {
+        "id": "section-36",
+        "title": "12.750 1250 159596",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN300 323.9 8618 709918\n5 Working Pressure and End Load are total, from all internal and external loads, based on standard weight (ANSI) steel pipe, \"ES\" cut or roll grooved in\naccordance with Victaulic specifications. Contact Victaulic for performance on other pipe.\nNOTE\n• WARNING: FOR ONE TIME FIELD TEST ONLY, the Maximum Joint Working Pressure may be increased to 1 ¼ times the figures shown.",
+        "lineCount": 5
+      },
+      {
+        "id": "section-37",
+        "title": "NOTIFICATIONS",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "WARNING\n• Style HP-70ES Couplings shall be used ONLY with pipe that is prepared to Victaulic EndSeal™ \"ES\" specifications. DO NOT attempt to\ninstall Style HP-70ES Couplings on pipe that is prepared to any other groove specification.\n• Style HP-70ES Couplings SHALL NOT be used for installation of Victaulic Series 700 Butterfly Valves.\n• Heavy-wall fittings shall be used for applications with operating pressures over 1000 psi/69 Bar (for 2 – 6-inch/DN50 – DN150 coupling\nsizes) and 800 psi/ 55 Bar (for 8 – 12-inch/DN200 – DN300 coupling sizes).\nFailure to follow these instructions could cause joint failure, resulting in death or serious personal injury and property damage.",
+        "lineCount": 7
+      },
+      {
+        "id": "section-38",
+        "title": "NOTICE",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "• Victaulic does not recommend the use of any furnace butt-welded pipe with sizes NPS 2”/DN50 and smaller\nVictaulic gasketed joint products. This includes, but is not limited to, ASTM A53 Type F pipe.",
+        "lineCount": 2
+      },
+      {
+        "id": "section-39",
+        "title": "1943 Rev H Updated 08/2021 © 2021 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 5,
+        "textPreview": "victaulic.com\n4\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-40",
+        "title": "REFERENCE MATERIALS",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "05.01: Victaulic Seal Selection Guide",
+        "lineCount": 1
+      },
+      {
+        "id": "section-41",
+        "title": "Extra Strong EndSeal Fittings",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "10.01: Victaulic Products for Fire Protection Piping Systems - Regulatory Approval Reference Guide\n25.02: EndSeal™ Groove Specifications",
+        "lineCount": 2
+      },
+      {
+        "id": "section-42",
+        "title": "Victaulic Design Data",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "29.01: Victaulic Terms and Conditions of Sale\nI-100: Victaulic Field Installation Handbook\nI-ENDCAP: Victaulic End Cap Installation Safety Instructions\nI-IMPACT: Victaulic Impact Tool Usage Guidelines\nUser Responsibility for Product Selection and Suitability Note\nEach user bears final responsibility for making a determination as to the suitability of This product shall be manufactured by Victaulic or to Victaulic specifications. All products\nVictaulic products for a particular end-use application, in accordance with industry to be installed in accordance with current Victaulic installation/assembly instructions.\nstandards and project specifications, as well as Victaulic performance, maintenance, Victaulic reserves the right to change product specifications, designs and standard\nsafety, and warning instructions. Nothing in this or any other document, nor any verbal equipment without notic",
+        "lineCount": 21
+      },
+      {
+        "id": "section-43",
+        "title": "1943 Rev H Updated 08/2021 © 2021 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "victaulic.com\n5",
+        "lineCount": 2
+      }
+    ],
+    "warnings": [
+      "Review every product before exporting the JSON.",
+      "Dimension and performance rows are stored as separate editable product variants when present.",
+      "For sprinklers, K-factor is stored as the normalized S.I. value multiplied by ten, for example 6.1 becomes 61.",
+      "Unsupported or changed PDF layouts are rejected instead of creating incomplete product data."
+    ]
+  },
+  "reviewedAt": "2026-07-25T06:40:08.881Z"
+}

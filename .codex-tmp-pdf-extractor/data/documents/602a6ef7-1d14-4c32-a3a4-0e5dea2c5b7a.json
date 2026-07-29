@@ -1,0 +1,550 @@
+{
+  "id": "602a6ef7-1d14-4c32-a3a4-0e5dea2c5b7a",
+  "originalFileName": "10.90.pdf",
+  "storedFileName": "602a6ef7-1d14-4c32-a3a4-0e5dea2c5b7a-10.90.pdf",
+  "sizeBytes": 639142,
+  "uploadedAt": "2026-07-25T09:17:46.334Z",
+  "status": "Reviewed - ready for export",
+  "analysis": {
+    "extractedAt": "2026-07-25T09:17:47.627Z",
+    "extractor": {
+      "pageCount": 9,
+      "method": "PDF Product Extractor 1.0",
+      "textMethod": "pdfplumber"
+    },
+    "productData": {
+      "products": [
+        {
+          "sin": "AH2-48-AB6",
+          "productName": "Victaulic VicFlex Style AB6 Bracket Assembly - AH2-48 Braided Hose",
+          "productType": "VicFlex Sprinkler Fitting Assembly",
+          "variantName": "AH2-48 - 48 inch hose",
+          "specifications": {
+            "style": "AB6",
+            "hoseModel": "AH2-48",
+            "hoseNominalInsideDiameterInches": 1,
+            "hoseNominalInsideDiameterMm": 25,
+            "hoseNominalLengthInches": 48,
+            "hoseNominalLengthMm": 1220,
+            "hoseDimensionAInches": 42.3,
+            "hoseDimensionAMm": 1073,
+            "straightReducerLengthInches": 5.75,
+            "straightReducerLengthMm": 140,
+            "maximumWorkingPressureKPa": 1375,
+            "maximumWorkingPressureBar": 12,
+            "maximumWorkingTemperatureStandardF": 150,
+            "maximumWorkingTemperatureStandardC": 65,
+            "maximumWorkingTemperatureHighF": 225,
+            "maximumWorkingTemperatureHighC": 107,
+            "minimumBendRadiusFMInches": 7,
+            "minimumBendRadiusFMMm": 178,
+            "minimumBendRadiusCULusInches": 2,
+            "minimumBendRadiusCULusMm": 51,
+            "maximumBendsFM": 3,
+            "maximumBendsCULus": 8,
+            "supportedSprinklerKFactors": "5.6; 8.0; 11.2; 16.8",
+            "compatibleSprinklerModels": "V33; V36; V40; V41",
+            "compatibleDrySprinklerSeries": "FL-QR/DRY; FL-QR/DRY/SW; FL-QR/DRY/C; FL-QR/DRY/ST; FL-SR/DRY; FL-SR/DRY/SW; FL-SR/DRY/C; FL-SR/DRY/ST",
+            "availableStyles": "Pendent; Horizontal Sidewall",
+            "availableEscutcheons": "Recessed; Sleeve and Skirt; Flush; Concealed",
+            "bracketMaterial": "Carbon Steel, Zinc-Plated",
+            "uBoltMaterial": "Carbon Steel, Zinc-Plated",
+            "hexNutMaterial": "Carbon Steel, Zinc-Plated",
+            "adapterMaterial": "Carbon Steel, Zinc Plated",
+            "plugMaterial": "Carbon Steel, Zinc Plated",
+            "washerMaterial": "Carbon Steel, Zinc-Plated",
+            "screwMaterial": "Carbon Steel, Zinc-Plated",
+            "bracketSealOptions": "EPDM/Neoprene foam (150F/65C); Silicone closed-cell foam (225F/107C)",
+            "flexibleHoseMaterial": "300-series Stainless Steel",
+            "gasketSeal": "Victaulic EPDM",
+            "isolationRingMaterial": "Nylon",
+            "temperatureSelectionDataFormat": "Rows separated by newline; columns by |; paired values by /",
+            "barrelOrderLengthSelection40F": "Temperature Maintained at 40°F/4.4°C Minimum |  | \nAmbient Temperature / Exposed to Discharge / End of Sprinkler | \"D\" / Freezer Ceiling / or Wall Thickness | \"A\" / Order Length\nDown to 20°F | 3 - 6\"/76 - 152 mm | 12\"/305 mm\nDown to -6.7°C | 7 - 12\"/178 - 305 mm | 18\"/457 mm\n19°F to 0°F / -7.2°C to -17.8°C | 3 - 6\"/76 - 152 mm / 7 - 12\"/178 - 305 mm | 18\"/457 mm / 24\"/610 mm\n-1°F to -20°F | 3 - 6\"/76 - 152 mm | 24\"/610 mm\n-18.3°C to -28.9°C | 7 - 12\"/178 - 305 mm | 30\"/762 mm\n-21°F to -30°F / -29.4°C to -34.4°C | 3 - 6\"/76 - 152 mm / 7 - 12\"/178 - 305 mm | 24\"/610 mm / 30\"/762 mm\n-31°F to -40°F | 3 - 6\"/76 - 152 mm | 24\"/610 mm\n-35.0°C to -40.0°C | 7 - 12\"/178 - 305 mm | 30\"/762 mm",
+            "barrelOrderLengthSelection50F": "Temperature maintained at 50°F/10°C |  | \nmbient Temperature / xposed to Discharge / End of Sprinkler | \"D\" / Freezer Ceiling / or Wall Thickness | \"A\" / Order Length\nDown to 20°F | 3 - 6\"/76 - 152mm | 12\"/305 mm\nDown to -6.7°C | 7 - 12\"/178 - 305mm | 18\"/457 mm\n19°F to 0°F / -7.2°C to -17.8°C | 3 - 6\"/76 - 152mm / 7 - 12\"/178 - 305mm | 12\"/305 mm / 18\"/457 mm\n-1°F to -20°F | 3 - 6\"/76 - 152mm | 18\"/457 mm\n-18.3°C to -28.9°C | 7 - 12\"/178 - 305mm | 18\"/457 mm\n-21°F to -30°F / -29.4°C to -34.4°C | 3 - 6\"/76 - 152mm / 7 - 12\"/178 - 305mm | 18\"/457 mm / 24\"/610 mm\n-31°F to -40°F | 3 - 6\"/76 - 152mm | 18\"/457 mm\n-35.0°C to -40.0°C | 7 - 12\"/178 - 305mm | 24\"/610 mm",
+            "barrelOrderLengthSelection60F": "Temperature maintained at 60°F/15.6°C |  | \nAmbient Temperature / Exposed to Discharge / End of Sprinkler | \"D\" / Freezer Ceiling / or Wall Thickness | \"A\" / Order Length\nDown to 20°F | 3 - 6\"/76 - 152mm | 12\"/305 mm\nDown to -6.7°C | 7 - 12\"/178 - 305mm | 18\"/457 mm\n19°F to 0°F / -7.2°C to -17.8°C | 3 - 6\"/76 - 152mm / 7 - 12\"/178 - 305mm | 12\"/305 mm / 18\"/457 mm\n-1°F to -20°F | 3 - 6\"/76 - 152mm | 12\"/305 mm\n-18.3°C to -28.9°C | 7 - 12\"/178 - 305mm | 18\"/457 mm\n-21°F to -30°F / -29.4°C to -34.4°C | 3 - 6\"/76 - 152mm / 7 - 12\"/178 - 305mm | 12\"/305 mm / 18\"/457 mm\n-31°F to -40°F | 3 - 6\"/76 - 152mm | 12\"/305 mm\n-35.0°C to -40.0°C | 7 - 12\"/178 - 305mm | 18\"/457 mm",
+            "assemblyWeightData": "Hose Model | Sprinkler Model | Sprinkler Barrel Order Length / inches / mm | Weight / lb / kgs\nAH2-48-AB6 / AH2-CC-48-AB6 | V33/V36 | 12 | 9.1\n |  | 305 | 4.1\nAH2-48-AB6 / AH2-CC-48-AB6 | V40 | 12 / 305 | 8.7 / 3.9\nAH2-48-AB6 / AH2-CC-48-AB6 | V33/V36 | 18 | 10.1\n |  | 457 | 4.6\nAH2-48-AB6 / AH2-CC-48-AB6 | V40 | 18 / 457 | 9.6 / 4.4\nAH2-48-AB6 / AH2-CC-48-AB6 | V33/V36 | 24 | 11.1\n |  | 610 | 5.0\nAH2-48-AB6 / AH2-CC-48-AB6 | V40 | 24 / 610 | 10.5 / 4.8\nAH2-48-AB6 / AH2-CC-48-AB6 | V33/V36 | 30 | 11.1\n |  | 762 | 5.0\nAH2-48-AB6 / AH2-CC-48-AB6 | V40 | 30 / 762 | 10.4 / 4.7",
+            "assemblyWeightDataFormat": "Rows separated by newline; columns by |; paired values by /",
+            "frictionLosscULus3BendsEqlFeet": 24,
+            "frictionLosscULus3BendsEqlMeters": 7.3,
+            "frictionLosscULus3BendsMaxBends": 3,
+            "frictionLosscULus8BendsEqlFeet": 37,
+            "frictionLosscULus8BendsEqlMeters": 11.3,
+            "frictionLosscULus8BendsMaxBends": 8,
+            "frictionLossFMK5_6EqlFeet": 23.4,
+            "frictionLossFMK5_6EqlMeters": 7.1,
+            "frictionLossFMK5_6MaxBends": 3,
+            "frictionLossFMK8EqlFeet": 35.5,
+            "frictionLossFMK8EqlMeters": 10.8,
+            "frictionLossFMK8MaxBends": 3
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "cULus",
+              "classification": "Listed",
+              "certificateNumber": null
+            },
+            {
+              "agency": "FM",
+              "classification": "Approved",
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 175,
+              "units": "psi",
+              "agencies": [
+                "cULus",
+                "FM"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [
+            "AH2-48-AB6"
+          ],
+          "physicalCharacteristics": {
+            "frame": "Carbon Steel, Zinc-Plated",
+            "supportCup": "Carbon Steel, Zinc-Plated",
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic EPDM; AB6 seal options: EPDM/Neoprene or silicone",
+            "coverPlate": null
+          },
+          "connectionType": "1\" NPT/BSPT male thread",
+          "adjustment": "Dry-sprinkler barrel order length: 12-30 inches"
+        },
+        {
+          "sin": "AH2-CC-48-AB6",
+          "productName": "Victaulic VicFlex Style AB6 Bracket Assembly - AH2-CC-48 Braided Hose",
+          "productType": "VicFlex Sprinkler Fitting Assembly",
+          "variantName": "AH2-CC-48 - 48 inch hose",
+          "specifications": {
+            "style": "AB6",
+            "hoseModel": "AH2-CC-48",
+            "hoseNominalInsideDiameterInches": 1,
+            "hoseNominalInsideDiameterMm": 25,
+            "hoseNominalLengthInches": 48,
+            "hoseNominalLengthMm": 1220,
+            "hoseDimensionAInches": 41.5,
+            "hoseDimensionAMm": 1054,
+            "straightReducerLengthInches": 5.75,
+            "straightReducerLengthMm": 140,
+            "maximumWorkingPressureKPa": 1375,
+            "maximumWorkingPressureBar": 12,
+            "maximumWorkingTemperatureStandardF": 150,
+            "maximumWorkingTemperatureStandardC": 65,
+            "maximumWorkingTemperatureHighF": 225,
+            "maximumWorkingTemperatureHighC": 107,
+            "minimumBendRadiusFMInches": 7,
+            "minimumBendRadiusFMMm": 178,
+            "minimumBendRadiusCULusInches": 2,
+            "minimumBendRadiusCULusMm": 51,
+            "maximumBendsFM": 3,
+            "maximumBendsCULus": 8,
+            "supportedSprinklerKFactors": "5.6; 8.0; 11.2; 16.8",
+            "compatibleSprinklerModels": "V33; V36; V40; V41",
+            "compatibleDrySprinklerSeries": "FL-QR/DRY; FL-QR/DRY/SW; FL-QR/DRY/C; FL-QR/DRY/ST; FL-SR/DRY; FL-SR/DRY/SW; FL-SR/DRY/C; FL-SR/DRY/ST",
+            "availableStyles": "Pendent; Horizontal Sidewall",
+            "availableEscutcheons": "Recessed; Sleeve and Skirt; Flush; Concealed",
+            "bracketMaterial": "Carbon Steel, Zinc-Plated",
+            "uBoltMaterial": "Carbon Steel, Zinc-Plated",
+            "hexNutMaterial": "Carbon Steel, Zinc-Plated",
+            "adapterMaterial": "Carbon Steel, Zinc Plated",
+            "plugMaterial": "Carbon Steel, Zinc Plated",
+            "washerMaterial": "Carbon Steel, Zinc-Plated",
+            "screwMaterial": "Carbon Steel, Zinc-Plated",
+            "bracketSealOptions": "EPDM/Neoprene foam (150F/65C); Silicone closed-cell foam (225F/107C)",
+            "flexibleHoseMaterial": "300-series Stainless Steel",
+            "gasketSeal": "Victaulic EPDM",
+            "isolationRingMaterial": "Nylon",
+            "couplingRetainerRingMaterial": "Polyethylene",
+            "capturedCouplingHousing": "Ductile iron conforming to ASTM A 536, Grade 65-45-12. Ductile iron conforming to ASTM A 395, Grade",
+            "capturedCouplingReducerMaterial": "Carbon Steel, Zinc-Plated",
+            "capturedCouplingHousingCoating": "Orange enamel; Red enamel; Hot dipped galvanized",
+            "capturedCouplingGasket": "Grade \"E\" EPDM (Type A) Vic-Plus pre-lubricated gasket",
+            "capturedCouplingDrySystemMinimumTemperatureC": -40,
+            "temperatureSelectionDataFormat": "Rows separated by newline; columns by |; paired values by /",
+            "barrelOrderLengthSelection40F": "Temperature Maintained at 40°F/4.4°C Minimum |  | \nAmbient Temperature / Exposed to Discharge / End of Sprinkler | \"D\" / Freezer Ceiling / or Wall Thickness | \"A\" / Order Length\nDown to 20°F | 3 - 6\"/76 - 152 mm | 12\"/305 mm\nDown to -6.7°C | 7 - 12\"/178 - 305 mm | 18\"/457 mm\n19°F to 0°F / -7.2°C to -17.8°C | 3 - 6\"/76 - 152 mm / 7 - 12\"/178 - 305 mm | 18\"/457 mm / 24\"/610 mm\n-1°F to -20°F | 3 - 6\"/76 - 152 mm | 24\"/610 mm\n-18.3°C to -28.9°C | 7 - 12\"/178 - 305 mm | 30\"/762 mm\n-21°F to -30°F / -29.4°C to -34.4°C | 3 - 6\"/76 - 152 mm / 7 - 12\"/178 - 305 mm | 24\"/610 mm / 30\"/762 mm\n-31°F to -40°F | 3 - 6\"/76 - 152 mm | 24\"/610 mm\n-35.0°C to -40.0°C | 7 - 12\"/178 - 305 mm | 30\"/762 mm",
+            "barrelOrderLengthSelection50F": "Temperature maintained at 50°F/10°C |  | \nmbient Temperature / xposed to Discharge / End of Sprinkler | \"D\" / Freezer Ceiling / or Wall Thickness | \"A\" / Order Length\nDown to 20°F | 3 - 6\"/76 - 152mm | 12\"/305 mm\nDown to -6.7°C | 7 - 12\"/178 - 305mm | 18\"/457 mm\n19°F to 0°F / -7.2°C to -17.8°C | 3 - 6\"/76 - 152mm / 7 - 12\"/178 - 305mm | 12\"/305 mm / 18\"/457 mm\n-1°F to -20°F | 3 - 6\"/76 - 152mm | 18\"/457 mm\n-18.3°C to -28.9°C | 7 - 12\"/178 - 305mm | 18\"/457 mm\n-21°F to -30°F / -29.4°C to -34.4°C | 3 - 6\"/76 - 152mm / 7 - 12\"/178 - 305mm | 18\"/457 mm / 24\"/610 mm\n-31°F to -40°F | 3 - 6\"/76 - 152mm | 18\"/457 mm\n-35.0°C to -40.0°C | 7 - 12\"/178 - 305mm | 24\"/610 mm",
+            "barrelOrderLengthSelection60F": "Temperature maintained at 60°F/15.6°C |  | \nAmbient Temperature / Exposed to Discharge / End of Sprinkler | \"D\" / Freezer Ceiling / or Wall Thickness | \"A\" / Order Length\nDown to 20°F | 3 - 6\"/76 - 152mm | 12\"/305 mm\nDown to -6.7°C | 7 - 12\"/178 - 305mm | 18\"/457 mm\n19°F to 0°F / -7.2°C to -17.8°C | 3 - 6\"/76 - 152mm / 7 - 12\"/178 - 305mm | 12\"/305 mm / 18\"/457 mm\n-1°F to -20°F | 3 - 6\"/76 - 152mm | 12\"/305 mm\n-18.3°C to -28.9°C | 7 - 12\"/178 - 305mm | 18\"/457 mm\n-21°F to -30°F / -29.4°C to -34.4°C | 3 - 6\"/76 - 152mm / 7 - 12\"/178 - 305mm | 12\"/305 mm / 18\"/457 mm\n-31°F to -40°F | 3 - 6\"/76 - 152mm | 12\"/305 mm\n-35.0°C to -40.0°C | 7 - 12\"/178 - 305mm | 18\"/457 mm",
+            "assemblyWeightData": "Hose Model | Sprinkler Model | Sprinkler Barrel Order Length / inches / mm | Weight / lb / kgs\nAH2-48-AB6 / AH2-CC-48-AB6 | V33/V36 | 12 | 9.1\n |  | 305 | 4.1\nAH2-48-AB6 / AH2-CC-48-AB6 | V40 | 12 / 305 | 8.7 / 3.9\nAH2-48-AB6 / AH2-CC-48-AB6 | V33/V36 | 18 | 10.1\n |  | 457 | 4.6\nAH2-48-AB6 / AH2-CC-48-AB6 | V40 | 18 / 457 | 9.6 / 4.4\nAH2-48-AB6 / AH2-CC-48-AB6 | V33/V36 | 24 | 11.1\n |  | 610 | 5.0\nAH2-48-AB6 / AH2-CC-48-AB6 | V40 | 24 / 610 | 10.5 / 4.8\nAH2-48-AB6 / AH2-CC-48-AB6 | V33/V36 | 30 | 11.1\n |  | 762 | 5.0\nAH2-48-AB6 / AH2-CC-48-AB6 | V40 | 30 / 762 | 10.4 / 4.7",
+            "assemblyWeightDataFormat": "Rows separated by newline; columns by |; paired values by /",
+            "frictionLosscULus3BendsEqlFeet": 24,
+            "frictionLosscULus3BendsEqlMeters": 7.3,
+            "frictionLosscULus3BendsMaxBends": 3,
+            "frictionLosscULus8BendsEqlFeet": 37,
+            "frictionLosscULus8BendsEqlMeters": 11.3,
+            "frictionLosscULus8BendsMaxBends": 8,
+            "frictionLossFMK5_6EqlFeet": 23.4,
+            "frictionLossFMK5_6EqlMeters": 7.1,
+            "frictionLossFMK5_6MaxBends": 3,
+            "frictionLossFMK8EqlFeet": 35.5,
+            "frictionLossFMK8EqlMeters": 10.8,
+            "frictionLossFMK8MaxBends": 3
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "cULus",
+              "classification": "Listed",
+              "certificateNumber": null
+            },
+            {
+              "agency": "FM",
+              "classification": "Approved",
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 175,
+              "units": "psi",
+              "agencies": [
+                "cULus",
+                "FM"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [
+            "AH2-CC-48-AB6"
+          ],
+          "physicalCharacteristics": {
+            "frame": "Carbon Steel, Zinc-Plated",
+            "supportCup": "Carbon Steel, Zinc-Plated",
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Victaulic EPDM; AB6 seal options: EPDM/Neoprene or silicone",
+            "coverPlate": null
+          },
+          "connectionType": "1\" IGS grooved captured coupling",
+          "adjustment": "Dry-sprinkler barrel order length: 12-30 inches"
+        }
+      ],
+      "accessories": [],
+      "documentInfo": {
+        "documentNumber": "10.90",
+        "revisionDate": "2026-04-01",
+        "manufacturer": "Victaulic"
+      }
+    },
+    "pages": [
+      {
+        "page": 1,
+        "characterCount": 1170,
+        "preview": "Victaulic® VicFlex™ Sprinkler Fittings\nStyle AB6 Bracket\n10.90\n1.0 PRODUCT DESCRIPTION\nDescription by Component\nStyle AB6 Bracket: Optimized for cold storage applications\nDry Sprinkler\nAvailable Models\n• Series FL-QR/DRY - please refer to publication 45.01\n• Series FL-QR/DRY/SW - please refer to publication 45.02\n• Series FL-QR/DRY/C - please refer to publication 45.03\n• Series FL-QR/DRY/ST - please refer to publication 45.04\n• Series FL-SR/DRY - please refer to publication 45.51\n• Series FL-SR/"
+      },
+      {
+        "page": 2,
+        "characterCount": 1522,
+        "preview": "victaulic.com\n1.0 PRODUCT DESCRIPTION (CONTINUED)\nHose\n• Series AH2 Braided Hose (1”/25mm Nominal ID): 48\"/1220 mm. Note: nominal length includes adapter nipple\nand 5.75\"/140 mm straight reducer.\n• Series AH2-CC Braided Hose (1”/25mm Nominal ID): 48\"/1220 mm. Note: nominal length includes captured\ncoupling and 5.75\"/140 mm straight reducer.\n• Minimum Bend Radius of Flexible Hose:\n• 7\"/178 mm (FM Approval)\n• 2\"/51 mm (cULus Listed)\n• Maximum Number of Bends per Flexible Hose: See friction loss ch"
+      },
+      {
+        "page": 3,
+        "characterCount": 1749,
+        "preview": "victaulic.com\n3.0 SPECIFICATIONS – MATERIAL (CONTINUED)\nSeries AH2-CC\nFlexible Hose: 300-series Stainless Steel\nCollar/Weld Fitting: 300-series Stainless Steel\nGasket Seal: Victaulic EPDM\nIsolation Ring: Nylon\nCoupling Retainer Ring: Polyethylene\nNut and Nipple: Carbon Steel, Zinc Plated\nReducer (½\"/15 mm or ¾\"/20 mm): Carbon Steel, Zinc-Plated\nHousing: Ductile iron conforming to ASTM A 536, Grade 65-45-12. Ductile iron conforming to ASTM A 395, Grade\n65-45-15, is available upon special request."
+      },
+      {
+        "page": 4,
+        "characterCount": 2277,
+        "preview": "victaulic.com\n4.0 DIMENSIONS\nSprinkler Barrel Length Selection\nEnd seal\n1\"/33.7 mm\nAdapter Plug\nHeated space\nVicFlex™ Style AB6 bracket\nassembly with integral seal\n2\" Hole Saw\nRequired for V36 and V40\n2-¾\" Hole Saw Required\nfor V33 (De-burr Hole on\nBoth Sides of the Ceiling\nA or Wall)\nD Insulation\nWall or ceiling\nof freezer\nCold space\nTemperature Maintained at 40°F/4.4°C Minimum Temperature maintained at 50°F/10°C\nAmbient Temperature “D” Ambient Temperature “D”\nExposed to Discharge Freezer Ceili"
+      },
+      {
+        "page": 5,
+        "characterCount": 400,
+        "preview": "victaulic.com\n4.1 DIMENSIONS\nProduct Details and Optional Components\nA A\nHose Dimension\nModel A\ninches\nmm\n42.3\nAH2-48\n1073\n41.5\nAH2-CC-48\n1054\nNote: Please reference section 5.0 Performance for complete list of Style AB6 Bracket listing and approval information\nwith Series AH2-CC and Series AH2 lengths.\n10.90 2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.\nvictaulic.com\n5"
+      },
+      {
+        "page": 6,
+        "characterCount": 534,
+        "preview": "victaulic.com\n5.0 PERFORMANCE\nFriction Loss Data\nSeries AH2 and AH2-CC Braided Hose for use with Style AB6 VicFlex Bracket Assembly\nEQL\nfeet\nModel meters Max Bends\nAH2-48 24.0\n3\nAH2-CC-48 7.3\nAH2-48 37.0\n8\nAH2-CC-48 11.3\nFriction Loss Data\nSeries AH2 and AH2-CC Braided Hose for use with Style AB6 VicFlex Bracket Assembly\nEQL\nfeet\nModel Sprinkler K-factor meters Max Bends\nAH2-48 23.4\nK5.6 3\nAH2-CC-48 7.1\nAH2-48 35.5\nK8 3\nAH2-CC-48 10.8\n10.90 2870 Rev P Updated 04/2026 © 2026 Victaulic Company. Al"
+      },
+      {
+        "page": 7,
+        "characterCount": 2927,
+        "preview": "victaulic.com\n6.0 NOTIFICATIONS\nWARNING\n• Read and understand all instructions before attempting to install any Victaulic\nproducts.\n• Always verify that the piping system has been completely depressurized and\ndrained immediately prior to installation, removal, adjustment, or maintenance\nof any Victaulic products.\n• Wear safety glasses, hardhat, and foot protection.\nFailure to follow these instructions could result in death or serious personal injury\nand property damage.\n• These products shall be"
+      },
+      {
+        "page": 8,
+        "characterCount": 1374,
+        "preview": "victaulic.com\n7.0 REFERENCE MATERIALS\nAssembly Weights\nThe values in the table below are the total weight in pounds/kilograms for a Model V33, V36, or V40 Dry Sprinkler, a\nSeries AH2-CC Flexible Hose (water-filled), and a Style AB6 Bracket Assembly.\nSprinkler Barrel Order Length Weight\ninches lb\nHose Model Sprinkler Model mm kgs\nAH2-48-AB6 12 9.1\nV33/V36\nAH2-CC-48-AB6 305 4.1\nAH2-48-AB6 12 8.7\nV40\nAH2-CC-48-AB6 305 3.9\nAH2-48-AB6 18 10.1\nV33/V36\nAH2-CC-48-AB6 457 4.6\nAH2-48-AB6 18 9.6\nV40\nAH2-CC"
+      },
+      {
+        "page": 9,
+        "characterCount": 5138,
+        "preview": "victaulic.com\n7.0 REFERENCE MATERIALS (CONTINUED)\nVicFlex™ Style AB6 Bracket\nVICFLEX™ STYLE AB6 ASSEMBLY DRY SPRINKLER ORDER FORM\nSHIP TO:\nName: Date of Order:\nAddress: Purchase Order:\nShip Via:\nCity: Tag:\nState/Prov.: Signature*:\nZip/Postal Code: * I agree to purchase the dry sprinklers specified on this form, which are NON-RETURNABLE & NOT CANCELLABLE.\nPART CODE CONFIGURATOR: Configure the part code with options from chart below. DO NOT circle pipe order lengths. Input appropriate length and q"
+      }
+    ],
+    "sections": [
+      {
+        "id": "section-1",
+        "title": "Document start",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 1,
+        "textPreview": "Victaulic® VicFlex™ Sprinkler Fittings\nStyle AB6 Bracket\n10.90",
+        "lineCount": 3
+      },
+      {
+        "id": "section-2",
+        "title": "PRODUCT DESCRIPTION",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 1,
+        "textPreview": "Description by Component\nStyle AB6 Bracket: Optimized for cold storage applications\nDry Sprinkler\nAvailable Models\n• Series FL-QR/DRY - please refer to publication 45.01\n• Series FL-QR/DRY/SW - please refer to publication 45.02\n• Series FL-QR/DRY/C - please refer to publication 45.03\n• Series FL-QR/DRY/ST - please refer to publication 45.04\n• Series FL-SR/DRY - please refer to publication 45.51\n• Series FL-SR/DRY/SW - please refer to publication 45.52\n• Series FL-SR/DRY/C - please refer to publication 45.53\n• Series FL-SR/DRY/ST - please refer to publication 45.54\nAvailable Styles\n• Pendent, Horizontal Sidewall\nAvailable Escutcheons\n• Recessed, Sleeve and Skirt, Flush, Concealed\nMaximum Working Temperature\n• Standard: 150°F/65°C (EPDM/Neoprene foam)\n• (Optional) High: 225°F/107°C (Silicone closed-cell foam)\nMaximum Working Pressure\n• 175 psi/1375 kPa/12 bar\nALWAYS REFER TO ANY NOTIFICATI",
+        "lineCount": 23
+      },
+      {
+        "id": "section-3",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 2,
+        "textPreview": "1\nvictaulic.com",
+        "lineCount": 2
+      },
+      {
+        "id": "section-4",
+        "title": "PRODUCT DESCRIPTION (CONTINUED)",
+        "sourcePageStart": 2,
+        "sourcePageEnd": 2,
+        "textPreview": "Hose\n• Series AH2 Braided Hose (1”/25mm Nominal ID): 48\"/1220 mm. Note: nominal length includes adapter nipple\nand 5.75\"/140 mm straight reducer.\n• Series AH2-CC Braided Hose (1”/25mm Nominal ID): 48\"/1220 mm. Note: nominal length includes captured\ncoupling and 5.75\"/140 mm straight reducer.\n• Minimum Bend Radius of Flexible Hose:\n• 7\"/178 mm (FM Approval)\n• 2\"/51 mm (cULus Listed)\n• Maximum Number of Bends per Flexible Hose: See friction loss charts in section 5.0 Performance\nConnections\n• To branch line (inlet) via 1\"/25 mm NPT/BSPT male thread or 1\"/25 mm IGS™ Groove refer to publication 25.14.",
+        "lineCount": 11
+      },
+      {
+        "id": "section-5",
+        "title": "CERTIFICATION/LISTINGS",
+        "sourcePageStart": 2,
+        "sourcePageEnd": 2,
+        "textPreview": "3.0 SPECIFICATIONS – MATERIAL\nStyle AB6 Bracket Assembly:\nBracket: Carbon Steel, Zinc-Plated\nU-bolt: Carbon Steel, Zinc-Plated\nHex Nut: Carbon Steel, Zinc-Plated\nAdapter: Carbon Steel, Zinc Plated\nPlug: Carbon Steel, Zinc Plated\nSeal (specify choice):\nEPDM/Neoprene (150°F/65°C)\nSilicone closed cell foam (225°F/107°C)\nWasher: Carbon Steel, Zinc-Plated\nScrew: Carbon Steel, Zinc-Plated\nDry Sprinkler:\nPlease refer to respective submittal publications in section 1.0 Product Description for dry sprinkler material specifications.\nSeries AH2 Braided Flexible Hose:\nFlexible Hose: 300-series Stainless Steel\nCollar/Weld Fitting: 300-series Stainless Steel\nGasket Seal: Victaulic EPDM\nIsolation Ring: Nylon\nNut and Nipple: Carbon Steel, Zinc Plated",
+        "lineCount": 20
+      },
+      {
+        "id": "section-6",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 2,
+        "sourcePageEnd": 3,
+        "textPreview": "victaulic.com\n2\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-7",
+        "title": "SPECIFICATIONS – MATERIAL (CONTINUED)",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "Series AH2-CC\nFlexible Hose: 300-series Stainless Steel\nCollar/Weld Fitting: 300-series Stainless Steel\nGasket Seal: Victaulic EPDM\nIsolation Ring: Nylon\nCoupling Retainer Ring: Polyethylene\nNut and Nipple: Carbon Steel, Zinc Plated\nReducer (½\"/15 mm or ¾\"/20 mm): Carbon Steel, Zinc-Plated\nHousing: Ductile iron conforming to ASTM A 536, Grade 65-45-12. Ductile iron conforming to ASTM A 395, Grade\n65-45-15, is available upon special request.\nCoupling Housing Coating:\nOrange enamel (North America, Asia Pacific).\nRed enamel (Europe).\nHot dipped galvanized.\nGrade “E” EPDM (Type A) Vic-Plus™ Pre-lubricated Gasket\nEPDM (Violet Color Code). Applicable for wet and dry (oil-free air) fire protection systems only. Listed/Approved for\ncontinuous use in wet and dry systems. Listed/Approved for dry systems at -40°F/-40°C and above. Not compatible\nfor use with hot water services or steam services.\nNot",
+        "lineCount": 26
+      },
+      {
+        "id": "section-8",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 4,
+        "textPreview": "victaulic.com\n3\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-9",
+        "title": "DIMENSIONS",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "Sprinkler Barrel Length Selection\nEnd seal\n1\"/33.7 mm\nAdapter Plug\nHeated space\nVicFlex™ Style AB6 bracket\nassembly with integral seal\n2\" Hole Saw\nRequired for V36 and V40\n2-¾\" Hole Saw Required\nfor V33 (De-burr Hole on\nBoth Sides of the Ceiling\nA or Wall)\nD Insulation\nWall or ceiling\nof freezer\nCold space\nTemperature Maintained at 40°F/4.4°C Minimum Temperature maintained at 50°F/10°C\nAmbient Temperature “D” Ambient Temperature “D”\nExposed to Discharge Freezer Ceiling “A” Exposed to Discharge Freezer Ceiling “A”\nEnd of Sprinkler or Wall Thickness Order Length End of Sprinkler or Wall Thickness Order Length\nDown to 20°F 3 – 6\"/76 – 152 mm 12\"/305 mm Down to 20°F 3 – 6\"/76 – 152mm 12\"/305 mm\nDown to -6.7°C 7 – 12\"/178 – 305 mm 18\"/457 mm Down to -6.7°C 7 – 12\"/178 – 305mm 18\"/457 mm\n19°F to 0°F 3 – 6\"/76 – 152 mm 18\"/457 mm 19°F to 0°F 3 – 6\"/76 – 152mm 12\"/305 mm\n-7.2°C to -17.8°C 7 – 12",
+        "lineCount": 45
+      },
+      {
+        "id": "section-10",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 5,
+        "textPreview": "victaulic.com\n4\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-11",
+        "title": "DIMENSIONS",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "Product Details and Optional Components\nA A\nHose Dimension\nModel A\ninches\nmm\n42.3",
+        "lineCount": 7
+      },
+      {
+        "id": "section-12",
+        "title": "AH2-48",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "1073\n41.5",
+        "lineCount": 2
+      },
+      {
+        "id": "section-13",
+        "title": "AH2-CC-48",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "1054\nNote: Please reference section 5.0 Performance for complete list of Style AB6 Bracket listing and approval information\nwith Series AH2-CC and Series AH2 lengths.",
+        "lineCount": 3
+      },
+      {
+        "id": "section-14",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 6,
+        "textPreview": "victaulic.com\n5\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-15",
+        "title": "PERFORMANCE",
+        "sourcePageStart": 6,
+        "sourcePageEnd": 6,
+        "textPreview": "Friction Loss Data\nSeries AH2 and AH2-CC Braided Hose for use with Style AB6 VicFlex Bracket Assembly\nEQL\nfeet\nModel meters Max Bends\nAH2-48 24.0\n3\nAH2-CC-48 7.3\nAH2-48 37.0\n8\nAH2-CC-48 11.3\nFriction Loss Data\nSeries AH2 and AH2-CC Braided Hose for use with Style AB6 VicFlex Bracket Assembly\nEQL\nfeet\nModel Sprinkler K-factor meters Max Bends\nAH2-48 23.4\nK5.6 3\nAH2-CC-48 7.1\nAH2-48 35.5\nK8 3\nAH2-CC-48 10.8",
+        "lineCount": 22
+      },
+      {
+        "id": "section-16",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 6,
+        "sourcePageEnd": 7,
+        "textPreview": "victaulic.com\n6\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-17",
+        "title": "NOTIFICATIONS",
+        "sourcePageStart": 7,
+        "sourcePageEnd": 7,
+        "textPreview": "WARNING\n• Read and understand all instructions before attempting to install any Victaulic\nproducts.\n• Always verify that the piping system has been completely depressurized and\ndrained immediately prior to installation, removal, adjustment, or maintenance\nof any Victaulic products.\n• Wear safety glasses, hardhat, and foot protection.\nFailure to follow these instructions could result in death or serious personal injury\nand property damage.\n• These products shall be used only in fire protection systems that are designed and installed in accordance with current, applicable\nNational Fire Protection Association (NFPA) standards, or equivalent local and national fire protection standards, and in accordance\nwith applicable building and fire codes. These standards and codes contain important information regarding protection of systems\nfrom freezing temperatures, corrosion, mechanical damage, etc",
+        "lineCount": 16
+      },
+      {
+        "id": "section-18",
+        "title": "and external environment.",
+        "sourcePageStart": 7,
+        "sourcePageEnd": 7,
+        "textPreview": "• The material specifier shall evaluate the internal and external effect of chemical composition, pH level, operating temperature,\nchloride level, oxygen level, and flow rate on materials to confirm system life will be acceptable for the intended service.\n• It is the responsibility of the owner of a building or their authorized agent to provide the sprinkler system installer with any knowledge\nthat the water supply might be contaminated with or conducive to the development of microbiologically influenced corrosion (MIC),\nincluding as required by NFPA 13. Failure to identify adverse water quality issues may affect the VicFlex product and void the\nmanufacturer’s warranty.\nFailure to follow installation requirements and local and national codes and standards could compromise system integrity or cause",
+        "lineCount": 7
+      },
+      {
+        "id": "section-19",
+        "title": "failure, resulting in death or serious personal injury and property damage.",
+        "sourcePageStart": 7,
+        "sourcePageEnd": 7,
+        "textPreview": "Victaulic VicFlex™ Braided Hoses may be painted/coated or caulked around, including fire barrier sealant, provided\nthat the substance is compatible with stainless steel and zinc-plated carbon steel or ductile iron. Care shall be taken\nto ensure that the sprinkler and associated components do not come into contact with paint/coatings and caulking.\nVictaulic VicFlex™ Braided Hoses that penetrate through non-fire rated gypsum wall (drywall) will function as\ndesigned, provided the components are installed in accordance with the respective installation instructions referenced\nin this document.",
+        "lineCount": 6
+      },
+      {
+        "id": "section-20",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 7,
+        "sourcePageEnd": 8,
+        "textPreview": "victaulic.com\n7\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-21",
+        "title": "REFERENCE MATERIALS",
+        "sourcePageStart": 8,
+        "sourcePageEnd": 8,
+        "textPreview": "Assembly Weights\nThe values in the table below are the total weight in pounds/kilograms for a Model V33, V36, or V40 Dry Sprinkler, a\nSeries AH2-CC Flexible Hose (water-filled), and a Style AB6 Bracket Assembly.\nSprinkler Barrel Order Length Weight\ninches lb\nHose Model Sprinkler Model mm kgs\nAH2-48-AB6 12 9.1",
+        "lineCount": 7
+      },
+      {
+        "id": "section-22",
+        "title": "V33/V36",
+        "sourcePageStart": 8,
+        "sourcePageEnd": 8,
+        "textPreview": "AH2-CC-48-AB6 305 4.1\nAH2-48-AB6 12 8.7\nV40\nAH2-CC-48-AB6 305 3.9\nAH2-48-AB6 18 10.1",
+        "lineCount": 5
+      },
+      {
+        "id": "section-23",
+        "title": "V33/V36",
+        "sourcePageStart": 8,
+        "sourcePageEnd": 8,
+        "textPreview": "AH2-CC-48-AB6 457 4.6\nAH2-48-AB6 18 9.6\nV40\nAH2-CC-48-AB6 457 4.4\nAH2-48-AB6 24 11.1",
+        "lineCount": 5
+      },
+      {
+        "id": "section-24",
+        "title": "V33/V36",
+        "sourcePageStart": 8,
+        "sourcePageEnd": 8,
+        "textPreview": "AH2-CC-48-AB6 610 5.0\nAH2-48-AB6 24 10.5\nV40\nAH2-CC-48-AB6 610 4.8\nAH2-48-AB6 30 11.1",
+        "lineCount": 5
+      },
+      {
+        "id": "section-25",
+        "title": "V33/V36",
+        "sourcePageStart": 8,
+        "sourcePageEnd": 8,
+        "textPreview": "AH2-CC-48-AB6 762 5.0\nAH2-48-AB6 30 10.4\nV40\nAH2-CC-48-AB6 762 4.7\nI-VICFLEX-AB6: Vicflex™ Style AB6 Assembly - Cold storage installation manual\nI-40: Firelock™ Automatic Sprinklers Installation Manual\nSeries FL-QR/DRY - please refer to publication 45.01\nSeries FL-QR/DRY/SW - please refer to publication 45.02\nSeries FL-QR/DRY/C - please refer to publication 45.03\nSeries FL-QR/DRY/ST - please refer to publication 45.04\nSeries FL-SR/DRY - please refer to publication 45.51\nSeries FL-SR/DRY/SW - please refer to publication 45.52\nSeries FL-SR/DRY/C - please refer to publication 45.53\nSeries FL-SR/DRY/ST - please refer to publication 45.54",
+        "lineCount": 14
+      },
+      {
+        "id": "section-26",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 8,
+        "sourcePageEnd": 9,
+        "textPreview": "victaulic.com\n8\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-27",
+        "title": "REFERENCE MATERIALS (CONTINUED)",
+        "sourcePageStart": 9,
+        "sourcePageEnd": 9,
+        "textPreview": "VicFlex™ Style AB6 Bracket\nVICFLEX™ STYLE AB6 ASSEMBLY DRY SPRINKLER ORDER FORM\nSHIP TO:\nName: Date of Order:\nAddress: Purchase Order:\nShip Via:\nCity: Tag:\nState/Prov.: Signature*:\nZip/Postal Code: * I agree to purchase the dry sprinklers specified on this form, which are NON-RETURNABLE & NOT CANCELLABLE.\nPART CODE CONFIGURATOR: Configure the part code with options from chart below. DO NOT circle pipe order lengths. Input appropriate length and quantity for each\nin the chart below. Please attach additional forms if extra ordering space is needed. Separate forms must be completed for each configuration ordered.\nA UB6\nClass Style Connection Deflector Temperature Response K-Factor Sprinkler Escutcheon Sprinkler Escutcheon Bracket Hose Hose\nFinish Finish Barrel Style Style Style Length\nLength\nA = VicFlex™ 33 = V33 1 3 = 1\" NPT B = Std. C = 155°F/68°C Q = Quick 4 = 5.6K 2 = Chrome 0 = Painted",
+        "lineCount": 17
+      },
+      {
+        "id": "section-28",
+        "title": "= V36 C = Horizontal J = 286°F/141°C 6 = 11.2K (RAL 9010) Steel, Finish 240 = 24\" 13 = Sleeve 3 = AH2 7 = 72\"",
+        "sourcePageStart": 9,
+        "sourcePageEnd": 9,
+        "textPreview": "(Std. Pendent/ Sidewall 3 B = Black Matches 300 = 30\" & Skirt (BSPT)\nHorizontal P = Concealed N = VC-250 4 Sprinkler 15 = Concealed 8 = AH2-CC\nSidewall) Finish 17 = (Captured",
+        "lineCount": 3
+      },
+      {
+        "id": "section-29",
+        "title": "= V40 2 X = Stainless Interchangeable Coupling)",
+        "sourcePageStart": 9,
+        "sourcePageEnd": 9,
+        "textPreview": "(Std. Pendent) Steel Escutcheons 5 R = AH2-CC\nW = White Red\n(RAL 9010) (Europe\nPainted Only)\nStainless Steel\nA = VicFlex 41 = V41 L = 1\" IGS S = Dry ESFR D = 165°F/74°C R = Fast 8 = 16.8K 1 = Plain X = Stainless 240 = 24\" 10 = Plain UB6 = AB6 G = GH1 3 = 36\"\nESFR Dry with Coupling G = 212°F/100°C Response Brass Steel 300 = 30\" Barrel with\nPendent 360 = 36\" Clamshell\n1 V33 Sprinkler only available with Temperature C (155°F | 68°C) or F (200°F | 93°C), Escutcheon Finish 0 (Painted Cold Rolled Steel, Total Sprinklers with\nFinish Matches Sprinkler Finish), and Escutcheon Style 15 (Concealed).\n2 V40 Sprinkler only available with Deflector B (Standard Pendent), K-Factor 6 (K11.2), and Sprinkler Finish 2 (Chrome), 4 (White RAL 9010) and N (VC-250). specs identical to part code",
+        "lineCount": 11
+      },
+      {
+        "id": "section-30",
+        "title": "Horizontal Sidewall not available with interchangeable escutcheons. configuration above",
+        "sourcePageStart": 9,
+        "sourcePageEnd": 9,
+        "textPreview": "4 VC-250 coating is only available with stainless steel escutcheons. UL and FM approved corrosion resistant coating, and VdS and LPCB recognized and\napproved alternate coating. Appears chrome in color. Not available with concealed sprinklers. Send completed order form to pickvic@victaulic.com\n5 Only available with pendent sprinklers; Sleeve and Skirt, Recessed and Flush escutcheons included with a plain barrel sprinkler.",
+        "lineCount": 3
+      },
+      {
+        "id": "section-31",
+        "title": "SF-DRYSPRINKLERS 17227 REV K 12/2025",
+        "sourcePageStart": 9,
+        "sourcePageEnd": 9,
+        "textPreview": "© 2025 VICTAULIC COMPANY. ALL RIGHTS RESERVED.\nUser Responsibility for Product Selection and Suitability Intellectual Property Rights\nEach user bears final responsibility for determining the suitability of Victaulic products No statement concerning the use of any material, product, service, or design is\nfor their end-use application, in accordance with industry standards, project specifica- intended, or should be construed, to grant any license under any patent or other\ntions, and Victaulic’s published performance, maintenance, and safety data, as well intellectual property right of Victaulic or any of its affiliates, or as a recommendation\nas all warnings and installation instructions. Nothing in this or any other document, for the use of such material, product, service, or design in the infringement of any\nnor any verbal recommendation, advice, or opinion from any Victaulic employee, s",
+        "lineCount": 18
+      },
+      {
+        "id": "section-32",
+        "title": "2870 Rev P Updated 04/2026 © 2026 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 9,
+        "sourcePageEnd": 9,
+        "textPreview": "victaulic.com\n9",
+        "lineCount": 2
+      }
+    ],
+    "warnings": [
+      "Review every product before exporting the JSON.",
+      "Dimension and performance rows are stored as separate editable product variants when present.",
+      "For sprinklers, K-factor is stored as the normalized S.I. value multiplied by ten, for example 6.1 becomes 61.",
+      "Unsupported or changed PDF layouts are rejected instead of creating incomplete product data."
+    ]
+  },
+  "reviewedAt": "2026-07-25T09:17:47.646Z"
+}

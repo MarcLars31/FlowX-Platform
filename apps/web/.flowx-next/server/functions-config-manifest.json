@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/pdf-extractor/extract": {},
+    "/api/pkms/review-queue/approve": {},
+    "/api/pkms/import-pdf": {},
+    "/api/pkms/products": {},
+    "/api/pkms/import-json": {},
+    "/api/pkms/review-queue": {}
+  }
+}

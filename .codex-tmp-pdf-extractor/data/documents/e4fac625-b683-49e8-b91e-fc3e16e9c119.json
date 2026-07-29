@@ -1,0 +1,1844 @@
+{
+  "id": "e4fac625-b683-49e8-b91e-fc3e16e9c119",
+  "originalFileName": "06.05.pdf",
+  "storedFileName": "e4fac625-b683-49e8-b91e-fc3e16e9c119-06.05.pdf",
+  "sizeBytes": 565084,
+  "uploadedAt": "2026-07-18T12:09:34.170Z",
+  "status": "Reviewed - ready for export",
+  "analysis": {
+    "extractedAt": "2026-07-18T12:09:34.961Z",
+    "extractor": {
+      "pageCount": 5,
+      "method": "PDF Product Extractor 1.0",
+      "textMethod": "pdfplumber"
+    },
+    "productData": {
+      "products": [
+        {
+          "sin": "75-1.315",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 1\" / DN25",
+          "productType": "Flexible Coupling",
+          "variantName": "1\" / DN25",
+          "specifications": {
+            "nominalSizeInches": "1",
+            "nominalSizeDN": "DN25",
+            "actualOutsideDiameterInches": "1.315",
+            "actualOutsideDiameterMm": "33.7",
+            "pipeEndSeparationInches": "0-0.06",
+            "pipeEndSeparationMm": "0-1.6",
+            "deflectionDegrees": "2º-43’",
+            "deflectionInchesPerFoot": "0.57",
+            "deflectionMmPerM": "47",
+            "boltQuantity": "2",
+            "boltSizeImperial": "3/8 x 2",
+            "boltSizeMetric": "M10 x 51",
+            "dimensionXInches": "2.38",
+            "dimensionXMm": "61",
+            "dimensionYInches": "4.27",
+            "dimensionYMm": "108",
+            "dimensionZInches": "1.77",
+            "dimensionZMm": "45",
+            "weightLb": "1.3",
+            "weightKg": "0.5",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "680",
+            "maximumEndLoadN": "3024",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-1.660",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 1 1/4\" / DN32",
+          "productType": "Flexible Coupling",
+          "variantName": "1 1/4\" / DN32",
+          "specifications": {
+            "nominalSizeInches": "1 1/4",
+            "nominalSizeDN": "DN32",
+            "actualOutsideDiameterInches": "1.660",
+            "actualOutsideDiameterMm": "42.4",
+            "pipeEndSeparationInches": "0-0.06",
+            "pipeEndSeparationMm": "0-1.6",
+            "deflectionDegrees": "2º-10’",
+            "deflectionInchesPerFoot": "0.45",
+            "deflectionMmPerM": "37",
+            "boltQuantity": "2",
+            "boltSizeImperial": "3/8 x 2",
+            "boltSizeMetric": "M10 x 51",
+            "dimensionXInches": "2.68",
+            "dimensionXMm": "68",
+            "dimensionYInches": "4.61",
+            "dimensionYMm": "117",
+            "dimensionZInches": "1.77",
+            "dimensionZMm": "45",
+            "weightLb": "1.4",
+            "weightKg": "0.5",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "1080",
+            "maximumEndLoadN": "4804",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-1.900",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 1 1/2\" / DN40",
+          "productType": "Flexible Coupling",
+          "variantName": "1 1/2\" / DN40",
+          "specifications": {
+            "nominalSizeInches": "1 1/2",
+            "nominalSizeDN": "DN40",
+            "actualOutsideDiameterInches": "1.900",
+            "actualOutsideDiameterMm": "48.3",
+            "pipeEndSeparationInches": "0-0.06",
+            "pipeEndSeparationMm": "0-1.6",
+            "deflectionDegrees": "1º-56’",
+            "deflectionInchesPerFoot": "0.40",
+            "deflectionMmPerM": "33",
+            "boltQuantity": "2",
+            "boltSizeImperial": "3/8 x 2",
+            "boltSizeMetric": "M10 x 51",
+            "dimensionXInches": "2.91",
+            "dimensionXMm": "74",
+            "dimensionYInches": "4.82",
+            "dimensionYMm": "122",
+            "dimensionZInches": "1.77",
+            "dimensionZMm": "45",
+            "weightLb": "1.5",
+            "weightKg": "0.5",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "1420",
+            "maximumEndLoadN": "6316",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-2.375",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 2\" / DN50",
+          "productType": "Flexible Coupling",
+          "variantName": "2\" / DN50",
+          "specifications": {
+            "nominalSizeInches": "2",
+            "nominalSizeDN": "DN50",
+            "actualOutsideDiameterInches": "2.375",
+            "actualOutsideDiameterMm": "60.3",
+            "pipeEndSeparationInches": "0-0.06",
+            "pipeEndSeparationMm": "0-1.6",
+            "deflectionDegrees": "1º-31’",
+            "deflectionInchesPerFoot": "0.32",
+            "deflectionMmPerM": "27",
+            "boltQuantity": "2",
+            "boltSizeImperial": "3/8 x 2",
+            "boltSizeMetric": "M10 x 51",
+            "dimensionXInches": "3.43",
+            "dimensionXMm": "87",
+            "dimensionYInches": "5.22",
+            "dimensionYMm": "133",
+            "dimensionZInches": "1.88",
+            "dimensionZMm": "48",
+            "weightLb": "1.7",
+            "weightKg": "1.0",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "2215",
+            "maximumEndLoadN": "9852",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-2.875",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 2 1/2\"",
+          "productType": "Flexible Coupling",
+          "variantName": "2 1/2\"",
+          "specifications": {
+            "nominalSizeInches": "2 1/2",
+            "actualOutsideDiameterInches": "2.875",
+            "actualOutsideDiameterMm": "73.0",
+            "pipeEndSeparationInches": "0-0.06",
+            "pipeEndSeparationMm": "0-1.6",
+            "deflectionDegrees": "1º-15’",
+            "deflectionInchesPerFoot": "0.26",
+            "deflectionMmPerM": "22",
+            "boltQuantity": "2",
+            "boltSizeImperial": "3/8 x 2",
+            "boltSizeMetric": "M10 x 51",
+            "dimensionXInches": "3.88",
+            "dimensionXMm": "98",
+            "dimensionYInches": "5.68",
+            "dimensionYMm": "144",
+            "dimensionZInches": "1.88",
+            "dimensionZMm": "48",
+            "weightLb": "1.9",
+            "weightKg": "1.0",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "3245",
+            "maximumEndLoadN": "14434",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-3.000",
+          "productName": "Victaulic Flexible Coupling - Style 75 - DN65",
+          "productType": "Flexible Coupling",
+          "variantName": "DN65",
+          "specifications": {
+            "nominalSizeDN": "DN65",
+            "actualOutsideDiameterInches": "3.000",
+            "actualOutsideDiameterMm": "76.1",
+            "pipeEndSeparationInches": "0-0.06",
+            "pipeEndSeparationMm": "0-1.6",
+            "deflectionDegrees": "1º-12’",
+            "deflectionInchesPerFoot": "0.26",
+            "deflectionMmPerM": "22",
+            "boltQuantity": "2",
+            "boltSizeImperial": "3/8 x 2",
+            "boltSizeMetric": "M10 x 51",
+            "dimensionXInches": "4.00",
+            "dimensionXMm": "102",
+            "dimensionYInches": "5.90",
+            "dimensionYMm": "150",
+            "dimensionZInches": "1.88",
+            "dimensionZMm": "48",
+            "weightLb": "1.9",
+            "weightKg": "1.0",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "3535",
+            "maximumEndLoadN": "15724",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-3.500",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 3\" / DN80",
+          "productType": "Flexible Coupling",
+          "variantName": "3\" / DN80",
+          "specifications": {
+            "nominalSizeInches": "3",
+            "nominalSizeDN": "DN80",
+            "actualOutsideDiameterInches": "3.500",
+            "actualOutsideDiameterMm": "88.9",
+            "pipeEndSeparationInches": "0-0.06",
+            "pipeEndSeparationMm": "0-1.6",
+            "deflectionDegrees": "1º-2’",
+            "deflectionInchesPerFoot": "0.22",
+            "deflectionMmPerM": "18",
+            "boltQuantity": "2",
+            "boltSizeImperial": "1/2 x 2 3/4",
+            "boltSizeMetric": "M12 x 70",
+            "dimensionXInches": "4.50",
+            "dimensionXMm": "114",
+            "dimensionYInches": "7.00",
+            "dimensionYMm": "178",
+            "dimensionZInches": "1.88",
+            "dimensionZMm": "48",
+            "weightLb": "2.9",
+            "weightKg": "1.5",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "4800",
+            "maximumEndLoadN": "21352",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-4.000",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 3 1/2\" / DN90",
+          "productType": "Flexible Coupling",
+          "variantName": "3 1/2\" / DN90",
+          "specifications": {
+            "nominalSizeInches": "3 1/2",
+            "nominalSizeDN": "DN90",
+            "actualOutsideDiameterInches": "4.000",
+            "actualOutsideDiameterMm": "101.6",
+            "pipeEndSeparationInches": "0-0.06",
+            "pipeEndSeparationMm": "0-1.6",
+            "deflectionDegrees": "0º-54’",
+            "deflectionInchesPerFoot": "0.19",
+            "deflectionMmPerM": "16",
+            "boltQuantity": "2",
+            "boltSizeImperial": "1/2 x 2 3/4",
+            "boltSizeMetric": "M12 x 70",
+            "dimensionXInches": "5.00",
+            "dimensionXMm": "127",
+            "dimensionYInches": "7.50",
+            "dimensionYMm": "191",
+            "dimensionZInches": "1.88",
+            "dimensionZMm": "48",
+            "weightLb": "2.9",
+            "weightKg": "1.5",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "6300",
+            "maximumEndLoadN": "28024",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-4.500",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 4\" / DN100",
+          "productType": "Flexible Coupling",
+          "variantName": "4\" / DN100",
+          "specifications": {
+            "nominalSizeInches": "4",
+            "nominalSizeDN": "DN100",
+            "actualOutsideDiameterInches": "4.500",
+            "actualOutsideDiameterMm": "114.3",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-36’",
+            "deflectionInchesPerFoot": "0.34",
+            "deflectionMmPerM": "28",
+            "boltQuantity": "2",
+            "boltSizeImperial": "1/2 x 2 3/4",
+            "boltSizeMetric": "M12 x 70",
+            "dimensionXInches": "5.80",
+            "dimensionXMm": "147",
+            "dimensionYInches": "8.03",
+            "dimensionYMm": "204",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "54",
+            "weightLb": "4.1",
+            "weightKg": "2.0",
+            "maximumWorkingPressureKPa": "3447",
+            "maximumEndLoadLb": "7950",
+            "maximumEndLoadN": "35364",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 500,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-4.250",
+          "productName": "Victaulic Flexible Coupling - Style 75 - OD 4.250 in / OD 108.0 mm",
+          "productType": "Flexible Coupling",
+          "variantName": "OD 4.250 in / OD 108.0 mm",
+          "specifications": {
+            "actualOutsideDiameterInches": "4.250",
+            "actualOutsideDiameterMm": "108.0",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-41’",
+            "deflectionInchesPerFoot": "0.35",
+            "deflectionMmPerM": "29",
+            "boltQuantity": "2",
+            "boltSizeImperial": "1/2 x 2 3/4",
+            "boltSizeMetric": "M12 x 70",
+            "dimensionXInches": "5.55",
+            "dimensionXMm": "141",
+            "dimensionYInches": "7.79",
+            "dimensionYMm": "198",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "54",
+            "weightLb": "3.7",
+            "weightKg": "1.5",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "6380",
+            "maximumEndLoadN": "28380",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-5.000",
+          "productName": "Victaulic Flexible Coupling - Style 75 - OD 5.000 in / OD 127.0 mm",
+          "productType": "Flexible Coupling",
+          "variantName": "OD 5.000 in / OD 127.0 mm",
+          "specifications": {
+            "actualOutsideDiameterInches": "5.000",
+            "actualOutsideDiameterMm": "127.0",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-26’",
+            "deflectionInchesPerFoot": "0.25",
+            "deflectionMmPerM": "21",
+            "boltQuantity": "2",
+            "boltSizeImperial": "5/8 x 3 1/4",
+            "boltSizeMetric": "M16 x 83",
+            "dimensionXInches": "6.13",
+            "dimensionXMm": "156",
+            "dimensionYInches": "9.43",
+            "dimensionYMm": "240",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "54",
+            "weightLb": "5.5",
+            "weightKg": "2.5",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "8820",
+            "maximumEndLoadN": "39234",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-5.250",
+          "productName": "Victaulic Flexible Coupling - Style 75 - OD 5.250 in / OD 133.0 mm",
+          "productType": "Flexible Coupling",
+          "variantName": "OD 5.250 in / OD 133.0 mm",
+          "specifications": {
+            "actualOutsideDiameterInches": "5.250",
+            "actualOutsideDiameterMm": "133.0",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-21’",
+            "deflectionInchesPerFoot": "0.28",
+            "deflectionMmPerM": "23",
+            "boltQuantity": "2",
+            "boltSizeImperial": "5/8 x 3 1/4",
+            "boltSizeMetric": "M16 x 83",
+            "dimensionXInches": "6.55",
+            "dimensionXMm": "166",
+            "dimensionYInches": "9.37",
+            "dimensionYMm": "238",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "54",
+            "weightLb": "6.0",
+            "weightKg": "2.5",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "9735",
+            "maximumEndLoadN": "43304",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-5.500",
+          "productName": "Victaulic Flexible Coupling - Style 75 - DN125",
+          "productType": "Flexible Coupling",
+          "variantName": "DN125",
+          "specifications": {
+            "nominalSizeDN": "DN125",
+            "actualOutsideDiameterInches": "5.500",
+            "actualOutsideDiameterMm": "139.7",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-18’",
+            "deflectionInchesPerFoot": "0.28",
+            "deflectionMmPerM": "23",
+            "boltQuantity": "2",
+            "boltSizeImperial": "5/8 x 3 1/4",
+            "boltSizeMetric": "M16 x 83",
+            "dimensionXInches": "6.80",
+            "dimensionXMm": "173",
+            "dimensionYInches": "9.59",
+            "dimensionYMm": "244",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "54",
+            "weightLb": "6.3",
+            "weightKg": "3.0",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "10665",
+            "maximumEndLoadN": "47440",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-5.563",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 5\"",
+          "productType": "Flexible Coupling",
+          "variantName": "5\"",
+          "specifications": {
+            "nominalSizeInches": "5",
+            "actualOutsideDiameterInches": "5.563",
+            "actualOutsideDiameterMm": "141.3",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-18’",
+            "deflectionInchesPerFoot": "0.27",
+            "deflectionMmPerM": "22",
+            "boltQuantity": "2",
+            "boltSizeImperial": "5/8 x 3 1/4",
+            "boltSizeMetric": "M16 x 83",
+            "dimensionXInches": "6.88",
+            "dimensionXMm": "175",
+            "dimensionYInches": "10.07",
+            "dimensionYMm": "256",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "54",
+            "weightLb": "5.8",
+            "weightKg": "2.5",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "10935",
+            "maximumEndLoadN": "48642",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-6.000",
+          "productName": "Victaulic Flexible Coupling - Style 75 - OD 6.000 in / OD 152.4 mm",
+          "productType": "Flexible Coupling",
+          "variantName": "OD 6.000 in / OD 152.4 mm",
+          "specifications": {
+            "actualOutsideDiameterInches": "6.000",
+            "actualOutsideDiameterMm": "152.4",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-12’",
+            "deflectionInchesPerFoot": "0.21",
+            "deflectionMmPerM": "17",
+            "boltQuantity": "2",
+            "boltSizeImperial": "5/8 x 3 1/4",
+            "boltSizeMetric": "M16 x 83",
+            "dimensionXInches": "7.38",
+            "dimensionXMm": "187",
+            "dimensionYInches": "10.48",
+            "dimensionYMm": "266",
+            "dimensionZInches": "1.88",
+            "dimensionZMm": "48",
+            "weightLb": "6.2",
+            "weightKg": "3.0",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "12735",
+            "maximumEndLoadN": "56648",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-6.250",
+          "productName": "Victaulic Flexible Coupling - Style 75 - OD 6.250 in / OD 159.0 mm",
+          "productType": "Flexible Coupling",
+          "variantName": "OD 6.250 in / OD 159.0 mm",
+          "specifications": {
+            "actualOutsideDiameterInches": "6.250",
+            "actualOutsideDiameterMm": "159.0",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-9’",
+            "deflectionInchesPerFoot": "0.24",
+            "deflectionMmPerM": "20",
+            "boltQuantity": "2",
+            "boltSizeImperial": "5/8 x 3 1/4",
+            "boltSizeMetric": "M16 x 83",
+            "dimensionXInches": "7.63",
+            "dimensionXMm": "194",
+            "dimensionYInches": "10.49",
+            "dimensionYMm": "266",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "54",
+            "weightLb": "6.8",
+            "weightKg": "3.0",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "13800",
+            "maximumEndLoadN": "61386",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-6.500",
+          "productName": "Victaulic Flexible Coupling - Style 75 - OD 6.500 in / OD 165.1 mm",
+          "productType": "Flexible Coupling",
+          "variantName": "OD 6.500 in / OD 165.1 mm",
+          "specifications": {
+            "actualOutsideDiameterInches": "6.500",
+            "actualOutsideDiameterMm": "165.1",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-7’",
+            "deflectionInchesPerFoot": "0.23",
+            "deflectionMmPerM": "19",
+            "boltQuantity": "2",
+            "boltSizeImperial": "5/8 x 3 1/4",
+            "boltSizeMetric": "M16 x 83",
+            "dimensionXInches": "7.84",
+            "dimensionXMm": "199",
+            "dimensionYInches": "10.66",
+            "dimensionYMm": "271",
+            "dimensionZInches": "2.08",
+            "dimensionZMm": "53",
+            "weightLb": "6.6",
+            "weightKg": "3.0",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "14930",
+            "maximumEndLoadN": "66412",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-6.625",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 6\" / DN150",
+          "productType": "Flexible Coupling",
+          "variantName": "6\" / DN150",
+          "specifications": {
+            "nominalSizeInches": "6",
+            "nominalSizeDN": "DN150",
+            "actualOutsideDiameterInches": "6.625",
+            "actualOutsideDiameterMm": "168.3",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "1º-5’",
+            "deflectionInchesPerFoot": "0.23",
+            "deflectionMmPerM": "19",
+            "boltQuantity": "2",
+            "boltSizeImperial": "5/8 x 3 1/4",
+            "boltSizeMetric": "M16 x 83",
+            "dimensionXInches": "8.00",
+            "dimensionXMm": "203",
+            "dimensionYInches": "11.07",
+            "dimensionYMm": "281",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "54",
+            "weightLb": "7.0",
+            "weightKg": "3.0",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "15525",
+            "maximumEndLoadN": "69058",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-216.3",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 200A",
+          "productType": "Flexible Coupling",
+          "variantName": "200A",
+          "specifications": {
+            "nominalSizeDN": "200A",
+            "actualOutsideDiameterMm": "216.3",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "0º-51’",
+            "deflectionInchesPerFoot": "0.18",
+            "deflectionMmPerM": "15",
+            "boltQuantity": "2",
+            "boltSizeImperial": "3/4 x 5",
+            "boltSizeMetric": "M20 x 127",
+            "dimensionXInches": "10.19",
+            "dimensionXMm": "259",
+            "dimensionYInches": "13.75",
+            "dimensionYMm": "350",
+            "dimensionZInches": "2.32",
+            "dimensionZMm": "59",
+            "weightLb": "13.2",
+            "weightKg": "6.0",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "25625",
+            "maximumEndLoadN": "113986",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        },
+        {
+          "sin": "75-8.625",
+          "productName": "Victaulic Flexible Coupling - Style 75 - 8\" / DN200",
+          "productType": "Flexible Coupling",
+          "variantName": "8\" / DN200",
+          "specifications": {
+            "nominalSizeInches": "8",
+            "nominalSizeDN": "DN200",
+            "actualOutsideDiameterInches": "8.625",
+            "actualOutsideDiameterMm": "219.1",
+            "pipeEndSeparationInches": "0-0.13",
+            "pipeEndSeparationMm": "0-3.2",
+            "deflectionDegrees": "0º-50’",
+            "deflectionInchesPerFoot": "0.18",
+            "deflectionMmPerM": "15",
+            "boltQuantity": "2",
+            "boltSizeImperial": "3/4 x 5",
+            "boltSizeMetric": "M20 x 127",
+            "dimensionXInches": "10.34",
+            "dimensionXMm": "263",
+            "dimensionYInches": "13.97",
+            "dimensionYMm": "355",
+            "dimensionZInches": "2.13",
+            "dimensionZMm": "59",
+            "weightLb": "12.4",
+            "weightKg": "5.5",
+            "maximumWorkingPressureKPa": "3103",
+            "maximumEndLoadLb": "26280",
+            "maximumEndLoadN": "116900",
+            "style": "75",
+            "pipeMaterials": "Carbon steel; Stainless steel",
+            "housingCoating": "Orange enamel (standard); Hot dipped galvanized (optional)",
+            "gasketOptions": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "gasketGradeETemperatureRange": "-34°C to +110°C",
+            "gasketGradeTTemperatureRange": "-29°C to +82°C"
+          },
+          "bulbSize": null,
+          "responseType": null,
+          "kFactor": [],
+          "approvals": [
+            {
+              "agency": "CE",
+              "classification": null,
+              "certificateNumber": null
+            }
+          ],
+          "maxWorkingPressure": [
+            {
+              "pressure": 450,
+              "units": "psi",
+              "agencies": [
+                "CE"
+              ]
+            }
+          ],
+          "temperatureRatings": [],
+          "partNumbers": [],
+          "physicalCharacteristics": {
+            "frame": "Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade 65-45-15, is available upon special request.",
+            "supportCup": null,
+            "deflector": null,
+            "bulb": null,
+            "sealingAssembly": "Grade \"E\" EPDM; Grade \"T\" Nitrile",
+            "coverPlate": null
+          },
+          "connectionType": "Standard roll-grooved or cut-grooved pipe",
+          "adjustment": null
+        }
+      ],
+      "accessories": [],
+      "documentInfo": {
+        "documentNumber": "06.05",
+        "revisionDate": "2025-09-01",
+        "manufacturer": "Victaulic"
+      }
+    },
+    "pages": [
+      {
+        "page": 1,
+        "characterCount": 1259,
+        "preview": "Victaulic® Flexible Coupling\nStyle 75\n06.05\nExaggerated for clarity\n1 – 8\"/DN25 – DN200 Exaggerated for clarity\n1.0 PRODUCT DESCRIPTION\nAvailable Sizes\n• 1 – 8\"/DN25 – DN200\nPipe Material\n• Carbon steel\n• Stainless steel\n• For exceptions see section 6.0 Notifications\nMaximum Working Pressure\n• Accommodates pressures ranging from full vacuum (29.9 in Hg/760 mm Hg) up to 500 psi/3447 kPa/34 bar\n• Working pressure dependent on material, wall thickness and size of pipe\nApplication\n• Joins standard r"
+      },
+      {
+        "page": 2,
+        "characterCount": 2587,
+        "preview": "victaulic.com\n3.0 SPECIFICATIONS – MATERIAL\nHousing: Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade\n65-45-15, is available upon special request.\nHousing Coating: (specify choice)\nStandard: Orange enamel\nOptional: Hot dipped galvanized\nOptional: Contact Victaulic with your requirements for other coatings.\nGasket: (specify choice1)\nGrade “E” EPDM\nEPDM (Green stripe color code). Temperature range –30ºF to +230ºF/–34ºC to +110ºC. May be specified fo"
+      },
+      {
+        "page": 3,
+        "characterCount": 2982,
+        "preview": "victaulic.com\n4.0 DIMENSIONS\nStyle 75 Flexible Coupling\nY Z\nX\nPipe End Deflection from\nSize Separation3 Centerline3 Bolt/Nut Dimensions Weight\nActual\nOutside Approx.\nNominal Diameter Allowable Per Cplg. Pipe Qty. Size X Y Z (Each)\ninches inches inches inches/ft. imperial inches inches inches lb\nDN mm mm Degrees mm/m metric mm mm mm kg\n1 1.315 0–0.06 0.57 3⁄8 x 2 2.38 4.27 1.77 1.3\n2º–43’ 2\nDN25 33.7 0–1.6 47 M10 x 51 61 108 45 0.5\n1 1/4 1.660 0–0.06 0.45 3⁄8 x 2 2.68 4.61 1.77 1.4\n2º–10’ 2\nDN32 "
+      },
+      {
+        "page": 4,
+        "characterCount": 1404,
+        "preview": "victaulic.com\n5.0 PERFORMANCE\nStyle 75 Flexible Coupling\nSize\nActual Maximum\nOutside Working Maximum\nNominal Diameter Pressure5 End Load5\ninches inches psi lb\nDN mm kPa N\n1 1.315 500 680\nDN25 33.7 3447 3024\n1 1/4 1.660 500 1080\nDN32 42.4 3447 4804\n1 1/2 1.900 500 1420\nDN40 48.3 3447 6316\n2 2.375 500 2215\nDN50 60.3 3447 9852\n2 1/2 2.875 500 3245\n73.0 3447 14434\n3.000 500 3535\nDN65 76.1 3447 15724\n3 3.500 500 4800\nDN80 88.9 3447 21352\n3 1/2 4.000 500 6300\nDN90 101.6 3447 28024\n4 4.500 500 7950\nDN1"
+      },
+      {
+        "page": 5,
+        "characterCount": 4956,
+        "preview": "victaulic.com\n6.0 NOTIFICATIONS\nWARNING\n• Read and understand all instructions before attempting to install any Victaulic products.\n• Always verify that the piping system has been completely depressurized and drained immediately prior to installation, removal,\nadjustment, or maintenance of any Victaulic products.\n• Confirm that any equipment, branch lines, or sections of piping that may have been isolated for/during testing or due to valve closures/\npositioning are identified, depressurized, and"
+      }
+    ],
+    "sections": [
+      {
+        "id": "section-1",
+        "title": "Document start",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 1,
+        "textPreview": "Victaulic® Flexible Coupling\nStyle 75\n06.05\nExaggerated for clarity",
+        "lineCount": 4
+      },
+      {
+        "id": "section-2",
+        "title": "– 8\"/DN25 – DN200 Exaggerated for clarity",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 1,
+        "textPreview": "1.0 PRODUCT DESCRIPTION\nAvailable Sizes\n• 1 – 8\"/DN25 – DN200\nPipe Material\n• Carbon steel\n• Stainless steel\n• For exceptions see section 6.0 Notifications\nMaximum Working Pressure\n• Accommodates pressures ranging from full vacuum (29.9 in Hg/760 mm Hg) up to 500 psi/3447 kPa/34 bar\n• Working pressure dependent on material, wall thickness and size of pipe\nApplication\n• Joins standard roll grooved and cut grooved pipe, as well as grooved fittings, valves and accessories\n• Provides a flexible pipe joint which allows for expansion, contraction and deflection\n• Up to 50% lighter in weight than standard Victaulic Style 77 or Style 177N flexible couplings",
+        "lineCount": 14
+      },
+      {
+        "id": "section-3",
+        "title": "CERTIFICATIONS/LISTINGS",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 1,
+        "textPreview": "104-1a/03 EN 10311\nCPR (EU)\nNo. 305/2011\nNOTES\n• Download publication 10.01 for Fire Protection Certifications/Listings Reference Guide.\n• See publication 02.06: Victaulic Potable Water Approvals ANSI/NSF for potable water approvals if applicable.\nALWAYS REFER TO ANY NOTIFICATIONS AT THE END OF THIS DOCUMENT REGARDING PRODUCT INSTALLATION, MAINTENANCE OR SUPPORT.\nvictaulic.com",
+        "lineCount": 8
+      },
+      {
+        "id": "section-4",
+        "title": "1470 Rev S Updated 09/2025 © 2025 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 1,
+        "sourcePageEnd": 2,
+        "textPreview": "1\nvictaulic.com",
+        "lineCount": 2
+      },
+      {
+        "id": "section-5",
+        "title": "SPECIFICATIONS – MATERIAL",
+        "sourcePageStart": 2,
+        "sourcePageEnd": 2,
+        "textPreview": "Housing: Ductile iron conforming to ASTM A536, Grade 65-45-12. Ductile iron conforming to ASTM A395, Grade\n65-45-15, is available upon special request.\nHousing Coating: (specify choice)\nStandard: Orange enamel\nOptional: Hot dipped galvanized\nOptional: Contact Victaulic with your requirements for other coatings.\nGasket: (specify choice1)\nGrade “E” EPDM\nEPDM (Green stripe color code). Temperature range –30ºF to +230ºF/–34ºC to +110ºC. May be specified for\nhot water service within the specified temperature range plus a variety of dilute acids, oil-free air and many chemical\nservices. UL Classified in accordance with ANSI/NSF 61 for cold +73°F/+23°C and hot +180°F/+82°C potable water\nservice and ANSI/NSF 372. NOT COMPATIBLE FOR USE WITH PETROLEUM SERVICES OR STEAM SERVICES.\nGrade “T” Nitrile\nNitrile (Orange stripe color code). Temperature range –20ºF to +180ºF/–29ºC to +82ºC. May be specifie",
+        "lineCount": 31
+      },
+      {
+        "id": "section-6",
+        "title": "Optional bolts/nuts are available in imperial sizes only.",
+        "sourcePageStart": 2,
+        "sourcePageEnd": 3,
+        "textPreview": "06.05 1470 Rev S Updated 096/2025 © 2025 Victaulic Company. All rights reserved.\nvictaulic.com\n2\nvictaulic.com",
+        "lineCount": 4
+      },
+      {
+        "id": "section-7",
+        "title": "DIMENSIONS",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "Style 75 Flexible Coupling\nY Z\nX\nPipe End Deflection from\nSize Separation3 Centerline3 Bolt/Nut Dimensions Weight\nActual\nOutside Approx.\nNominal Diameter Allowable Per Cplg. Pipe Qty. Size X Y Z (Each)\ninches inches inches inches/ft. imperial inches inches inches lb\nDN mm mm Degrees mm/m metric mm mm mm kg",
+        "lineCount": 10
+      },
+      {
+        "id": "section-8",
+        "title": "1.315 0–0.06 0.57 3⁄8 x 2 2.38 4.27 1.77 1.3",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2º–43’ 2\nDN25 33.7 0–1.6 47 M10 x 51 61 108 45 0.5",
+        "lineCount": 2
+      },
+      {
+        "id": "section-9",
+        "title": "1/4 1.660 0–0.06 0.45 3⁄8 x 2 2.68 4.61 1.77 1.4",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "2º–10’ 2\nDN32 42.4 0–1.6 37 M10 x 51 68 117 45 0.5",
+        "lineCount": 2
+      },
+      {
+        "id": "section-10",
+        "title": "1/2 1.900 0–0.06 0.40 3⁄8 x 2 2.91 4.82 1.77 1.5",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "1º–56’ 2\nDN40 48.3 0–1.6 33 M10 x 51 74 122 45 0.5",
+        "lineCount": 2
+      },
+      {
+        "id": "section-11",
+        "title": "2.375 0–0.06 0.32 3⁄8 x 2 3.43 5.22 1.88 1.7",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "1º–31’ 2\nDN50 60.3 0–1.6 27 M10 x 51 87 133 48 1.0",
+        "lineCount": 2
+      },
+      {
+        "id": "section-12",
+        "title": "1/2 2.875 0–0.06 0.26 3⁄8 x 2 3.88 5.68 1.88 1.9",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "1º–15’ 2",
+        "lineCount": 1
+      },
+      {
+        "id": "section-13",
+        "title": "0–1.6 22 M10 x 51 98 144 48 1.0",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "3.000 0–0.06 0.26 3⁄8 x 2 4.00 5.90 1.88 1.9\n1º–12’ 2\nDN65 76.1 0–1.6 22 M10 x 51 102 150 48 1.0",
+        "lineCount": 3
+      },
+      {
+        "id": "section-14",
+        "title": "3.500 0–0.06 0.22 1/2 x 2 3/4 4.50 7.00 1.88 2.9",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "1º–2’ 2\nDN80 88.9 0–1.6 18 M12 x 70 114 178 48 1.5",
+        "lineCount": 2
+      },
+      {
+        "id": "section-15",
+        "title": "1/2 4.000 0–0.06 0.19 1/2 x 2 3/4 5.00 7.50 1.88 2.9",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "0º-54’ 2\nDN90 101.6 0–1.6 16 M12 x 70 127 191 48 1.5",
+        "lineCount": 2
+      },
+      {
+        "id": "section-16",
+        "title": "4.500 0–0.13 0.34 1/2 x 2 3/4 5.80 8.03 2.13 4.1",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "1º–36’ 2\nDN100 114.3 0–3.2 28 M12 x 70 147 204 54 2.0",
+        "lineCount": 2
+      },
+      {
+        "id": "section-17",
+        "title": "0–0.13 0.35 1/2 x 2 3/4 5.55 7.79 2.13 3.7",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "1º–41’ 2",
+        "lineCount": 1
+      },
+      {
+        "id": "section-18",
+        "title": "0–3.2 29 M12 x 70 141 198 54 1.5",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "5.000 0–0.13 0.25 5⁄8 x 3 1/4 6.13 9.43 2.13 5.5\n1º–26’ 2",
+        "lineCount": 2
+      },
+      {
+        "id": "section-19",
+        "title": "0–3.2 21 M16 x 83 156 240 54 2.5",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "5.250 0–0.13 0.28 5⁄8 x 3 1/4 6.55 9.37 2.13 6.0\n1º–21’ 2",
+        "lineCount": 2
+      },
+      {
+        "id": "section-20",
+        "title": "0–3.2 23 M16 x 83 166 238 54 2.5",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "5.500 0–0.13 0.28 5⁄8 x 3 1/4 6.80 9.59 2.13 6.3\n1º–18’ 2\nDN125 139.7 0–3.2 23 M16 x 83 173 244 54 3.0",
+        "lineCount": 3
+      },
+      {
+        "id": "section-21",
+        "title": "5.563 0–0.13 0.27 5⁄8 x 3 1/4 6.88 10.07 2.13 5.8",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "1º–18’ 2",
+        "lineCount": 1
+      },
+      {
+        "id": "section-22",
+        "title": "0–3.2 22 M16 x 83 175 256 54 2.5",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "6.000 0–0.13 0.21 5⁄8 x 3 1/4 7.38 10.48 1.88 6.2\n1º–12’ 2",
+        "lineCount": 2
+      },
+      {
+        "id": "section-23",
+        "title": "0–3.2 17 M16 x 83 187 266 48 3.0",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "6.250 0–0.13 0.24 5⁄8 x 3 1/4 7.63 10.49 2.13 6.8\n1º–9’ 2",
+        "lineCount": 2
+      },
+      {
+        "id": "section-24",
+        "title": "0–3.2 20 M16 x 83 194 266 54 3.0",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "6.500 0–0.13 0.23 5⁄8 x 3 1/4 7.84 10.66 2.08 6.6\n1º–7’ 2",
+        "lineCount": 2
+      },
+      {
+        "id": "section-25",
+        "title": "0–3.2 19 M16 x 83 199 271 53 3.0",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "6 6.625 0–0.13 0.23 5⁄8 x 3 1/4 8.00 11.07 2.13 7.0\n1º–5’ 2\nDN150 168.3 0–3.2 19 M16 x 83 203 281 54 3.0\n0–0.13 0.18 3/4 x 5 10.19 13.75 2.32 13.2\n0º–51’ 2\n200A4 216.3 0–3.2 15 M20 x 127 259 350 59 6.0",
+        "lineCount": 6
+      },
+      {
+        "id": "section-26",
+        "title": "8.625 0–0.13 0.18 3/4 x 5 10.34 13.97 2.13 12.4",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "0º–50’ 2\nDN200 219.1 0–3.2 15 M20 x 127 263 355 59 5.5\n3 Allowable Pipe End Separation and Deflection figures show the maximum nominal range of movement available at each joint for standard roll grooved pipe.\nFigures for standard cut grooved pipe may be doubled. These figures are maximums; for design and installation purposes these figures should be reduced by:\n50% for 3/4 – 3 1/2\"/DN20 – DN90; 25% for 4\"/DN100 and larger.",
+        "lineCount": 5
+      },
+      {
+        "id": "section-27",
+        "title": "Japanese Industrial Standard (JIS) size",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 3,
+        "textPreview": "NOTE\n• Metric thread size bolts are available (color coded gold) for all coupling sizes upon request. Contact Victaulic for details.",
+        "lineCount": 2
+      },
+      {
+        "id": "section-28",
+        "title": "1470 Rev S Updated 096/2025 © 2025 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 3,
+        "sourcePageEnd": 4,
+        "textPreview": "victaulic.com\n3\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-29",
+        "title": "PERFORMANCE",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "Style 75 Flexible Coupling\nSize\nActual Maximum\nOutside Working Maximum\nNominal Diameter Pressure5 End Load5\ninches inches psi lb\nDN mm kPa N",
+        "lineCount": 7
+      },
+      {
+        "id": "section-30",
+        "title": "1.315 500 680",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN25 33.7 3447 3024",
+        "lineCount": 1
+      },
+      {
+        "id": "section-31",
+        "title": "1/4 1.660 500 1080",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN32 42.4 3447 4804",
+        "lineCount": 1
+      },
+      {
+        "id": "section-32",
+        "title": "1/2 1.900 500 1420",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN40 48.3 3447 6316",
+        "lineCount": 1
+      },
+      {
+        "id": "section-33",
+        "title": "2.375 500 2215",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN50 60.3 3447 9852",
+        "lineCount": 1
+      },
+      {
+        "id": "section-34",
+        "title": "1/2 2.875 500 3245",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "73.0 3447 14434",
+        "lineCount": 1
+      },
+      {
+        "id": "section-35",
+        "title": "500 3535",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN65 76.1 3447 15724",
+        "lineCount": 1
+      },
+      {
+        "id": "section-36",
+        "title": "3.500 500 4800",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN80 88.9 3447 21352",
+        "lineCount": 1
+      },
+      {
+        "id": "section-37",
+        "title": "1/2 4.000 500 6300",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN90 101.6 3447 28024",
+        "lineCount": 1
+      },
+      {
+        "id": "section-38",
+        "title": "4.500 500 7950",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN100 114.3 3447 35364",
+        "lineCount": 1
+      },
+      {
+        "id": "section-39",
+        "title": "450 6380",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "108.0 3103 28380",
+        "lineCount": 1
+      },
+      {
+        "id": "section-40",
+        "title": "450 8820",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "127.0 3103 39234",
+        "lineCount": 1
+      },
+      {
+        "id": "section-41",
+        "title": "450 9735",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "133.0 3103 43304",
+        "lineCount": 1
+      },
+      {
+        "id": "section-42",
+        "title": "450 10665",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN125 139.7 3103 47440",
+        "lineCount": 1
+      },
+      {
+        "id": "section-43",
+        "title": "5.563 450 10935",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "141.3 3103 48642",
+        "lineCount": 1
+      },
+      {
+        "id": "section-44",
+        "title": "450 12735",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "152.4 3103 56648",
+        "lineCount": 1
+      },
+      {
+        "id": "section-45",
+        "title": "450 13800",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "159.0 3103 61386",
+        "lineCount": 1
+      },
+      {
+        "id": "section-46",
+        "title": "450 14930",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "165.1 3103 66412",
+        "lineCount": 1
+      },
+      {
+        "id": "section-47",
+        "title": "6.625 450 15525",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN150 168.3 3103 69058",
+        "lineCount": 1
+      },
+      {
+        "id": "section-48",
+        "title": "25625",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "200A4 216.3 3103 113986",
+        "lineCount": 1
+      },
+      {
+        "id": "section-49",
+        "title": "8.625 450 26280",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "DN200 219.1 3103 116900",
+        "lineCount": 1
+      },
+      {
+        "id": "section-50",
+        "title": "Japanese Industrial Standard (JIS) size",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 4,
+        "textPreview": "5 Working Pressure and End Load are total, from all internal and external loads, based on ANSI B36.10 sized carbon steel pipe, grooved in accordance with\nVictaulic specifications. Contact Victaulic for performance on other pipe.\nNOTE\n• WARNING: FOR ONE TIME FIELD TEST ONLY, the Maximum Joint Working Pressure may be increased to 11/2 times the figures shown.",
+        "lineCount": 4
+      },
+      {
+        "id": "section-51",
+        "title": "1470 Rev S Updated 096/2025 © 2025 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 4,
+        "sourcePageEnd": 5,
+        "textPreview": "victaulic.com\n4\nvictaulic.com",
+        "lineCount": 3
+      },
+      {
+        "id": "section-52",
+        "title": "NOTIFICATIONS",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "WARNING\n• Read and understand all instructions before attempting to install any Victaulic products.\n• Always verify that the piping system has been completely depressurized and drained immediately prior to installation, removal,\nadjustment, or maintenance of any Victaulic products.\n• Confirm that any equipment, branch lines, or sections of piping that may have been isolated for/during testing or due to valve closures/\npositioning are identified, depressurized, and drained immediately prior to installation, removal, adjustment, or maintenance of any\nVictaulic products.\n• Wear safety glasses, hardhat, foot protection, and hearing protection.\n• Always read and follow the I-ENDCAP, Victaulic® End Cap Installation Safety Instructions, which can be downloaded at Victaulic.com.\nFailure to follow these instructions could result in death or serious personal injury and property damage.",
+        "lineCount": 10
+      },
+      {
+        "id": "section-53",
+        "title": "WARNING",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "FOR STYLE 75 COUPLINGS USED ON STAINLESS STEEL:\n• Victaulic® RX roll sets shall be used when grooving light-wall/thin-wall stainless steel pipe. Victaulic® RX grooving rolls must be ordered\nseparately. They are identified by a silver color and the designation RX on the front of the roll sets.\n• It is the system designer’s responsibility to verify suitability of stainless steel components for use with the intended fluid media within\nthe piping system and external environment.\n• The material specifier shall evaluate the effect of chemical composition, pH level, operating temperature, chloride level, oxygen level, and\nflow rate on stainless steel components to confirm system life will be acceptable for the intended service.\n• Always reference Victaulic publication 17.01 for stainless steel pipe end preparation and grooving roll set requirements.\nFailure to follow these instructions may caus",
+        "lineCount": 9
+      },
+      {
+        "id": "section-54",
+        "title": "REFERENCE MATERIALS",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "02.06: Victaulic Potable Water Approvals ANSI/NSF\n05.01: Victaulic Seal Selection Guide - Elastomeric Seal Construction\n06.15: Victaulic Pressure Ratings and End Loads for Victaulic Couplings on Steel Pipe\n10.01: Victaulic Products for Fire Protection Pipings Systems - Regulatory Approval Reference Guide\n17.01: Victaulic Pipe Preparation for Use on Stainless Steel Pipe With Victaulic Products\n17.09: Victaulic Ductile Iron Grooved Couplings Performance Data for Stainless Steel Pipe\n25.01: Victaulic Standard Groove Specifications\n26.01: Victaulic Design Data\n29.01: Victaulic Terms and Conditions of Sale\nI-100: Victaulic Field Installation Handbook\nI-ENDCAP: Victaulic End Cap Installation Safety Instructions\nUser Responsibility for Product Selection and Suitability Intellectual Property Rights\nEach user bears final responsibility for determining the suitability of Victaulic products No stat",
+        "lineCount": 28
+      },
+      {
+        "id": "section-55",
+        "title": "1470 Rev S Updated 09/2025 © 2025 Victaulic Company. All rights reserved.",
+        "sourcePageStart": 5,
+        "sourcePageEnd": 5,
+        "textPreview": "victaulic.com\n5",
+        "lineCount": 2
+      }
+    ],
+    "warnings": [
+      "Review every product before exporting the JSON.",
+      "Dimension and performance rows are stored as separate editable product variants when present.",
+      "For sprinklers, K-factor is stored as the normalized S.I. value multiplied by ten, for example 6.1 becomes 61.",
+      "Unsupported or changed PDF layouts are rejected instead of creating incomplete product data."
+    ]
+  },
+  "reviewedAt": "2026-07-18T12:09:34.971Z"
+}
