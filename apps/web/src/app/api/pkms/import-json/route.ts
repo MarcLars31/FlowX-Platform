@@ -4,6 +4,7 @@ import {
   normalizeProductImport,
   type NormalizedProduct
 } from "@/lib/pkms-product-normalizer";
+import { requirePlatformAdminApi } from "@/lib/platform-api-authorization";
 import {
   getSupabaseDiagnostics,
   insertSupabaseRow,
@@ -46,6 +47,9 @@ type QueueResult = {
 };
 
 export async function POST(request: Request) {
+  const authorizationError = await requirePlatformAdminApi();
+  if (authorizationError) return authorizationError;
+
   try {
     const contentLength = Number(request.headers.get("content-length") ?? 0);
 

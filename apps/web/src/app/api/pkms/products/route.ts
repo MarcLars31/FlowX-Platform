@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuthenticatedApi } from "@/lib/platform-api-authorization";
 import {
   getSupabaseDiagnostics,
   selectSupabaseRows
@@ -22,6 +23,9 @@ type ApprovalRow = {
 };
 
 export async function GET() {
+  const authorizationError = await requireAuthenticatedApi();
+  if (authorizationError) return authorizationError;
+
   try {
     const approvedProducts = await selectSupabaseRows<ProductRow>(
       "approved_products"

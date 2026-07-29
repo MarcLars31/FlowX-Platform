@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint . --max-warnings=0",
+    "test:authz": "node --import tsx --test src/lib/platform-role.test.ts",
     "test:extractor": "node --import tsx --test src/modules/pdf-extractor/extractor.test.ts",
     "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts"
   },

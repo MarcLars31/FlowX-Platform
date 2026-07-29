@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuthenticatedApi } from "@/lib/platform-api-authorization";
 import { extractTechnicalSpecificationFromPages } from "@/modules/pdf-extractor/extractor";
 import {
   samplePdfFileName,
@@ -11,6 +12,9 @@ export const runtime = "nodejs";
 const maxPdfBytes = 30 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const authorizationError = await requireAuthenticatedApi();
+  if (authorizationError) return authorizationError;
+
   try {
     const formData = await request.formData();
     const useSample = formData.get("sample") === "true";

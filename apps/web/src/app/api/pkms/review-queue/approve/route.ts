@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { isJsonRecord } from "@/lib/pkms-product-normalizer";
+import { requirePlatformAdminApi } from "@/lib/platform-api-authorization";
 import { callSupabaseRpc, getSupabaseDiagnostics } from "@/lib/supabase-rest";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const authorizationError = await requirePlatformAdminApi();
+  if (authorizationError) return authorizationError;
+
   try {
     const body = (await request.json()) as unknown;
 

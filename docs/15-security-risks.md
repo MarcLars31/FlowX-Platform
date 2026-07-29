@@ -22,6 +22,27 @@ Den akuta prioriteten är:
 4. införa central, fail-closed AuthZ,
 5. synkronisera migrationshistoriken.
 
+### Mitigation status 2026-07-29
+
+The first P0 hardening step is complete:
+
+- the admin layout denies unauthenticated users and users without a trusted
+  platform role,
+- PKMS import and review routes require a platform administrator before they
+  use the service-role client,
+- product and PDF APIs require an authenticated user,
+- authorization reads controlled `app_metadata` and denies unknown roles,
+- the Auth client no longer falls back to the service-role key,
+- `approve_product_review(uuid)` can only be executed by `service_role`,
+- review views use `security_invoker=true`, and `anon` plus `authenticated`
+  have no SELECT grant.
+
+The database hardening was applied and verified live. Its reproducible migration
+is `supabase/migrations/20260729210000_harden_product_review_security.sql`.
+Because the live change was run in SQL Editor, migration history still needs to
+be synchronized deliberately. The API protection takes effect in production
+only after this code revision is deployed.
+
 ## 2. Granskningsmetod
 
 Följande kontrollerades:

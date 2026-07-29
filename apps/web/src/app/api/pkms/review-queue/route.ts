@@ -3,6 +3,7 @@ import {
   isJsonRecord,
   normalizeProductImport
 } from "@/lib/pkms-product-normalizer";
+import { requirePlatformAdminApi } from "@/lib/platform-api-authorization";
 import {
   getSupabaseDiagnostics,
   selectSupabaseRows,
@@ -37,6 +38,9 @@ const rawTextFields = [
 ] as const;
 
 export async function GET() {
+  const authorizationError = await requirePlatformAdminApi();
+  if (authorizationError) return authorizationError;
+
   try {
     const rows = await selectSupabaseRows<ProductRow>("products", {
       status: "eq.needs_review",
@@ -61,6 +65,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const authorizationError = await requirePlatformAdminApi();
+  if (authorizationError) return authorizationError;
+
   try {
     const body = (await request.json()) as unknown;
 
