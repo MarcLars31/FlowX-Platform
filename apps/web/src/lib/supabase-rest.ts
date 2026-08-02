@@ -1,6 +1,7 @@
 import "server-only";
 import { existsSync, readFileSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
+import { buildSupabaseHeaders } from "@/lib/supabase-headers";
 
 type SupabaseConfig = {
   url: string;
@@ -31,12 +32,16 @@ type EnvFileDiagnostics = {
 };
 
 export function getSupabaseConfig(): SupabaseConfig {
-  const url = pickEnv(["SUPABASE_URL"]);
-  const key = pickEnv(["SUPABASE_SERVICE_ROLE_KEY"]);
+  const url = pickEnv([
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "VITE_SUPABASE_URL"
+  ]);
+  const key = pickEnv(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
 
   if (!url || !key) {
     throw new Error(
-      "Missing backend Supabase configuration. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the backend environment. The backend import does not use VITE_SUPABASE_PUBLISHABLE_KEY."
+      "Missing backend Supabase configuration. Set SUPABASE_URL and SUPABASE_SECRET_KEY (or the legacy SUPABASE_SERVICE_ROLE_KEY) in the backend environment."
     );
   }
 
@@ -57,6 +62,7 @@ export function getSupabaseDiagnostics(): SupabaseDiagnostics {
     (file) => file.hasViteSupabaseUrl && file.hasVitePublishableKey
   )?.path;
   const publishableKey = pickEnv([
+    "SUPABASE_PUBLISHABLE_KEY",
     "VITE_SUPABASE_PUBLISHABLE_KEY",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
   ]);
@@ -75,8 +81,12 @@ export function getSupabaseDiagnostics(): SupabaseDiagnostics {
       hasPublishableKey: Boolean(publishableKey)
     };
   } catch {
-    const url = pickEnv(["SUPABASE_URL"]);
-    const key = pickEnv(["SUPABASE_SERVICE_ROLE_KEY"]);
+    const url = pickEnv([
+      "SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "VITE_SUPABASE_URL"
+    ]);
+    const key = pickEnv(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
 
     return {
       urlConfigured: Boolean(url),
@@ -127,7 +137,9 @@ function readEnvFileDiagnostics() {
       path: relativePath.replaceAll("\\", "/"),
       exists,
       hasSupabaseUrl: hasEnvKey(content, "SUPABASE_URL"),
-      hasServiceRoleKey: hasEnvKey(content, "SUPABASE_SERVICE_ROLE_KEY"),
+      hasServiceRoleKey:
+        hasEnvKey(content, "SUPABASE_SECRET_KEY") ||
+        hasEnvKey(content, "SUPABASE_SERVICE_ROLE_KEY"),
       hasViteSupabaseUrl: hasEnvKey(content, "VITE_SUPABASE_URL"),
       hasVitePublishableKey: hasEnvKey(
         content,
@@ -257,8 +269,7 @@ function supabaseHeaders(
   prefer = "return=minimal"
 ) {
   return {
-    apikey: config.key,
-    Authorization: `Bearer ${config.key}`,
+    ...buildSupabaseHeaders(config.key),
     "Content-Type": "application/json",
     Prefer: prefer,
     ...(accept ? { Accept: accept } : {})

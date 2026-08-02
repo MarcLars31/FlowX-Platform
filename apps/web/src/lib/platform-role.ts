@@ -30,6 +30,12 @@ export function isPlatformAdmin(
   return role === "admin" || role === "platform_admin";
 }
 
+export function getPostLoginDestination(
+  user: UserWithRoleMetadata | null | undefined
+) {
+  return isPlatformAdmin(user) ? "/admin" : "/dashboard";
+}
+
 export function getPlatformAdminAccessStatus(
   user: UserWithRoleMetadata | null | undefined
 ): 200 | 401 | 403 {

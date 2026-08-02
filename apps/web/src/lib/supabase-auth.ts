@@ -1,13 +1,12 @@
 import "server-only";
 import { cookies } from "next/headers";
-
-const ACCESS_COOKIE = "flowx_access_token";
-const REFRESH_COOKIE = "flowx_refresh_token";
-
-type AuthConfig = {
-  url: string;
-  apiKey: string;
-};
+import {
+  ACCESS_COOKIE,
+  authHeaders,
+  authUrl,
+  REFRESH_COOKIE,
+  REFRESH_COOKIE_MAX_AGE
+} from "@/lib/supabase-auth-config";
 
 export type FlowXUser = {
   id: string;
@@ -28,40 +27,6 @@ type AuthSession = {
   expires_in: number;
   user: FlowXUser;
 };
-
-function getAuthConfig(): AuthConfig {
-  const url =
-    process.env.SUPABASE_URL ??
-    process.env.NEXT_PUBLIC_SUPABASE_URL ??
-    process.env.VITE_SUPABASE_URL;
-  const apiKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !apiKey) {
-    throw new Error(
-      "Supabase Auth is not configured. Set a Supabase URL and publishable key."
-    );
-  }
-
-  return { url, apiKey };
-}
-
-function authUrl(path: string) {
-  const { url } = getAuthConfig();
-  const baseUrl = url.endsWith("/") ? url : `${url}/`;
-  return new URL(`auth/v1/${path}`, baseUrl);
-}
-
-function authHeaders(accessToken?: string) {
-  const { apiKey } = getAuthConfig();
-
-  return {
-    apikey: apiKey,
-    Authorization: `Bearer ${accessToken ?? apiKey}`,
-    "Content-Type": "application/json"
-  };
-}
 
 export async function signInWithPassword(email: string, password: string) {
   const response = await fetch(authUrl("token?grant_type=password"), {
@@ -114,7 +79,7 @@ export async function saveAuthSession(session: AuthSession) {
   });
   cookieStore.set(REFRESH_COOKIE, session.refresh_token, {
     ...cookieOptions,
-    maxAge: 60 * 60 * 24 * 30
+    maxAge: REFRESH_COOKIE_MAX_AGE
   });
 }
 

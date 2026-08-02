@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getPlatformAdminAccessStatus,
+  getPostLoginDestination,
   getPlatformRole,
   isPlatformAdmin
 } from "./platform-role";
@@ -41,4 +42,16 @@ test("returns fail-closed API authorization statuses", () => {
     getPlatformAdminAccessStatus({ app_metadata: { role: "admin" } }),
     200
   );
+});
+
+test("routes admins and customers to their own application areas", () => {
+  assert.equal(
+    getPostLoginDestination({ app_metadata: { role: "platform_admin" } }),
+    "/admin"
+  );
+  assert.equal(
+    getPostLoginDestination({ app_metadata: { role: "customer" } }),
+    "/dashboard"
+  );
+  assert.equal(getPostLoginDestination({}), "/dashboard");
 });

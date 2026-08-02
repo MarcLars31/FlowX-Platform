@@ -3,7 +3,7 @@ import {
   saveAuthSession,
   signInWithPassword
 } from "@/lib/supabase-auth";
-import { getPlatformRole } from "@/lib/platform-role";
+import { getPostLoginDestination } from "@/lib/platform-role";
 
 export async function POST(request: Request) {
   try {
@@ -22,14 +22,10 @@ export async function POST(request: Request) {
     }
 
     const session = await signInWithPassword(email, password);
-    const role = getPlatformRole(session.user);
     await saveAuthSession(session);
 
     return NextResponse.json({
-      redirectTo:
-        role === "admin" || role === "platform_admin"
-          ? "/admin"
-          : "/dashboard"
+      redirectTo: getPostLoginDestination(session.user)
     });
   } catch (error) {
     return NextResponse.json(
