@@ -1,6 +1,4 @@
 import "server-only";
-import { existsSync, readFileSync } from "node:fs";
-import { basename, relative, resolve } from "node:path";
 import { buildSupabaseHeaders } from "@/lib/supabase-headers";
 
 type SupabaseConfig = {
@@ -54,13 +52,7 @@ export function getSupabaseConfig(): SupabaseConfig {
 }
 
 export function getSupabaseDiagnostics(): SupabaseDiagnostics {
-  const envFiles = readEnvFileDiagnostics();
-  const backendEnvFile = envFiles.find(
-    (file) => file.hasSupabaseUrl && file.hasServiceRoleKey
-  )?.path;
-  const frontendEnvFile = envFiles.find(
-    (file) => file.hasViteSupabaseUrl && file.hasVitePublishableKey
-  )?.path;
+  const envFiles: EnvFileDiagnostics[] = [];
   const publishableKey = pickEnv([
     "SUPABASE_PUBLISHABLE_KEY",
     "VITE_SUPABASE_PUBLISHABLE_KEY",
@@ -74,9 +66,7 @@ export function getSupabaseDiagnostics(): SupabaseDiagnostics {
       keyConfigured: true,
       urlSource: config.urlSource,
       keySource: config.keySource,
-      backendEnvFile,
-      frontendEnvFile,
-      cwd: process.cwd(),
+      cwd: "server runtime",
       envFiles,
       hasPublishableKey: Boolean(publishableKey)
     };
@@ -93,9 +83,7 @@ export function getSupabaseDiagnostics(): SupabaseDiagnostics {
       keyConfigured: Boolean(key),
       urlSource: url?.name,
       keySource: key?.name,
-      backendEnvFile,
-      frontendEnvFile,
-      cwd: process.cwd(),
+      cwd: "server runtime",
       envFiles,
       hasPublishableKey: Boolean(publishableKey)
     };
@@ -109,49 +97,6 @@ function pickEnv(names: string[]) {
   }
 
   return undefined;
-}
-
-function readEnvFileDiagnostics() {
-  const appRoot = process.cwd();
-  const workspaceRoot = resolve(appRoot, "../..");
-  const candidates = [
-    ".env.local",
-    `.env.${process.env.NODE_ENV ?? "development"}.local`,
-    ".env.development.local",
-    ".env",
-    ".env.development"
-  ];
-  const paths = Array.from(
-    new Set([
-      ...candidates.map((fileName) => resolve(appRoot, fileName)),
-      ...candidates.map((fileName) => resolve(workspaceRoot, fileName))
-    ])
-  );
-
-  return paths.map((filePath) => {
-    const exists = existsSync(filePath);
-    const content = exists ? readFileSync(filePath, "utf8") : "";
-    const relativePath = relative(workspaceRoot, filePath) || basename(filePath);
-
-    return {
-      path: relativePath.replaceAll("\\", "/"),
-      exists,
-      hasSupabaseUrl: hasEnvKey(content, "SUPABASE_URL"),
-      hasServiceRoleKey:
-        hasEnvKey(content, "SUPABASE_SECRET_KEY") ||
-        hasEnvKey(content, "SUPABASE_SERVICE_ROLE_KEY"),
-      hasViteSupabaseUrl: hasEnvKey(content, "VITE_SUPABASE_URL"),
-      hasVitePublishableKey: hasEnvKey(
-        content,
-        "VITE_SUPABASE_PUBLISHABLE_KEY"
-      )
-    };
-  });
-}
-
-function hasEnvKey(content: string, key: string) {
-  const pattern = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`, "m");
-  return pattern.test(content);
 }
 
 export async function insertSupabaseRow(

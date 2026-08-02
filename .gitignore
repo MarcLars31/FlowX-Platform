@@ -5,6 +5,8 @@ node_modules/
 # Framework and build output
 .next/
 **/.next/
+.open-next/
+**/.open-next/
 .flowx-next/
 **/.flowx-next/
 dist/
