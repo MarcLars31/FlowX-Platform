@@ -37,11 +37,11 @@ jobs:
         run: |
           rm -rf dist
           mkdir -p dist/server dist/.openai
-          cp -R .open-next/. dist/server/
+          cp -RL .open-next/. dist/server/
           cp .open-next/worker.js dist/server/index.js
           if [ -d .open-next/assets ]; then
             mkdir -p dist/assets
-            cp -R .open-next/assets/. dist/assets/
+            cp -RL .open-next/assets/. dist/assets/
           fi
           cp .openai/hosting.json dist/.openai/hosting.json
           tar -C . -czf ../../flowx-sites-opennext.tar.gz dist
