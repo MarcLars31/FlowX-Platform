@@ -55,10 +55,10 @@ export function LoginForm() {
         <section className="flex min-h-[46vh] flex-col justify-between px-6 py-8 sm:px-10 lg:min-h-screen lg:py-12">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-flow-400 text-sm font-black text-ink-950">
-              FX
+              SX
             </div>
             <div>
-              <p className="text-lg font-semibold tracking-normal">FlowX</p>
+              <p className="text-lg font-semibold tracking-normal">Scipx</p>
               <p className="text-xs uppercase tracking-[0.18em] text-ink-300">
                 Platform
               </p>
@@ -74,7 +74,7 @@ export function LoginForm() {
               The Operating System for Mechanical Contractors
             </h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-ink-300">
-              FlowX samlar projekt, tekniska beslut, leverantörsdata,
+              Scipx samlar projekt, tekniska beslut, leverantörsdata,
               materiallistor och analyser i en gemensam plattform.
             </p>
           </div>
@@ -93,7 +93,7 @@ export function LoginForm() {
                 Säker inloggning
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-normal">
-                Välkommen till FlowX
+                Välkommen till Scipx
               </h2>
               <p className="mt-2 text-sm text-ink-500">
                 Du skickas automatiskt till rätt vy för ditt konto.

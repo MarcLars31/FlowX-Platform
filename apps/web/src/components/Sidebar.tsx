@@ -44,7 +44,7 @@ const organizationIcons = {
 
 export function Sidebar({
   navigation,
-  workspaceName = "FlowX",
+  workspaceName = "Scipx",
   workspaceLabel = "Platform"
 }: {
   navigation?: readonly OrganizationNavigationItem[];
@@ -64,7 +64,7 @@ export function Sidebar({
     <aside className="flex h-full w-full flex-col bg-ink-950 text-white">
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-flow-400 text-sm font-black text-ink-950">
-          FX
+          SX
         </div>
         <div>
           <p className="max-w-40 truncate text-base font-semibold leading-5">

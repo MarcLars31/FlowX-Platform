@@ -1,6 +1,6 @@
-# FlowX Web Prototype
+# Scipx Web Platform
 
-Next.js prototype for the FlowX Platform founder meeting.
+Next.js application for the Scipx Platform.
 
 ## Run Locally
 

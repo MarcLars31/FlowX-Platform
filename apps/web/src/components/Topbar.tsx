@@ -1,7 +1,7 @@
 import { Badge } from "@/components/Badge";
 
 export function Topbar({
-  organizationName = "FlowX",
+  organizationName = "Scipx",
   userName = "Plattformsadministratör",
   roleLabel = "Intern administration"
 }: {
@@ -14,13 +14,13 @@ export function Topbar({
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
-    .join("") || "FX";
+    .join("") || "SX";
 
   return (
     <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between border-b border-ink-200 bg-white/92 px-4 backdrop-blur sm:px-6 lg:px-8">
       <div>
         <p className="text-sm font-semibold text-ink-900">{organizationName}</p>
-        <p className="text-xs text-ink-500">FlowX workspace</p>
+        <p className="text-xs text-ink-500">Scipx workspace</p>
       </div>
       <div className="flex items-center gap-3">
         <Badge tone="teal">Säker anslutning</Badge>

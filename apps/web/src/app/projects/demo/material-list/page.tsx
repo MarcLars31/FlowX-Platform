@@ -12,7 +12,7 @@ import {
 } from "@/lib/pipeline-analysis";
 
 const assistantResponse =
-  "Yes. FlowX found compatible Victaulic alternatives for selected grooved components. Compatibility is based on dimension, pressure rating, joint type, system type and compliance requirements. Final approval should be reviewed by the responsible engineer.";
+  "Yes. Scipx found compatible Victaulic alternatives for selected grooved components. Compatibility is based on dimension, pressure rating, joint type, system type and compliance requirements. Final approval should be reviewed by the responsible engineer.";
 
 export default function MaterialListPage() {
   const matchedProducts = getMatchedProducts(demoMaterialLines);
@@ -82,7 +82,7 @@ export default function MaterialListPage() {
           response={assistantResponse}
           description="Customer-facing answer based on compatible alternatives."
           badge="Demo"
-          contextLabel="FlowX response"
+          contextLabel="Scipx response"
         />
       </section>
     </div>

@@ -23,7 +23,7 @@ export async function AuthenticatedAppShell({
   const userName =
     user.user_metadata?.full_name?.trim() ||
     user.email?.split("@")[0] ||
-    "FlowX-användare";
+    "Scipx-användare";
 
   if (isPlatformAdmin(user)) {
     return (
@@ -43,7 +43,7 @@ export async function AuthenticatedAppShell({
           </h1>
           <p className="mt-2 text-sm leading-6 text-ink-700">
             Kontot är autentiserat men saknar ett aktivt
-            organisationsmedlemskap. En FlowX-administratör eller
+            organisationsmedlemskap. En Scipx-administratör eller
             organisationsägare behöver aktivera medlemskapet.
           </p>
         </div>

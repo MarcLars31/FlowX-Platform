@@ -330,7 +330,7 @@ export default function AnalysisPage() {
                 Ready for product matching
               </div>
               <p className="text-sm leading-6 text-ink-700">
-                FlowX has enough reviewed context to map requirements to
+                Scipx has enough reviewed context to map requirements to
                 supplier products and compliant alternatives.
               </p>
             </div>

@@ -10,7 +10,7 @@ import { getOrganizationContext } from "@/lib/organization-context";
 
 const news = [
   {
-    category: "FlowX",
+    category: "Scipx",
     title: "Säkrare samarbete med personliga konton",
     description:
       "Organisation, team och projektåtkomst är separerade för tydlig spårbarhet."
@@ -34,7 +34,7 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <header className="rounded-xl bg-ink-950 px-6 py-8 text-white shadow-sm sm:px-8">
         <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-300">
-          Välkommen till FlowX
+          Välkommen till Scipx
         </p>
         <h1 className="mt-3 max-w-3xl text-3xl font-semibold">
           Produktkunskap och branschnyheter för {context.organization.name}
@@ -72,7 +72,7 @@ export default async function DashboardPage() {
           <Sparkles className="h-6 w-6 text-flow-700" aria-hidden="true" />
           <h2 className="mt-4 font-semibold text-ink-950">Nya produkter</h2>
           <p className="mt-2 text-sm leading-6 text-ink-600">
-            Nya och uppdaterade produkter från FlowX produktdatabas.
+            Nya och uppdaterade produkter från Scipx produktdatabas.
           </p>
         </article>
       </section>

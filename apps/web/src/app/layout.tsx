@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FlowX Platform",
+  title: "Scipx Platform",
   description:
-    "FlowX samlar projekt, produktdata och tekniska arbetsflöden för installationsbranschen."
+    "Scipx samlar projekt, produktdata och tekniska arbetsflöden för installationsbranschen."
 };
 
 export default function RootLayout({
