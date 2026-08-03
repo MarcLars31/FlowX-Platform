@@ -63,6 +63,7 @@ export async function AuthenticatedAppShell({
       navigation={filterOrganizationNavigation(context.permissions)}
       organizationName={context.organization.name}
       userName={userName}
+      userEmail={user.email}
       roleLabel={formatRole(context.membership.role_slug)}
     >
       {children}

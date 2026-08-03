@@ -7,12 +7,14 @@ export function AppShell({
   navigation,
   organizationName,
   userName,
+  userEmail,
   roleLabel
 }: {
   children: React.ReactNode;
   navigation?: readonly OrganizationNavigationItem[];
   organizationName?: string;
   userName?: string;
+  userEmail?: string;
   roleLabel?: string;
 }) {
   return (
@@ -28,6 +30,7 @@ export function AppShell({
         <Topbar
           organizationName={organizationName}
           userName={userName}
+          userEmail={userEmail}
           roleLabel={roleLabel}
         />
         <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
