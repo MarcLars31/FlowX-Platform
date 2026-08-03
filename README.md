@@ -21,6 +21,7 @@ Nuvarande prototyp innehåller:
 - Kund- och adminvyer.
 - Separat extractor för bildbaserade tekniska beskrivningar med OCR.
 - Materialrader, regelhints och indikativa materialestimat sparas per organisation.
+- Central projektarbetsyta med projektförutsättningar, kravgranskning och beslutslogg.
 - Permanent lagring av projektmetadata i Supabase.
 - Produktdatabas med JSON- och PDF-import.
 - Granskningskö innan en produkt publiceras.
@@ -108,6 +109,19 @@ Estimatet använder en uttryckligen angiven kvot (till exempel sprinklerhuvuden
 per m²), eventuell reservprocent och aktiva materialregler. Resultatet är
 indikativt och ska alltid verifieras mot projektets tekniska beskrivning och
 gällande standard innan beställning eller dimensionering.
+
+### Central projektmodul
+
+Projekt öppnas från `/projects` och har en arbetsyta med översikt, underlag,
+kravgranskning, produktförslag och beslutslogg. Projektets grunddata,
+standarder, systemtyper, leverantörsval, krav, konflikter, produktförslag,
+beslut och versionssnapshot lagras i Supabase-migrationen
+`20260803120000_create_central_project_module.sql`.
+
+Den första vertikalen fokuserar på säker spårbarhet och mänsklig granskning.
+Automatisk produktmatchning, kompatibilitetskontroll, kommersiell optimering
+och exportformat byggs ovanpå dessa lagrade krav och projektbeslut i nästa
+steg.
 
 ## Repositorystruktur
 

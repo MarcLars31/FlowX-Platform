@@ -10,8 +10,8 @@ export default async function ProjectsPage() {
   if (!context) return null;
 
   const projects = await selectUserRows<OrganizationProject>("projects", {
-    select:
-      "id,organization_id,team_id,name,description,customer_name,status,access_level,created_by,assigned_to,created_at,updated_at",
+      select:
+        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,access_level,created_by,assigned_to,created_at,updated_at",
     organization_id: `eq.${context.organization.id}`,
     deleted_at: "is.null",
     order: "updated_at.desc"
@@ -70,7 +70,14 @@ export default async function ProjectsPage() {
                 {projects.map((project) => (
                   <tr key={project.id}>
                     <td className="px-5 py-4 font-semibold text-ink-950">
-                      {project.name}
+                      <Link href={`/projects/${project.id}`} className="hover:text-flow-700">
+                        {project.name}
+                        {project.project_number && (
+                          <span className="mt-1 block text-xs font-normal text-ink-500">
+                            {project.project_number}
+                          </span>
+                        )}
+                      </Link>
                     </td>
                     <td className="px-5 py-4 text-ink-600">
                       {project.customer_name ?? "—"}

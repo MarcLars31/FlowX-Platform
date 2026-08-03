@@ -60,6 +60,33 @@ export async function insertUserRowReturning<T>(
   return row;
 }
 
+export async function updateUserRowsReturning<T>(
+  table: string,
+  filters: Record<string, string>,
+  payload: Record<string, unknown>
+) {
+  const config = await getUserSupabaseConfig();
+  const url = restUrl(config.url, table);
+  url.searchParams.set("select", "*");
+  Object.entries(filters).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: userHeaders(config, "return=representation"),
+    body: JSON.stringify(payload),
+    cache: "no-store"
+  });
+
+  if (!response.ok) throw await readUserSupabaseError(response);
+
+  const rows = (await response.json()) as T[];
+  const row = rows[0];
+  if (!row) throw new Error(`Supabase update of ${table} returned no row.`);
+  return row;
+}
+
 export async function callUserRpc<T>(
   functionName: string,
   payload: Record<string, unknown>

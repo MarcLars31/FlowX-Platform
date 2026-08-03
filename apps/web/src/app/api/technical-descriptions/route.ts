@@ -148,8 +148,44 @@ export async function POST(request: Request) {
       });
     }
 
+    let persistedRequirementCount = 0;
+    if (
+      projectId &&
+      authorization.context.permissions.includes("project.requirement.create")
+    ) {
+      for (const line of result.materialLines) {
+        await insertUserRowReturning("project_requirements", {
+          organization_id: authorization.context.organization.id,
+          project_id: projectId,
+          category: line.category,
+          requirement_key: line.nsCode ?? line.category,
+          value_text: line.description,
+          value_json: {
+            operation: line.operation,
+            quantity: line.quantity ?? null,
+            unit: line.unit ?? null,
+            attributes: line.attributes,
+            system: line.system ?? null
+          },
+          certainty: "interpreted",
+          confidence: line.confidence,
+          status: "pending",
+          source_technical_description_document_id: document.id,
+          source_page: line.sourcePage,
+          source_excerpt: line.sourceText,
+          created_by: authorization.user.id
+        });
+        persistedRequirementCount += 1;
+      }
+    }
+
     return NextResponse.json(
-      { documentId: document.id, persistedLineCount: result.materialLines.length, ...result },
+      {
+        documentId: document.id,
+        persistedLineCount: result.materialLines.length,
+        persistedRequirementCount,
+        ...result
+      },
       { status: 201 }
     );
   } catch (error) {

@@ -28,7 +28,7 @@ export async function GET() {
 
     const projects = await selectUserRows<OrganizationProject>("projects", {
       select:
-        "id,organization_id,team_id,name,description,customer_name,status,access_level,created_by,assigned_to,created_at,updated_at",
+        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,created_at,updated_at",
       organization_id: `eq.${authorization.context.organization.id}`,
       deleted_at: "is.null",
       order: "updated_at.desc"
@@ -59,17 +59,28 @@ export async function POST(request: Request) {
         created_by: authorization.user.id,
         assigned_to: authorization.user.id,
         name: input.name,
+        project_number: input.projectNumber,
         description: input.description,
         customer: input.customerName,
         customer_name: input.customerName,
+        end_customer: input.endCustomer,
         address: input.address,
         country: input.country,
         standard: input.standard,
         system_type: input.systemType,
         supplier: input.supplier,
+        project_type: input.projectType,
+        procurement_strategy: input.procurementStrategy,
+        currency: input.currency,
+        delivery_country: input.deliveryCountry,
+        warehouse_location: input.warehouseLocation,
+        expected_start_date: input.expectedStartDate,
+        expected_delivery_date: input.expectedDeliveryDate,
+        internal_comments: input.internalComments,
+        technical_parameters: input.technicalParameters,
         team_id: input.teamId,
         access_level: input.accessLevel,
-        status: "active",
+        status: "draft",
         progress: 0
       }
     );
@@ -82,13 +93,24 @@ export async function POST(request: Request) {
 
 type ProjectInput = {
   name?: string;
+  projectNumber?: string;
   description?: string;
   customerName?: string;
+  endCustomer?: string;
   address?: string;
   country?: string;
   standard?: string;
   systemType?: string;
   supplier?: string;
+  projectType?: string;
+  procurementStrategy?: string;
+  currency?: string;
+  deliveryCountry?: string;
+  warehouseLocation?: string;
+  expectedStartDate?: string;
+  expectedDeliveryDate?: string;
+  internalComments?: string;
+  technicalParameters?: Record<string, unknown>;
   teamId?: string | null;
   accessLevel?: string;
 };
@@ -96,13 +118,24 @@ type ProjectInput = {
 function validateProjectInput(body: ProjectInput | null):
   | {
       name: string;
+      projectNumber: string | null;
       description: string | null;
       customerName: string | null;
+      endCustomer: string | null;
       address: string | null;
       country: string | null;
       standard: string | null;
       systemType: string | null;
       supplier: string | null;
+      projectType: string | null;
+      procurementStrategy: string | null;
+      currency: string | null;
+      deliveryCountry: string | null;
+      warehouseLocation: string | null;
+      expectedStartDate: string | null;
+      expectedDeliveryDate: string | null;
+      internalComments: string | null;
+      technicalParameters: Record<string, unknown>;
       teamId: string | null;
       accessLevel: ProjectAccessLevel;
     }
@@ -125,13 +158,26 @@ function validateProjectInput(body: ProjectInput | null):
 
   return {
     name,
+    projectNumber: optionalText(body?.projectNumber, 100),
     description: optionalText(body?.description, 2000),
     customerName: optionalText(body?.customerName, 200),
+    endCustomer: optionalText(body?.endCustomer, 200),
     address: optionalText(body?.address, 300),
     country: optionalText(body?.country, 100),
     standard: optionalText(body?.standard, 100),
     systemType: optionalText(body?.systemType, 150),
     supplier: optionalText(body?.supplier, 150),
+    projectType: optionalText(body?.projectType, 100),
+    procurementStrategy: optionalText(body?.procurementStrategy, 100),
+    currency: optionalText(body?.currency, 10),
+    deliveryCountry: optionalText(body?.deliveryCountry, 100),
+    warehouseLocation: optionalText(body?.warehouseLocation, 150),
+    expectedStartDate: optionalDate(body?.expectedStartDate),
+    expectedDeliveryDate: optionalDate(body?.expectedDeliveryDate),
+    internalComments: optionalText(body?.internalComments, 5000),
+    technicalParameters: isRecord(body?.technicalParameters)
+      ? body.technicalParameters
+      : {},
     teamId: body?.teamId ?? null,
     accessLevel: accessLevel as ProjectAccessLevel
   };
@@ -140,6 +186,15 @@ function validateProjectInput(body: ProjectInput | null):
 function optionalText(value: string | undefined, maxLength: number) {
   const trimmed = value?.trim();
   return trimmed ? trimmed.slice(0, maxLength) : null;
+}
+
+function optionalDate(value: string | undefined) {
+  if (!value?.trim()) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function isUuid(value: string) {

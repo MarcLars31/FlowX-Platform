@@ -61,12 +61,23 @@ export default function CreateProjectPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: formData.get("name"),
+              projectNumber: formData.get("projectNumber"),
               customerName: formData.get("customerName"),
+              endCustomer: formData.get("endCustomer"),
               address: formData.get("address"),
               country: formData.get("country"),
               standard: formData.get("standard"),
               systemType: formData.get("systemType"),
               supplier: formData.get("supplier"),
+              projectType: formData.get("projectType"),
+              procurementStrategy: formData.get("procurementStrategy"),
+              currency: formData.get("currency"),
+              deliveryCountry: formData.get("deliveryCountry"),
+              warehouseLocation: formData.get("warehouseLocation"),
+              expectedStartDate: formData.get("expectedStartDate"),
+              expectedDeliveryDate: formData.get("expectedDeliveryDate"),
+              description: formData.get("description"),
+              internalComments: formData.get("internalComments"),
               accessLevel: formData.get("accessLevel"),
               teamId:
                 formData.get("accessLevel") === "team"
@@ -95,7 +106,9 @@ export default function CreateProjectPage() {
             label="Project name"
             required
           />
+          <Input id="project-number" name="projectNumber" label="Project number" />
           <Input id="customer" name="customerName" label="Customer" />
+          <Input id="end-customer" name="endCustomer" label="End customer" />
           <Input
             id="address"
             name="address"
@@ -128,12 +141,55 @@ export default function CreateProjectPage() {
             defaultValue="Wet sprinkler system"
           />
           <Select
+            id="project-type"
+            name="projectType"
+            label="Project type"
+            options={[
+              "New construction",
+              "Reconstruction",
+              "Renovation",
+              "Tenant adaptation",
+              "Replacement",
+              "Service project",
+              "Calculation project",
+              "Design project",
+              "Procurement project"
+            ]}
+            defaultValue="New construction"
+          />
+          <Select
+            id="procurement-strategy"
+            name="procurementStrategy"
+            label="Procurement strategy"
+            options={[
+              "Preferred manufacturer only",
+              "Preferred with approved alternatives",
+              "Lowest price",
+              "Shortest lead time",
+              "Best technical match",
+              "Best total economy",
+              "Standardized range",
+              "Free product selection"
+            ]}
+            defaultValue="Preferred with approved alternatives"
+          />
+          <Select
             id="preferred-supplier"
             name="supplier"
             label="Preferred supplier"
             options={["Ahlsell", "Dahl", "Broedrene Dahl", "Onninen"]}
             defaultValue="Ahlsell"
           />
+          <Input id="currency" name="currency" label="Currency" defaultValue="NOK" />
+          <Input
+            id="delivery-country"
+            name="deliveryCountry"
+            label="Delivery country"
+            defaultValue="Norway"
+          />
+          <Input id="warehouse" name="warehouseLocation" label="Warehouse / distribution point" />
+          <Input id="expected-start" name="expectedStartDate" label="Expected start" type="date" />
+          <Input id="expected-delivery" name="expectedDeliveryDate" label="Expected delivery" type="date" />
           <label className="block" htmlFor="access-level">
             <span className="mb-2 block text-sm font-medium text-ink-700">
               Projektåtkomst
@@ -172,6 +228,27 @@ export default function CreateProjectPage() {
               </select>
             </label>
           )}
+        </div>
+
+        <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <label className="block" htmlFor="project-description">
+            <span className="mb-2 block text-sm font-medium text-ink-700">Project description</span>
+            <textarea
+              id="project-description"
+              name="description"
+              rows={4}
+              className="block w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500"
+            />
+          </label>
+          <label className="block" htmlFor="internal-comments">
+            <span className="mb-2 block text-sm font-medium text-ink-700">Internal comments</span>
+            <textarea
+              id="internal-comments"
+              name="internalComments"
+              rows={4}
+              className="block w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500"
+            />
+          </label>
         </div>
 
         {error && (
