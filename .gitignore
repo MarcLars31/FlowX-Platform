@@ -24,6 +24,7 @@ tmp/
 **/__pycache__/
 *.py[cod]
 *.log
+*.traineddata
 
 # Local secrets
 .env

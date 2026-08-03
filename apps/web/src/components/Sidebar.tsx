@@ -7,6 +7,7 @@ import {
   Building2,
   ClipboardCheck,
   FileJson,
+  FileText,
   FolderKanban,
   Home,
   PackageSearch,
@@ -39,7 +40,8 @@ const organizationIcons = {
   projects: FolderKanban,
   organization: Building2,
   trash: Trash2,
-  activity: Activity
+  activity: Activity,
+  technical_description: FileText
 } satisfies Record<OrganizationNavigationItem["icon"], typeof Home>;
 
 export function Sidebar({

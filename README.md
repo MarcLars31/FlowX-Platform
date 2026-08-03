@@ -19,6 +19,8 @@ Nuvarande prototyp innehåller:
 
 - Supabase Auth med e-post/lösenord.
 - Kund- och adminvyer.
+- Separat extractor för bildbaserade tekniska beskrivningar med OCR.
+- Materialrader, regelhints och indikativa materialestimat sparas per organisation.
 - Permanent lagring av projektmetadata i Supabase.
 - Produktdatabas med JSON- och PDF-import.
 - Granskningskö innan en produkt publiceras.
@@ -89,8 +91,23 @@ npm.cmd run test:authz
 npm.cmd run test:rbac
 npm.cmd run test:extractor
 npm.cmd run test:normalizer
+npm.cmd run test:technical-description
 npm.cmd run build
 ```
+
+### Teknisk beskrivning och materialestimat
+
+Funktionen finns under `/technical-descriptions` och är avsiktligt separat
+från produktdatabladens PDF-extractor. Den använder vanlig textutvinning när
+det är möjligt och faller annars tillbaka på OCR för norska/engelska
+bildbaserade dokument. Uppladdade dokument och extraherade materialrader
+sparas i Supabase av migrationen
+`20260803100000_create_technical_description_estimation.sql`.
+
+Estimatet använder en uttryckligen angiven kvot (till exempel sprinklerhuvuden
+per m²), eventuell reservprocent och aktiva materialregler. Resultatet är
+indikativt och ska alltid verifieras mot projektets tekniska beskrivning och
+gällande standard innan beställning eller dimensionering.
 
 ## Repositorystruktur
 
