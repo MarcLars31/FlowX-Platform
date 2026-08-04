@@ -413,6 +413,11 @@ function isUuid(value: string) {
 }
 
 function technicalDescriptionErrorResponse(error: unknown) {
+  console.error("Technical description extraction failed", {
+    message: error instanceof Error ? error.message : String(error),
+    name: error instanceof Error ? error.name : "UnknownError"
+  });
+
   if (error instanceof UserSupabaseError) {
     const forbidden =
       error.status === 401 || error.status === 403 || error.code === "42501";
