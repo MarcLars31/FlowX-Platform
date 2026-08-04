@@ -1,9 +1,11 @@
-import { PDFParse } from "pdf-parse";
+import { ensurePdfCanvasRuntime } from "@/lib/pdf-runtime";
 import type { ExtractedPageText } from "./types";
 
 export async function extractPdfTextPages(
   data: Buffer | Uint8Array
 ): Promise<ExtractedPageText[]> {
+  await ensurePdfCanvasRuntime();
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data });
 
   try {

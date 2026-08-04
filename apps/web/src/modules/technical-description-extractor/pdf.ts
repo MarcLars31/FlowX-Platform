@@ -1,5 +1,5 @@
-import { PDFParse } from "pdf-parse";
 import { createWorker } from "tesseract.js";
+import { ensurePdfCanvasRuntime } from "@/lib/pdf-runtime";
 import type { TechnicalDescriptionPage } from "./types";
 
 const OCR_SCALE = 2;
@@ -7,6 +7,8 @@ const OCR_SCALE = 2;
 export async function extractTechnicalDescriptionPages(
   data: Buffer | Uint8Array
 ): Promise<TechnicalDescriptionPage[]> {
+  await ensurePdfCanvasRuntime();
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data });
 
   try {
