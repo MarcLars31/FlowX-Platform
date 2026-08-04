@@ -129,9 +129,22 @@ export type RequirementEvaluation = {
   evidence: unknown;
 };
 
+export type OrganizationJoinRequest = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  message: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
+      organization_join_requests: { Row: OrganizationJoinRequest };
       project_documents: { Row: ProjectDocument };
       extraction_runs: { Row: ExtractionRun };
       requirement_candidates: { Row: RequirementCandidate };

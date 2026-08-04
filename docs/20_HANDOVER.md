@@ -10,6 +10,10 @@
   leverantörsofferter, matchningsresultat, materiallisteversioner, exporter och
   referensprojekt.
 - `project-files` är en privat Storage-bucket.
+- `20260804160000_complete_organization_data_model.sql` är applicerad i
+  Supabase och kompletterar profiler
+  och organisationer med registreringsfält, soft-delete-fält och tabellen
+  `organization_join_requests`. Godkännande/avslag sker genom tre RPC:er.
 
 ## Verifiering
 
@@ -33,8 +37,8 @@ policyerna och Storage-bucketen finns innan deploy.
 
 ## Nästa steg
 
-Implementera accepter/avvisa/ändra-API för kandidater, matchningsmotorn med
-teknisk gate före ranking, materiallisteversionering i UI, projektbunden
-Storage-policy och en lokal syntetisk seed med två organisationer. Ändra inte
-Auth/RBAC-namn eller befintliga projekt-/dokumenttabeller utan en ny
-inventering och migration.
+Implementera accepter/avvisa/ändra-API för kravkandidater och
+anslutningsbegäran, matchningsmotorn med teknisk gate före ranking,
+materiallisteversionering i UI, projektbunden Storage-policy och en lokal
+syntetisk seed med två organisationer. Ändra inte Auth/RBAC-namn eller
+befintliga projekt-/dokumenttabeller utan en ny inventering och migration.

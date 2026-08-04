@@ -5,9 +5,11 @@ import type {
 
 export type OrganizationStatus =
   | "pending"
+  | "pending_verification"
   | "active"
   | "suspended"
-  | "disabled";
+  | "disabled"
+  | "rejected";
 
 export type OrganizationMemberStatus =
   | "invited"
@@ -19,10 +21,14 @@ export type Organization = {
   id: string;
   name: string;
   organization_number?: string | null;
+  country_code?: string | null;
+  website?: string | null;
+  email_domain?: string | null;
   status: OrganizationStatus;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 };
 
 export type OrganizationMembership = {
@@ -33,6 +39,24 @@ export type OrganizationMembership = {
   role_slug: string;
   status: OrganizationMemberStatus;
   joined_at?: string | null;
+};
+
+export type OrganizationJoinRequestStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+
+export type OrganizationJoinRequest = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  message?: string | null;
+  status: OrganizationJoinRequestStatus;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type OrganizationContext = {

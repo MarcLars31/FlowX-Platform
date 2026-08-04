@@ -7,9 +7,13 @@ befintliga modellen utan att byta namn på tabeller eller flytta befintliga
 poster. `20260804153000_allow_technical_description_pipeline.sql` ger den
 separata tekniska beskrivningsimporten samma tenant- och projektkontroll som
 övriga dokumentflödet.
+`20260804160000_complete_organization_data_model.sql` kompletterar den
+organisationella modellen och är applicerad i Supabase.
 
-Organisationer, profiler, medlemskap, roller, projekt och audit-logg är
-befintliga kanoniska tabeller. FlowX använder `organization_id` som tenantnyckel.
+Organisationer, profiler, medlemskap, roller, inbjudningar, anslutningsbegäran,
+projekt och audit-logg är befintliga kanoniska tabeller. FlowX använder
+`organization_id` som tenantnyckel. `organization_join_requests` kompletterar
+denna modell för godkännande innan en användare blir aktiv medlem.
 `project_documents` är projektens dokumentmetadata; `documents` är den globala
 produktkällkatalogen och ska inte blandas ihop med projektfiler.
 
@@ -24,6 +28,7 @@ produktkällkatalogen och ska inte blandas ihop med projektfiler.
 | Matchning | `compatibility_rule_sets`, `compatibility_rules`, `compatibility_evaluations`, `match_runs`, `match_candidates`, `requirement_evaluations`, `commercial_scenarios` |
 | Material/export | `material_list_versions`, `material_list_items`, `material_list_item_alternatives`, `exports` |
 | Referenser | `reference_projects`, `reference_project_products` |
+| Organisationstillhörighet | `organizations`, `profiles`, `organization_members`, `organization_invitations`, `organization_join_requests` |
 
 Projektinställningar ligger kvar som kolumner på `projects`, eftersom den
 befintliga modellen redan innehåller land, standard, systemtyp och kommersiella
@@ -41,6 +46,13 @@ inställningar. En separat `project_settings`-tabell skapades därför inte.
   granskning före ranking.
 - Affärskritiska tabeller använder `deleted_at` där befintlig modell stödjer
   soft delete. Audit-poster raderas inte av vanliga användare.
+- `organization_number` är fortsatt det kanoniska organisationsnummerfältet;
+  `country_code` och ett sammansatt index stöder internationell unikhet utan att
+  bryta befintliga svenska poster.
+- Join requests skrivs endast genom `create_organization_join_request`,
+  `review_organization_join_request` och `cancel_organization_join_request`.
+  Klienten kan läsa sina egna begäran eller begäran i ett företag där den har
+  medlemsadministration.
 
 ## Säkerhet och databaslogik
 
@@ -56,6 +68,9 @@ och är inte körbara av `anon`/`authenticated`.
 ```mermaid
 erDiagram
   organizations ||--o{ organization_members : has
+  organizations ||--o{ organization_invitations : invites
+  organizations ||--o{ organization_join_requests : receives
+  profiles ||--o{ organization_join_requests : requests
   organizations ||--o{ projects : owns
   projects ||--o{ project_members : grants
   projects ||--o{ project_documents : contains
