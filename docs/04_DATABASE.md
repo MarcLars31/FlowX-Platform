@@ -11,6 +11,8 @@ separata tekniska beskrivningsimporten samma tenant- och projektkontroll som
 organisationella modellen och är applicerad i Supabase.
 `20260804170000_add_join_request_review_identity.sql` kompletterar
 granskningskön med en begränsad identitetssnapshot.
+`20260804180000_complete_invitation_lifecycle.sql` lägger till säkra RPC:er för
+att återkalla och acceptera organisationsinbjudningar.
 
 Organisationer, profiler, medlemskap, roller, inbjudningar, anslutningsbegäran,
 projekt och audit-logg är befintliga kanoniska tabeller. FlowX använder

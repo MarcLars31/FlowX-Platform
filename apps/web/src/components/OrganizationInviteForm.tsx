@@ -27,7 +27,7 @@ export function OrganizationInviteForm({ canAssignAdmins }: {
 
   return (
     <form
-      className="grid gap-4 rounded-lg border border-ink-200 bg-white p-5 shadow-sm md:grid-cols-[1fr_240px_auto]"
+      className="grid gap-4 rounded-lg border border-ink-200 bg-white p-5 shadow-sm md:grid-cols-[1fr_1fr_1fr_240px_auto]"
       onSubmit={async (event) => {
         event.preventDefault();
         setSaving(true);
@@ -39,7 +39,9 @@ export function OrganizationInviteForm({ canAssignAdmins }: {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: formData.get("email"),
-            role: formData.get("role")
+            role: formData.get("role"),
+            firstName: formData.get("firstName"),
+            lastName: formData.get("lastName")
           })
         });
         const result = (await response.json().catch(() => null)) as
@@ -54,12 +56,26 @@ export function OrganizationInviteForm({ canAssignAdmins }: {
 
         form.reset();
         setMessage(
-          "Inbjudan är säkert registrerad. E-postleverans kopplas in i nästa fas."
+          "Inbjudan är skickad. Användaren får välja sitt eget lösenord via länken i mejlet."
         );
         setSaving(false);
         router.refresh();
       }}
     >
+      <Input
+        id="invitation-first-name"
+        name="firstName"
+        label="Förnamn"
+        autoComplete="given-name"
+        required
+      />
+      <Input
+        id="invitation-last-name"
+        name="lastName"
+        label="Efternamn"
+        autoComplete="family-name"
+        required
+      />
       <Input
         id="invitation-email"
         name="email"

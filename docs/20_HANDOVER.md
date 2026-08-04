@@ -16,6 +16,8 @@
   `organization_join_requests`. Godkännande/avslag sker genom tre RPC:er.
 - `20260804170000_add_join_request_review_identity.sql` sparar en begränsad
   identitetssnapshot för adminvyn och är kopplad till `/organization`.
+- `20260804180000_complete_invitation_lifecycle.sql` lägger till RPC:er för
+  återkallad och accepterad inbjudan.
 
 ## Verifiering
 
@@ -40,7 +42,7 @@ policyerna och Storage-bucketen finns innan deploy.
 ## Nästa steg
 
 Implementera accepter/avvisa/ändra-API för kravkandidater,
-inbjudningsacceptans via e-post och
+företagssökning via organisationsnummer och
 matchningsmotorn med teknisk gate före ranking,
 materiallisteversionering i UI, projektbunden Storage-policy och en lokal
 syntetisk seed med två organisationer. Ändra inte Auth/RBAC-namn eller

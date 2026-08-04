@@ -12,6 +12,9 @@
 - SECURITY DEFINER-funktioner har explicit `search_path` och stängd EXECUTE.
 - Kritiska ändringar får audit-logg; vanliga användare kan inte redigera
   audit-tabellen.
+- Supabase Auth-inbjudan skickas endast från serverroute med
+  `SUPABASE_SECRET_KEY`/`SUPABASE_SERVICE_ROLE_KEY`; nyckeln används aldrig i
+  klientkod.
 - Självregistrering mot ett befintligt företag använder
   `organization_join_requests`. Begäran skrivs och granskas via säkra
   SECURITY DEFINER-funktioner; klienten kan inte ange användare eller beslut
@@ -27,7 +30,9 @@ kan därför behöva flyttas till worker/Edge Function.
 
 Join-request-flödet kräver fortfarande ett server/API-lager för att söka på
 organisationsnummer, visa vänteläge och skicka aviseringar. Databasen skapar
-inte e-post och exponerar inte invitation tokens.
+inte e-post och exponerar inte invitation tokens. Inbjudningsacceptansen tar
+emot access-token över HTTPS, använder den endast för att sätta lösenord och
+aktivera rätt e-postmedlemskap, och sparar den inte i localStorage.
 
 Kontrollera alltid att `SUPABASE_SERVICE_ROLE_KEY` endast finns i servermiljö,
 att loggar inte innehåller tokens eller råa kunddokument och att globala

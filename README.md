@@ -81,6 +81,7 @@ Applikationen använder följande variabelnamn:
 
 ```text
 SUPABASE_URL
+SUPABASE_SECRET_KEY
 SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 VITE_SUPABASE_URL
@@ -88,6 +89,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY
 ```
 
 Lägg aldrig miljövariabelvärden, tokens eller Supabase-nycklar i Git.
+`SUPABASE_SECRET_KEY` (eller den äldre `SUPABASE_SERVICE_ROLE_KEY`) krävs på
+servern för att skicka Auth-inbjudningar. Den ska aldrig exponeras i klienten.
 
 ### Kvalitetskontroller
 
