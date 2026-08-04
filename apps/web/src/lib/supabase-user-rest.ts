@@ -122,6 +122,36 @@ export async function callUserRpc<T>(
   return (await response.json()) as T;
 }
 
+/** Uploads a file through the authenticated user's Supabase Storage session. */
+export async function uploadUserStorageObject(
+  bucket: string,
+  path: string,
+  body: ArrayBuffer | Uint8Array,
+  contentType: string
+) {
+  const config = await getUserSupabaseConfig();
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  const baseUrl = config.url.endsWith("/") ? config.url : `${config.url}/`;
+  const response = await fetch(
+    new URL(`storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`, baseUrl),
+    {
+      method: "POST",
+      headers: {
+        apikey: config.publishableKey,
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": contentType || "application/octet-stream",
+        "x-upsert": "false"
+      },
+      body: Buffer.from(
+        body instanceof ArrayBuffer ? new Uint8Array(body) : body
+      ),
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok) throw await readUserSupabaseError(response);
+}
+
 async function getUserSupabaseConfig(): Promise<UserSupabaseConfig> {
   const url =
     process.env.SUPABASE_URL ??

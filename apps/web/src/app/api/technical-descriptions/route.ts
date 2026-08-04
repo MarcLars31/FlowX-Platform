@@ -4,6 +4,8 @@ import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
   insertUserRowReturning,
   selectUserRows,
+  updateUserRowsReturning,
+  uploadUserStorageObject,
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
 import {
@@ -18,6 +20,9 @@ const MAX_PDF_BYTES = 30 * 1024 * 1024;
 
 type ProjectRow = { id: string; organization_id: string };
 type DocumentRow = { id: string };
+type ProjectDocumentRow = { id: string; upload_status: string; processing_status: string };
+type RequirementSetRow = { id: string; version: number; status: string };
+type ExtractionRunRow = { id: string };
 
 export async function GET() {
   try {
@@ -124,6 +129,117 @@ export async function POST(request: Request) {
       }
     );
 
+    let projectDocument: ProjectDocumentRow | null = null;
+    let extractionRun: ExtractionRunRow | null = null;
+    let requirementSet: RequirementSetRow | null = null;
+
+    if (projectId) {
+      const safeFileName = file.name
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+        .slice(0, 120) || "technical-description.pdf";
+      const storageBucket = "project-files";
+      const storagePath = `${authorization.context.organization.id}/${projectId}/technical-description/${fileSha256}-${safeFileName}`;
+
+      const existingProjectDocuments = await selectUserRows<ProjectDocumentRow>(
+        "project_documents",
+        {
+          select: "id,upload_status,processing_status",
+          organization_id: `eq.${authorization.context.organization.id}`,
+          project_id: `eq.${projectId}`,
+          checksum: `eq.${fileSha256}`,
+          deleted_at: "is.null",
+          limit: "1"
+        }
+      );
+
+      projectDocument = existingProjectDocuments[0] ?? null;
+      if (!projectDocument) {
+        projectDocument = await insertUserRowReturning<ProjectDocumentRow>(
+          "project_documents",
+          {
+            organization_id: authorization.context.organization.id,
+            project_id: projectId,
+            storage_bucket: storageBucket,
+            storage_path: storagePath,
+            file_name: file.name.slice(0, 255),
+            original_filename: file.name.slice(0, 255),
+            document_type: "technical_description",
+            content_type: file.type || "application/pdf",
+            mime_type: file.type || "application/pdf",
+            size_bytes: file.size,
+            file_size: file.size,
+            checksum: fileSha256,
+            file_sha256: fileSha256,
+            upload_status: "uploading",
+            processing_status: "extracting",
+            status: "active",
+            uploaded_by: authorization.user.id
+          }
+        );
+        try {
+          await uploadUserStorageObject(
+            storageBucket,
+            storagePath,
+            buffer,
+            file.type || "application/pdf"
+          );
+          projectDocument = await updateUserRowsReturning<ProjectDocumentRow>(
+            "project_documents",
+            {
+              id: `eq.${projectDocument.id}`,
+              organization_id: `eq.${authorization.context.organization.id}`
+            },
+            { upload_status: "uploaded", processing_status: status === "review_required" ? "requires_review" : "completed" }
+          );
+        } catch (uploadError) {
+          await updateUserRowsReturning<ProjectDocumentRow>(
+            "project_documents",
+            {
+              id: `eq.${projectDocument.id}`,
+              organization_id: `eq.${authorization.context.organization.id}`
+            },
+            { upload_status: "failed", processing_status: "failed" }
+          ).catch(() => undefined);
+          throw uploadError;
+        }
+      }
+
+      extractionRun = await insertUserRowReturning<ExtractionRunRow>(
+        "extraction_runs",
+        {
+          organization_id: authorization.context.organization.id,
+          project_id: projectId,
+          document_id: projectDocument.id,
+          status: status === "review_required" ? "requires_review" : "completed",
+          extraction_provider: "flowx-technical-description-extractor",
+          model_name: "deterministic-pdf-parser",
+          model_version: "1",
+          prompt_version: null,
+          started_at: result.document.extractedAt,
+          completed_at: result.document.extractedAt,
+          raw_result: {
+            document: result.document,
+            project: result.project,
+            standards: result.standards,
+            warnings: result.warnings
+          },
+          created_by: authorization.user.id
+        }
+      );
+
+      for (const page of result.pages) {
+        await insertUserRowReturning("document_pages", {
+          organization_id: authorization.context.organization.id,
+          project_id: projectId,
+          document_id: projectDocument.id,
+          page_number: page.pageNumber,
+          extracted_text: page.text,
+          extraction_method: page.method,
+          metadata: { confidence: page.confidence }
+        });
+      }
+    }
+
     for (const line of result.materialLines) {
       await insertUserRowReturning(
         "technical_description_material_lines",
@@ -153,12 +269,72 @@ export async function POST(request: Request) {
       projectId &&
       authorization.context.permissions.includes("project.requirement.create")
     ) {
+      const requirementSets = await selectUserRows<RequirementSetRow>(
+        "requirement_sets",
+        {
+          select: "id,version,status",
+          organization_id: `eq.${authorization.context.organization.id}`,
+          project_id: `eq.${projectId}`,
+          status: "eq.draft",
+          order: "version.desc",
+          limit: "1"
+        }
+      );
+      requirementSet = requirementSets[0] ?? null;
+      if (!requirementSet) {
+        requirementSet = await insertUserRowReturning<RequirementSetRow>(
+          "requirement_sets",
+          {
+            organization_id: authorization.context.organization.id,
+            project_id: projectId,
+            version: 1,
+            status: "draft",
+            created_by: authorization.user.id
+          }
+        );
+      }
+
       for (const line of result.materialLines) {
+        const candidate = await insertUserRowReturning<{ id: string }>(
+          "requirement_candidates",
+          {
+            organization_id: authorization.context.organization.id,
+            project_id: projectId,
+            extraction_run_id: extractionRun?.id ?? null,
+            document_id: projectDocument?.id ?? null,
+            technical_description_document_id: document.id,
+            page_number: line.sourcePage,
+            raw_text: line.sourceText || line.description,
+            requirement_category: line.category,
+            attribute_key: line.nsCode ?? line.category,
+            raw_value: line.description,
+            normalized_value: {
+              operation: line.operation,
+              quantity: line.quantity ?? null,
+              unit: line.unit ?? null,
+              attributes: line.attributes,
+              system: line.system ?? null,
+              standardRefs: line.standardRefs
+            },
+            unit: line.unit ?? null,
+            confidence: line.confidence,
+            source_coordinates: [],
+            status: line.reviewFlags.length ? "requires_review" : "extracted",
+            created_by: authorization.user.id
+          }
+        );
+
         await insertUserRowReturning("project_requirements", {
           organization_id: authorization.context.organization.id,
           project_id: projectId,
+          requirement_set_id: requirementSet.id,
+          source_candidate_id: candidate.id,
           category: line.category,
           requirement_key: line.nsCode ?? line.category,
+          attribute_key: line.nsCode ?? line.category,
+          display_name: line.description,
+          operator: "contains",
+          value_type: "text",
           value_text: line.description,
           value_json: {
             operation: line.operation,
@@ -169,6 +345,9 @@ export async function POST(request: Request) {
           },
           certainty: "interpreted",
           confidence: line.confidence,
+          verification_status: "unknown",
+          is_mandatory: false,
+          severity: "technical",
           status: "pending",
           source_technical_description_document_id: document.id,
           source_page: line.sourcePage,

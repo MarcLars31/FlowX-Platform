@@ -37,9 +37,10 @@ Nuvarande prototyp innehåller:
 
 Inbjudningar registreras säkert i Supabase men e-postleverans och accepterande
 av inbjudan kräver en separat e-postleverantör. Projektens dokumentmetadata,
-krav och beslut sparas, medan privat filstorage och persistenta extraction jobs
-fortsätter i nästa fas. Plattformen använder fortfarande en explicit mänsklig
-granskning för produktdata och tekniska resultat.
+privata PDF-filer, extraktionskörningar och kravkandidater sparas i Supabase.
+Matchningsmotor och automatisk ranking byggs fortfarande ovanpå den lagrade
+modellen. Plattformen använder fortfarande en explicit mänsklig granskning för
+produktdata och tekniska resultat.
 
 > **Säkerhetsstatus:** prototypen är inte produktionsredo. Läs
 > [säkerhetsgranskningen](docs/15-security-risks.md) före driftsättning eller
@@ -153,6 +154,17 @@ ska inte versionshanteras.
 - [Fas 1 – slutförd leverans och handover](docs/18-phase-1-completion-handover.md)
 - [Startprompt för nästa Codex-agent](docs/19-next-codex-phase-2-prompt.md)
 - [Fas 2 – projektåtkomst och organisationsinställningar](docs/20-phase-2-access-and-settings.md)
+
+### Databas och pipeline
+
+- [Databasmodell och ER-diagram](docs/04_DATABASE.md)
+- [Produktdatabas](docs/06_PRODUCT_DATABASE.md)
+- [PDF- och kravpipeline](docs/07_PDF_PIPELINE.md)
+- [API-kontrakt](docs/09_API.md)
+- [Säkerhet](docs/14_SECURITY.md)
+- [Databasbeslut](docs/16_DECISIONS.md)
+- [Kodgranskning](docs/18_CODE_REVIEW.md)
+- [Databashandover](docs/20_HANDOVER.md)
 
 ### Strategisk arkitektur
 
