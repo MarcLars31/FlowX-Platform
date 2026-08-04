@@ -36,6 +36,14 @@ Migrationen:
 Efter applicering verifierades både policyerna och kolumnbehörigheterna i
 Supabase SQL Editor.
 
+Projektstatusreglerna kompletteras av migrationen
+`supabase/migrations/20260804120000_align_project_status_lifecycle.sql`, så att
+statusvärdena som används av projektarbetsytan (`draft`, analys, granskning,
+godkänd, leverans och arkiverad) accepteras av databasen.
+
+Skapandeformuläret kräver kund, land, standard och systemtyp eftersom dessa
+fält är obligatoriska i den befintliga projekt-tabellen.
+
 ## Kodens huvuddelar
 
 - `apps/web/src/components/ProjectAccessEditor.tsx`

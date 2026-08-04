@@ -107,7 +107,7 @@ export default function CreateProjectPage() {
             required
           />
           <Input id="project-number" name="projectNumber" label="Project number" />
-          <Input id="customer" name="customerName" label="Customer" />
+          <Input id="customer" name="customerName" label="Customer" required />
           <Input id="end-customer" name="endCustomer" label="End customer" />
           <Input
             id="address"

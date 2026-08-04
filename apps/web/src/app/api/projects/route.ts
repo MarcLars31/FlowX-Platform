@@ -120,12 +120,12 @@ function validateProjectInput(body: ProjectInput | null):
       name: string;
       projectNumber: string | null;
       description: string | null;
-      customerName: string | null;
+      customerName: string;
       endCustomer: string | null;
       address: string | null;
-      country: string | null;
-      standard: string | null;
-      systemType: string | null;
+      country: string;
+      standard: string;
+      systemType: string;
       supplier: string | null;
       projectType: string | null;
       procurementStrategy: string | null;
@@ -156,16 +156,28 @@ function validateProjectInput(body: ProjectInput | null):
     return { error: "Invalid team ID." };
   }
 
+  const customerName = requiredText(body?.customerName, 200);
+  const country = requiredText(body?.country, 100);
+  const standard = requiredText(body?.standard, 100);
+  const systemType = requiredText(body?.systemType, 150);
+  if (!customerName || !country || !standard || !systemType) {
+    return {
+      error: [customerName, country, standard, systemType].some((value) => value === null)
+        ? "Customer, country, standard and system type are required."
+        : "Required project fields are invalid."
+    };
+  }
+
   return {
     name,
     projectNumber: optionalText(body?.projectNumber, 100),
     description: optionalText(body?.description, 2000),
-    customerName: optionalText(body?.customerName, 200),
+    customerName,
     endCustomer: optionalText(body?.endCustomer, 200),
     address: optionalText(body?.address, 300),
-    country: optionalText(body?.country, 100),
-    standard: optionalText(body?.standard, 100),
-    systemType: optionalText(body?.systemType, 150),
+    country,
+    standard,
+    systemType,
     supplier: optionalText(body?.supplier, 150),
     projectType: optionalText(body?.projectType, 100),
     procurementStrategy: optionalText(body?.procurementStrategy, 100),
@@ -184,6 +196,11 @@ function validateProjectInput(body: ProjectInput | null):
 }
 
 function optionalText(value: string | undefined, maxLength: number) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : null;
+}
+
+function requiredText(value: string | undefined, maxLength: number) {
   const trimmed = value?.trim();
   return trimmed ? trimmed.slice(0, maxLength) : null;
 }
