@@ -9,6 +9,8 @@ separata tekniska beskrivningsimporten samma tenant- och projektkontroll som
 övriga dokumentflödet.
 `20260804160000_complete_organization_data_model.sql` kompletterar den
 organisationella modellen och är applicerad i Supabase.
+`20260804170000_add_join_request_review_identity.sql` kompletterar
+granskningskön med en begränsad identitetssnapshot.
 
 Organisationer, profiler, medlemskap, roller, inbjudningar, anslutningsbegäran,
 projekt och audit-logg är befintliga kanoniska tabeller. FlowX använder

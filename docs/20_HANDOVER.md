@@ -14,6 +14,8 @@
   Supabase och kompletterar profiler
   och organisationer med registreringsfält, soft-delete-fält och tabellen
   `organization_join_requests`. Godkännande/avslag sker genom tre RPC:er.
+- `20260804170000_add_join_request_review_identity.sql` sparar en begränsad
+  identitetssnapshot för adminvyn och är kopplad till `/organization`.
 
 ## Verifiering
 
@@ -37,8 +39,9 @@ policyerna och Storage-bucketen finns innan deploy.
 
 ## Nästa steg
 
-Implementera accepter/avvisa/ändra-API för kravkandidater och
-anslutningsbegäran, matchningsmotorn med teknisk gate före ranking,
+Implementera accepter/avvisa/ändra-API för kravkandidater,
+inbjudningsacceptans via e-post och
+matchningsmotorn med teknisk gate före ranking,
 materiallisteversionering i UI, projektbunden Storage-policy och en lokal
 syntetisk seed med två organisationer. Ändra inte Auth/RBAC-namn eller
 befintliga projekt-/dokumenttabeller utan en ny inventering och migration.

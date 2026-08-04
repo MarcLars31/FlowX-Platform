@@ -1,5 +1,6 @@
 import { Badge } from "@/components/Badge";
 import { OrganizationInviteForm } from "@/components/OrganizationInviteForm";
+import { OrganizationJoinRequestActions } from "@/components/OrganizationJoinRequestActions";
 import { OrganizationMemberActions } from "@/components/OrganizationMemberActions";
 import { OrganizationTeamManagement } from "@/components/OrganizationTeamManagement";
 import { getOrganizationContext } from "@/lib/organization-context";
@@ -39,13 +40,23 @@ type InvitationRow = {
   status: string;
   expires_at: string;
 };
+type JoinRequestRow = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  requester_email: string | null;
+  requester_display_name: string | null;
+  message: string | null;
+  status: string;
+  created_at: string;
+};
 
 export default async function OrganizationPage() {
   const context = await getOrganizationContext();
   if (!context) return null;
   const organizationId = context.organization.id;
 
-  const [members, roles, teams, seats, subscriptions, invitations] =
+  const [members, roles, teams, seats, subscriptions, invitations, joinRequests] =
     await Promise.all([
     context.permissions.includes("member.view")
       ? selectUserRows<MemberRow>("organization_members", {
@@ -84,6 +95,15 @@ export default async function OrganizationPage() {
           select: "id,email,role_id,status,expires_at",
           organization_id: `eq.${organizationId}`,
           order: "created_at.desc"
+        })
+      : Promise.resolve([]),
+    context.permissions.includes("member.view")
+      ? selectUserRows<JoinRequestRow>("organization_join_requests", {
+          select:
+            "id,organization_id,user_id,requester_email,requester_display_name,message,status,created_at",
+          organization_id: `eq.${organizationId}`,
+          status: "eq.pending",
+          order: "created_at.asc"
         })
       : Promise.resolve([])
   ]);
@@ -162,6 +182,56 @@ export default async function OrganizationPage() {
                   <Badge tone={invitation.status === "pending" ? "amber" : "slate"}>
                     {invitation.status}
                   </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {context.permissions.includes("member.view") && (
+        <section
+          id="join-requests"
+          className="overflow-hidden rounded-lg border border-ink-200 bg-white shadow-sm"
+        >
+          <div className="border-b border-ink-200 px-5 py-4">
+            <h2 className="font-semibold text-ink-950">Anslutningsbegäranden</h2>
+            <p className="mt-1 text-sm text-ink-600">
+              Nya användare får ingen projektåtkomst förrän en administratör har godkänt dem.
+            </p>
+          </div>
+          {joinRequests.length === 0 ? (
+            <p className="px-5 py-5 text-sm text-ink-500">
+              Det finns inga väntande anslutningsbegäranden.
+            </p>
+          ) : (
+            <div className="divide-y divide-ink-100">
+              {joinRequests.map((request) => (
+                <div
+                  key={request.id}
+                  className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-ink-950">
+                      {request.requester_display_name ?? "Namnlös användare"}
+                    </p>
+                    <p className="text-sm text-ink-600">
+                      {request.requester_email ?? "E-post saknas"}
+                    </p>
+                    {request.message && (
+                      <p className="mt-2 max-w-2xl text-sm text-ink-500">
+                        “{request.message}”
+                      </p>
+                    )}
+                    <p className="mt-2 text-xs text-ink-400">
+                      Skickad {new Intl.DateTimeFormat("sv-SE").format(new Date(request.created_at))}
+                    </p>
+                  </div>
+                  {context.permissions.includes("member.invite") ? (
+                    <OrganizationJoinRequestActions requestId={request.id} />
+                  ) : (
+                    <Badge tone="amber">Väntar på godkännande</Badge>
+                  )}
                 </div>
               ))}
             </div>

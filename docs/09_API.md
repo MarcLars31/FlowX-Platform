@@ -23,3 +23,7 @@ krav- eller produktmodeller.
   `create_organization_join_request`.
 - `PATCH` godkänner/avslår en begäran som administratör eller avbryter den egna
   begäran. Databasen kontrollerar organisation, medlemskap och behörighet.
+
+Organisationsadministrationen visar väntande begäranden på `/organization` och
+använder samma endpoint. Namn och e-post visas från den begränsade snapshot som
+skapas av databasen; ingen profil-RLS kringgås för en ännu ej godkänd användare.

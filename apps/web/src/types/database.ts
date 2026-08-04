@@ -133,6 +133,8 @@ export type OrganizationJoinRequest = {
   id: string;
   organization_id: string;
   user_id: string;
+  requester_email: string | null;
+  requester_display_name: string | null;
   message: string | null;
   status: "pending" | "approved" | "rejected" | "cancelled";
   reviewed_by: string | null;
