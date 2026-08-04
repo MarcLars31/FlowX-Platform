@@ -94,7 +94,7 @@ export default function TechnicalDescriptionsPage() {
       if (!response.ok || !("documentId" in payload)) {
         throw new Error(
           "error" in payload
-            ? payload.error ?? payload.detail ?? "Extraktionen misslyckades."
+            ? payload.detail ?? payload.error ?? "Extraktionen misslyckades."
             : "Extraktionen misslyckades."
         );
       }
