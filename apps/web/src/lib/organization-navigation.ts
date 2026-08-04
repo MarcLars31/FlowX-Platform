@@ -58,6 +58,12 @@ export const ORGANIZATION_NAVIGATION: readonly OrganizationNavigationItem[] = [
     ]
   },
   {
+    name: "Organisationsinställningar",
+    href: "/organization/settings",
+    icon: "organization",
+    anyPermissions: ["organization.update", "subscription.manage"]
+  },
+  {
     name: "Papperskorg",
     href: "/organization/trash",
     icon: "trash",

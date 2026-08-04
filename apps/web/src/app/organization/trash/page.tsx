@@ -7,13 +7,23 @@ export default async function TrashPage() {
   const context = await getOrganizationContext();
   if (!context) return null;
 
-  const projects = await selectUserRows<OrganizationProject>("projects", {
-    select:
-      "id,organization_id,name,status,deleted_at,deleted_by,deletion_reason,created_at,updated_at,access_level",
-    organization_id: `eq.${context.organization.id}`,
-    deleted_at: "not.is.null",
-    order: "deleted_at.desc"
-  });
+  const [projects, subscriptions] = await Promise.all([
+    selectUserRows<OrganizationProject>("projects", {
+      select:
+        "id,organization_id,name,status,deleted_at,deleted_by,deletion_reason,created_at,updated_at,access_level",
+      organization_id: `eq.${context.organization.id}`,
+      deleted_at: "not.is.null",
+      order: "deleted_at.desc"
+    }),
+    context.permissions.includes("subscription.view")
+      ? selectUserRows<{ retention_days: number | null }>("organization_subscriptions", {
+          select: "retention_days",
+          organization_id: `eq.${context.organization.id}`,
+          limit: "1"
+        })
+      : Promise.resolve([])
+  ]);
+  const retentionDays = subscriptions[0]?.retention_days ?? null;
 
   return (
     <div className="space-y-6">
@@ -57,7 +67,7 @@ export default async function TrashPage() {
                     {project.deletion_reason ?? "—"}
                   </td>
                   <td className="px-5 py-4 text-ink-500">
-                    Ej konfigurerad
+                    {retentionLabel(project.deleted_at, retentionDays)}
                   </td>
                   <td className="px-5 py-4">
                     <OrganizationTrashActions
@@ -84,4 +94,12 @@ export default async function TrashPage() {
       </section>
     </div>
   );
+}
+
+function retentionLabel(deletedAt: string | null | undefined, retentionDays: number | null) {
+  if (retentionDays === null) return "Ej konfigurerad";
+  if (!deletedAt) return `${retentionDays} dagar`;
+  const expiresAt = new Date(new Date(deletedAt).getTime() + retentionDays * 24 * 60 * 60 * 1000);
+  const remaining = Math.ceil((expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  return remaining <= 0 ? "Förfallen – kan raderas" : `${remaining} dagar kvar`;
 }

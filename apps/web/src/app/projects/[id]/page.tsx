@@ -3,6 +3,7 @@ import { getOrganizationContext } from "@/lib/organization-context";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
 import { ProjectWorkspace, type ProjectModuleData } from "@/components/ProjectWorkspace";
+import { ProjectAccessEditor } from "@/components/ProjectAccessEditor";
 
 type ProjectPageProps = { params: Promise<{ id: string }> };
 
@@ -21,6 +22,57 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     limit: "1"
   });
   if (!project) notFound();
+
+  const canManageAccess = context.permissions.includes("project.manage_members");
+  let accessData: {
+    teams: Array<{ id: string; name: string }>;
+    members: Array<{ organizationMemberId: string; projectRole: "owner" | "editor" | "viewer"; label: string }>;
+    memberOptions: Array<{ organizationMemberId: string; label: string }>;
+  } = { teams: [], members: [], memberOptions: [] };
+  if (canManageAccess) {
+    const [teams, projectMembers, organizationMembers] = await Promise.all([
+      selectUserRows<{ id: string; name: string }>("teams", {
+        select: "id,name",
+        organization_id: `eq.${organizationId}`,
+        status: "eq.active",
+        order: "name.asc"
+      }),
+      selectUserRows<{ organization_member_id: string; project_role: "owner" | "editor" | "viewer" }>("project_members", {
+        select: "organization_member_id,project_role",
+        project_id: `eq.${id}`
+      }),
+      selectUserRows<{ id: string; user_id: string }>("organization_members", {
+        select: "id,user_id",
+        organization_id: `eq.${organizationId}`,
+        status: "eq.active",
+        order: "created_at.asc"
+      })
+    ]);
+    const userIds = organizationMembers.map((member) => member.user_id);
+    const profiles = userIds.length
+      ? await selectUserRows<{ id: string; display_name: string | null; email: string | null }>("profiles", {
+          select: "id,display_name,email",
+          id: `in.(${userIds.join(",")})`
+        })
+      : [];
+    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const labelByMemberId = new Map(organizationMembers.map((member) => {
+      const profile = profileById.get(member.user_id);
+      return [member.id, profile?.display_name ?? profile?.email ?? "Namnlös användare"] as const;
+    }));
+    accessData = {
+      teams,
+      members: projectMembers.map((member) => ({
+        organizationMemberId: member.organization_member_id,
+        projectRole: member.project_role,
+        label: labelByMemberId.get(member.organization_member_id) ?? "Namnlös användare"
+      })),
+      memberOptions: organizationMembers.map((member) => ({
+        organizationMemberId: member.id,
+        label: labelByMemberId.get(member.id) ?? "Namnlös användare"
+      }))
+    };
+  }
 
   const data: ProjectModuleData = {
     project,
@@ -84,5 +136,19 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       : []
   };
 
-  return <ProjectWorkspace initialData={data} />;
+  return (
+    <div className="space-y-6">
+      <ProjectWorkspace initialData={data} />
+      {canManageAccess && (
+        <ProjectAccessEditor
+          projectId={project.id}
+          initialAccessLevel={project.access_level}
+          initialTeamId={project.team_id ?? null}
+          teams={accessData.teams}
+          memberOptions={accessData.memberOptions}
+          initialMembers={accessData.members}
+        />
+      )}
+    </div>
+  );
 }

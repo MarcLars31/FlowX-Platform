@@ -11,8 +11,9 @@ produktmatchning och versionshanterad materiallista.
 
 **Version:** 0.1
 
-**Status:** fas 1 för organisation/RBAC är implementerad och verifierad mot den
-länkade Supabase-databasen
+**Status:** fas 1 är implementerad och verifierad. Delar av fas 2 för
+projektåtkomst och organisationsinställningar är implementerade och
+verifierade mot den länkade Supabase-databasen.
 
 **Ägare:** Marcus Larsson
 
@@ -31,6 +32,8 @@ Nuvarande prototyp innehåller:
 - Organisations-, medlems-, roll- och behörighetsgrund.
 - Team- och projektspecifik åtkomst skyddad av RLS.
 - Soft delete och audit-logg för projektlivscykeln.
+- Projektåtkomst med team, medlemsroller och rolländringar i audit-loggen.
+- Organisationsinställningar för namn, organisationsnummer och retentionperiod.
 
 Inbjudningar registreras säkert i Supabase men e-postleverans och accepterande
 av inbjudan kräver en separat e-postleverantör. Projektens dokumentmetadata,
@@ -149,6 +152,7 @@ ska inte versionshanteras.
 - [Organisation/RBAC-drift och manuella steg](docs/17-organization-rbac-operations.md)
 - [Fas 1 – slutförd leverans och handover](docs/18-phase-1-completion-handover.md)
 - [Startprompt för nästa Codex-agent](docs/19-next-codex-phase-2-prompt.md)
+- [Fas 2 – projektåtkomst och organisationsinställningar](docs/20-phase-2-access-and-settings.md)
 
 ### Strategisk arkitektur
 
