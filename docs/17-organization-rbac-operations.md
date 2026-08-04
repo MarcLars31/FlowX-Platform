@@ -1,6 +1,6 @@
 # FlowX organization/RBAC operations
 
-> Implementation date: 2026-07-29
+> Implementation date: 2026-08-04
 > Scope: phase 1 B2B SaaS authorization foundation
 
 ## Delivered in phase 1
@@ -66,6 +66,7 @@ Apply the migrations in filename order:
 3. `20260730120000_backfill_legacy_organization_and_authorization.sql`
 4. `20260730130000_enable_organization_rls_and_project_lifecycle.sql`
 5. `20260730140000_add_secure_membership_operations.sql`
+6. `20260804100000_complete_team_management_rls.sql`
 
 The database migrations must be deployed before the updated web application.
 The web application fails closed when no active organization membership exists.
@@ -90,37 +91,28 @@ The web application fails closed when no active organization membership exists.
 Do not paste the test file into production: it creates rollback-only fixtures
 and is intended for a local or isolated CI database.
 
-## Live production preflight
+## Live production verification
 
 A read-only preflight was run against the linked FlowX project
-`myzegtifgbvjhdlcpebi` on 2026-07-29. The reusable query is stored in
+`myzegtifgbvjhdlcpebi` on 2026-08-04. The reusable query is stored in
 `supabase/preflight/20260730_organization_rbac_preflight.sql`.
 
 | Check | Live result |
 |---|---|
 | Auth users | 1 |
 | Projects | 1 |
-| Organization foundation tables | None |
-| `projects.organization_id` | Missing |
-| Existing project owner FK delete action | `CASCADE` |
-| Existing project RLS | Four customer owner-based policies |
-| Registered migration history | Four migrations through `20260718110000` |
+| Organization foundation tables | Present |
+| `projects.organization_id` | Present and backfilled |
+| Organization/project RLS | Enabled and verified |
+| Team DELETE RLS | Enabled by `20260804100000` |
 
 The missing local copy of registered migration
 `20260718110000_add_product_datasheet_fields.sql` was recovered from the
 Supabase migration history before continuing.
 
-The FlowX project is on the Supabase Free plan. The dashboard reports that
-database backups are unavailable on this plan, and preview branches require a
-Pro upgrade. A preview branch also shows a compute charge of `$0.01344/hour`.
-No upgrade, branch creation or production schema change was performed.
-
-Deployment is therefore paused until one of these paths is explicitly chosen:
-
-1. Upgrade, create a preview branch, run the full migration and RLS test there,
-   then deploy to production after verification. This is the recommended path.
-2. Explicitly accept the higher risk of a direct production migration without
-   a Supabase restore point. This is not recommended.
+The project remains on the Supabase Free plan, so production changes should
+still be scheduled with care and verified from the SQL editor after every
+migration. No service-role key is required by the customer web routes.
 
 ## Verification queries
 
@@ -186,9 +178,7 @@ RLS policies on every tenant table and the listed authorization functions.
 The following is intentionally not presented as complete:
 
 - Invitation email delivery and token-acceptance screen.
-- Interactive role/status editing for existing members.
-- Interactive team creation and team-member editing.
-- Project access/member editor and trash confirmation dialogs.
+- Project access/member editor.
 - Retention-policy scheduler.
 - Private Storage bucket and permanent project-PDF upload.
 - Persistent extraction jobs, analyses and material-list UI integration.

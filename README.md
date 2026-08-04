@@ -11,7 +11,8 @@ produktmatchning och versionshanterad materiallista.
 
 **Version:** 0.1
 
-**Status:** fas 1 för organisation/RBAC färdig i koden, ännu inte driftsatt
+**Status:** fas 1 för organisation/RBAC är implementerad och verifierad mot den
+länkade Supabase-databasen
 
 **Ägare:** Marcus Larsson
 
@@ -31,9 +32,11 @@ Nuvarande prototyp innehåller:
 - Team- och projektspecifik åtkomst skyddad av RLS.
 - Soft delete och audit-logg för projektlivscykeln.
 
-Projekt-PDF, analysresultat och materiallista är ännu inte permanent kopplade
-till projektets nya organisationsstruktur. E-postleverans för inbjudningar
-och fullständiga administrationsflöden fortsätter i nästa fas.
+Inbjudningar registreras säkert i Supabase men e-postleverans och accepterande
+av inbjudan kräver en separat e-postleverantör. Projektens dokumentmetadata,
+krav och beslut sparas, medan privat filstorage och persistenta extraction jobs
+fortsätter i nästa fas. Plattformen använder fortfarande en explicit mänsklig
+granskning för produktdata och tekniska resultat.
 
 > **Säkerhetsstatus:** prototypen är inte produktionsredo. Läs
 > [säkerhetsgranskningen](docs/15-security-risks.md) före driftsättning eller
@@ -173,8 +176,7 @@ ska inte versionshanteras.
 
 1. Bevara och dela upp befintliga ocommittade kodändringar.
 2. Åtgärda P0-riskerna i admin- och produktreviewflödet.
-3. Synkronisera live-schema och migrationshistorik.
-4. Driftsätt och verifiera organisation/RBAC-migrationerna i staging.
-5. Slutför inbjudnings-, medlems- och teamadministration.
-6. Spara projekt-PDF, analyser och materiallistor permanent.
-7. Inför versionshanterade tekniska resultat och retention-jobb.
+3. Håll live-schema och migrationshistorik synkroniserade.
+4. Koppla inbjudningsmejl och säker acceptans.
+5. Spara persistenta extraction jobs och versionshanterade tekniska resultat.
+6. Inför retention-jobb och granskat supportläge för plattformsadministratörer.

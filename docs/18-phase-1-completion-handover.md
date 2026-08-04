@@ -1,19 +1,19 @@
 # FlowX fas 1 – slutförd leverans och handover
 
-> Verifieringsdatum: 2026-07-29
+> Verifieringsdatum: 2026-08-04
 > Repository: `MarcLars31/FlowX-Platform`
 > Branch: `Frontend-`
 > Omfattning: organisationer, RBAC, tenant-RLS och projektlivscykel
 
 ## Status i en mening
 
-Fas 1 är färdig i koden och verifierad lokalt, men de nya
-organisationsmigrationerna är avsiktligt inte applicerade i FlowX
-produktionsdatabas eftersom Free-planen saknar backup och preview branches
-kräver en betald uppgradering.
+Fas 1 är färdig i koden och verifierad lokalt. Organisationsmigrationerna är
+också applicerade och verifierade i det länkade FlowX-projektet
+`myzegtifgbvjhdlcpebi`.
 
 En Git-commit eller en webbdeployment applicerar inte Supabase-migrationerna
-automatiskt. Databasen ska migreras före den nya webbapplikationen driftsätts.
+automatiskt. Nya migrationer ska därför alltid appliceras och verifieras i
+Supabase innan motsvarande webbapp deployas.
 
 ## Levererat i fas 1
 
@@ -107,6 +107,7 @@ Den nya organisationskedjan ska köras i exakt filordning:
 3. `20260730120000_backfill_legacy_organization_and_authorization.sql`
 4. `20260730130000_enable_organization_rls_and_project_lifecycle.sql`
 5. `20260730140000_add_secure_membership_operations.sql`
+6. `20260804100000_complete_team_management_rls.sql`
 
 Kör först hela repositoryts migrationskedja och RLS-testet mot en isolerad
 databas eller preview branch. Använd inte pgTAP-filen i produktion eftersom den
@@ -150,10 +151,7 @@ supabase/tests/organization_rbac_rls.sql
 Detta är nästa arbete, inte en ofärdig del av fas 1:
 
 - Inbjudningsmejl och säker acceptans av en inbjudan.
-- Interaktiv ändring av medlemsroll och medlemsstatus.
-- Skapa/redigera/inaktivera team samt hantera teammedlemmar.
 - Projektmedlems- och åtkomsteditor.
-- Bekräftelsedialoger och knappar för trash/restore/permanent delete.
 - Organisationsinställningar och ägarskapsöverföring.
 - Privat Storage-bucket för projekt-PDF.
 - Persistenta extraction jobs, analyser och materiallistor.
@@ -162,10 +160,8 @@ Detta är nästa arbete, inte en ofärdig del av fas 1:
 
 ## Rekommenderad fortsättning
 
-1. När användaren godkänner kostnaden: skapa preview branch eller annan isolerad
-   klon.
-2. Kör preflight och stäm av migrationshistoriken.
-3. Applicera migrationerna och kör alla 18 RLS-fall.
-4. Verifiera backfill, owner-roll, seats och projektåtkomst manuellt.
-5. Driftsätt webbappen först efter godkänd databasverifiering.
-6. Bygg därefter fas 2 som små vertikala leveranser, med RPC/RLS-test före UI.
+1. Koppla inbjudningsmejl och bygg accepterande av en inbjudan.
+2. Bygg projektmedlems- och åtkomsteditor.
+3. Lägg till organisationsinställningar och ägarskapsöverföring.
+4. Inför retention-jobb och granskat supportläge för plattformsadministratörer.
+5. Kör RPC/RLS-test före varje ny säkerhetskänslig UI-funktion.

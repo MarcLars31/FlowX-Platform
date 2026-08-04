@@ -1,6 +1,9 @@
 import { Badge } from "@/components/Badge";
 import { OrganizationInviteForm } from "@/components/OrganizationInviteForm";
+import { OrganizationMemberActions } from "@/components/OrganizationMemberActions";
+import { OrganizationTeamManagement } from "@/components/OrganizationTeamManagement";
 import { getOrganizationContext } from "@/lib/organization-context";
+import { isOrganizationRoleSlug } from "@/lib/organization-rbac";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 
 type MemberRow = {
@@ -17,7 +20,16 @@ type ProfileRow = {
   email: string | null;
 };
 type RoleRow = { id: string; name: string; slug: string };
-type TeamRow = { id: string; name: string; status: string };
+type TeamRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+};
+type TeamMemberRow = {
+  team_id: string;
+  organization_member_id: string;
+};
 type SeatRow = { seat_type: string; seat_limit: number };
 type SubscriptionRow = { plan_key: string; status: string };
 type InvitationRow = {
@@ -47,9 +59,9 @@ export default async function OrganizationPage() {
       select: "id,name,slug",
       or: `(organization_id.is.null,organization_id.eq.${organizationId})`
     }),
-    context.permissions.includes("team.view")
+      context.permissions.includes("team.view")
       ? selectUserRows<TeamRow>("teams", {
-          select: "id,name,status",
+          select: "id,name,description,status",
           organization_id: `eq.${organizationId}`,
           order: "name.asc"
         })
@@ -79,6 +91,12 @@ export default async function OrganizationPage() {
     ? await selectUserRows<ProfileRow>("profiles", {
         select: "id,display_name,email",
         id: `in.(${members.map((member) => member.user_id).join(",")})`
+      })
+    : [];
+  const teamMembers = teams.length
+    ? await selectUserRows<TeamMemberRow>("team_members", {
+        select: "team_id,organization_member_id",
+        team_id: `in.(${teams.map((team) => team.id).join(",")})`
       })
     : [];
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
@@ -168,6 +186,7 @@ export default async function OrganizationPage() {
                   <th className="px-5 py-3">Roll</th>
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3">Senast aktiv</th>
+                  <th className="px-5 py-3">Åtgärder</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100">
@@ -196,6 +215,34 @@ export default async function OrganizationPage() {
                             )
                           : "—"}
                       </td>
+                      <td className="px-5 py-4">
+                        {(() => {
+                          const roleSlug = roleById.get(member.role_id)?.slug;
+                          if (!roleSlug || !isOrganizationRoleSlug(roleSlug)) {
+                            return <span className="text-xs text-ink-400">—</span>;
+                          }
+                          return (
+                            <OrganizationMemberActions
+                              memberId={member.id}
+                              currentRole={roleSlug}
+                              currentStatus={member.status}
+                              canChangeRole={context.permissions.includes(
+                                "member.change_role"
+                              )}
+                              canChangeStatus={context.permissions.includes(
+                                "member.disable"
+                              )}
+                              canAssignPrivilegedRoles={
+                                context.membership.role_slug ===
+                                "organization_owner"
+                              }
+                              disabled={
+                                member.user_id === context.membership.user_id
+                              }
+                            />
+                          );
+                        })()}
+                      </td>
                     </tr>
                   );
                 })}
@@ -211,17 +258,40 @@ export default async function OrganizationPage() {
           className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm"
         >
           <h2 className="font-semibold text-ink-950">Team</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {teams.length ? (
-              teams.map((team) => (
-                <div key={team.id} className="rounded-lg bg-ink-50 p-4">
-                  <p className="font-medium text-ink-950">{team.name}</p>
-                  <p className="mt-1 text-sm text-ink-500">{team.status}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-ink-600">Inga team har skapats.</p>
-            )}
+          <div className="mt-4">
+            <OrganizationTeamManagement
+              teams={teams.map((team) => ({
+                ...team,
+                members: teamMembers
+                  .filter((member) => member.team_id === team.id)
+                  .map((member) => {
+                    const profile = profileById.get(
+                      members.find(
+                        (candidate) => candidate.id === member.organization_member_id
+                      )?.user_id ?? ""
+                    );
+                    return {
+                      organizationMemberId: member.organization_member_id,
+                      label:
+                        profile?.display_name ??
+                        profile?.email ??
+                        "Namnlös användare"
+                    };
+                  })
+              }))}
+              memberOptions={members.map((member) => {
+                const profile = profileById.get(member.user_id);
+                return {
+                  organizationMemberId: member.id,
+                  label:
+                    profile?.display_name ?? profile?.email ?? "Namnlös användare"
+                };
+              })}
+              canCreate={context.permissions.includes("team.create")}
+              canUpdate={context.permissions.includes("team.update")}
+              canDelete={context.permissions.includes("team.delete")}
+              canManageMembers={context.permissions.includes("team.manage_members")}
+            />
           </div>
         </section>
       )}

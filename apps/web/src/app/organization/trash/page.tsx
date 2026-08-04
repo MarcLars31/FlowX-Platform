@@ -1,3 +1,4 @@
+import { OrganizationTrashActions } from "@/components/OrganizationTrashActions";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
@@ -35,6 +36,7 @@ export default async function TrashPage() {
                 <th className="px-5 py-3">Borttaget</th>
                 <th className="px-5 py-3">Anledning</th>
                 <th className="px-5 py-3">Retention</th>
+                <th className="px-5 py-3">Åtgärder</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
@@ -57,11 +59,21 @@ export default async function TrashPage() {
                   <td className="px-5 py-4 text-ink-500">
                     Ej konfigurerad
                   </td>
+                  <td className="px-5 py-4">
+                    <OrganizationTrashActions
+                      projectId={project.id}
+                      projectName={project.name}
+                      canRestore={context.permissions.includes("project.restore")}
+                      canPermanentlyDelete={context.permissions.includes(
+                        "project.permanent_delete"
+                      )}
+                    />
+                  </td>
                 </tr>
               ))}
               {projects.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-5 py-10 text-center text-ink-500">
+                  <td colSpan={5} className="px-5 py-10 text-center text-ink-500">
                     Papperskorgen är tom.
                   </td>
                 </tr>
