@@ -61,7 +61,7 @@ export default function TechnicalDescriptionsPage() {
         cache: "no-store"
       });
       if (!response.ok) return;
-      const payload = (await response.json()) as {
+      const payload = (await readJsonPayload(response)) as {
         documents?: DocumentSummary[];
       };
       setDocuments(payload.documents ?? []);
@@ -88,7 +88,7 @@ export default function TechnicalDescriptionsPage() {
         method: "POST",
         body: formData
       });
-      const payload = (await response.json()) as
+      const payload = (await readJsonPayload(response)) as
         | ExtractionResponse
         | { error?: string; detail?: string };
       if (!response.ok || !("documentId" in payload)) {
@@ -127,7 +127,7 @@ export default function TechnicalDescriptionsPage() {
           sourceDocumentId: result?.documentId ?? null
         })
       });
-      const payload = (await response.json()) as
+      const payload = (await readJsonPayload(response)) as
         | EstimateResponse
         | { error?: string; detail?: string };
       if (!response.ok || !("estimateId" in payload)) {
@@ -292,6 +292,21 @@ export default function TechnicalDescriptionsPage() {
       </section>
     </div>
   );
+}
+
+async function readJsonPayload(response: Response): Promise<unknown> {
+  const body = await response.text();
+  if (!body) return {};
+
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    throw new Error(
+      response.status >= 500
+        ? "Servern kunde inte behandla PDF-filen. Försök igen senare."
+        : `Servern svarade med status ${response.status}.`
+    );
+  }
 }
 
 function ExtractionResult({ result }: { result: ExtractionResponse }) {

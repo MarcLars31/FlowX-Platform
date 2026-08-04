@@ -8,10 +8,6 @@ import {
   uploadUserStorageObject,
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
-import {
-  extractTechnicalDescriptionFromPages,
-  extractTechnicalDescriptionPages
-} from "@/modules/technical-description-extractor";
 import type { TechnicalDescriptionMaterialLine } from "@/modules/technical-description-extractor";
 
 export const runtime = "nodejs";
@@ -72,6 +68,16 @@ export async function POST(request: Request) {
         { status: 413 }
       );
     }
+
+    // Keep the PDF/OCR dependencies out of the route's module initialization.
+    // Some runtimes (including Vercel's serverless runtime) cannot initialize
+    // those browser-oriented dependencies while loading the route. Loading
+    // them only for an actual extraction keeps authentication and error
+    // responses JSON instead of falling back to an HTML 500 page.
+    const {
+      extractTechnicalDescriptionFromPages,
+      extractTechnicalDescriptionPages
+    } = await import("@/modules/technical-description-extractor");
 
     const projectIdValue = formData.get("projectId");
     const projectId =
