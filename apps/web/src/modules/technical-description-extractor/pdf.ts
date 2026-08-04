@@ -9,6 +9,11 @@ export async function extractTechnicalDescriptionPages(
 ): Promise<TechnicalDescriptionPage[]> {
   await ensurePdfCanvasRuntime();
   const { PDFParse } = await import("pdf-parse");
+  // pdfjs-dist's default Node worker path is not included by Vercel's
+  // serverless tracing when the package is externalized. pdf-parse ships a
+  // self-contained data URL for the worker specifically for this case.
+  const { getData: getPdfWorkerData } = await import("pdf-parse/worker");
+  PDFParse.setWorker(getPdfWorkerData());
   const parser = new PDFParse({ data });
 
   try {
