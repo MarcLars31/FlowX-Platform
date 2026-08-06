@@ -287,6 +287,12 @@ try {
       repeat('a', 64),
       now() + interval '1 day'
     );
+
+    select public.create_project_with_defaults(
+      'd0000000-0000-4000-8000-000000000003',
+      'EMPTY-DB-RPC-001',
+      'Empty database RPC verification'
+    );
   `);
 
   const invitationRole = await database.query(`
@@ -298,6 +304,40 @@ try {
   if (invitationRole.rows[0]?.slug !== "project_manager") {
     throw new Error("A company_admin could not invite a canonical project_manager.");
   }
+
+  const createdProject = await database.query(`
+    select
+      project.id,
+      (select count(*)::integer from public.project_settings settings
+       where settings.project_id = project.id) as settings_count,
+      (select count(*)::integer from public.project_modules module
+       where module.project_id = project.id and module.module_code = 'sprinkler') as module_count,
+      (select count(*)::integer from public.project_members member
+       where member.project_id = project.id
+         and member.user_id = 'd0000000-0000-4000-8000-000000000201') as owner_count
+    from public.projects project
+    where project.organization_id = 'd0000000-0000-4000-8000-000000000003'
+      and project.project_number = 'EMPTY-DB-RPC-001'
+  `);
+  const project = createdProject.rows[0];
+  if (
+    !project
+    || project.settings_count !== 1
+    || project.module_count !== 1
+    || project.owner_count !== 1
+  ) {
+    throw new Error("Atomic project creation did not persist exactly one complete project graph.");
+  }
+  process.stdout.write("PASS atomic project creation persists one complete project graph\n");
+
+  await expectDatabaseRejection(
+    "duplicate project numbers remain blocked",
+    `select public.create_project_with_defaults(
+       'd0000000-0000-4000-8000-000000000003',
+       'EMPTY-DB-RPC-001',
+       'Duplicate project number'
+     )`,
+  );
 
   await expectDatabaseRejection(
     "platform_admin cannot be assigned as an organization membership",

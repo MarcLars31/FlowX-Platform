@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, pg_catalog;
-select plan(18);
+select plan(20);
 
 insert into auth.users (
   instance_id,
@@ -400,6 +400,36 @@ select throws_ok(
   '15. organization_id manipulation is rejected'
 );
 
+select lives_ok(
+  $$
+    select public.create_project_with_defaults(
+      'a0000000-0000-4000-8000-000000000001',
+      'RPC-REGRESSION-001',
+      'Atomic RPC regression project'
+    )
+  $$,
+  '16. atomic project creation does not duplicate the creator membership'
+);
+
+select ok(
+  (
+    select count(*) = 1
+      and count(settings.id) = 1
+      and count(module.id) = 1
+      and count(project_member.project_id) = 1
+    from public.projects project
+    left join public.project_settings settings on settings.project_id = project.id
+    left join public.project_modules module
+      on module.project_id = project.id and module.module_code = 'sprinkler'
+    left join public.project_members project_member
+      on project_member.project_id = project.id
+      and project_member.organization_member_id = 'a1000000-0000-4000-8000-000000000003'
+    where project.organization_id = 'a0000000-0000-4000-8000-000000000001'
+      and project.project_number = 'RPC-REGRESSION-001'
+  ),
+  '17. atomic project creation persists exactly one settings, module and owner membership row'
+);
+
 set local request.jwt.claims =
   '{"sub":"10000000-0000-4000-8000-000000000001","role":"authenticated"}';
 select throws_ok(
@@ -408,7 +438,7 @@ select throws_ok(
     set status = 'disabled'
     where id = 'a1000000-0000-4000-8000-000000000001'
   $$,
-  '16. the last active organization owner cannot be disabled'
+  '18. the last active organization owner cannot be disabled'
 );
 
 select throws_ok(
@@ -421,7 +451,7 @@ select throws_ok(
       now() + interval '7 days'
     )
   $$,
-  '17. seat limits are enforced by the database'
+  '19. seat limits are enforced by the database'
 );
 
 do $$
@@ -440,7 +470,7 @@ select ok(
     'project.view_own'
   )
   and (select count(*) from public.projects) = 0,
-  '18. disabled users immediately lose access and RLS remains authoritative'
+  '20. disabled users immediately lose access and RLS remains authoritative'
 );
 
 select * from finish();
