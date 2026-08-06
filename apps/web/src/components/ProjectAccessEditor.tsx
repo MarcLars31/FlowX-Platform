@@ -15,7 +15,8 @@ export function ProjectAccessEditor({
   initialTeamId,
   teams,
   memberOptions,
-  initialMembers
+  initialMembers,
+  embedded = false
 }: {
   projectId: string;
   initialAccessLevel: AccessLevel;
@@ -23,6 +24,7 @@ export function ProjectAccessEditor({
   teams: TeamOption[];
   memberOptions: MemberOption[];
   initialMembers: ProjectMember[];
+  embedded?: boolean;
 }) {
   const [accessLevel, setAccessLevel] = useState<AccessLevel>(initialAccessLevel);
   const [teamId, setTeamId] = useState<string>(initialTeamId ?? "");
@@ -94,7 +96,7 @@ export function ProjectAccessEditor({
 
   const availableMembers = memberOptions.filter((option) => !members.some((member) => member.organizationMemberId === option.organizationMemberId));
   return (
-    <section className="space-y-5 rounded-lg border border-ink-200 bg-white p-5 shadow-sm">
+    <section className={embedded ? "space-y-5 p-5 sm:p-6" : "space-y-5 rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6"}>
       <div>
         <h2 className="font-semibold text-ink-950">Projektåtkomst</h2>
         <p className="mt-1 text-sm text-ink-600">Bestäm vilka som kan se projektet och hantera uttryckliga projektmedlemmar.</p>

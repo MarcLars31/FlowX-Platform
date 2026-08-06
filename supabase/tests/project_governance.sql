@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, pg_catalog;
-select plan(20);
+select plan(21);
 
 select has_column('public', 'projects', 'project_number', 'projects have organization-scoped project numbers');
 select has_column('public', 'projects', 'current_stage', 'projects have a separate workflow stage');
@@ -18,6 +18,10 @@ select has_column('public', 'material_lists', 'requires_review', 'material lists
 select ok(
   exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname = 'create_project_with_defaults'),
   'atomic project creation RPC is present'
+);
+select ok(
+  exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname = 'create_project_with_details'),
+  'complete project form creation RPC is present'
 );
 select ok(
   exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'projects_organization_project_number_uidx'),

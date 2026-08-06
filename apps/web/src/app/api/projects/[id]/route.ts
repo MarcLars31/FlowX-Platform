@@ -28,7 +28,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const [project] = await selectUserRows<OrganizationProject>("projects", {
       select:
-        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
+        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,address,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
       id: `eq.${id}`,
       organization_id: `eq.${authorization.context.organization.id}`,
       deleted_at: "is.null",

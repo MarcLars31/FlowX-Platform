@@ -15,7 +15,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const [project] = await selectUserRows<OrganizationProject>("projects", {
     select:
-      "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
+      "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,address,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
     id: `eq.${id}`,
     organization_id: `eq.${organizationId}`,
     deleted_at: "is.null",
@@ -140,14 +140,26 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     <div className="space-y-6">
       <ProjectWorkspace initialData={data} />
       {canManageAccess && (
-        <ProjectAccessEditor
-          projectId={project.id}
-          initialAccessLevel={project.access_level}
-          initialTeamId={project.team_id ?? null}
-          teams={accessData.teams}
-          memberOptions={accessData.memberOptions}
-          initialMembers={accessData.members}
-        />
+        <details className="group mx-auto max-w-[1500px] overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
+            <span>
+              <span className="block font-semibold text-ink-950">Projektåtkomst och medlemmar</span>
+              <span className="mt-1 block text-sm text-ink-600">{accessData.members.length} medlemmar · {project.access_level === "organization" ? "hela organisationen" : project.access_level === "team" ? "valt team" : project.access_level === "restricted" ? "endast projektmedlemmar" : "ägare och tilldelade"}</span>
+            </span>
+            <span className="rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-600 transition group-open:bg-flow-100 group-open:text-flow-700">Hantera</span>
+          </summary>
+          <div className="border-t border-ink-100">
+            <ProjectAccessEditor
+              projectId={project.id}
+              initialAccessLevel={project.access_level}
+              initialTeamId={project.team_id ?? null}
+              teams={accessData.teams}
+              memberOptions={accessData.memberOptions}
+              initialMembers={accessData.members}
+              embedded
+            />
+          </div>
+        </details>
       )}
     </div>
   );

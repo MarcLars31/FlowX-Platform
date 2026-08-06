@@ -127,7 +127,8 @@ export async function uploadUserStorageObject(
   bucket: string,
   path: string,
   body: ArrayBuffer | Uint8Array,
-  contentType: string
+  contentType: string,
+  options: { upsert?: boolean } = {}
 ) {
   const config = await getUserSupabaseConfig();
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
@@ -140,7 +141,7 @@ export async function uploadUserStorageObject(
         apikey: config.publishableKey,
         Authorization: `Bearer ${config.accessToken}`,
         "Content-Type": contentType || "application/octet-stream",
-        "x-upsert": "false"
+        "x-upsert": options.upsert ? "true" : "false"
       },
       body: Buffer.from(
         body instanceof ArrayBuffer ? new Uint8Array(body) : body

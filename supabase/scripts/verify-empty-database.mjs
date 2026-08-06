@@ -288,10 +288,16 @@ try {
       now() + interval '1 day'
     );
 
-    select public.create_project_with_defaults(
-      'd0000000-0000-4000-8000-000000000003',
-      'EMPTY-DB-RPC-001',
-      'Empty database RPC verification'
+    select public.create_project_with_details(
+      requested_organization_id := 'd0000000-0000-4000-8000-000000000003',
+      requested_project_number := 'EMPTY-DB-RPC-001',
+      requested_name := 'Empty database RPC verification',
+      requested_details := jsonb_build_object(
+        'end_customer', 'Fixture end customer',
+        'address', 'Fixture street 1',
+        'procurement_strategy', 'verified alternatives',
+        'technical_parameters', jsonb_build_object('hazard', 'OH1')
+      )
     );
   `);
 
@@ -308,6 +314,9 @@ try {
   const createdProject = await database.query(`
     select
       project.id,
+      project.address,
+      project.end_customer,
+      project.technical_parameters,
       (select count(*)::integer from public.project_settings settings
        where settings.project_id = project.id) as settings_count,
       (select count(*)::integer from public.project_modules module
@@ -322,6 +331,9 @@ try {
   const project = createdProject.rows[0];
   if (
     !project
+    || project.address !== "Fixture street 1"
+    || project.end_customer !== "Fixture end customer"
+    || project.technical_parameters?.hazard !== "OH1"
     || project.settings_count !== 1
     || project.module_count !== 1
     || project.owner_count !== 1
@@ -398,6 +410,34 @@ try {
   if ((rlsRows.rows[0]?.policy_count ?? 0) < 20) {
     throw new Error("Expected RLS policies are missing from the FAS 1 tables.");
   }
+
+  const projectStoragePolicy = await database.query(`
+    select with_check::text as expression
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'project_files_insert'
+  `);
+  const storageExpression = projectStoragePolicy.rows[0]?.expression ?? "";
+  if (
+    !storageExpression
+    || storageExpression.includes("candidate_project.name")
+    || storageExpression.includes("project.name")
+  ) {
+    throw new Error("Project file storage is correlated to a project name instead of the storage object path.");
+  }
+  process.stdout.write("PASS project file storage policy uses the outer object path\n");
+  const projectDocumentPrivileges = await database.query(`
+    select has_table_privilege(
+      'authenticated',
+      'public.project_documents',
+      'update'
+    ) as can_update
+  `);
+  if (projectDocumentPrivileges.rows[0]?.can_update !== true) {
+    throw new Error("Authenticated document workflows cannot update upload status.");
+  }
+  process.stdout.write("PASS project document upload status can be updated\n");
 
   const removeDemoFile = join(
     seedDirectory,

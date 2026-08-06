@@ -29,7 +29,7 @@ export async function GET() {
 
     const projects = await selectUserRows<OrganizationProject>("projects", {
       select:
-        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
+        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,address,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
       organization_id: `eq.${authorization.context.organization.id}`,
       deleted_at: "is.null",
       order: "updated_at.desc"
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: input.error }, { status: 400 });
     }
 
-    const rpcResult = await callUserRpc<unknown>("create_project_with_defaults", {
+    const rpcResult = await callUserRpc<unknown>("create_project_with_details", {
       requested_organization_id: authorization.context.organization.id,
       requested_project_number: input.projectNumber,
       requested_name: input.name,
@@ -74,7 +74,17 @@ export async function POST(request: Request) {
       requested_supplier: input.supplier,
       requested_delivery_country: input.deliveryCountry,
       requested_access_level: input.accessLevel,
-      requested_team_id: input.teamId
+      requested_team_id: input.teamId,
+      requested_details: {
+        end_customer: input.endCustomer,
+        address: input.address,
+        procurement_strategy: input.procurementStrategy,
+        warehouse_location: input.warehouseLocation,
+        expected_start_date: input.expectedStartDate,
+        expected_delivery_date: input.expectedDeliveryDate,
+        internal_comments: input.internalComments,
+        technical_parameters: input.technicalParameters
+      }
     });
     const projectId =
       typeof rpcResult === "string"
@@ -86,7 +96,7 @@ export async function POST(request: Request) {
 
     const [project] = await selectUserRows<OrganizationProject>("projects", {
       select:
-        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
+        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,address,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
       id: `eq.${projectId}`,
       organization_id: `eq.${authorization.context.organization.id}`,
       limit: "1"

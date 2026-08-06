@@ -18,8 +18,12 @@ const MAX_PDF_BYTES = 30 * 1024 * 1024;
 
 type ProjectRow = { id: string; organization_id: string };
 type ProjectModuleRow = { id: string; project_id: string; module_code: string };
-type DocumentRow = { id: string };
-type ProjectDocumentRow = { id: string; upload_status: string; processing_status: string };
+type DocumentRow = { id: string; status: string };
+type ProjectDocumentRow = {
+  id: string;
+  upload_status: string;
+  processing_status: string;
+};
 type RequirementSetRow = { id: string; version: number; status: string };
 type ExtractionRunRow = { id: string };
 
@@ -151,27 +155,49 @@ export async function POST(request: Request) {
       ? "review_required"
       : "extracted";
 
-    const document = await insertUserRowReturning<DocumentRow>(
+    const technicalDocumentPayload = {
+      organization_id: authorization.context.organization.id,
+      project_id: projectId,
+      project_module_id: projectModule.id,
+      file_name: file.name.slice(0, 255),
+      file_sha256: fileSha256,
+      status,
+      extraction_method: result.document.extractionMethod,
+      page_count: result.document.pageCount,
+      project_name: result.project.name ?? null,
+      project_number: result.project.projectNumber ?? null,
+      chapter: result.project.chapter ?? null,
+      source_pages: result.pages,
+      standards: result.standards,
+      rule_hints: result.ruleHints,
+      warnings: result.warnings,
+      created_by: authorization.user.id
+    };
+    const [existingTechnicalDocument] = await selectUserRows<DocumentRow>(
       "technical_description_documents",
       {
-        organization_id: authorization.context.organization.id,
-        project_id: projectId,
-        project_module_id: projectModule.id,
-        file_name: file.name.slice(0, 255),
-        file_sha256: fileSha256,
-        status,
-        extraction_method: result.document.extractionMethod,
-        page_count: result.document.pageCount,
-        project_name: result.project.name ?? null,
-        project_number: result.project.projectNumber ?? null,
-        chapter: result.project.chapter ?? null,
-        source_pages: result.pages,
-        standards: result.standards,
-        rule_hints: result.ruleHints,
-        warnings: result.warnings,
-        created_by: authorization.user.id
+        select: "id,status",
+        organization_id: `eq.${authorization.context.organization.id}`,
+        project_id: `eq.${projectId}`,
+        file_sha256: `eq.${fileSha256}`,
+        order: "created_at.desc",
+        limit: "1"
       }
     );
+    const document = existingTechnicalDocument
+      ? await updateUserRowsReturning<DocumentRow>(
+          "technical_description_documents",
+          {
+            id: `eq.${existingTechnicalDocument.id}`,
+            organization_id: `eq.${authorization.context.organization.id}`,
+            project_id: `eq.${projectId}`
+          },
+          technicalDocumentPayload
+        )
+      : await insertUserRowReturning<DocumentRow>(
+          "technical_description_documents",
+          technicalDocumentPayload
+        );
 
     let projectDocument: ProjectDocumentRow | null = null;
     let extractionRun: ExtractionRunRow | null = null;
@@ -197,6 +223,34 @@ export async function POST(request: Request) {
       );
 
       projectDocument = existingProjectDocuments[0] ?? null;
+      const alreadyProcessed =
+        projectDocument?.upload_status === "uploaded" &&
+        ["completed", "requires_review"].includes(
+          projectDocument.processing_status
+        );
+
+      if (alreadyProcessed) {
+        const [persistedLines, persistedRequirements] = await Promise.all([
+          selectUserRows<{ id: string }>("technical_description_material_lines", {
+            select: "id",
+            document_id: `eq.${document.id}`
+          }),
+          selectUserRows<{ id: string }>("project_requirements", {
+            select: "id",
+            project_id: `eq.${projectId}`,
+            source_technical_description_document_id: `eq.${document.id}`,
+            deleted_at: "is.null"
+          })
+        ]);
+        return NextResponse.json({
+          documentId: document.id,
+          persistedLineCount: persistedLines.length,
+          persistedRequirementCount: persistedRequirements.length,
+          duplicate: true,
+          ...result
+        });
+      }
+
       if (!projectDocument) {
         projectDocument = await insertUserRowReturning<ProjectDocumentRow>(
           "project_documents",
@@ -220,12 +274,16 @@ export async function POST(request: Request) {
             uploaded_by: authorization.user.id
           }
         );
+      }
+
+      if (projectDocument.upload_status !== "uploaded") {
         try {
           await uploadUserStorageObject(
             storageBucket,
             storagePath,
             buffer,
-            file.type || "application/pdf"
+            file.type || "application/pdf",
+            { upsert: true }
           );
           projectDocument = await updateUserRowsReturning<ProjectDocumentRow>(
             "project_documents",
@@ -233,7 +291,7 @@ export async function POST(request: Request) {
               id: `eq.${projectDocument.id}`,
               organization_id: `eq.${authorization.context.organization.id}`
             },
-            { upload_status: "uploaded", processing_status: status === "review_required" ? "requires_review" : "completed" }
+            { upload_status: "uploaded", processing_status: "extracting" }
           );
         } catch (uploadError) {
           await updateUserRowsReturning<ProjectDocumentRow>(
@@ -248,9 +306,19 @@ export async function POST(request: Request) {
         }
       }
 
-      extractionRun = await insertUserRowReturning<ExtractionRunRow>(
+      const [existingExtractionRun] = await selectUserRows<ExtractionRunRow>(
         "extraction_runs",
         {
+          select: "id",
+          organization_id: `eq.${authorization.context.organization.id}`,
+          project_id: `eq.${projectId}`,
+          document_id: `eq.${projectDocument.id}`,
+          order: "created_at.desc",
+          limit: "1"
+        }
+      );
+      extractionRun = existingExtractionRun ??
+        await insertUserRowReturning<ExtractionRunRow>("extraction_runs", {
           organization_id: authorization.context.organization.id,
           project_id: projectId,
           document_id: projectDocument.id,
@@ -268,10 +336,22 @@ export async function POST(request: Request) {
             warnings: result.warnings
           },
           created_by: authorization.user.id
+        });
+
+      const existingPages = await selectUserRows<{ page_number: number }>(
+        "document_pages",
+        {
+          select: "page_number",
+          organization_id: `eq.${authorization.context.organization.id}`,
+          project_id: `eq.${projectId}`,
+          document_id: `eq.${projectDocument.id}`
         }
       );
-
+      const existingPageNumbers = new Set(
+        existingPages.map((page) => page.page_number)
+      );
       for (const page of result.pages) {
+        if (existingPageNumbers.has(page.pageNumber)) continue;
         await insertUserRowReturning("document_pages", {
           organization_id: authorization.context.organization.id,
           project_id: projectId,
@@ -403,6 +483,21 @@ export async function POST(request: Request) {
         });
         persistedRequirementCount += 1;
       }
+    }
+
+    if (projectDocument) {
+      await updateUserRowsReturning<ProjectDocumentRow>(
+        "project_documents",
+        {
+          id: `eq.${projectDocument.id}`,
+          organization_id: `eq.${authorization.context.organization.id}`
+        },
+        {
+          upload_status: "uploaded",
+          processing_status:
+            status === "review_required" ? "requires_review" : "completed"
+        }
+      );
     }
 
     return NextResponse.json(
