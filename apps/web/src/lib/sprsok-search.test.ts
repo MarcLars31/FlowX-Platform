@@ -8,12 +8,12 @@ import {
 
 test("indexed query searches both display text and normalized article number", () => {
   const filter = buildSprsokSearchOr(["sin", "leverandor"], "00-12 3", true);
-  assert.match(filter, /sin\.ilike\."\*00-12 3\*"/);
-  assert.match(filter, /normalized_article_number\.ilike\."\*00123\*"/);
+  assert.match(filter, /sin\.ilike\.\*00-12 3\*/);
+  assert.match(filter, /normalized_article_number\.ilike\.\*00123\*/);
 });
 
-test("PostgREST filters quote wildcard values and escape control syntax", () => {
-  assert.equal(sprsokIlikeContains('A"B\\C'), 'ilike."*A\\"B\\\\C*"');
+test("PostgREST filters remove wildcard and control syntax without quoting the pattern", () => {
+  assert.equal(sprsokIlikeContains('A"B\\C,*%_()'), "ilike.*ABC*");
 });
 
 test("legacy fallback is limited to explicit missing-schema errors", () => {
