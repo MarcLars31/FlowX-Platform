@@ -1,12 +1,15 @@
 "use client";
 
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { AlertCircle, ExternalLink, Search, X } from "lucide-react";
 import { Button } from "@/components/Button";
+import { DemoBadge } from "@/components/DemoBadge";
 import { Input } from "@/components/Input";
 
 type SprsokProduct = {
-  id: number | null;
+  id: string | number | null;
+  source?: "sprsok" | "flowx" | null;
+  source_id?: string | null;
   sin: string | null;
   leverandor: string | null;
   type: string | null;
@@ -14,11 +17,26 @@ type SprsokProduct = {
   k_verdi: string | null;
   rti: string | null;
   datablad: string | null;
+  is_demo?: boolean;
+  demo_disclaimer?: string | null;
+  documents?: PublishedProductDocument[];
+};
+
+type PublishedProductDocument = {
+  document_id: string;
+  title: string | null;
+  document_type: string | null;
+  language_code: string | null;
+  page_numbers: number[] | null;
+  source_page: number | null;
+  original_pdf_url: string | null;
 };
 
 type ProductSearchResponse = {
   products: SprsokProduct[];
   count: number;
+  limit: number;
+  offset: number;
   error?: string;
 };
 
@@ -73,6 +91,8 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchedFor, setSearchedFor] = useState("");
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [similarTo, setSimilarTo] = useState<SprsokProduct | null>(null);
   const [similarProducts, setSimilarProducts] = useState<SprsokProduct[] | null>(
     null
@@ -82,22 +102,48 @@ export default function ProductsPage() {
   const similarRequestId = useRef(0);
 
   const hasActiveFilters = Object.values(filters).some((value) => value.trim());
+  const hasVisibleDemoData = products?.some((product) => product.is_demo) ?? false;
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/products/search?limit=50&offset=0", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json()) as ProductSearchResponse;
+        if (!response.ok) throw new Error(payload.error ?? "Produktsökningen misslyckades.");
+        if (!active) return;
+        setProducts(payload.products);
+        setTotalProducts(payload.count);
+        setOffset(payload.offset);
+        setSearchedFor("alla produkter");
+      })
+      .catch((initialError: unknown) => {
+        if (active) {
+          setError(initialError instanceof Error ? initialError.message : "Produktsökningen misslyckades.");
+        }
+      });
+    return () => { active = false; };
+  }, []);
 
   async function searchProducts(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    await loadProducts(0);
+  }
 
+  async function loadProducts(requestedOffset: number) {
     const searchTerm = query.trim();
     if (!searchTerm && !hasActiveFilters) {
       setProducts(null);
-      setError("Skriv ett SIN, leverantör, typ, utförande, K-värde eller RTI.");
-      return;
+      setError(null);
     }
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const parameters = new URLSearchParams({ limit: "50" });
+      const parameters = new URLSearchParams({
+        limit: "50",
+        offset: String(requestedOffset)
+      });
       if (searchTerm) parameters.set("q", searchTerm);
 
       for (const [key, value] of Object.entries(filters)) {
@@ -113,7 +159,9 @@ export default function ProductsPage() {
       }
 
       setProducts(payload.products);
-      setSearchedFor(searchTerm || "valda filter");
+      setTotalProducts(payload.count);
+      setOffset(payload.offset);
+      setSearchedFor(searchTerm || (hasActiveFilters ? "valda filter" : "alla produkter"));
       setSimilarTo(null);
       setSimilarProducts(null);
       setSimilarError(null);
@@ -139,6 +187,8 @@ export default function ProductsPage() {
     setQuery("");
     setFilters(emptyFilters);
     setProducts(null);
+    setTotalProducts(0);
+    setOffset(0);
     setError(null);
     setSearchedFor("");
     setSimilarTo(null);
@@ -206,8 +256,9 @@ export default function ProductsPage() {
           Sök sprinklerprodukter
         </h1>
         <p className="mt-3 text-sm leading-6 text-ink-600">
-          Sök i Sprsöks produktdata efter SIN, leverantör, typ, utförande,
-          K-värde eller RTI. Öppna databladet direkt från träfflistan.
+          Sök i Sprsöks produktdata och FlowX produktkatalog efter SIN,
+          leverantör, typ, utförande, K-värde eller RTI. Öppna tillgängliga
+          datablad direkt från träfflistan.
         </p>
       </header>
 
@@ -287,12 +338,19 @@ export default function ProductsPage() {
             <p className="text-sm font-medium text-ink-700">
               {products.length === 0
                 ? `Inga produkter hittades för “${searchedFor}”.`
-                : `${products.length} träffar för “${searchedFor}”`}
+                : `Visar ${offset + 1}–${offset + products.length} av ${totalProducts} träffar för “${searchedFor}”`}
             </p>
-            <p className="text-xs text-ink-500">Datakälla: Sprsök</p>
+            <p className="text-xs text-ink-500">Datakällor: Sprsök och FlowX</p>
           </div>
 
+          {hasVisibleDemoData && (
+            <div className="border-b border-amber-200 bg-amber-50 px-5 py-3">
+              <DemoBadge />
+            </div>
+          )}
+
           {products.length > 0 && (
+            <>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-ink-200">
                 <thead className="bg-ink-50">
@@ -333,19 +391,7 @@ export default function ProductsPage() {
                         </td>
                       ))}
                       <td className="px-5 py-4 text-sm">
-                        {isExternalUrl(product.datablad) ? (
-                          <a
-                            href={product.datablad}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 font-medium text-flow-700 hover:text-flow-900"
-                          >
-                            Öppna
-                            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                          </a>
-                        ) : (
-                          <span className="text-ink-400">—</span>
-                        )}
+                        <ProductDocumentLinks product={product} />
                       </td>
                       <td className="px-5 py-4 text-sm">
                         {product.id === null ? (
@@ -370,6 +416,28 @@ export default function ProductsPage() {
                 </tbody>
               </table>
             </div>
+            <div className="flex items-center justify-between border-t border-ink-200 px-5 py-3">
+              <p className="text-xs text-ink-500">
+                Sida {Math.floor(offset / 50) + 1} av {Math.max(1, Math.ceil(totalProducts / 50))}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => void loadProducts(Math.max(0, offset - 50))}
+                  disabled={isLoading || offset === 0}
+                >
+                  Föregående
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void loadProducts(offset + 50)}
+                  disabled={isLoading || offset + products.length >= totalProducts}
+                >
+                  Nästa
+                </Button>
+              </div>
+            </div>
+            </>
           )}
         </section>
         {similarTo && (
@@ -444,19 +512,7 @@ export default function ProductsPage() {
                           ))}
                         </dl>
                         <div className="mt-4 flex items-center justify-between gap-3">
-                          {isExternalUrl(product.datablad) ? (
-                            <a
-                              href={product.datablad}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 text-sm font-medium text-flow-700 hover:text-flow-900"
-                            >
-                              {"Datablad"}
-                              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                            </a>
-                          ) : (
-                            <span className="text-sm text-ink-400">-</span>
-                          )}
+                          <ProductDocumentLinks product={product} compact />
                           {product.id !== null && (
                             <button
                               type="button"
@@ -478,6 +534,55 @@ export default function ProductsPage() {
         </>
       )}
     </div>
+  );
+}
+
+function ProductDocumentLinks({
+  product,
+  compact = false
+}: {
+  product: SprsokProduct;
+  compact?: boolean;
+}) {
+  const documents = product.documents ?? [];
+  if (documents.length > 0) {
+    return (
+      <span className="flex flex-col items-start gap-1.5">
+        {documents.map((document, index) => {
+          const page = document.page_numbers?.[0] ?? document.source_page;
+          const href = `/api/products/documents/${encodeURIComponent(document.document_id)}/file${page ? `#page=${page}` : ""}`;
+          return (
+            <a
+              key={document.document_id}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={document.title || "Verifierat datablad"}
+              className="inline-flex items-center gap-1.5 font-medium text-flow-700 hover:text-flow-900"
+            >
+              {compact || documents.length === 1
+                ? "Visa datablad"
+                : document.title || `Datablad ${index + 1}`}
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          );
+        })}
+      </span>
+    );
+  }
+
+  return isExternalUrl(product.datablad) ? (
+    <a
+      href={product.datablad}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 font-medium text-flow-700 hover:text-flow-900"
+    >
+      {compact ? "Datablad" : "Öppna"}
+      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+    </a>
+  ) : (
+    <span className="text-ink-400">—</span>
   );
 }
 

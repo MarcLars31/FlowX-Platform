@@ -4,7 +4,7 @@ import { type FormEvent, useState } from "react";
 import { Button } from "@/components/Button";
 
 type AccessLevel = "own" | "team" | "organization" | "restricted";
-type ProjectRole = "owner" | "editor" | "viewer";
+type ProjectRole = "owner" | "editor" | "reviewer" | "viewer";
 type TeamOption = { id: string; name: string };
 type MemberOption = { organizationMemberId: string; label: string };
 type ProjectMember = { organizationMemberId: string; projectRole: ProjectRole; label: string };
@@ -41,7 +41,7 @@ export function ProjectAccessEditor({
         headers: body ? { "Content-Type": "application/json" } : undefined,
         body: body ? JSON.stringify(body) : undefined
       });
-      const result = (await response.json().catch(() => null)) as { error?: string; project?: { access_level: AccessLevel; team_id: string | null }; member?: { organization_member_id: string; project_role: ProjectRole } } | null;
+      const result = (await response.json().catch(() => null)) as { error?: string; project?: { access_level: AccessLevel; team_id: string | null }; member?: { organization_member_id: string; project_role: ProjectRole; role?: ProjectRole } } | null;
       if (!response.ok) throw new Error(result?.error ?? "Ändringen kunde inte sparas.");
       return result;
     } catch (requestError) {
@@ -69,13 +69,13 @@ export function ProjectAccessEditor({
     const result = await request(`/api/projects/${projectId}/members`, "POST", { organizationMemberId, projectRole });
     if (result?.member) {
       const option = memberOptions.find((candidate) => candidate.organizationMemberId === organizationMemberId);
-      setMembers((current) => [...current, { organizationMemberId, projectRole: result.member?.project_role ?? "viewer", label: option?.label ?? "Namnlös användare" }]);
+      setMembers((current) => [...current, { organizationMemberId, projectRole: result.member?.role ?? result.member?.project_role ?? "viewer", label: option?.label ?? "Namnlös användare" }]);
       event.currentTarget.reset();
       setMessage("Medlemmen är tillagd i projektet.");
     }
   }
 
-  async function updateRole(member: ProjectMember, projectRole: "editor" | "viewer") {
+  async function updateRole(member: ProjectMember, projectRole: "editor" | "reviewer" | "viewer") {
     const result = await request(`/api/projects/${projectId}/members/${member.organizationMemberId}`, "PATCH", { projectRole });
     if (result?.member) {
       setMembers((current) => current.map((item) => item.organizationMemberId === member.organizationMemberId ? { ...item, projectRole } : item));
@@ -124,9 +124,9 @@ export function ProjectAccessEditor({
         <div className="mt-3 divide-y divide-ink-100 rounded-lg border border-ink-200">
           {members.map((member) => (
             <div key={member.organizationMemberId} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div><p className="text-sm font-medium text-ink-950">{member.label}</p><p className="text-xs text-ink-500">{member.projectRole === "owner" ? "Ägare" : member.projectRole === "editor" ? "Redaktör" : "Läsare"}</p></div>
+              <div><p className="text-sm font-medium text-ink-950">{member.label}</p><p className="text-xs text-ink-500">{member.projectRole === "owner" ? "Ägare" : member.projectRole === "editor" ? "Redaktör" : member.projectRole === "reviewer" ? "Granskare" : "Läsare"}</p></div>
               <div className="flex flex-wrap items-center gap-2">
-                {member.projectRole !== "owner" && <select value={member.projectRole} onChange={(event) => void updateRole(member, event.target.value as "editor" | "viewer")} disabled={busy !== null} className="h-9 rounded-lg border border-ink-200 bg-white px-2 text-sm"><option value="editor">Redaktör</option><option value="viewer">Läsare</option></select>}
+                {member.projectRole !== "owner" && <select value={member.projectRole} onChange={(event) => void updateRole(member, event.target.value as "editor" | "reviewer" | "viewer")} disabled={busy !== null} className="h-9 rounded-lg border border-ink-200 bg-white px-2 text-sm"><option value="editor">Redaktör</option><option value="reviewer">Granskare</option><option value="viewer">Läsare</option></select>}
                 {member.projectRole !== "owner" && <Button type="button" variant="ghost" onClick={() => void removeMember(member)} disabled={busy !== null}>Ta bort</Button>}
               </div>
             </div>
@@ -135,7 +135,7 @@ export function ProjectAccessEditor({
         </div>
         <form className="mt-4 flex flex-col gap-2 sm:flex-row" onSubmit={(event) => void addMember(event)}>
           <select name="organizationMemberId" required disabled={busy !== null || !availableMembers.length} className="h-10 min-w-60 rounded-lg border border-ink-200 bg-white px-3 text-sm"><option value="">Lägg till medlem…</option>{availableMembers.map((member) => <option key={member.organizationMemberId} value={member.organizationMemberId}>{member.label}</option>)}</select>
-          <select name="projectRole" defaultValue="viewer" disabled={busy !== null || !availableMembers.length} className="h-10 rounded-lg border border-ink-200 bg-white px-3 text-sm"><option value="editor">Redaktör</option><option value="viewer">Läsare</option></select>
+          <select name="projectRole" defaultValue="viewer" disabled={busy !== null || !availableMembers.length} className="h-10 rounded-lg border border-ink-200 bg-white px-3 text-sm"><option value="editor">Redaktör</option><option value="reviewer">Granskare</option><option value="viewer">Läsare</option></select>
           <Button type="submit" variant="secondary" disabled={busy !== null || !availableMembers.length}>Lägg till</Button>
         </form>
       </div>

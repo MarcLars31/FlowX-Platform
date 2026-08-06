@@ -3,6 +3,9 @@ export type TechnicalDescriptionPage = {
   text: string;
   method: "text" | "ocr";
   confidence: number;
+  status?: "success" | "partial" | "failed";
+  errorCode?: "ocr_failed" | "text_extraction_failed";
+  errorMessage?: string;
 };
 
 export type TechnicalDescriptionCategory =

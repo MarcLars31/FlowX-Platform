@@ -6,6 +6,10 @@ import type { OrganizationRoleSlug } from "@/lib/organization-rbac";
 
 const roleOptions: { value: OrganizationRoleSlug; label: string }[] = [
   { value: "organization_owner", label: "Organisationsägare" },
+  { value: "company_admin", label: "Företagsadministratör" },
+  { value: "project_manager", label: "Projektledare" },
+  { value: "engineer", label: "Ingenjör" },
+  { value: "viewer", label: "Läsbehörighet" },
   { value: "organization_admin", label: "Organisationsadmin" },
   { value: "full_user", label: "Full användare" },
   { value: "mini_user", label: "Mini-användare" },
@@ -48,7 +52,14 @@ export function OrganizationMemberActions({
     : roleOptions.filter(
         (role) =>
           role.value === currentRole ||
-          ["full_user", "mini_user", "read_only"].includes(role.value)
+          [
+            "project_manager",
+            "engineer",
+            "viewer",
+            "full_user",
+            "mini_user",
+            "read_only"
+          ].includes(role.value)
       );
 
   async function update(path: string, body: Record<string, string>, kind: "role" | "status") {

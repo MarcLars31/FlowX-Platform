@@ -22,9 +22,10 @@
 
 ## Kvarstående risker
 
-Storage-policyn verifierar organisationens första sökvägssegment. Projektets
-metadata-RLS verifierar dessutom projektåtkomst, men Storage-namn bör i nästa
-fas bindas direkt till `project_documents` för strikt projektisolering.
+Storage-policyn verifierar nu både organisationens och projektets sökvägssegment
+samt projektåtkomst. I nästa fas bör Storage-namn bindas direkt till
+`project_documents` så att dokumentmetadata och objektlivscykel blir helt
+transaktionella.
 Teknisk beskrivning använder ännu ingen separat bakgrundskö; stora OCR-jobb
 kan därför behöva flyttas till worker/Edge Function.
 
@@ -37,3 +38,16 @@ aktivera rätt e-postmedlemskap, och sparar den inte i localStorage.
 Kontrollera alltid att `SUPABASE_SERVICE_ROLE_KEY` endast finns i servermiljö,
 att loggar inte innehåller tokens eller råa kunddokument och att globala
 katalogskrivningar sker genom en validerad import.
+
+Projektstyrningen fortsätter samma tenantmodell: projekt- och moduldata har RLS
+som kontrollerar `organization_id` och projektmedlemskap tillsammans. Atomiskt
+projektskapande och serverbaserade workflow-gates förhindrar att en klient
+kringgår krav på dokument, bekräftade krav eller föregående körningar.
+
+## Senaste hårdning
+
+Migrationen `20260805110000_harden_storage_project_scope.sql` binder privata
+Storage-filer till både organisation och projekt samt kräver projektåtkomst och
+dokumentbehörighet för skrivning/radering. API:t validerar nu PDF-signaturen,
+begränsar dyra inloggnings- och extraktionsförsök och returnerar inte längre
+råa Supabase-/parserfel till klienten i API-flödena.

@@ -100,7 +100,19 @@ export type OrganizationProject = {
   expected_delivery_date?: string | null;
   internal_comments?: string | null;
   technical_parameters?: Record<string, unknown>;
+  demo_data_set_id?: string | null;
   status: string;
+  current_stage?:
+    | "setup"
+    | "documents"
+    | "technical_description"
+    | "requirements_review"
+    | "analysis"
+    | "product_matching"
+    | "material_list"
+    | "approval"
+    | "completed"
+    | string;
   access_level: ProjectAccessLevel;
   created_by?: string | null;
   assigned_to?: string | null;

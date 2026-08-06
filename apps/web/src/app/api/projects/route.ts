@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
-  insertUserRowReturning,
+  callUserRpc,
   selectUserRows,
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
@@ -9,6 +9,7 @@ import type {
   OrganizationProject
 } from "@/types/organization";
 import type { ProjectAccessLevel } from "@/lib/organization-rbac";
+import { DEMO_DATA_DISCLAIMER } from "@/lib/demo-data";
 
 export const runtime = "nodejs";
 
@@ -28,13 +29,18 @@ export async function GET() {
 
     const projects = await selectUserRows<OrganizationProject>("projects", {
       select:
-        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,created_at,updated_at",
+        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
       organization_id: `eq.${authorization.context.organization.id}`,
       deleted_at: "is.null",
       order: "updated_at.desc"
     });
 
-    return NextResponse.json({ projects });
+    return NextResponse.json({
+      projects,
+      demoDataDisclaimer: projects.some((project) => project.demo_data_set_id)
+        ? DEMO_DATA_DISCLAIMER
+        : null
+    });
   } catch (error) {
     return projectErrorResponse(error);
   }
@@ -51,39 +57,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: input.error }, { status: 400 });
     }
 
-    const project = await insertUserRowReturning<OrganizationProject>(
-      "projects",
-      {
-        organization_id: authorization.context.organization.id,
-        owner_id: authorization.user.id,
-        created_by: authorization.user.id,
-        assigned_to: authorization.user.id,
-        name: input.name,
-        project_number: input.projectNumber,
-        description: input.description,
-        customer: input.customerName,
-        customer_name: input.customerName,
-        end_customer: input.endCustomer,
-        address: input.address,
-        country: input.country,
-        standard: input.standard,
-        system_type: input.systemType,
-        supplier: input.supplier,
-        project_type: input.projectType,
-        procurement_strategy: input.procurementStrategy,
-        currency: input.currency,
-        delivery_country: input.deliveryCountry,
-        warehouse_location: input.warehouseLocation,
-        expected_start_date: input.expectedStartDate,
-        expected_delivery_date: input.expectedDeliveryDate,
-        internal_comments: input.internalComments,
-        technical_parameters: input.technicalParameters,
-        team_id: input.teamId,
-        access_level: input.accessLevel,
-        status: "draft",
-        progress: 0
-      }
-    );
+    const rpcResult = await callUserRpc<unknown>("create_project_with_defaults", {
+      requested_organization_id: authorization.context.organization.id,
+      requested_project_number: input.projectNumber,
+      requested_name: input.name,
+      requested_description: input.description,
+      requested_customer_name: input.customerName,
+      requested_project_type: input.projectType,
+      requested_country_code: input.country,
+      requested_language_code: "sv",
+      requested_currency_code: input.currency,
+      requested_owner_user_id: authorization.user.id,
+      requested_module_code: "sprinkler",
+      requested_standard: input.standard,
+      requested_system_type: input.systemType,
+      requested_supplier: input.supplier,
+      requested_delivery_country: input.deliveryCountry,
+      requested_access_level: input.accessLevel,
+      requested_team_id: input.teamId
+    });
+    const projectId =
+      typeof rpcResult === "string"
+        ? rpcResult
+        : isRecord(rpcResult) && typeof rpcResult.id === "string"
+          ? rpcResult.id
+          : null;
+    if (!projectId) throw new Error("Supabase returned no new project id.");
+
+    const [project] = await selectUserRows<OrganizationProject>("projects", {
+      select:
+        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
+      id: `eq.${projectId}`,
+      organization_id: `eq.${authorization.context.organization.id}`,
+      limit: "1"
+    });
+    if (!project) throw new Error("The new project could not be loaded.");
 
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
@@ -231,7 +239,6 @@ function projectErrorResponse(error: unknown) {
         error: forbidden
           ? "The project operation was denied."
           : "The project could not be saved.",
-        detail: error.message
       },
       { status: forbidden ? 403 : 500 }
     );
@@ -240,7 +247,6 @@ function projectErrorResponse(error: unknown) {
   return NextResponse.json(
     {
       error: "The project operation failed.",
-      detail: error instanceof Error ? error.message : "Unknown error."
     },
     { status: 500 }
   );

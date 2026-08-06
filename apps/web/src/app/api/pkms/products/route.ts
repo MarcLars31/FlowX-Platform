@@ -51,11 +51,10 @@ export async function GET() {
       products: await attachApprovals(products),
       supabase: getSupabaseDiagnostics()
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         error: "Could not load products from Supabase.",
-        detail: error instanceof Error ? error.message : "Unknown Supabase error.",
         products: [],
         supabase: getSupabaseDiagnostics()
       },

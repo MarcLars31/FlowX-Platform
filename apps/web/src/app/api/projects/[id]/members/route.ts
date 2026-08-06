@@ -9,7 +9,7 @@ import {
 
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ id: string }> };
-type ProjectRole = "editor" | "viewer";
+type ProjectRole = "editor" | "reviewer" | "viewer";
 
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -84,7 +84,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 }
 
 function isProjectRole(value: unknown): value is ProjectRole {
-  return value === "editor" || value === "viewer";
+  return value === "editor" || value === "reviewer" || value === "viewer";
 }
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);

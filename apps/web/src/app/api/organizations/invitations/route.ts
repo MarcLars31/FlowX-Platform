@@ -90,8 +90,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
-        error: "Invitation could not be created.",
-        detail: error instanceof UserSupabaseError ? error.message : undefined
+        error: "Invitation could not be created."
       },
       { status: error instanceof UserSupabaseError ? 403 : 500 }
     );

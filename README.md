@@ -11,9 +11,11 @@ produktmatchning och versionshanterad materiallista.
 
 **Version:** 0.1
 
-**Status:** fas 1 är implementerad och verifierad. Delar av fas 2 för
-projektåtkomst och organisationsinställningar är implementerade och
-verifierade mot den länkade Supabase-databasen.
+**Status:** fas 1 för databasarkitektur och fas 2 för säker demodata är
+implementerade och verifierade lokalt. Äldre delar av projektåtkomst och
+organisationsinställningar har tidigare verifierats mot den länkade
+Supabase-databasen. De nya `20260806`-migrationerna är inte applicerade i
+produktion genom denna leverans.
 
 **Ägare:** Marcus Larsson
 
@@ -48,7 +50,7 @@ produktdata och tekniska resultat.
 
 ## Teknik
 
-- Next.js 15
+- Next.js 16
 - React 19
 - TypeScript
 - Tailwind CSS
@@ -86,11 +88,17 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 VITE_SUPABASE_URL
 VITE_SUPABASE_PUBLISHABLE_KEY
+PRODUCT_PDF_EXTRACTOR_URL
+PRODUCT_PDF_EXTRACTOR_TIMEOUT_MS
+PRODUCT_PDF_READER_VERSION
+CRAWLER_INGEST_TOKEN
 ```
 
 Lägg aldrig miljövariabelvärden, tokens eller Supabase-nycklar i Git.
 `SUPABASE_SECRET_KEY` (eller den äldre `SUPABASE_SERVICE_ROLE_KEY`) krävs på
 servern för att skicka Auth-inbjudningar. Den ska aldrig exponeras i klienten.
+Använd [apps/web/.env.example](apps/web/.env.example) som mall utan att kopiera
+verkliga nycklar till Git.
 
 ### Kvalitetskontroller
 
@@ -103,8 +111,36 @@ npm.cmd run test:rbac
 npm.cmd run test:extractor
 npm.cmd run test:normalizer
 npm.cmd run test:technical-description
+npm.cmd run test:product-pdf
 npm.cmd run build
 ```
+
+### Offentlig dokumentcrawler och produktdatablad
+
+Den fristående, artiga crawlern finns i `apps/document-crawler`. Den följer
+endast aktiverade leverantörer och tillåtna domäner, respekterar `robots.txt`,
+isolerar webbplatsfel och sparar PDF-metadata och kontrollsummor i SQLite.
+Endast Viking är aktiverad som försiktig startkonfiguration; leverantörer vars
+villkor begränsar automatiserad insamling är uttryckligen avstängda.
+
+Crawlern kan skicka en nedladdad PDF till det administratörsskyddade
+FlowX/Scipx-ingest-API:t. Webbappen lagrar filen privat i Supabase Storage,
+återanvänder den befintliga text/OCR-förbehandlingen före den separata Product
+PDF Extractor-tjänsten och sparar status, sidresultat, tabeller när läsaren
+returnerar dem, försökshistorik, produktkopplingar, källspårning och
+granskningsförslag. Ett sidfel stoppar inte resterande sidor.
+
+Plattformsadministratörer granskar misslyckade dokument och produktkandidater
+under `/admin/documents/failed`. Godkända fältändringar tillämpas atomiskt och
+kan återställas. Verifierade produkt–dokumentrelationer visas som ”Visa
+datablad” i kundens produktsökning via en privat, behörighetskontrollerad
+PDF-route; lokala lagringssökvägar lämnas aldrig ut.
+
+Databasstödet finns i migrationen
+`20260805120000_create_product_document_ingestion.sql`. Kör migrationen innan
+crawler-ingest och granskningsgränssnittet aktiveras i en miljö.
+Se [crawlerns README](apps/document-crawler/README.md) för installation,
+leverantörskonfiguration och CLI-kommandon.
 
 ### Teknisk beskrivning och materialestimat
 
@@ -137,6 +173,7 @@ steg.
 
 ```text
 apps/web/              Next.js-applikation
+apps/document-crawler/ Fristående crawler för offentliga produktdokument
 docs/                  Arkitektur och utvecklaröverlämning
 supabase/migrations/   SQL-migrationer
 packages/              Reserverat för delade paket
@@ -199,3 +236,12 @@ ska inte versionshanteras.
 4. Koppla inbjudningsmejl och säker acceptans.
 5. Spara persistenta extraction jobs och versionshanterade tekniska resultat.
 6. Inför retention-jobb och granskat supportläge för plattformsadministratörer.
+
+### Project-first projektstyrning
+
+Alla arbetsflöden startar nu i ett åtkomstskyddat projekt. Den atomiska
+serverfunktionen `create_project_with_defaults` skapar projektets inställningar,
+sprinkler-modul, projektansvarig och audit-event tillsammans. Arbetssteg,
+tekniska beskrivningsversioner, stale-resultat och serverbaserade workflow-gates
+finns i `20260805100000_implement_project_governance.sql`. Se
+[projektstyrningsdokumentationen](docs/17_PROJECT_GOVERNANCE.md).

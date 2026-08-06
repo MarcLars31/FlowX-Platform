@@ -10,6 +10,10 @@ import {
   insertSupabaseRow,
   selectSupabaseRows
 } from "@/lib/supabase-rest";
+import {
+  readJsonBody,
+  RequestBodyTooLargeError
+} from "@/lib/request-body";
 
 export const runtime = "nodejs";
 
@@ -67,7 +71,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = (await request.json()) as unknown;
+    const body = (await readJsonBody<unknown>(request, maxJsonBytes)) as unknown;
 
     if (
       !isJsonRecord(body) ||
@@ -112,11 +116,10 @@ export async function POST(request: Request) {
           toProductReviewInsert(product, fileName)
         );
         result.queued += 1;
-      } catch (error) {
+      } catch {
         result.errors.push({
           row: product.sourceRow,
-          message:
-            error instanceof Error ? error.message : "Review queue insert failed.",
+          message: "Review queue insert failed.",
           manufacturer: product.manufacturer,
           product_no: product.product_no
         });
@@ -130,16 +133,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown JSON queue failure.";
-
     return NextResponse.json(
       {
         error: "Could not save products for review.",
-        detail: message,
         supabase: getSupabaseDiagnostics()
       },
-      { status: message.includes("JSON") ? 400 : 500 }
+      {
+        status:
+          error instanceof RequestBodyTooLargeError
+            ? 413
+            : error instanceof SyntaxError
+              ? 400
+              : 500
+      }
     );
   }
 }
@@ -186,11 +192,9 @@ async function assertReviewQueueSchemaReady() {
         limit: "1"
       })
     ]);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : "Unknown schema error.";
-
+  } catch {
     throw new Error(
-      `Review queue schema is not ready. Run the pending SQL files in supabase/migrations. ${detail}`
+      "Review queue schema is not ready. Run the pending SQL files in supabase/migrations."
     );
   }
 }
@@ -237,8 +241,8 @@ async function logExtractionJob(fileName: string, result: QueueResult) {
     try {
       await insertSupabaseRow("extraction_jobs", payload);
       return null;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : lastError;
+    } catch {
+      lastError = "Could not log extraction job.";
     }
   }
 

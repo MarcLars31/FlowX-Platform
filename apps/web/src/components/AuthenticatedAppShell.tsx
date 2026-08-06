@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { getOrganizationContext } from "@/lib/organization-context";
 import {
-  getOrganizationContext,
-  organizationHasAnyPermission
-} from "@/lib/organization-context";
+  getOrganizationAccessStatus,
+  organizationAccessSnapshot
+} from "@/lib/organization-access-policy";
 import { filterOrganizationNavigation } from "@/lib/organization-navigation";
 import { getCurrentUser } from "@/lib/supabase-auth";
 import { isPlatformAdmin } from "@/lib/platform-role";
@@ -52,8 +53,10 @@ export async function AuthenticatedAppShell({
   }
 
   if (
-    anyPermissions.length > 0 &&
-    !organizationHasAnyPermission(context, anyPermissions)
+    getOrganizationAccessStatus(
+      organizationAccessSnapshot({ userId: user.id, context }),
+      { anyPermissions }
+    ) !== 200
   ) {
     redirect("/dashboard");
   }
@@ -75,6 +78,10 @@ function formatRole(role: string) {
   const labels: Record<string, string> = {
     organization_owner: "Organisationsägare",
     organization_admin: "Organisationsadmin",
+    company_admin: "Företagsadministratör",
+    project_manager: "Projektledare",
+    engineer: "Ingenjör",
+    viewer: "Läsbehörighet",
     full_user: "Full användare",
     mini_user: "Mini-användare",
     read_only: "Läsanvändare"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  AlertTriangle,
   Building2,
   ClipboardCheck,
   FileJson,
@@ -11,6 +12,7 @@ import {
   FolderKanban,
   Home,
   PackageSearch,
+  RefreshCw,
   Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,6 +33,12 @@ const adminNavigation: SidebarItem[] = [
     icon: ClipboardCheck,
     exact: true
   },
+  {
+    name: "Olästa datablad",
+    href: "/admin/documents/failed",
+    icon: AlertTriangle
+  },
+  { name: "Sprsok-synk", href: "/admin/sprsok", icon: RefreshCw },
   { name: "Products", href: "/products", icon: PackageSearch }
 ];
 

@@ -36,8 +36,7 @@ export async function DELETE(
   } catch (error) {
     return NextResponse.json(
       {
-        error: "The project could not be permanently deleted.",
-        detail: error instanceof UserSupabaseError ? error.message : undefined
+        error: "The project could not be permanently deleted."
       },
       { status: error instanceof UserSupabaseError ? 403 : 500 }
     );

@@ -51,11 +51,10 @@ export async function GET() {
       products: rows.map(expandReviewProduct),
       supabase: getSupabaseDiagnostics()
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         error: "Could not load products awaiting approval.",
-        detail: error instanceof Error ? error.message : "Unknown queue error.",
         products: [],
         supabase: getSupabaseDiagnostics()
       },
@@ -139,11 +138,10 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ product: expandReviewProduct(updatedProduct) });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
-        error: "Could not update review product.",
-        detail: error instanceof Error ? error.message : "Unknown update error."
+        error: "Could not update review product."
       },
       { status: 500 }
     );

@@ -47,3 +47,11 @@ matchningsmotorn med teknisk gate före ranking,
 materiallisteversionering i UI, projektbunden Storage-policy och en lokal
 syntetisk seed med två organisationer. Ändra inte Auth/RBAC-namn eller
 befintliga projekt-/dokumenttabeller utan en ny inventering och migration.
+
+## Projektstyrning
+
+Senaste migrationen är `20260805100000_implement_project_governance.sql`.
+Den är applicerad i Supabase och registrerad i `schema_migrations`. Verifiera
+RPC:n `create_project_with_defaults`, RLS och sprinkler-standardmodulen före
+deploy. Se [17_PROJECT_GOVERNANCE.md](17_PROJECT_GOVERNANCE.md) för routes,
+gates, stale-resultat och kvarvarande sektioner.

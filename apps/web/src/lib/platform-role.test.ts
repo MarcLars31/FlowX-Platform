@@ -15,8 +15,12 @@ test("accepts trusted platform admin roles from app_metadata", () => {
   );
 });
 
-test("rejects customer, missing and unknown app_metadata roles", () => {
+test("rejects customer roles, missing and unknown app_metadata roles", () => {
   assert.equal(isPlatformAdmin({ app_metadata: { role: "customer" } }), false);
+  assert.equal(
+    isPlatformAdmin({ app_metadata: { role: "customer_admin" } }),
+    false
+  );
   assert.equal(isPlatformAdmin({ app_metadata: { role: "owner" } }), false);
   assert.equal(isPlatformAdmin({}), false);
   assert.equal(isPlatformAdmin(null), false);
@@ -51,6 +55,10 @@ test("routes admins and customers to their own application areas", () => {
   );
   assert.equal(
     getPostLoginDestination({ app_metadata: { role: "customer" } }),
+    "/dashboard"
+  );
+  assert.equal(
+    getPostLoginDestination({ app_metadata: { role: "customer_admin" } }),
     "/dashboard"
   );
   assert.equal(getPostLoginDestination({}), "/dashboard");

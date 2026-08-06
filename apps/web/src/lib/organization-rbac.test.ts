@@ -56,6 +56,37 @@ test("organization admins can invite but cannot assign platform admin", () => {
   );
 });
 
+test("canonical phase-one roles inherit the intended permissions", () => {
+  assert.equal(hasRolePermission("company_admin", "member.invite"), true);
+  assert.equal(hasRolePermission("project_manager", "project.create"), true);
+  assert.equal(hasRolePermission("engineer", "analysis.create"), true);
+  assert.equal(hasRolePermission("viewer", "project.update"), false);
+  assert.equal(hasRolePermission("viewer", "project.view_own"), true);
+
+  assert.equal(
+    canAssignOrganizationRole({
+      actorRole: "company_admin",
+      actorUserId: "admin",
+      targetUserId: "member",
+      targetCurrentRole: "viewer",
+      requestedRole: "engineer",
+      activeOwnerCount: 1
+    }),
+    true
+  );
+  assert.equal(
+    canAssignOrganizationRole({
+      actorRole: "company_admin",
+      actorUserId: "admin",
+      targetUserId: "member",
+      targetCurrentRole: "viewer",
+      requestedRole: "company_admin",
+      activeOwnerCount: 1
+    }),
+    false
+  );
+});
+
 test("members cannot promote their own role", () => {
   assert.equal(
     canAssignOrganizationRole({

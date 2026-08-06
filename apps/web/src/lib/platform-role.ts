@@ -1,6 +1,9 @@
 export const PLATFORM_ADMIN_ROLES = ["admin", "platform_admin"] as const;
 
-export type PlatformRole = (typeof PLATFORM_ADMIN_ROLES)[number] | "customer";
+export type PlatformRole =
+  | (typeof PLATFORM_ADMIN_ROLES)[number]
+  | "customer"
+  | "customer_admin";
 
 type UserWithRoleMetadata = {
   app_metadata?: {
@@ -14,7 +17,8 @@ export function getPlatformRole(user: UserWithRoleMetadata | null | undefined) {
   if (
     role === "admin" ||
     role === "platform_admin" ||
-    role === "customer"
+    role === "customer" ||
+    role === "customer_admin"
   ) {
     return role satisfies PlatformRole;
   }

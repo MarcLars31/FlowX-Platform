@@ -29,9 +29,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (error) {
     if (error instanceof UserSupabaseError) {
       const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
-      return NextResponse.json({ error: forbidden ? "Kravgranskningen nekades." : "Kravet kunde inte uppdateras.", detail: error.message }, { status: forbidden ? 403 : 500 });
+      return NextResponse.json({ error: forbidden ? "Kravgranskningen nekades." : "Kravet kunde inte uppdateras." }, { status: forbidden ? 403 : 500 });
     }
-    return NextResponse.json({ error: "Kravet kunde inte uppdateras.", detail: error instanceof Error ? error.message : "Okänt fel." }, { status: 500 });
+    return NextResponse.json({ error: "Kravet kunde inte uppdateras." }, { status: 500 });
   }
 }
 
@@ -46,7 +46,15 @@ function validateReview(body: RequirementReviewInput | null) {
   if (!body || typeof body !== "object") return { error: "Ingen granskning angavs." } as const;
   const output: Record<string, unknown> = {};
   if ("status" in body) {
-    const statuses = ["pending", "confirmed", "rejected", "unclear", "conflict"];
+    const statuses = [
+      "user_confirmed",
+      "user_modified",
+      "extracted_unreviewed",
+      "inferred_unreviewed",
+      "conflicted",
+      "rejected",
+      "superseded"
+    ];
     if (typeof body.status !== "string" || !statuses.includes(body.status)) return { error: "Ogiltig kravstatus." } as const;
     output.status = body.status;
   }

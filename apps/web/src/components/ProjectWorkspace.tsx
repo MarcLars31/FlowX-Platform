@@ -10,8 +10,10 @@ import {
   Upload
 } from "lucide-react";
 import { Button } from "@/components/Button";
+import { DemoBadge } from "@/components/DemoBadge";
 import { Input } from "@/components/Input";
 import type { OrganizationProject } from "@/types/organization";
+import { PROJECT_STAGES, nextProjectStage } from "@/lib/project-governance";
 
 export type ProjectModuleData = {
   project: OrganizationProject;
@@ -42,6 +44,8 @@ const statusLabels: Record<string, string> = {
   archived: "Arkiverat",
   active: "Aktivt"
 };
+
+const projectStages = PROJECT_STAGES;
 
 export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleData }) {
   const [data, setData] = useState(initialData);
@@ -87,6 +91,7 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           endCustomer: form.get("endCustomer"),
           address: form.get("address"),
           status: form.get("status"),
+          currentStage: form.get("currentStage"),
           projectType: form.get("projectType"),
           procurementStrategy: form.get("procurementStrategy"),
           currency: form.get("currency"),
@@ -168,11 +173,16 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
 
   async function reviewRequirement(requirementId: string, status: string) {
     setError(null);
+    const normalizedStatus = status === "confirmed"
+      ? "user_confirmed"
+      : status === "unclear"
+        ? "inferred_unreviewed"
+        : status;
     try {
       const response = await fetch(`/api/projects/${data.project.id}/requirements/${requirementId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status: normalizedStatus })
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Kravet kunde inte uppdateras.");
@@ -185,14 +195,15 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
   const counts = {
     documents: data.documents.length + data.technicalDescriptions.length,
     requirements: data.requirements.length,
-    confirmed: data.requirements.filter((item) => item.status === "confirmed").length,
-    unclear: data.requirements.filter((item) => ["unclear", "conflict"].includes(String(item.status))).length,
+    confirmed: data.requirements.filter((item) => ["user_confirmed", "user_modified"].includes(String(item.status))).length,
+    unclear: data.requirements.filter((item) => ["inferred_unreviewed", "conflicted"].includes(String(item.status))).length,
     suggestions: data.suggestions.length,
     decisions: data.decisions.length
   };
 
   return (
     <div className="space-y-6">
+      {data.project.demo_data_set_id && <DemoBadge />}
       <header className="rounded-xl bg-ink-950 px-6 py-7 text-white shadow-sm sm:px-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -205,6 +216,21 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           <span className="rounded-full bg-white/10 px-3 py-1 text-sm text-flow-100">
             {statusLabels[data.project.status] ?? data.project.status}
           </span>
+        </div>
+        <div className="mt-6 overflow-x-auto pb-1">
+          <div className="flex min-w-max items-center gap-2">
+            {projectStages.map(([stage, label], index) => {
+              const active = data.project.current_stage === stage;
+              return (
+                <div key={stage} className="flex items-center gap-2">
+                  <span className={active ? "rounded-full bg-flow-400 px-3 py-1.5 text-xs font-semibold text-ink-950" : "rounded-full bg-white/10 px-3 py-1.5 text-xs text-ink-200"}>
+                    {index + 1}. {label}
+                  </span>
+                  {index < projectStages.length - 1 && <span className="text-ink-500">→</span>}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </header>
 
@@ -230,6 +256,10 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
 
       {tab === "overview" && (
         <div className="space-y-5">
+          <section className="rounded-lg border border-flow-200 bg-flow-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-flow-800">Nästa steg</p>
+            <p className="mt-1 text-sm text-flow-950">{nextStageLabel(data.project.current_stage)}</p>
+          </section>
           <section className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <Metric label="Dokument" value={counts.documents} />
             <Metric label="Identifierade krav" value={counts.requirements} />
@@ -263,6 +293,7 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
               <Input id="workspace-start" name="expectedStartDate" label="Förväntad start" type="date" defaultValue={data.project.expected_start_date ?? ""} />
               <Input id="workspace-delivery" name="expectedDeliveryDate" label="Förväntad leverans" type="date" defaultValue={data.project.expected_delivery_date ?? ""} />
               <label className="block" htmlFor="workspace-status"><span className="mb-2 block text-sm font-medium text-ink-700">Projektstatus</span><select id="workspace-status" name="status" defaultValue={data.project.status} className="block h-11 w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500">{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label className="block" htmlFor="workspace-stage"><span className="mb-2 block text-sm font-medium text-ink-700">Aktuellt arbetssteg</span><select id="workspace-stage" name="currentStage" defaultValue={data.project.current_stage ?? "setup"} className="block h-11 w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500">{projectStages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <TextArea name="description" label="Projektbeskrivning" defaultValue={data.project.description ?? ""} />
@@ -308,9 +339,33 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
 }
 
 function RequirementRow({ item, onReview }: { item: ProjectRow; onReview: (id: string, status: string) => void }) {
-  const status = String(item.status ?? "pending");
+  const status = String(item.status ?? "extracted_unreviewed");
   const confidence = typeof item.confidence === "number" ? Math.round(item.confidence * 100) : null;
-  return <div className="px-5 py-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">{String(item.category)}</span><span className="font-semibold text-ink-950">{String(item.requirement_key)}</span><span className={status === "confirmed" ? "text-xs font-semibold text-emerald-700" : status === "conflict" || status === "unclear" ? "text-xs font-semibold text-amber-700" : "text-xs text-ink-500"}>{status}</span></div><p className="mt-2 text-sm text-ink-800">{String(item.value_text ?? "Inget värde")}</p><p className="mt-2 text-xs text-ink-500">{item.certainty === "explicit" ? "Explicit uppgift" : "Tolkad uppgift"}{confidence !== null ? ` · ${confidence}% säkerhet` : ""}{item.source_page ? ` · sida ${String(item.source_page)}` : ""}</p>{typeof item.source_excerpt === "string" && item.source_excerpt && <p className="mt-2 max-w-3xl border-l-2 border-ink-200 pl-3 text-xs italic text-ink-500">{item.source_excerpt}</p>}</div><div className="flex shrink-0 flex-wrap gap-2"><Button variant="secondary" onClick={() => onReview(item.id, "confirmed")}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Godkänn</Button><Button variant="secondary" onClick={() => onReview(item.id, "unclear")}>Oklart</Button><Button variant="ghost" onClick={() => onReview(item.id, "rejected")}>Avvisa</Button></div></div></div>;
+  return <div className="px-5 py-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">{String(item.category)}</span><span className="font-semibold text-ink-950">{String(item.requirement_key)}</span><span className={requirementStatusClass(status)}>{requirementStatusLabel(status)}</span></div><p className="mt-2 text-sm text-ink-800">{String(item.value_text ?? "Inget värde")}</p><p className="mt-2 text-xs text-ink-500">{item.certainty === "explicit" ? "Explicit uppgift" : "Tolkad uppgift"}{confidence !== null ? ` · ${confidence}% säkerhet` : ""}{item.source_page ? ` · sida ${String(item.source_page)}` : ""}</p>{typeof item.source_excerpt === "string" && item.source_excerpt && <p className="mt-2 max-w-3xl border-l-2 border-ink-200 pl-3 text-xs italic text-ink-500">{item.source_excerpt}</p>}</div><div className="flex shrink-0 flex-wrap gap-2"><Button variant="secondary" onClick={() => onReview(item.id, "user_confirmed")}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Godkänn</Button><Button variant="secondary" onClick={() => onReview(item.id, "inferred_unreviewed")}>Oklart</Button><Button variant="ghost" onClick={() => onReview(item.id, "rejected")}>Avvisa</Button></div></div></div>;
+}
+
+function requirementStatusClass(status: string) {
+  if (["user_confirmed", "user_modified"].includes(status)) {
+    return "text-xs font-semibold text-emerald-700";
+  }
+  if (["inferred_unreviewed", "conflicted"].includes(status)) {
+    return "text-xs font-semibold text-amber-700";
+  }
+  if (status === "rejected") return "text-xs font-semibold text-rose-700";
+  return "text-xs text-ink-500";
+}
+
+function requirementStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    user_confirmed: "Bekräftat",
+    user_modified: "Ändrat och bekräftat",
+    extracted_unreviewed: "Väntar på granskning",
+    inferred_unreviewed: "Tolkning att granska",
+    conflicted: "Konflikt",
+    rejected: "Avvisat",
+    superseded: "Ersatt"
+  };
+  return labels[status] ?? status;
 }
 
 function DocumentRow({ item, source }: { item: ProjectRow; source: string }) {
@@ -327,3 +382,9 @@ function InfoCard({ title, icon, children }: { title: string; icon: React.ReactN
 function TextArea({ name, label, defaultValue }: { name: string; label: string; defaultValue: string }) { return <label className="block"><span className="mb-2 block text-sm font-medium text-ink-700">{label}</span><textarea name={name} rows={4} defaultValue={defaultValue} className="block w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500" /></label>; }
 function formatDate(value: unknown) { if (typeof value !== "string" || !value) return ""; return new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium" }).format(new Date(value)); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
+function nextStageLabel(stage: string | undefined) {
+  if (!stage || !projectStages.some(([value]) => value === stage)) return "Börja med att fylla i projektinformationen.";
+  const next = nextProjectStage(stage as (typeof PROJECT_STAGES)[number][0]);
+  const nextLabel = next && projectStages.find(([value]) => value === next)?.[1];
+  return nextLabel ? `Fortsätt med ${nextLabel}.` : "Alla obligatoriska arbetssteg är klara. Projektet kan exporteras när godkännandet är klart.";
+}

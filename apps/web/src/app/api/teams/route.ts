@@ -25,8 +25,7 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json(
       {
-        error: "Teams could not be loaded.",
-        detail: error instanceof UserSupabaseError ? error.message : undefined
+        error: "Teams could not be loaded."
       },
       { status: error instanceof UserSupabaseError ? 403 : 500 }
     );
@@ -59,8 +58,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
-        error: "Team could not be created.",
-        detail: error instanceof UserSupabaseError ? error.message : undefined
+        error: "Team could not be created."
       },
       { status: error instanceof UserSupabaseError ? 403 : 500 }
     );

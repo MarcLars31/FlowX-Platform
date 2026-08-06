@@ -6,6 +6,7 @@ import {
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
+import { DEMO_DATA_DISCLAIMER } from "@/lib/demo-data";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const [project] = await selectUserRows<OrganizationProject>("projects", {
       select:
-        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,created_at,updated_at",
+        "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
       id: `eq.${id}`,
       organization_id: `eq.${authorization.context.organization.id}`,
       deleted_at: "is.null",
@@ -78,7 +79,10 @@ export async function GET(_request: Request, context: RouteContext) {
       conflicts,
       suggestions,
       decisions,
-      versions
+      versions,
+      demoDataDisclaimer: project.demo_data_set_id
+        ? DEMO_DATA_DISCLAIMER
+        : null
     });
   } catch (error) {
     return projectDetailError(error);
@@ -131,6 +135,7 @@ type ProjectUpdate = Partial<{
   expectedDeliveryDate: unknown;
   internalComments: unknown;
   status: unknown;
+  currentStage: unknown;
   technicalParameters: unknown;
 }>;
 
@@ -171,6 +176,22 @@ function validateProjectUpdate(body: ProjectUpdate | null) {
     if (!allowed.includes(status)) return { error: "Ogiltig projektstatus." } as const;
     output.status = status;
   }
+  if ("currentStage" in body) {
+    const currentStage = typeof body.currentStage === "string" ? body.currentStage : "";
+    const allowedStages = [
+      "setup",
+      "documents",
+      "technical_description",
+      "requirements_review",
+      "analysis",
+      "product_matching",
+      "material_list",
+      "approval",
+      "completed"
+    ];
+    if (!allowedStages.includes(currentStage)) return { error: "Ogiltigt arbetssteg." } as const;
+    output.current_stage = currentStage;
+  }
   for (const [key, column] of [["expectedStartDate", "expected_start_date"], ["expectedDeliveryDate", "expected_delivery_date"]] as const) {
     if (!(key in body)) continue;
     const value = body[key];
@@ -199,12 +220,12 @@ function projectDetailError(error: unknown) {
   if (error instanceof UserSupabaseError) {
     const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
     return NextResponse.json(
-      { error: forbidden ? "Projektåtkomsten nekades." : "Projektet kunde inte läsas eller uppdateras.", detail: error.message },
+      { error: forbidden ? "Projektåtkomsten nekades." : "Projektet kunde inte läsas eller uppdateras." },
       { status: forbidden ? 403 : 500 }
     );
   }
   return NextResponse.json(
-    { error: "Projektet kunde inte läsas eller uppdateras.", detail: error instanceof Error ? error.message : "Okänt fel." },
+    { error: "Projektet kunde inte läsas eller uppdateras." },
     { status: 500 }
   );
 }

@@ -34,3 +34,10 @@ sedan Supabase Auth-inbjudan från servern. `redirectTo` går till
 /api/organizations/invitations/accept` verifierar access-token, låter användaren
 välja lösenord, aktiverar medlemskapet genom `accept_organization_invitation`
 och skapar FlowX-sessionen.
+
+## Projekt-API
+
+`POST /api/projects` använder `create_project_with_defaults` och härleder
+organisationen från aktivt medlemskap. `GET/PATCH /api/projects/[id]` kräver
+projektåtkomst; teknisk beskrivning kräver `projectId` och aktiv modul. Projekt-
+stegen och workflow-gates beskrivs i [projektstyrningsdokumentationen](17_PROJECT_GOVERNANCE.md).

@@ -7,9 +7,9 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
 const standardRoles = [
-  { value: "full_user", label: "Full användare" },
-  { value: "mini_user", label: "Mini-användare" },
-  { value: "read_only", label: "Läsanvändare" }
+  { value: "project_manager", label: "Projektledare" },
+  { value: "engineer", label: "Ingenjör" },
+  { value: "viewer", label: "Läsbehörighet" }
 ];
 
 export function OrganizationInviteForm({ canAssignAdmins }: {
@@ -20,7 +20,7 @@ export function OrganizationInviteForm({ canAssignAdmins }: {
   const [message, setMessage] = useState<string | null>(null);
   const roles = canAssignAdmins
     ? [
-        { value: "organization_admin", label: "Organisationsadmin" },
+        { value: "company_admin", label: "Företagsadministratör" },
         ...standardRoles
       ]
     : standardRoles;

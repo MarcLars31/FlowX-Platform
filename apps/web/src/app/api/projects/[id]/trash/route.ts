@@ -41,8 +41,7 @@ function isUuid(value: string) {
 function rpcError(error: unknown) {
   return NextResponse.json(
     {
-      error: "The project could not be moved to trash.",
-      detail: error instanceof UserSupabaseError ? error.message : undefined
+      error: "The project could not be moved to trash."
     },
     { status: error instanceof UserSupabaseError ? 403 : 500 }
   );

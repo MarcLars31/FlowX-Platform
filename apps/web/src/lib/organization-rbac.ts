@@ -1,6 +1,10 @@
 export const ORGANIZATION_ROLE_SLUGS = [
   "organization_owner",
   "organization_admin",
+  "company_admin",
+  "project_manager",
+  "engineer",
+  "viewer",
   "full_user",
   "mini_user",
   "read_only"
@@ -193,6 +197,10 @@ export const ROLE_PERMISSION_KEYS: Record<
 > = {
   organization_owner: PERMISSION_KEYS,
   organization_admin: organizationAdminPermissions,
+  company_admin: organizationAdminPermissions,
+  project_manager: fullUserPermissions,
+  engineer: fullUserPermissions,
+  viewer: readOnlyPermissions,
   full_user: fullUserPermissions,
   mini_user: miniUserPermissions,
   read_only: readOnlyPermissions
@@ -245,16 +253,26 @@ export function canAssignOrganizationRole({
 
   if (actorRole === "organization_owner") return true;
 
-  if (actorRole === "organization_admin") {
+  if (actorRole === "organization_admin" || actorRole === "company_admin") {
     if (
       targetCurrentRole === "organization_owner" ||
+      targetCurrentRole === "organization_admin" ||
+      targetCurrentRole === "company_admin" ||
       requestedRole === "organization_owner" ||
-      requestedRole === "organization_admin"
+      requestedRole === "organization_admin" ||
+      requestedRole === "company_admin"
     ) {
       return false;
     }
 
-    return ["full_user", "mini_user", "read_only"].includes(requestedRole);
+    return [
+      "project_manager",
+      "engineer",
+      "viewer",
+      "full_user",
+      "mini_user",
+      "read_only"
+    ].includes(requestedRole);
   }
 
   return false;
@@ -280,7 +298,11 @@ export function canAccessProjectForRole({
   isDeleted?: boolean;
 }) {
   if (!sameOrganization || isDeleted) return false;
-  if (role === "organization_owner" || role === "organization_admin") {
+  if (
+    role === "organization_owner" ||
+    role === "organization_admin" ||
+    role === "company_admin"
+  ) {
     return true;
   }
 

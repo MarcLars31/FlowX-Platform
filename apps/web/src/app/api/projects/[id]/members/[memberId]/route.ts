@@ -12,7 +12,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id, memberId } = await context.params;
     if (!isUuid(id) || !isUuid(memberId)) return NextResponse.json({ error: "Ogiltigt projektmedlems-id." }, { status: 400 });
     const body = (await request.json().catch(() => null)) as { projectRole?: unknown } | null;
-    if (body?.projectRole !== "editor" && body?.projectRole !== "viewer") {
+    if (body?.projectRole !== "editor" && body?.projectRole !== "reviewer" && body?.projectRole !== "viewer") {
       return NextResponse.json({ error: "Välj rollen redaktör eller läsare." }, { status: 400 });
     }
     const member = await updateUserRowsReturning("project_members", {

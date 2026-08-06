@@ -208,6 +208,32 @@ export async function selectSupabaseRows<T>(
   return (await response.json()) as T[];
 }
 
+export async function selectSupabaseRowsWithCount<T>(
+  table: string,
+  params?: Record<string, string>
+) {
+  const config = getSupabaseConfig();
+  const url = supabaseTableUrl(config.url, table);
+  url.searchParams.set("select", "*");
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: supabaseHeaders(config, "application/json", "count=exact"),
+    cache: "no-store"
+  });
+
+  if (!response.ok) throw new Error(await readSupabaseError(response));
+  const totalText = response.headers.get("content-range")?.split("/").at(-1);
+  const total = totalText && totalText !== "*" ? Number(totalText) : 0;
+  return {
+    rows: (await response.json()) as T[],
+    total: Number.isFinite(total) ? total : 0
+  };
+}
+
 function supabaseHeaders(
   config: SupabaseConfig,
   accept?: string,

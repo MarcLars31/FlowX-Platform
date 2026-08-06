@@ -598,3 +598,10 @@ Den första säkerhetsmigrationen bör separat:
 
 Kör inte migrationen i produktion innan den har granskats och testats mot en
 schema-kopia.
+
+## Uppdaterad status
+
+Projektfiler i `project-files` är nu bundna till både organisation och projekt
+genom `20260805110000_harden_storage_project_scope.sql`. In-process rate
+limiting och PDF-signaturkontroll är defense-in-depth; produktionsmiljön bör
+fortfarande ha distribuerad edge rate limiting och övervakning.

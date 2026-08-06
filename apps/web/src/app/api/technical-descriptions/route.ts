@@ -9,12 +9,15 @@ import {
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
 import type { TechnicalDescriptionMaterialLine } from "@/modules/technical-description-extractor";
+import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
+import { hasPdfSignature } from "@/lib/pdf-security";
 
 export const runtime = "nodejs";
 
 const MAX_PDF_BYTES = 30 * 1024 * 1024;
 
 type ProjectRow = { id: string; organization_id: string };
+type ProjectModuleRow = { id: string; project_id: string; module_code: string };
 type DocumentRow = { id: string };
 type ProjectDocumentRow = { id: string; upload_status: string; processing_status: string };
 type RequirementSetRow = { id: string; version: number; status: string };
@@ -69,6 +72,18 @@ export async function POST(request: Request) {
       );
     }
 
+    const limit = consumeRateLimit(
+      requestRateLimitKey(request, "technical-description", authorization.user.id),
+      5,
+      60_000
+    );
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "För många tekniska beskrivningar på kort tid. Försök igen senare." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     // Keep the PDF/OCR dependencies out of the route's module initialization.
     // Some runtimes (including Vercel's serverless runtime) cannot initialize
     // those browser-oriented dependencies while loading the route. Loading
@@ -84,27 +99,49 @@ export async function POST(request: Request) {
       typeof projectIdValue === "string" && projectIdValue.trim()
         ? projectIdValue.trim()
         : null;
-    if (projectId && !isUuid(projectId)) {
+    if (!projectId) {
+      return NextResponse.json(
+        { error: "Öppna eller skapa ett projekt innan du laddar upp teknisk beskrivning." },
+        { status: 400 }
+      );
+    }
+    if (!isUuid(projectId)) {
       return NextResponse.json({ error: "Ogiltigt projekt-id." }, { status: 400 });
     }
 
-    if (projectId) {
-      const projects = await selectUserRows<ProjectRow>("projects", {
-        select: "id,organization_id",
-        id: `eq.${projectId}`,
-        organization_id: `eq.${authorization.context.organization.id}`,
-        deleted_at: "is.null",
-        limit: "1"
-      });
-      if (!projects[0]) {
-        return NextResponse.json(
-          { error: "Projektet hittades inte i den aktiva organisationen." },
-          { status: 404 }
-        );
-      }
+    const projects = await selectUserRows<ProjectRow>("projects", {
+      select: "id,organization_id",
+      id: `eq.${projectId}`,
+      organization_id: `eq.${authorization.context.organization.id}`,
+      deleted_at: "is.null",
+      limit: "1"
+    });
+    if (!projects[0]) {
+      return NextResponse.json(
+        { error: "Projektet hittades inte eller du saknar projektåtkomst." },
+        { status: 404 }
+      );
+    }
+    const projectModules = await selectUserRows<ProjectModuleRow>("project_modules", {
+      select: "id,project_id,module_code",
+      project_id: `eq.${projectId}`,
+      organization_id: `eq.${authorization.context.organization.id}`,
+      module_code: "eq.sprinkler",
+      status: "eq.active",
+      limit: "1"
+    });
+    const projectModule = projectModules[0];
+    if (!projectModule) {
+      return NextResponse.json(
+        { error: "Projektet saknar en aktiv sprinkler-modul. Kontakta projektadministratören." },
+        { status: 409 }
+      );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    if (!hasPdfSignature(buffer.subarray(0, 5))) {
+      return NextResponse.json({ error: "Filen är inte en giltig PDF." }, { status: 415 });
+    }
     const pages = await extractTechnicalDescriptionPages(buffer);
     const result = extractTechnicalDescriptionFromPages(pages, {
       fileName: file.name
@@ -119,6 +156,7 @@ export async function POST(request: Request) {
       {
         organization_id: authorization.context.organization.id,
         project_id: projectId,
+        project_module_id: projectModule.id,
         file_name: file.name.slice(0, 255),
         file_sha256: fileSha256,
         status,
@@ -354,7 +392,10 @@ export async function POST(request: Request) {
           verification_status: "unknown",
           is_mandatory: false,
           severity: "technical",
-          status: "pending",
+          requirement_type: "informational",
+          status: line.reviewFlags.length
+            ? "inferred_unreviewed"
+            : "extracted_unreviewed",
           source_technical_description_document_id: document.id,
           source_page: line.sourcePage,
           source_excerpt: line.sourceText,
@@ -414,8 +455,9 @@ function isUuid(value: string) {
 
 function technicalDescriptionErrorResponse(error: unknown) {
   console.error("Technical description extraction failed", {
-    message: error instanceof Error ? error.message : String(error),
-    name: error instanceof Error ? error.name : "UnknownError"
+    name: error instanceof Error ? error.name : "UnknownError",
+    status: error instanceof UserSupabaseError ? error.status : undefined,
+    code: error instanceof UserSupabaseError ? error.code : undefined
   });
 
   if (error instanceof UserSupabaseError) {
@@ -426,17 +468,20 @@ function technicalDescriptionErrorResponse(error: unknown) {
         error: forbidden
           ? "Åtgärden nekades av behörighetsreglerna."
           : "Tekniska beskrivningen kunde inte sparas.",
-        detail: error.message
       },
       { status: forbidden ? 403 : 500 }
     );
   }
 
+  if (error instanceof Error) {
+    return NextResponse.json(
+      { error: "Extraktionen av teknisk beskrivning misslyckades." },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json(
-    {
-      error: "Extraktionen av teknisk beskrivning misslyckades.",
-      detail: error instanceof Error ? error.message : "Okänt fel."
-    },
+    { error: "Extraktionen av teknisk beskrivning misslyckades." },
     { status: 500 }
   );
 }

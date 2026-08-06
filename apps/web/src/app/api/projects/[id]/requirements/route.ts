@@ -33,7 +33,8 @@ export async function POST(request: Request, context: RouteContext) {
       value_json: input.valueJson,
       certainty: input.certainty,
       confidence: input.confidence,
-      status: "pending",
+      requirement_type: input.requirementType,
+      status: "extracted_unreviewed",
       source_page: input.sourcePage,
       source_section: input.sourceSection,
       source_excerpt: input.sourceExcerpt,
@@ -56,6 +57,7 @@ type RequirementInput = {
   sourcePage?: unknown;
   sourceSection?: unknown;
   sourceExcerpt?: unknown;
+  requirementType?: unknown;
 };
 
 function validateRequirement(body: RequirementInput | null) {
@@ -74,6 +76,19 @@ function validateRequirement(body: RequirementInput | null) {
   if (body?.sourcePage != null && sourcePage === null) {
     return { error: "Sidnumret måste vara ett heltal." } as const;
   }
+  const requirementTypes = [
+    "must",
+    "conditional_must",
+    "exclusion",
+    "should",
+    "preference",
+    "informational",
+    "unresolved"
+  ];
+  const requirementType = typeof body?.requirementType === "string"
+    && requirementTypes.includes(body.requirementType)
+    ? body.requirementType
+    : "must";
   return {
     category,
     requirementKey,
@@ -81,6 +96,7 @@ function validateRequirement(body: RequirementInput | null) {
     valueJson: isRecord(body?.valueJson) ? body.valueJson : {},
     certainty,
     confidence,
+    requirementType,
     sourcePage,
     sourceSection: optionalText(body?.sourceSection, 200),
     sourceExcerpt: optionalText(body?.sourceExcerpt, 5000)
@@ -129,7 +145,7 @@ function isUuid(value: string) {
 function requirementError(error: unknown) {
   if (error instanceof UserSupabaseError) {
     const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
-    return NextResponse.json({ error: forbidden ? "Kravåtgärden nekades." : "Kravet kunde inte sparas.", detail: error.message }, { status: forbidden ? 403 : 500 });
+    return NextResponse.json({ error: forbidden ? "Kravåtgärden nekades." : "Kravet kunde inte sparas." }, { status: forbidden ? 403 : 500 });
   }
-  return NextResponse.json({ error: "Kravet kunde inte sparas.", detail: error instanceof Error ? error.message : "Okänt fel." }, { status: 500 });
+  return NextResponse.json({ error: "Kravet kunde inte sparas." }, { status: 500 });
 }

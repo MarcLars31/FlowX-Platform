@@ -15,7 +15,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const [project] = await selectUserRows<OrganizationProject>("projects", {
     select:
-      "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,created_at,updated_at",
+      "id,organization_id,team_id,name,description,customer_name,project_number,end_customer,project_type,procurement_strategy,currency,delivery_country,warehouse_location,standard,system_type,supplier,status,current_stage,access_level,created_by,assigned_to,project_manager_id,estimator_id,expected_start_date,expected_delivery_date,internal_comments,technical_parameters,demo_data_set_id,created_at,updated_at",
     id: `eq.${id}`,
     organization_id: `eq.${organizationId}`,
     deleted_at: "is.null",
@@ -26,7 +26,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   const canManageAccess = context.permissions.includes("project.manage_members");
   let accessData: {
     teams: Array<{ id: string; name: string }>;
-    members: Array<{ organizationMemberId: string; projectRole: "owner" | "editor" | "viewer"; label: string }>;
+    members: Array<{ organizationMemberId: string; projectRole: "owner" | "editor" | "reviewer" | "viewer"; label: string }>;
     memberOptions: Array<{ organizationMemberId: string; label: string }>;
   } = { teams: [], members: [], memberOptions: [] };
   if (canManageAccess) {
@@ -37,8 +37,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         status: "eq.active",
         order: "name.asc"
       }),
-      selectUserRows<{ organization_member_id: string; project_role: "owner" | "editor" | "viewer" }>("project_members", {
-        select: "organization_member_id,project_role",
+      selectUserRows<{ organization_member_id: string; project_role: "owner" | "editor" | "viewer"; role: "project_manager" | "editor" | "reviewer" | "viewer" }>("project_members", {
+        select: "organization_member_id,project_role,role",
         project_id: `eq.${id}`
       }),
       selectUserRows<{ id: string; user_id: string }>("organization_members", {
@@ -64,7 +64,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       teams,
       members: projectMembers.map((member) => ({
         organizationMemberId: member.organization_member_id,
-        projectRole: member.project_role,
+        projectRole: member.role === "project_manager" ? "owner" : member.role,
         label: labelByMemberId.get(member.organization_member_id) ?? "Namnlös användare"
       })),
       memberOptions: organizationMembers.map((member) => ({

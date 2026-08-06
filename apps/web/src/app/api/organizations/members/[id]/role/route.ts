@@ -39,8 +39,7 @@ export async function PATCH(
   } catch (error) {
     return NextResponse.json(
       {
-        error: "The member role could not be changed.",
-        detail: error instanceof UserSupabaseError ? error.message : undefined
+        error: "The member role could not be changed."
       },
       { status: error instanceof UserSupabaseError ? 403 : 500 }
     );

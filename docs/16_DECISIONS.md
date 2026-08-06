@@ -15,3 +15,9 @@
 7. Befintliga projektinställningskolumner behålls; en parallell
    `project_settings`-modell skulle skapa drift och otydlig äganderätt.
 8. Audit-logg är append-only och skrivs av databas-/livscykeltriggers.
+
+9. Projekt är den enda arbetskontexten för dokument- och analysflöden. Nya
+   project-first-tabeller kompletterar befintliga organisationer och ersätter
+   inte Auth/RBAC-modellen.
+10. Sprinkler skapas som första `project_modules.module_code`; fler moduler kan
+    läggas till utan att projektets kärnmodell ändras.

@@ -31,7 +31,7 @@ export async function GET() {
     return NextResponse.json({ requests });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Join requests could not be loaded." },
+      { error: "Join requests could not be loaded." },
       { status: error instanceof UserSupabaseError ? error.status : 500 }
     );
   }
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ requestId, status: "pending" }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
-      { error: "Join request could not be created.", detail: error instanceof UserSupabaseError ? error.message : undefined },
+      { error: "Join request could not be created." },
       { status: error instanceof UserSupabaseError ? error.status : 500 }
     );
   }
@@ -86,7 +86,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ requestId: result, status: decision });
   } catch (error) {
     return NextResponse.json(
-      { error: "Join request could not be updated.", detail: error instanceof UserSupabaseError ? error.message : undefined },
+      { error: "Join request could not be updated." },
       { status: error instanceof UserSupabaseError ? error.status : 500 }
     );
   }

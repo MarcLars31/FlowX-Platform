@@ -66,8 +66,7 @@ function isUuid(value: string) {
 function memberError(error: unknown) {
   return NextResponse.json(
     {
-      error: "Team member operation was denied.",
-      detail: error instanceof UserSupabaseError ? error.message : undefined
+      error: "Team member operation was denied."
     },
     { status: error instanceof UserSupabaseError ? 403 : 500 }
   );

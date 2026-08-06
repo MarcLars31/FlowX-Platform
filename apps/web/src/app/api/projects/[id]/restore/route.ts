@@ -24,8 +24,7 @@ export async function POST(
   } catch (error) {
     return NextResponse.json(
       {
-        error: "The project could not be restored.",
-        detail: error instanceof UserSupabaseError ? error.message : undefined
+        error: "The project could not be restored."
       },
       { status: error instanceof UserSupabaseError ? 403 : 500 }
     );

@@ -151,7 +151,6 @@ export async function POST(request: Request) {
           error: forbidden
             ? "Åtgärden nekades av behörighetsreglerna."
             : "Estimatet kunde inte sparas.",
-          detail: error.message
         },
         { status: forbidden ? 403 : 500 }
       );
@@ -160,7 +159,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "Estimatet kunde inte skapas.",
-        detail: error instanceof Error ? error.message : "Okänt fel."
       },
       { status: 500 }
     );

@@ -3,16 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "accounts": "node --env-file-if-exists=.env.test.local --import tsx scripts/accounts.ts",
     "dev": "next dev",
     "build": "next build",
     "build:cloudflare": "opennextjs-cloudflare build",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test:authz": "node --import tsx --test src/lib/platform-role.test.ts src/lib/supabase-auth-config.test.ts src/lib/supabase-headers.test.ts",
+    "test:authz": "node --import tsx --test src/lib/platform-role.test.ts src/lib/administration-access.test.ts src/lib/backend-route-guards.test.ts src/lib/supabase-auth-config.test.ts src/lib/supabase-headers.test.ts",
+    "test:security": "node --import tsx --test src/lib/request-rate-limit.test.ts src/lib/pdf-security.test.ts src/lib/request-body.test.ts src/lib/demo-data.test.ts",
     "test:rbac": "node --import tsx --test src/lib/organization-rbac.test.ts",
     "test:technical-description": "node --import tsx --test src/modules/technical-description-extractor/extractor.test.ts",
     "test:extractor": "node --import tsx --test src/modules/pdf-extractor/extractor.test.ts",
-    "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts"
+    "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts",
+    "test:product-pdf": "node --import tsx --test src/lib/product-document-pages.test.ts src/lib/product-pdf-processing.test.ts src/lib/product-pdf-staging.test.ts",
+    "test:project-governance": "node --import tsx --test src/lib/project-governance.test.ts",
+    "test:test-accounts": "node --import tsx --test scripts/test-account-fixtures.test.ts scripts/demo-account-fixture.test.ts src/lib/test-account-e2e-readiness.test.ts",
+    "test:e2e:test-accounts": "node --import tsx --env-file-if-exists=.env.test.local --test scripts/test-account-http-e2e.test.ts",
+    "test:sprsok": "node --import tsx --test src/lib/sprsok-sync-core.test.ts src/lib/sprsok-source-client.test.ts src/lib/sprsok-reconcile.test.ts src/lib/sprsok-search.test.ts",
+    "product-sync": "node --import tsx src/cli/product-sync.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "0.1.80",

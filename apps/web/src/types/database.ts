@@ -23,6 +23,24 @@ export type RequirementVerificationStatus =
   | "rejected"
   | "manual_review";
 
+export type RequirementKind =
+  | "must"
+  | "conditional_must"
+  | "exclusion"
+  | "should"
+  | "preference"
+  | "informational"
+  | "unresolved";
+
+export type RequirementReviewStatus =
+  | "user_confirmed"
+  | "user_modified"
+  | "extracted_unreviewed"
+  | "inferred_unreviewed"
+  | "conflicted"
+  | "rejected"
+  | "superseded";
+
 export type ExtractionRunStatus =
   | "queued"
   | "running"

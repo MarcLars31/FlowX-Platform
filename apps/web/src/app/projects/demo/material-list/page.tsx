@@ -1,9 +1,10 @@
-import { CheckCircle2, FileSpreadsheet, FileText, Send } from "lucide-react";
+import { CheckCircle2, FileText, Send } from "lucide-react";
 import { AiAssistantPanel } from "@/components/AiAssistantPanel";
 import { Button } from "@/components/Button";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { DemoBadge } from "@/components/DemoBadge";
 import { DemoFlowNav } from "@/components/DemoFlowNav";
+import { DemoMaterialListExportButton } from "@/components/DemoMaterialListExportButton";
 import { MaterialListDemoTable } from "@/components/MaterialListDemoTable";
 import { demoMaterialLines, demoProjectProfile } from "@/lib/mock-data";
 import {
@@ -40,19 +41,24 @@ export default function MaterialListPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button variant="secondary">
-              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-              Export Excel
-            </Button>
-            <Button variant="secondary">
+            <DemoMaterialListExportButton rows={demoMaterialLines.map((line) => ({
+              line: line.line,
+              category: line.category,
+              product: line.selectedProduct,
+              supplier: line.supplier,
+              quantity: line.quantity,
+              unit: line.unit,
+              notes: line.notes
+            }))} />
+            <Button variant="secondary" disabled title="PDF-export byggs i Fas 7">
               <FileText className="h-4 w-4" aria-hidden="true" />
               Export PDF
             </Button>
-            <Button variant="secondary">
+            <Button variant="secondary" disabled title="Leverantörsutskick byggs i Fas 7">
               <Send className="h-4 w-4" aria-hidden="true" />
               Send to Supplier
             </Button>
-            <Button>
+            <Button disabled title="Demodata kan inte godkännas för verklig användning">
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               Approve Material List
             </Button>
