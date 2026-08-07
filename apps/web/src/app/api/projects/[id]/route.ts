@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
+  callUserRpc,
   selectUserRows,
   updateUserRowsReturning,
   UserSupabaseError
@@ -68,6 +69,22 @@ export async function GET(_request: Request, context: RouteContext) {
         })
       : [];
 
+    const [availableManufacturers, availableDistributors] = await Promise.all([
+      selectUserRows<{ id: string; name: string }>("manufacturers", {
+        select: "id,name",
+        is_active: "eq.true",
+        data_set_id: "not.is.null",
+        order: "name.asc"
+      }),
+      selectUserRows<{ id: string; name: string }>("suppliers", {
+        select: "id,name",
+        supplier_type: "eq.distributor",
+        is_active: "eq.true",
+        data_set_id: "not.is.null",
+        order: "name.asc"
+      })
+    ]);
+
     return NextResponse.json({
       project,
       systemTypes,
@@ -80,6 +97,8 @@ export async function GET(_request: Request, context: RouteContext) {
       suggestions,
       decisions,
       versions,
+      availableManufacturers,
+      availableDistributors,
       demoDataDisclaimer: project.demo_data_set_id
         ? DEMO_DATA_DISCLAIMER
         : null
@@ -100,6 +119,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     const input = validateProjectUpdate(body);
     if ("error" in input) return NextResponse.json({ error: input.error }, { status: 400 });
 
+    const manufacturer = optionalCatalogName(body?.supplier);
+    const distributor = optionalCatalogName(body?.distributor);
+    if (manufacturer && !(await catalogSelectionExists("manufacturer", manufacturer))) {
+      return NextResponse.json({ error: "Välj en tillverkare från demodatabasen." }, { status: 400 });
+    }
+    if (distributor && !(await catalogSelectionExists("distributor", distributor))) {
+      return NextResponse.json({ error: "Välj en distributör från demodatabasen." }, { status: 400 });
+    }
+
     const project = await updateUserRowsReturning<OrganizationProject>(
       "projects",
       {
@@ -109,6 +137,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
       input
     );
+    if ("supplier" in (body ?? {}) || "distributor" in (body ?? {})) {
+      await callUserRpc("set_project_supplier_preferences", {
+        requested_project_id: id,
+        requested_manufacturer: manufacturer,
+        requested_distributor: distributor,
+        requested_currency: project.currency,
+        requested_delivery_country: project.delivery_country,
+        requested_warehouse_location: project.warehouse_location
+      });
+    }
     return NextResponse.json({ project });
   } catch (error) {
     return projectDetailError(error);
@@ -126,6 +164,7 @@ type ProjectUpdate = Partial<{
   standard: unknown;
   systemType: unknown;
   supplier: unknown;
+  distributor: unknown;
   projectType: unknown;
   procurementStrategy: unknown;
   currency: unknown;
@@ -210,6 +249,29 @@ function validateProjectUpdate(body: ProjectUpdate | null) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function optionalCatalogName(value: unknown) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, 200)
+    : null;
+}
+
+async function catalogSelectionExists(
+  kind: "manufacturer" | "distributor",
+  name: string
+) {
+  const table = kind === "manufacturer" ? "manufacturers" : "suppliers";
+  const params: Record<string, string> = {
+    select: "id",
+    name: `eq.${name}`,
+    is_active: "eq.true",
+    data_set_id: "not.is.null",
+    limit: "1"
+  };
+  if (kind === "distributor") params.supplier_type = "eq.distributor";
+  const matches = await selectUserRows<{ id: string }>(table, params);
+  return Boolean(matches[0]);
 }
 
 function isUuid(value: string) {

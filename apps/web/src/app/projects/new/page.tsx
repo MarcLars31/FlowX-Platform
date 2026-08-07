@@ -13,23 +13,45 @@ export default function CreateProjectPage() {
   const [error, setError] = useState<string | null>(null);
   const [accessLevel, setAccessLevel] = useState("own");
   const [teams, setTeams] = useState<Array<{ id: string; name: string }>>([]);
+  const [catalogOptions, setCatalogOptions] = useState<{
+    manufacturers: Array<{ id: string; name: string }>;
+    distributors: Array<{ id: string; name: string }>;
+  }>({ manufacturers: [], distributors: [] });
+  const [loadingOptions, setLoadingOptions] = useState(true);
 
   useEffect(() => {
     let active = true;
 
-    fetch("/api/teams", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) return [];
-        const result = (await response.json()) as {
-          teams?: Array<{ id: string; name: string }>;
+    Promise.all([
+      fetch("/api/teams", { cache: "no-store" }),
+      fetch("/api/projects/options", { cache: "no-store" })
+    ])
+      .then(async ([teamResponse, optionsResponse]) => {
+        const teamResult = teamResponse.ok
+          ? await teamResponse.json() as { teams?: Array<{ id: string; name: string }> }
+          : {};
+        if (!optionsResponse.ok) throw new Error("Projektvalen kunde inte hämtas.");
+        const optionResult = await optionsResponse.json() as {
+          manufacturers?: Array<{ id: string; name: string }>;
+          distributors?: Array<{ id: string; name: string }>;
         };
-        return result.teams ?? [];
+        return { teamResult, optionResult };
       })
-      .then((items) => {
-        if (active) setTeams(items);
+      .then(({ teamResult, optionResult }) => {
+        if (!active) return;
+        setTeams(teamResult.teams ?? []);
+        setCatalogOptions({
+          manufacturers: optionResult.manufacturers ?? [],
+          distributors: optionResult.distributors ?? []
+        });
       })
       .catch(() => {
-        if (active) setTeams([]);
+        if (!active) return;
+        setTeams([]);
+        setError("Leverantörer och distributörer kunde inte laddas från demodatabasen.");
+      })
+      .finally(() => {
+        if (active) setLoadingOptions(false);
       });
 
     return () => {
@@ -68,7 +90,8 @@ export default function CreateProjectPage() {
               country: formData.get("country"),
               standard: formData.get("standard"),
               systemType: formData.get("systemType"),
-              supplier: formData.get("supplier"),
+              manufacturer: formData.get("manufacturer"),
+              distributor: formData.get("distributor"),
               projectType: formData.get("projectType"),
               procurementStrategy: formData.get("procurementStrategy"),
               currency: formData.get("currency"),
@@ -86,7 +109,7 @@ export default function CreateProjectPage() {
             })
           });
           const result = (await response.json().catch(() => null)) as
-            | { error?: string }
+            | { error?: string; project?: { id: string } }
             | null;
 
           if (!response.ok) {
@@ -95,7 +118,7 @@ export default function CreateProjectPage() {
             return;
           }
 
-          router.push("/projects");
+          router.push(result?.project?.id ? `/projects/${result.project.id}` : "/projects");
           router.refresh();
         }}
       >
@@ -174,11 +197,20 @@ export default function CreateProjectPage() {
             defaultValue="Preferred with approved alternatives"
           />
           <Select
-            id="preferred-supplier"
-            name="supplier"
-            label="Preferred supplier"
-            options={["Ahlsell", "Dahl", "Broedrene Dahl", "Onninen"]}
-            defaultValue="Ahlsell"
+            id="preferred-manufacturer"
+            name="manufacturer"
+            label="Föredragen tillverkare"
+            options={catalogOptions.manufacturers.map((item) => ({ value: item.name, label: item.name }))}
+            placeholder={loadingOptions ? "Laddar tillverkare…" : "Välj tillverkare"}
+            disabled={loadingOptions || catalogOptions.manufacturers.length === 0}
+          />
+          <Select
+            id="preferred-distributor"
+            name="distributor"
+            label="Föredragen distributör"
+            options={catalogOptions.distributors.map((item) => ({ value: item.name, label: item.name }))}
+            placeholder={loadingOptions ? "Laddar distributörer…" : "Välj distributör"}
+            disabled={loadingOptions || catalogOptions.distributors.length === 0}
           />
           <Input id="currency" name="currency" label="Currency" defaultValue="NOK" />
           <Input

@@ -78,7 +78,7 @@ where data_set_id = 'd0000000-0000-4000-8000-000000000002';
 delete from public.supplier_products
 where data_set_id = 'd0000000-0000-4000-8000-000000000002';
 delete from public.suppliers
-where id = 'd0000000-0000-4000-8000-000000000100';
+where data_set_id = 'd0000000-0000-4000-8000-000000000002';
 
 delete from public.approval_conditions
 where product_approval_id in (
@@ -116,7 +116,7 @@ where id in (
   'd0000000-0000-4000-8000-000000000021'
 );
 delete from public.manufacturers
-where id = 'd0000000-0000-4000-8000-000000000010';
+where data_set_id = 'd0000000-0000-4000-8000-000000000002';
 
 delete from public.catalog_revision_history
 where data_set_id = 'd0000000-0000-4000-8000-000000000002';

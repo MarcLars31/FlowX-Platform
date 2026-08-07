@@ -126,6 +126,19 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           order: "updated_at.desc"
         })
       : [],
+    availableManufacturers: await selectUserRows<{ id: string; name: string }>("manufacturers", {
+      select: "id,name",
+      is_active: "eq.true",
+      data_set_id: "not.is.null",
+      order: "name.asc"
+    }),
+    availableDistributors: await selectUserRows<{ id: string; name: string }>("suppliers", {
+      select: "id,name",
+      supplier_type: "eq.distributor",
+      is_active: "eq.true",
+      data_set_id: "not.is.null",
+      order: "name.asc"
+    }),
     documents: context.permissions.includes("document.view")
       ? await selectUserRows("project_documents", {
           project_id: `eq.${id}`,

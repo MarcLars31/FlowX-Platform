@@ -56,6 +56,13 @@ export async function POST(request: Request) {
     if ("error" in input) {
       return NextResponse.json({ error: input.error }, { status: 400 });
     }
+    const catalogError = await validateCatalogSelections(
+      input.manufacturer,
+      input.distributor
+    );
+    if (catalogError) {
+      return NextResponse.json({ error: catalogError }, { status: 400 });
+    }
 
     const rpcResult = await callUserRpc<unknown>("create_project_with_details", {
       requested_organization_id: authorization.context.organization.id,
@@ -71,7 +78,7 @@ export async function POST(request: Request) {
       requested_module_code: "sprinkler",
       requested_standard: input.standard,
       requested_system_type: input.systemType,
-      requested_supplier: input.supplier,
+      requested_supplier: input.manufacturer,
       requested_delivery_country: input.deliveryCountry,
       requested_access_level: input.accessLevel,
       requested_team_id: input.teamId,
@@ -83,7 +90,8 @@ export async function POST(request: Request) {
         expected_start_date: input.expectedStartDate,
         expected_delivery_date: input.expectedDeliveryDate,
         internal_comments: input.internalComments,
-        technical_parameters: input.technicalParameters
+        technical_parameters: input.technicalParameters,
+        preferred_distributor: input.distributor
       }
     });
     const projectId =
@@ -120,6 +128,8 @@ type ProjectInput = {
   standard?: string;
   systemType?: string;
   supplier?: string;
+  manufacturer?: string;
+  distributor?: string;
   projectType?: string;
   procurementStrategy?: string;
   currency?: string;
@@ -144,7 +154,8 @@ function validateProjectInput(body: ProjectInput | null):
       country: string;
       standard: string;
       systemType: string;
-      supplier: string | null;
+      manufacturer: string | null;
+      distributor: string | null;
       projectType: string | null;
       procurementStrategy: string | null;
       currency: string | null;
@@ -196,7 +207,8 @@ function validateProjectInput(body: ProjectInput | null):
     country,
     standard,
     systemType,
-    supplier: optionalText(body?.supplier, 150),
+    manufacturer: optionalText(body?.manufacturer ?? body?.supplier, 150),
+    distributor: optionalText(body?.distributor, 150),
     projectType: optionalText(body?.projectType, 100),
     procurementStrategy: optionalText(body?.procurementStrategy, 100),
     currency: optionalText(body?.currency, 10),
@@ -236,6 +248,34 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value
   );
+}
+
+async function validateCatalogSelections(
+  manufacturer: string | null,
+  distributor: string | null
+) {
+  if (manufacturer) {
+    const matches = await selectUserRows<{ id: string }>("manufacturers", {
+      select: "id",
+      name: `eq.${manufacturer}`,
+      is_active: "eq.true",
+      data_set_id: "not.is.null",
+      limit: "1"
+    });
+    if (!matches[0]) return "Välj en tillverkare från demodatabasen.";
+  }
+  if (distributor) {
+    const matches = await selectUserRows<{ id: string }>("suppliers", {
+      select: "id",
+      name: `eq.${distributor}`,
+      supplier_type: "eq.distributor",
+      is_active: "eq.true",
+      data_set_id: "not.is.null",
+      limit: "1"
+    });
+    if (!matches[0]) return "Välj en distributör från demodatabasen.";
+  }
+  return null;
 }
 
 function projectErrorResponse(error: unknown) {

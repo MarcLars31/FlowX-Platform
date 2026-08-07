@@ -2,7 +2,8 @@
 
 ## Fiktiv demodatabas
 
-`20260806_demo_data.sql` och `20260806_demo_sprinkler_catalog.sql` innehåller
+`20260806_demo_data.sql`, `20260806_demo_sprinkler_catalog.sql` och
+`20260807_demo_supplier_and_matching_catalog.sql` innehåller
 en sammanhängande, helt fiktiv datamängd för FlowX:
 
 - två produktkategorier
@@ -10,7 +11,10 @@ en sammanhängande, helt fiktiv datamängd för FlowX:
 - tio olika metriska K-faktorer: 28, 36, 40, 57, 80, 115, 160, 202, 242 och 363
 - normaliserat arbetstryck, temperatur, respons, montage, anslutning, finish och värmeelement
 - fem helt fiktiva godkännandetyper med temperaturvillkor och olika produktkombinationer
+- fyra fiktiva tillverkare som kan väljas vid projektstart
+- Ahlsell, Dahl och Onninen som tydligt demomärkta distributörsval med fiktiva artikelkopplingar
 - en fiktiv distributör med pris-, lager- och ledtidsdata för samtliga sprinklerhuvuden
+- tekniskt kompatibla K80/DN15-alternativ för både stående och hängande 68 °C-sprinkler
 - ett projekt med system, byggnad, våning, zon och position
 - PDF-metadata, dokumentsida, extraktionskörning och källevidens
 - kravset, tekniskt godkänd matchningskandidat och materiallista
@@ -21,7 +25,7 @@ Alla berörda rader kopplas till det stabila dataset-id:t
 
 > Demo data – ej verifierad för projektering, installation eller inköp.
 
-Seedfilerna är idempotenta. Verifieringskommandot kör båda två gånger och
+Seedfilerna är idempotenta. Verifieringskommandot kör samtliga två gånger och
 kontrollerar att det fortfarande finns exakt 50 sprinklerhuvuden, tio olika
 K-faktorer, fem godkännandetyper, ett demoprojekt och en dokumentpost:
 
