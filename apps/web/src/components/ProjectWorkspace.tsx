@@ -135,7 +135,8 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
 
   async function uploadTechnicalDescription(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) {
       setError("Välj en PDF med teknisk beskrivning.");
@@ -152,7 +153,7 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
       await reload();
       setMessage(`Underlaget är extraherat och sparat. ${payload?.persistedRequirementCount ?? 0} krav lades till för granskning.`);
       setSelectedFileName(null);
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Underlaget kunde inte extraheras.");
     } finally {
