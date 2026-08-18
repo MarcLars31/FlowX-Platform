@@ -56,14 +56,6 @@ export async function POST(request: Request) {
     if ("error" in input) {
       return NextResponse.json({ error: input.error }, { status: 400 });
     }
-    const catalogError = await validateCatalogSelections(
-      input.manufacturer,
-      input.distributor
-    );
-    if (catalogError) {
-      return NextResponse.json({ error: catalogError }, { status: 400 });
-    }
-
     const rpcResult = await callUserRpc<unknown>("create_project_with_details", {
       requested_organization_id: authorization.context.organization.id,
       requested_project_number: input.projectNumber,
@@ -248,34 +240,6 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value
   );
-}
-
-async function validateCatalogSelections(
-  manufacturer: string | null,
-  distributor: string | null
-) {
-  if (manufacturer) {
-    const matches = await selectUserRows<{ id: string }>("manufacturers", {
-      select: "id",
-      name: `eq.${manufacturer}`,
-      is_active: "eq.true",
-      data_set_id: "not.is.null",
-      limit: "1"
-    });
-    if (!matches[0]) return "Välj en tillverkare från demodatabasen.";
-  }
-  if (distributor) {
-    const matches = await selectUserRows<{ id: string }>("suppliers", {
-      select: "id",
-      name: `eq.${distributor}`,
-      supplier_type: "eq.distributor",
-      is_active: "eq.true",
-      data_set_id: "not.is.null",
-      limit: "1"
-    });
-    if (!matches[0]) return "Välj en distributör från demodatabasen.";
-  }
-  return null;
 }
 
 function projectErrorResponse(error: unknown) {

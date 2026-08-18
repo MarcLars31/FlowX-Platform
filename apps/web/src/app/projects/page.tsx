@@ -39,7 +39,7 @@ export default async function ProjectsPage() {
           <div className="flex flex-col items-center px-6 py-14 text-center">
             <FolderKanban className="h-8 w-8 text-ink-400" aria-hidden="true" />
             <h2 className="mt-3 font-semibold text-ink-950">Inga tillgängliga projekt</h2>
-            <p className="mt-1 max-w-md text-sm text-ink-600">Skapa ditt första projekt för att börja arbeta project-first.</p>
+            <p className="mt-1 max-w-md text-sm text-ink-600">Skapa ditt första projekt och ladda upp en teknisk beskrivning för att börja bygga produktminnet.</p>
           </div>
         ) : user ? <ProjectListControls projects={projects} currentUserId={user.id} /> : null}
       </section>

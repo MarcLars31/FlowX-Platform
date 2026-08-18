@@ -12,7 +12,7 @@ const sections: Record<string, { title: string; description: string }> = {
   "technical-description": { title: "Teknisk beskrivning", description: "Versionerade tekniska beskrivningar och granskning." },
   requirements: { title: "Krav", description: "Extraherade och bekräftade krav." },
   analysis: { title: "Analys", description: "Analyskörningar och eventuella inaktuella resultat." },
-  "product-matching": { title: "Produktmatchning", description: "Matchningskörningar efter bekräftade krav." },
+  "product-matching": { title: "Ahlsells produktval", description: "Manuella produkt- och tillbehörsval efter bekräftade krav." },
   "material-list": { title: "Materiallista", description: "Materiallistor och godkända versioner." },
   exports: { title: "Export", description: "Exporter kan skapas efter godkänd materiallista." },
   activity: { title: "Aktivitet", description: "Projektets audit-logg och historik." }

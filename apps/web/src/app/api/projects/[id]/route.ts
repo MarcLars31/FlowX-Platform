@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
 import { DEMO_DATA_DISCLAIMER } from "@/lib/demo-data";
+import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
 
 export const runtime = "nodejs";
 
@@ -69,21 +70,14 @@ export async function GET(_request: Request, context: RouteContext) {
         })
       : [];
 
-    const [availableManufacturers, availableDistributors] = await Promise.all([
-      selectUserRows<{ id: string; name: string }>("manufacturers", {
-        select: "id,name",
-        is_active: "eq.true",
-        data_set_id: "not.is.null",
-        order: "name.asc"
-      }),
-      selectUserRows<{ id: string; name: string }>("suppliers", {
-        select: "id,name",
-        supplier_type: "eq.distributor",
-        is_active: "eq.true",
-        data_set_id: "not.is.null",
-        order: "name.asc"
-      })
-    ]);
+    const productMemory = authorization.context.permissions.includes(
+      "project.product_suggestion.view"
+    )
+      ? await loadDistributorProductMemory(
+          organizationId,
+          requirements as Array<Record<string, unknown>>
+        )
+      : { mappingMemories: [], mappingAccessories: [] };
 
     return NextResponse.json({
       project,
@@ -97,8 +91,8 @@ export async function GET(_request: Request, context: RouteContext) {
       suggestions,
       decisions,
       versions,
-      availableManufacturers,
-      availableDistributors,
+      mappingMemories: productMemory.mappingMemories,
+      mappingAccessories: productMemory.mappingAccessories,
       demoDataDisclaimer: project.demo_data_set_id
         ? DEMO_DATA_DISCLAIMER
         : null
@@ -121,13 +115,6 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const manufacturer = optionalCatalogName(body?.supplier);
     const distributor = optionalCatalogName(body?.distributor);
-    if (manufacturer && !(await catalogSelectionExists("manufacturer", manufacturer))) {
-      return NextResponse.json({ error: "Välj en tillverkare från demodatabasen." }, { status: 400 });
-    }
-    if (distributor && !(await catalogSelectionExists("distributor", distributor))) {
-      return NextResponse.json({ error: "Välj en distributör från demodatabasen." }, { status: 400 });
-    }
-
     const project = await updateUserRowsReturning<OrganizationProject>(
       "projects",
       {
@@ -255,23 +242,6 @@ function optionalCatalogName(value: unknown) {
   return typeof value === "string" && value.trim()
     ? value.trim().slice(0, 200)
     : null;
-}
-
-async function catalogSelectionExists(
-  kind: "manufacturer" | "distributor",
-  name: string
-) {
-  const table = kind === "manufacturer" ? "manufacturers" : "suppliers";
-  const params: Record<string, string> = {
-    select: "id",
-    name: `eq.${name}`,
-    is_active: "eq.true",
-    data_set_id: "not.is.null",
-    limit: "1"
-  };
-  if (kind === "distributor") params.supplier_type = "eq.distributor";
-  const matches = await selectUserRows<{ id: string }>(table, params);
-  return Boolean(matches[0]);
 }
 
 function isUuid(value: string) {

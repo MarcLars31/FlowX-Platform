@@ -13,45 +13,23 @@ export default function CreateProjectPage() {
   const [error, setError] = useState<string | null>(null);
   const [accessLevel, setAccessLevel] = useState("own");
   const [teams, setTeams] = useState<Array<{ id: string; name: string }>>([]);
-  const [catalogOptions, setCatalogOptions] = useState<{
-    manufacturers: Array<{ id: string; name: string }>;
-    distributors: Array<{ id: string; name: string }>;
-  }>({ manufacturers: [], distributors: [] });
-  const [loadingOptions, setLoadingOptions] = useState(true);
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([
-      fetch("/api/teams", { cache: "no-store" }),
-      fetch("/api/projects/options", { cache: "no-store" })
-    ])
-      .then(async ([teamResponse, optionsResponse]) => {
-        const teamResult = teamResponse.ok
-          ? await teamResponse.json() as { teams?: Array<{ id: string; name: string }> }
-          : {};
-        if (!optionsResponse.ok) throw new Error("Projektvalen kunde inte hämtas.");
-        const optionResult = await optionsResponse.json() as {
-          manufacturers?: Array<{ id: string; name: string }>;
-          distributors?: Array<{ id: string; name: string }>;
-        };
-        return { teamResult, optionResult };
-      })
-      .then(({ teamResult, optionResult }) => {
+    fetch("/api/teams", { cache: "no-store" })
+      .then(async (response) =>
+        response.ok
+          ? await response.json() as { teams?: Array<{ id: string; name: string }> }
+          : {}
+      )
+      .then((teamResult) => {
         if (!active) return;
         setTeams(teamResult.teams ?? []);
-        setCatalogOptions({
-          manufacturers: optionResult.manufacturers ?? [],
-          distributors: optionResult.distributors ?? []
-        });
       })
       .catch(() => {
         if (!active) return;
         setTeams([]);
-        setError("Leverantörer och distributörer kunde inte laddas från demodatabasen.");
-      })
-      .finally(() => {
-        if (active) setLoadingOptions(false);
       });
 
     return () => {
@@ -63,10 +41,10 @@ export default function CreateProjectPage() {
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-          Projects
+          Projekt
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink-950">
-          Create Project
+          Skapa nytt analysprojekt
         </h1>
       </div>
 
@@ -90,10 +68,10 @@ export default function CreateProjectPage() {
               country: formData.get("country"),
               standard: formData.get("standard"),
               systemType: formData.get("systemType"),
-              manufacturer: formData.get("manufacturer"),
-              distributor: formData.get("distributor"),
+              manufacturer: null,
+              distributor: "Ahlsell",
               projectType: formData.get("projectType"),
-              procurementStrategy: formData.get("procurementStrategy"),
+              procurementStrategy: "Ahlsell specialist selection",
               currency: formData.get("currency"),
               deliveryCountry: formData.get("deliveryCountry"),
               warehouseLocation: formData.get("warehouseLocation"),
@@ -122,27 +100,36 @@ export default function CreateProjectPage() {
           router.refresh();
         }}
       >
+        <div className="mb-6 flex flex-col gap-4 rounded-xl border border-[#0073b6]/20 bg-[#0073b6]/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#00649e]">Ahlsell arbetsflöde</p>
+            <p className="mt-2 font-semibold text-ink-950">Ingen produktdatabas behövs vid projektstart</p>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-600">Ladda först upp den tekniska beskrivningen. När kraven är godkända registrerar Ahlsell rätt artikel och vanligt beställda tillbehör.</p>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/ahlsell-logo.svg" alt="Ahlsell" className="h-9 w-auto shrink-0" />
+        </div>
         <div className="grid gap-5 md:grid-cols-2">
           <Input
             id="project-name"
             name="name"
-            label="Project name"
+            label="Projektnamn"
             required
           />
-          <Input id="project-number" name="projectNumber" label="Project number" />
-          <Input id="customer" name="customerName" label="Customer" required />
-          <Input id="end-customer" name="endCustomer" label="End customer" />
+          <Input id="project-number" name="projectNumber" label="Projektnummer" />
+          <Input id="customer" name="customerName" label="Kund" required />
+          <Input id="end-customer" name="endCustomer" label="Slutkund" />
           <Input
             id="address"
             name="address"
-            label="Address"
+            label="Adress"
           />
           <Select
             id="country"
             name="country"
-            label="Country"
+            label="Land"
             options={["Norway", "Sweden", "Denmark", "Finland"]}
-            defaultValue="Norway"
+            defaultValue="Sweden"
           />
           <Select
             id="standard"
@@ -154,7 +141,7 @@ export default function CreateProjectPage() {
           <Select
             id="system-type"
             name="systemType"
-            label="System type"
+            label="Systemtyp"
             options={[
               "Wet sprinkler system",
               "Dry sprinkler system",
@@ -166,7 +153,7 @@ export default function CreateProjectPage() {
           <Select
             id="project-type"
             name="projectType"
-            label="Project type"
+            label="Projekttyp"
             options={[
               "New construction",
               "Reconstruction",
@@ -180,48 +167,16 @@ export default function CreateProjectPage() {
             ]}
             defaultValue="New construction"
           />
-          <Select
-            id="procurement-strategy"
-            name="procurementStrategy"
-            label="Procurement strategy"
-            options={[
-              "Preferred manufacturer only",
-              "Preferred with approved alternatives",
-              "Lowest price",
-              "Shortest lead time",
-              "Best technical match",
-              "Best total economy",
-              "Standardized range",
-              "Free product selection"
-            ]}
-            defaultValue="Preferred with approved alternatives"
-          />
-          <Select
-            id="preferred-manufacturer"
-            name="manufacturer"
-            label="Föredragen tillverkare"
-            options={catalogOptions.manufacturers.map((item) => ({ value: item.name, label: item.name }))}
-            placeholder={loadingOptions ? "Laddar tillverkare…" : "Välj tillverkare"}
-            disabled={loadingOptions || catalogOptions.manufacturers.length === 0}
-          />
-          <Select
-            id="preferred-distributor"
-            name="distributor"
-            label="Föredragen distributör"
-            options={catalogOptions.distributors.map((item) => ({ value: item.name, label: item.name }))}
-            placeholder={loadingOptions ? "Laddar distributörer…" : "Välj distributör"}
-            disabled={loadingOptions || catalogOptions.distributors.length === 0}
-          />
-          <Input id="currency" name="currency" label="Currency" defaultValue="NOK" />
+          <Input id="currency" name="currency" label="Valuta" defaultValue="SEK" />
           <Input
             id="delivery-country"
             name="deliveryCountry"
-            label="Delivery country"
-            defaultValue="Norway"
+            label="Leveransland"
+            defaultValue="Sweden"
           />
-          <Input id="warehouse" name="warehouseLocation" label="Warehouse / distribution point" />
-          <Input id="expected-start" name="expectedStartDate" label="Expected start" type="date" />
-          <Input id="expected-delivery" name="expectedDeliveryDate" label="Expected delivery" type="date" />
+          <Input id="warehouse" name="warehouseLocation" label="Lager eller distributionspunkt" />
+          <Input id="expected-start" name="expectedStartDate" label="Förväntad start" type="date" />
+          <Input id="expected-delivery" name="expectedDeliveryDate" label="Förväntad leverans" type="date" />
           <label className="block" htmlFor="access-level">
             <span className="mb-2 block text-sm font-medium text-ink-700">
               Projektåtkomst
@@ -264,7 +219,7 @@ export default function CreateProjectPage() {
 
         <div className="mt-5 grid gap-5 md:grid-cols-2">
           <label className="block" htmlFor="project-description">
-            <span className="mb-2 block text-sm font-medium text-ink-700">Project description</span>
+            <span className="mb-2 block text-sm font-medium text-ink-700">Projektbeskrivning</span>
             <textarea
               id="project-description"
               name="description"
@@ -273,7 +228,7 @@ export default function CreateProjectPage() {
             />
           </label>
           <label className="block" htmlFor="internal-comments">
-            <span className="mb-2 block text-sm font-medium text-ink-700">Internal comments</span>
+            <span className="mb-2 block text-sm font-medium text-ink-700">Interna kommentarer</span>
             <textarea
               id="internal-comments"
               name="internalComments"

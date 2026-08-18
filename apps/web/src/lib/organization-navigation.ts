@@ -21,21 +21,6 @@ export const ORGANIZATION_NAVIGATION: readonly OrganizationNavigationItem[] = [
     icon: "home"
   },
   {
-    name: "Produktdatabas",
-    href: "/products",
-    icon: "products",
-    anyPermissions: ["product.search", "product.view"]
-  },
-  {
-    name: "Tekniska beskrivningar",
-    href: "/technical-descriptions",
-    icon: "technical_description",
-    anyPermissions: [
-      "technical_description.view",
-      "technical_description.create"
-    ]
-  },
-  {
     name: "Projekt",
     href: "/projects",
     icon: "projects",

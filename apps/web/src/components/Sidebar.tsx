@@ -73,14 +73,15 @@ export function Sidebar({
   return (
     <aside className="flex h-full w-full flex-col bg-ink-950 text-white">
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-flow-400 text-sm font-black text-ink-950">
-          SX
+        <div className="flex h-10 w-[92px] items-center justify-center rounded-lg bg-white px-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/ahlsell-logo.svg" alt="Ahlsell" className="w-full" />
         </div>
         <div>
           <p className="max-w-40 truncate text-base font-semibold leading-5">
-            {workspaceName}
+            Scipx
           </p>
-          <p className="text-xs text-ink-400">{workspaceLabel}</p>
+          <p className="text-xs text-ink-400">Koncept för Ahlsell</p>
         </div>
       </div>
 

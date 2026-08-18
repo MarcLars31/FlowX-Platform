@@ -4,6 +4,7 @@ import { selectUserRows } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
 import { ProjectWorkspace, type ProjectModuleData } from "@/components/ProjectWorkspace";
 import { ProjectAccessEditor } from "@/components/ProjectAccessEditor";
+import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
 
 type ProjectPageProps = { params: Promise<{ id: string }> };
 
@@ -74,6 +75,22 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     };
   }
 
+  const requirements = context.permissions.includes("project.requirement.view")
+    ? await selectUserRows<Record<string, unknown> & { id: string }>(
+        "project_requirements",
+        {
+          project_id: `eq.${id}`,
+          organization_id: `eq.${organizationId}`,
+          order: "updated_at.desc"
+        }
+      )
+    : [];
+  const productMemory = context.permissions.includes(
+    "project.product_suggestion.view"
+  )
+    ? await loadDistributorProductMemory(organizationId, requirements)
+    : { mappingMemories: [], mappingAccessories: [] };
+
   const data: ProjectModuleData = {
     project,
     systemTypes: await selectUserRows("project_system_types", {
@@ -98,13 +115,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           order: "created_at.desc"
         })
       : [],
-    requirements: context.permissions.includes("project.requirement.view")
-      ? await selectUserRows("project_requirements", {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          order: "updated_at.desc"
-        })
-      : [],
+    requirements,
     conflicts: context.permissions.includes("project.requirement.view")
       ? await selectUserRows("project_requirement_conflicts", {
           project_id: `eq.${id}`,
@@ -126,19 +137,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           order: "updated_at.desc"
         })
       : [],
-    availableManufacturers: await selectUserRows<{ id: string; name: string }>("manufacturers", {
-      select: "id,name",
-      is_active: "eq.true",
-      data_set_id: "not.is.null",
-      order: "name.asc"
-    }),
-    availableDistributors: await selectUserRows<{ id: string; name: string }>("suppliers", {
-      select: "id,name",
-      supplier_type: "eq.distributor",
-      is_active: "eq.true",
-      data_set_id: "not.is.null",
-      order: "name.asc"
-    }),
+    mappingMemories: productMemory.mappingMemories,
+    mappingAccessories: productMemory.mappingAccessories,
     documents: context.permissions.includes("document.view")
       ? await selectUserRows("project_documents", {
           project_id: `eq.${id}`,

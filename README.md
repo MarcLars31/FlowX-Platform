@@ -197,6 +197,7 @@ ska inte versionshanteras.
 
 ### Databas och pipeline
 
+- [Ahlsell-flöde för manuella produktval och organisationsminne](docs/15_AHLSELL_PRODUCT_MEMORY_WORKFLOW.md)
 - [Databasmodell och ER-diagram](docs/04_DATABASE.md)
 - [Produktdatabas](docs/06_PRODUCT_DATABASE.md)
 - [PDF- och kravpipeline](docs/07_PDF_PIPELINE.md)

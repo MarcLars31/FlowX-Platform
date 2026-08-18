@@ -4,7 +4,7 @@ export const PROJECT_STAGES = [
   ["technical_description", "Teknisk beskrivning"],
   ["requirements_review", "Krav"],
   ["analysis", "Analys"],
-  ["product_matching", "Produktmatchning"],
+  ["product_matching", "Ahlsells produktval"],
   ["material_list", "Materiallista"],
   ["approval", "Godkännande"],
   ["completed", "Export / klart"]

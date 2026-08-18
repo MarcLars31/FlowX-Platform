@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Scipx Platform",
+  title: "Scipx för Ahlsell – Produktvalsflöde",
   description:
-    "Scipx samlar projekt, produktdata och tekniska arbetsflöden för installationsbranschen."
+    "Konceptflöde där tekniska beskrivningar kopplas till distributörsvalda produkter och tillbehör."
 };
 
 export default function RootLayout({

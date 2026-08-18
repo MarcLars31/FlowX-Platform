@@ -12,15 +12,14 @@ import {
   FolderKanban,
   LayoutDashboard,
   ListChecks,
-  Loader2,
   PackageSearch,
   Save,
   Upload
 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { DemoBadge } from "@/components/DemoBadge";
+import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
 import { Input } from "@/components/Input";
-import { Select } from "@/components/Select";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES, nextProjectStage } from "@/lib/project-governance";
 
@@ -35,8 +34,8 @@ export type ProjectModuleData = {
   conflicts: ProjectRow[];
   suggestions: ProjectRow[];
   decisions: ProjectRow[];
-  availableManufacturers: Array<{ id: string; name: string }>;
-  availableDistributors: Array<{ id: string; name: string }>;
+  mappingMemories: ProjectRow[];
+  mappingAccessories: ProjectRow[];
 };
 
 type ProjectRow = Record<string, unknown> & { id: string };
@@ -63,7 +62,6 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
   const [tab, setTab] = useState<Tab>("overview");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [matching, setMatching] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,8 +81,8 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
       conflicts: ProjectRow[];
       suggestions: ProjectRow[];
       decisions: ProjectRow[];
-      availableManufacturers: Array<{ id: string; name: string }>;
-      availableDistributors: Array<{ id: string; name: string }>;
+      mappingMemories: ProjectRow[];
+      mappingAccessories: ProjectRow[];
     };
     setData(payload);
   }
@@ -114,8 +112,6 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           warehouseLocation: form.get("warehouseLocation"),
           standard: form.get("standard"),
           systemType: form.get("systemType"),
-          supplier: form.get("supplier"),
-          distributor: form.get("distributor"),
           expectedStartDate: form.get("expectedStartDate") || null,
           expectedDeliveryDate: form.get("expectedDeliveryDate") || null,
           description: form.get("description"),
@@ -210,35 +206,6 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
     }
   }
 
-  async function runProductMatching() {
-    setMatching(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const response = await fetch(
-        `/api/projects/${data.project.id}/product-suggestions`,
-        { method: "POST" }
-      );
-      const payload = (await response.json().catch(() => null)) as {
-        error?: string;
-        message?: string;
-        suggestionCount?: number;
-        skippedRequirementCount?: number;
-      } | null;
-      if (!response.ok) {
-        throw new Error(payload?.error ?? "Produktmatchningen kunde inte genomföras.");
-      }
-      await reload();
-      setMessage(payload?.message ?? `${payload?.suggestionCount ?? 0} produktförslag skapades.`);
-    } catch (matchingError) {
-      setError(matchingError instanceof Error
-        ? matchingError.message
-        : "Produktmatchningen kunde inte genomföras.");
-    } finally {
-      setMatching(false);
-    }
-  }
-
   const technicalDocumentHashes = new Set(
     data.technicalDescriptions
       .map((item) => String(item.file_sha256 ?? ""))
@@ -254,7 +221,7 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
     requirements: data.requirements.length,
     confirmed: data.requirements.filter((item) => ["user_confirmed", "user_modified"].includes(String(item.status))).length,
     unclear: data.requirements.filter((item) => ["inferred_unreviewed", "conflicted"].includes(String(item.status))).length,
-    suggestions: data.suggestions.length,
+    suggestions: data.suggestions.filter(isManualAssignment).length,
     decisions: data.decisions.length
   };
   const reviewCount = data.requirements.filter(
@@ -263,12 +230,6 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
         String(item.status)
       )
   ).length;
-  const preferredManufacturer = data.suppliers.find(
-    (item) => item.supplier_kind === "manufacturer" && item.selection_role === "preferred"
-  )?.supplier_name;
-  const preferredDistributor = data.suppliers.find(
-    (item) => item.supplier_kind === "distributor" && item.selection_role === "preferred"
-  )?.supplier_name;
   const currentStageIndex = Math.max(
     0,
     projectStages.findIndex(([stage]) => stage === data.project.current_stage)
@@ -368,7 +329,7 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           ["overview", "Översikt", LayoutDashboard, null],
           ["documents", "Underlag", FileText, counts.documents],
           ["requirements", "Kravgranskning", ListChecks, reviewCount],
-          ["products", "Produktförslag", PackageSearch, counts.suggestions],
+          ["products", "Ahlsells produktval", PackageSearch, counts.suggestions],
           ["decisions", "Beslutslogg", ClipboardCheck, counts.decisions]
         ] as const).map(([key, label, Icon, count]) => (
           <button key={key} type="button" aria-current={tab === key ? "page" : undefined} onClick={() => setTab(key)} className={tab === key ? "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-flow-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm" : "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold text-ink-600 transition hover:bg-ink-100 hover:text-ink-950"}>
@@ -394,13 +355,13 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Metric label="Dokument" value={counts.documents} detail="Projektunderlag och tekniska beskrivningar" />
             <Metric label="Krav att granska" value={reviewCount} detail={`${counts.confirmed} bekräftade av ${counts.requirements}`} tone={reviewCount ? "warning" : "success"} />
-            <Metric label="Produktförslag" value={counts.suggestions} detail="Tekniskt kvalificerade alternativ" />
+            <Metric label="Registrerade produktval" value={counts.suggestions} detail="Produkter valda av Ahlsell" />
             <Metric label="Spårbara beslut" value={counts.decisions} detail="Godkännanden och avvikelser" />
           </section>
           <form onSubmit={saveProject} className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
             <div className="px-5 py-5 sm:px-6">
               <h2 className="font-semibold text-ink-950">Projektförutsättningar</h2>
-              <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys, produktmatchning och inköpsunderlag.</p>
+              <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys, kravgranskning och Ahlsells produktval.</p>
             </div>
 
             <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
@@ -420,23 +381,11 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Input id="workspace-system-type" name="systemType" label="Systemtyp" defaultValue={data.project.system_type ?? ""} />
                 <Input id="workspace-standard" name="standard" label="Huvudstandard" defaultValue={data.project.standard ?? ""} />
-                <Select
-                  id="workspace-supplier"
-                  name="supplier"
-                  label="Föredragen tillverkare"
-                  options={data.availableManufacturers.map((item) => ({ value: item.name, label: item.name }))}
-                  placeholder="Ingen föredragen tillverkare"
-                  defaultValue={String(preferredManufacturer ?? data.project.supplier ?? "")}
-                />
-                <Select
-                  id="workspace-distributor"
-                  name="distributor"
-                  label="Föredragen distributör"
-                  options={data.availableDistributors.map((item) => ({ value: item.name, label: item.name }))}
-                  placeholder="Ingen föredragen distributör"
-                  defaultValue={String(preferredDistributor ?? "")}
-                />
-                <Input id="workspace-strategy" name="procurementStrategy" label="Inköpsstrategi" defaultValue={data.project.procurement_strategy ?? ""} />
+                <div className="rounded-lg border border-[#0073b6]/20 bg-[#0073b6]/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#00649e]">Distributör</p>
+                  <p className="mt-1 font-semibold text-ink-950">Ahlsell</p>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">Produkt och tillbehör väljs efter att de tekniska kraven har godkänts.</p>
+                </div>
                 <Input id="workspace-currency" name="currency" label="Valuta" defaultValue={data.project.currency ?? "NOK"} />
                 <Input id="workspace-delivery-country" name="deliveryCountry" label="Leveransland" defaultValue={data.project.delivery_country ?? ""} />
                 <Input id="workspace-warehouse" name="warehouseLocation" label="Lager/distributionspunkt" defaultValue={data.project.warehouse_location ?? ""} />
@@ -466,12 +415,9 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
               <p className="text-sm text-ink-600">{data.systemTypes.length ? data.systemTypes.map((item) => String(item.label ?? item.system_type)).join(", ") : data.project.system_type ?? "Inga systemtyper bekräftade ännu."}</p>
               <p className="mt-2 text-sm text-ink-600">{data.standards.length ? data.standards.map((item) => `${String(item.standard_name)}${item.edition ? ` (${String(item.edition)})` : ""}`).join(", ") : data.project.standard ?? "Ingen standard bekräftad ännu."}</p>
             </InfoCard>
-            <InfoCard title="Tillverkare och distributör" icon={<PackageSearch className="h-5 w-5 text-flow-700" />}>
-              <dl className="space-y-2 text-sm">
-                <div className="flex justify-between gap-3"><dt className="text-ink-500">Tillverkare</dt><dd className="font-medium text-ink-900">{String(preferredManufacturer ?? data.project.supplier ?? "Inte vald")}</dd></div>
-                <div className="flex justify-between gap-3"><dt className="text-ink-500">Distributör</dt><dd className="font-medium text-ink-900">{String(preferredDistributor ?? "Inte vald")}</dd></div>
-              </dl>
-              <p className="mt-3 text-xs text-ink-500">Tillverkaren påverkar rangordningen först efter teknisk kontroll. Distributören används för artikelnummer, pris, lager och leveranstid.</p>
+            <InfoCard title="Ahlsells produktval" icon={<PackageSearch className="h-5 w-5 text-[#0073b6]" />}>
+              <p className="text-sm leading-6 text-ink-600">Ingen extern produktdatabas krävs. Ahlsell registrerar artikelnummer och vanliga tillbehör direkt mot ett bekräftat tekniskt krav.</p>
+              <p className="mt-3 text-xs font-medium text-[#00649e]">Tidigare registrerade val föreslås automatiskt i nästa liknande projekt.</p>
             </InfoCard>
           </div>
         </div>
@@ -507,50 +453,14 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
       )}
 
       {tab === "products" && (
-        <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex items-start gap-3">
-              <PackageSearch className="mt-0.5 h-5 w-5 text-flow-700" aria-hidden="true" />
-              <div>
-                <h2 className="font-semibold text-ink-950">Produktförslag</h2>
-                <p className="mt-1 max-w-3xl text-sm text-ink-600">
-                  Först kontrolleras alla bekräftade tekniska krav. Därefter visas tillverkare,
-                  distributör och eventuella kommersiella uppgifter för godkända alternativ.
-                </p>
-              </div>
-            </div>
-            <Button onClick={runProductMatching} disabled={matching || counts.confirmed === 0}>
-              {matching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <PackageSearch className="h-4 w-4" aria-hidden="true" />}
-              {matching ? "Matchar produkter…" : "Skapa produktförslag"}
-            </Button>
-          </div>
-
-          {counts.confirmed === 0 && (
-            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Godkänn minst ett extraherat krav under Kravgranskning innan produktmatchningen kan startas.
-            </div>
-          )}
-          {reviewCount > 0 && counts.confirmed > 0 && (
-            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              {reviewCount} krav väntar fortfarande på granskning. Matchningen använder endast de {counts.confirmed} bekräftade kraven.
-            </div>
-          )}
-          <div className="mt-5 flex flex-wrap gap-2 text-xs text-ink-600">
-            <span className="rounded-full bg-ink-100 px-3 py-1.5">Tillverkare: {String(preferredManufacturer ?? data.project.supplier ?? "Alla")}</span>
-            <span className="rounded-full bg-ink-100 px-3 py-1.5">Distributör: {String(preferredDistributor ?? "Inte vald")}</span>
-            <span className="rounded-full bg-amber-50 px-3 py-1.5 font-semibold text-amber-800">Demo data – ej verifierad</span>
-          </div>
-
-          {data.suggestions.length === 0 ? (
-            <p className="mt-6 rounded-lg bg-ink-50 p-5 text-sm text-ink-600">
-              Inga produktförslag har skapats ännu. Granska kraven och välj sedan Skapa produktförslag.
-            </p>
-          ) : (
-            <div className="mt-6 grid gap-4 xl:grid-cols-2">
-              {data.suggestions.map((item) => <ProductSuggestionCard key={item.id} item={item} />)}
-            </div>
-          )}
-        </section>
+        <DistributorMappingPanel
+          projectId={data.project.id}
+          requirements={data.requirements}
+          assignments={data.suggestions}
+          memories={data.mappingMemories}
+          memoryAccessories={data.mappingAccessories}
+          onReload={reload}
+        />
       )}
 
       {tab === "decisions" && <section className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-ink-950">Beslutslogg</h2>{data.decisions.length === 0 ? <p className="mt-4 text-sm text-ink-600">Inga beslut är registrerade ännu.</p> : <div className="mt-4 divide-y divide-ink-100">{data.decisions.map((item) => <div key={item.id} className="py-4"><div className="flex justify-between gap-3"><p className="font-medium text-ink-950">{String(item.decision)}</p><span className="text-xs text-ink-500">{String(item.status)}</span></div><p className="mt-1 text-sm text-ink-600">{String(item.rationale)}</p></div>)}</div>}</section>}
@@ -594,95 +504,16 @@ function DocumentRow({ item, source }: { item: ProjectRow; source: string }) {
   return <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate font-medium text-ink-950">{String(item.file_name ?? item.fileName ?? "Dokument")}</p><span className={ready ? "rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700" : "rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700"}>{documentStatusLabel(status)}</span></div><p className="mt-1 text-xs text-ink-500">{source}</p></div><span className="shrink-0 text-xs text-ink-500">{formatDate(item.created_at)}</span></div>;
 }
 
-function suggestionName(item: ProjectRow) {
-  const snapshot = isRecord(item.product_snapshot) ? item.product_snapshot : {};
-  return String(snapshot.name ?? item.product_id ?? "Produkt");
-}
-
-function ProductSuggestionCard({ item }: { item: ProjectRow }) {
-  const snapshot = isRecord(item.product_snapshot) ? item.product_snapshot : {};
-  const technical = isRecord(snapshot.technical) ? snapshot.technical : {};
-  const approvals = Array.isArray(technical.approvals)
-    ? technical.approvals.map(String)
-    : [];
-  const technicalValues = [
-    technical.kFactorMetric != null ? `K${String(technical.kFactorMetric)}` : null,
-    technical.temperatureRatingC != null ? `${String(technical.temperatureRatingC)} °C` : null,
-    technical.maximumWorkingPressureBar != null ? `${String(technical.maximumWorkingPressureBar)} bar` : null,
-    typeof technical.connectionSize === "string" ? technical.connectionSize : null,
-    typeof technical.orientation === "string" ? orientationText(technical.orientation) : null
-  ].filter(Boolean);
-  const price = typeof snapshot.price === "number"
-    ? `${new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 2 }).format(snapshot.price)} ${String(snapshot.currency ?? "")}`
-    : "Pris saknas";
-
-  return (
-    <article className="rounded-xl border border-ink-200 bg-ink-50 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-flow-700">
-            {String(snapshot.manufacturer ?? "Okänd tillverkare")}
-          </p>
-          <h3 className="mt-1 font-semibold text-ink-950">{suggestionName(item)}</h3>
-          <p className="mt-1 text-xs text-ink-500">
-            {String(snapshot.productNumber ?? snapshot.sku ?? "Artikelnummer saknas")}
-          </p>
-        </div>
-        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-          {item.match_score ? `${String(item.match_score)} % teknisk match` : "Kräver granskning"}
-        </span>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {technicalValues.map((value) => (
-          <span key={value} className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-ink-700 shadow-sm">
-            {value}
-          </span>
-        ))}
-      </div>
-      {approvals.length > 0 && (
-        <p className="mt-3 text-xs text-ink-600">Demogodkännanden: {approvals.join(", ")}</p>
-      )}
-      <p className="mt-4 text-sm leading-6 text-ink-600">
-        {String(item.recommendation_reason ?? "Ingen rekommendationstext")}
-      </p>
-      <div className="mt-4 grid gap-2 border-t border-ink-200 pt-4 text-xs sm:grid-cols-2">
-        <p><span className="text-ink-500">Distributör:</span> <span className="font-medium text-ink-900">{String(snapshot.distributor ?? "Inte vald")}</span></p>
-        <p><span className="text-ink-500">Distributörens art.nr:</span> <span className="font-medium text-ink-900">{String(snapshot.distributorSku ?? "Saknas")}</span></p>
-        <p><span className="text-ink-500">Pris:</span> <span className="font-medium text-ink-900">{price}</span></p>
-        <p><span className="text-ink-500">Lager:</span> <span className="font-medium text-ink-900">{commercialAvailability(snapshot)}</span></p>
-      </div>
-      <p className="mt-4 text-[11px] font-medium text-amber-800">
-        Demo data – ej verifierad för projektering, installation eller inköp.
-      </p>
-    </article>
-  );
-}
-
-function commercialAvailability(snapshot: Record<string, unknown>) {
-  if (snapshot.stockStatus == null && snapshot.stockQuantity == null) return "Uppgift saknas";
-  const status = String(snapshot.stockStatus ?? "okänd").replaceAll("_", " ");
-  const quantity = typeof snapshot.stockQuantity === "number" ? ` (${snapshot.stockQuantity} st)` : "";
-  const leadTime = typeof snapshot.leadTimeDays === "number" ? ` · ${snapshot.leadTimeDays} dagar` : "";
-  return `${status}${quantity}${leadTime}`;
-}
-
-function orientationText(value: string) {
-  const labels: Record<string, string> = {
-    upright: "stående",
-    pendent: "hängande",
-    horizontal_sidewall: "sidovägg",
-    recessed_pendent: "infälld hängande",
-    concealed_pendent: "dold hängande"
-  };
-  return labels[value] ?? value.replaceAll("_", " ");
-}
-
 function Metric({ label, value, detail, tone = "neutral" }: { label: string; value: number; detail: string; tone?: "neutral" | "warning" | "success" }) { const valueClass = tone === "warning" ? "text-amber-700" : tone === "success" ? "text-emerald-700" : "text-ink-950"; return <div className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-500">{label}</p><p className={`mt-2 text-3xl font-semibold ${valueClass}`}>{value}</p><p className="mt-2 text-xs leading-5 text-ink-500">{detail}</p></div>; }
 function InfoCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) { return <article className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><span>{icon}</span><h2 className="font-semibold text-ink-950">{title}</h2></div><div className="mt-4">{children}</div></article>; }
 function TextArea({ name, label, defaultValue }: { name: string; label: string; defaultValue: string }) { return <label className="block"><span className="mb-2 block text-sm font-medium text-ink-700">{label}</span><textarea name={name} rows={4} defaultValue={defaultValue} className="block w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500" /></label>; }
 function formatDate(value: unknown) { if (typeof value !== "string" || !value) return ""; return new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium" }).format(new Date(value)); }
 function documentStatusLabel(status: string) { const labels: Record<string, string> = { completed: "Klar", extracted: "Extraherad", review_required: "Kräver granskning", requires_review: "Kräver granskning", uploaded: "Uppladdad", uploading: "Laddar upp", extracting: "Extraherar", failed: "Misslyckades" }; return labels[status] ?? status; }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
+function isManualAssignment(item: ProjectRow) {
+  const snapshot = isRecord(item.product_snapshot) ? item.product_snapshot : {};
+  return snapshot.source === "distributor_manual" && item.status === "selected";
+}
 function nextStageLabel(stage: string | undefined) {
   if (!stage || !projectStages.some(([value]) => value === stage)) return "Börja med att fylla i projektinformationen.";
   const next = nextProjectStage(stage as (typeof PROJECT_STAGES)[number][0]);
