@@ -168,7 +168,10 @@ export function ProjectWorkspace({
               ? "documents"
               : data.project.current_stage,
           projectType: form.get("projectType"),
-          procurementStrategy: form.get("procurementStrategy"),
+          // The streamlined Ahlsell workspace does not render this legacy
+          // field. Preserve the stored value instead of sending FormData's
+          // null sentinel, which the API correctly rejects as non-text.
+          procurementStrategy: data.project.procurement_strategy ?? "",
           currency: form.get("currency"),
           deliveryCountry: form.get("deliveryCountry"),
           warehouseLocation: form.get("warehouseLocation"),
