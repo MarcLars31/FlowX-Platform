@@ -39,6 +39,19 @@ test("mini users can search products but cannot access projects", () => {
 test("full users can create projects but cannot invite members", () => {
   assert.equal(hasRolePermission("full_user", "project.create"), true);
   assert.equal(hasRolePermission("full_user", "member.invite"), false);
+
+  const navigation = filterOrganizationNavigation([
+    "project.view_own",
+    "project.create"
+  ]);
+  assert.equal(
+    navigation.some((item) => item.href === "/project-history"),
+    true
+  );
+  assert.equal(
+    navigation.some((item) => item.href.startsWith("/organization")),
+    false
+  );
 });
 
 test("organization admins can invite but cannot assign platform admin", () => {

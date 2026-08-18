@@ -3,17 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
   AlertTriangle,
-  Building2,
   ClipboardCheck,
   FileJson,
   FileText,
   FolderKanban,
+  History,
   Home,
   PackageSearch,
-  RefreshCw,
-  Trash2
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
@@ -46,9 +44,7 @@ const organizationIcons = {
   home: Home,
   products: PackageSearch,
   projects: FolderKanban,
-  organization: Building2,
-  trash: Trash2,
-  activity: Activity,
+  history: History,
   technical_description: FileText
 } satisfies Record<OrganizationNavigationItem["icon"], typeof Home>;
 

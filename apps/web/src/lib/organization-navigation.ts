@@ -7,9 +7,7 @@ export type OrganizationNavigationItem = {
     | "home"
     | "products"
     | "projects"
-    | "organization"
-    | "trash"
-    | "activity"
+    | "history"
     | "technical_description";
   anyPermissions?: readonly PermissionKey[];
 };
@@ -32,33 +30,15 @@ export const ORGANIZATION_NAVIGATION: readonly OrganizationNavigationItem[] = [
     ]
   },
   {
-    name: "Organisation",
-    href: "/organization",
-    icon: "organization",
+    name: "Projekthistorik",
+    href: "/project-history",
+    icon: "history",
     anyPermissions: [
-      "organization.update",
-      "member.view",
-      "team.view",
-      "subscription.view"
+      "project.view_own",
+      "project.view_team",
+      "project.view_organization",
+      "project.view_all"
     ]
-  },
-  {
-    name: "Organisationsinställningar",
-    href: "/organization/settings",
-    icon: "organization",
-    anyPermissions: ["organization.update", "subscription.manage"]
-  },
-  {
-    name: "Papperskorg",
-    href: "/organization/trash",
-    icon: "trash",
-    anyPermissions: ["project.restore", "project.permanent_delete"]
-  },
-  {
-    name: "Aktivitetslogg",
-    href: "/organization/activity",
-    icon: "activity",
-    anyPermissions: ["audit_log.view"]
   }
 ];
 
