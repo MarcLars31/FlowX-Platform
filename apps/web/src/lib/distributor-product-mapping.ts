@@ -17,6 +17,10 @@ export type DistributorProductMappingInput = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
 export function validateDistributorProductMapping(
   value: unknown
 ): { data: DistributorProductMappingInput } | { error: string } {
@@ -26,7 +30,7 @@ export function validateDistributorProductMapping(
   const productNumber = text(value.productNumber, 120);
   const manufacturerName = text(value.manufacturerName, 200);
   const notes = text(value.notes, 2000);
-  if (!UUID_PATTERN.test(requirementId)) return { error: "Ogiltigt krav-id." };
+  if (!isUuid(requirementId)) return { error: "Ogiltigt krav-id." };
   if (!productName) return { error: "Produktnamn krävs." };
   if (!productNumber) return { error: "Ahlsells artikelnummer krävs." };
   if (value.accessories != null && !Array.isArray(value.accessories)) {

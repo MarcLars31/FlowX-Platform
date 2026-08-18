@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateDistributorProductMapping } from "./distributor-product-mapping";
+import {
+  isUuid,
+  validateDistributorProductMapping
+} from "./distributor-product-mapping";
+
+test("accepts canonical project UUIDs used by product mapping routes", () => {
+  assert.equal(isUuid("5bc86407-0c26-43b7-b302-e65ad1a881fe"), true);
+  assert.equal(isUuid("5bc86407-0c26-43b7-b302e65ad1a881fe"), false);
+});
 
 test("accepts a distributor product with normalized accessories", () => {
   const result = validateDistributorProductMapping({
