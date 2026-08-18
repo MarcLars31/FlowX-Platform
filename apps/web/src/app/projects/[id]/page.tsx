@@ -5,13 +5,24 @@ import type { OrganizationProject } from "@/types/organization";
 import { ProjectWorkspace, type ProjectModuleData } from "@/components/ProjectWorkspace";
 import { ProjectAccessEditor } from "@/components/ProjectAccessEditor";
 import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
+import {
+  isGuidedProjectTab,
+  type GuidedProjectTab
+} from "@/lib/guided-project-workflow";
 
-type ProjectPageProps = { params: Promise<{ id: string }> };
+type ProjectPageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ step?: string | string[] }>;
+};
 
-export default async function ProjectPage({ params }: ProjectPageProps) {
+export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   const context = await getOrganizationContext();
   if (!context) return null;
   const { id } = await params;
+  const requestedStep = (await searchParams).step;
+  const initialTab: GuidedProjectTab = isGuidedProjectTab(requestedStep)
+    ? requestedStep
+    : "overview";
   const organizationId = context.organization.id;
 
   const [project] = await selectUserRows<OrganizationProject>("projects", {
@@ -151,7 +162,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   return (
     <div className="space-y-6">
-      <ProjectWorkspace initialData={data} />
+      <ProjectWorkspace initialData={data} initialTab={initialTab} />
       {canManageAccess && (
         <details className="group mx-auto max-w-[1500px] overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">

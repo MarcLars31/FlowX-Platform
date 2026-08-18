@@ -21,7 +21,12 @@ import { DemoBadge } from "@/components/DemoBadge";
 import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
 import { Input } from "@/components/Input";
 import type { OrganizationProject } from "@/types/organization";
-import { PROJECT_STAGES, nextProjectStage } from "@/lib/project-governance";
+import { PROJECT_STAGES } from "@/lib/project-governance";
+import {
+  GUIDED_PROJECT_STEPS,
+  guidedProjectWorkflow,
+  type GuidedProjectTab
+} from "@/lib/guided-project-workflow";
 
 export type ProjectModuleData = {
   project: OrganizationProject;
@@ -55,17 +60,71 @@ const statusLabels: Record<string, string> = {
   active: "Aktivt"
 };
 
-const projectStages = PROJECT_STAGES;
-
-export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleData }) {
+export function ProjectWorkspace({
+  initialData,
+  initialTab = "overview"
+}: {
+  initialData: ProjectModuleData;
+  initialTab?: GuidedProjectTab;
+}) {
   const [data, setData] = useState(initialData);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [reviewingRequirementId, setReviewingRequirementId] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requirementForm, setRequirementForm] = useState({ category: "Tekniskt krav", key: "", value: "" });
+
+  function selectTab(nextTab: Tab) {
+    setTab(nextTab);
+    if (nextTab === "documents") {
+      void advanceProjectStage("documents");
+    } else if (nextTab === "requirements") {
+      void advanceProjectStage("requirements_review");
+    } else if (
+      nextTab === "products" &&
+      data.requirements.length > 0 &&
+      workflow.pendingRequirementCount === 0
+    ) {
+      void advanceProjectStage("product_matching");
+    }
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (nextTab === "overview") url.searchParams.delete("step");
+      else url.searchParams.set("step", nextTab);
+      window.history.replaceState(window.history.state, "", url);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  async function advanceProjectStage(targetStage: string) {
+    const currentIndex = PROJECT_STAGES.findIndex(
+      ([stage]) => stage === data.project.current_stage
+    );
+    const targetIndex = PROJECT_STAGES.findIndex(([stage]) => stage === targetStage);
+    if (targetIndex < 0 || currentIndex >= targetIndex) return;
+
+    try {
+      const response = await fetch(`/api/projects/${data.project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentStage: targetStage })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { project?: OrganizationProject }
+        | null;
+      if (response.ok && payload?.project) {
+        setData((current) => ({
+          ...current,
+          project: payload.project as OrganizationProject
+        }));
+      }
+    } catch {
+      // The guided UI still works for read-only users and during transient network errors.
+    }
+  }
 
   async function reload() {
     const response = await fetch(`/api/projects/${data.project.id}`, { cache: "no-store" });
@@ -104,7 +163,10 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           endCustomer: form.get("endCustomer"),
           address: form.get("address"),
           status: form.get("status"),
-          currentStage: form.get("currentStage"),
+          currentStage:
+            data.project.current_stage === "setup"
+              ? "documents"
+              : data.project.current_stage,
           projectType: form.get("projectType"),
           procurementStrategy: form.get("procurementStrategy"),
           currency: form.get("currency"),
@@ -121,7 +183,12 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
       const payload = (await response.json().catch(() => null)) as { project?: OrganizationProject; error?: string } | null;
       if (!response.ok || !payload?.project) throw new Error(payload?.error ?? "Projektet kunde inte sparas.");
       setData((current) => ({ ...current, project: payload.project as OrganizationProject }));
-      setMessage("Projektinformationen är sparad.");
+      if (data.project.current_stage === "setup") {
+        setMessage("Projektinformationen är sparad. Nästa steg är att ladda upp underlaget.");
+        selectTab("documents");
+      } else {
+        setMessage("Projektinformationen är sparad.");
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Projektet kunde inte sparas.");
     } finally {
@@ -147,9 +214,16 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
       const payload = (await response.json().catch(() => null)) as { error?: string; persistedRequirementCount?: number } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Underlaget kunde inte extraheras.");
       await reload();
-      setMessage(`Underlaget är extraherat och sparat. ${payload?.persistedRequirementCount ?? 0} krav lades till för granskning.`);
+      await advanceProjectStage("requirements_review");
+      const requirementCount = payload?.persistedRequirementCount ?? 0;
+      if (requirementCount > 0) {
+        setMessage(`Underlaget är sparat. ${requirementCount} krav väntar nu på granskning.`);
+      } else {
+        setMessage("Underlaget är sparat, men inga krav hittades automatiskt. Lägg till krav manuellt eller prova ett annat dokument.");
+      }
       setSelectedFileName(null);
       formElement.reset();
+      selectTab("requirements");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Underlaget kunde inte extraheras.");
     } finally {
@@ -178,6 +252,7 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Kravet kunde inte läggas till.");
       await reload();
+      await advanceProjectStage("requirements_review");
       setRequirementForm({ category: "Tekniskt krav", key: "", value: "" });
       setMessage("Kravet är tillagt och väntar på granskning.");
     } catch (addError) {
@@ -187,6 +262,8 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
 
   async function reviewRequirement(requirementId: string, status: string) {
     setError(null);
+    setMessage(null);
+    setReviewingRequirementId(requirementId);
     const normalizedStatus = status === "confirmed"
       ? "user_confirmed"
       : status === "unclear"
@@ -198,11 +275,31 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: normalizedStatus })
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { error?: string; requirement?: ProjectRow } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Kravet kunde inte uppdateras.");
       await reload();
+      const remainingReviews = data.requirements.filter((item) => {
+        if (item.id === requirementId) {
+          return !["user_confirmed", "user_modified", "rejected", "superseded"].includes(normalizedStatus);
+        }
+        return !["user_confirmed", "user_modified", "rejected", "superseded"].includes(String(item.status));
+      }).length;
+      if (normalizedStatus === "user_confirmed") {
+        if (remainingReviews === 0) {
+          await advanceProjectStage("product_matching");
+          setMessage("Kravgranskningen är klar. Gå vidare till Ahlsells produktval.");
+        } else {
+          setMessage(`Kravet är godkänt. ${remainingReviews} krav återstår att granska.`);
+        }
+      } else if (normalizedStatus === "rejected") {
+        setMessage(remainingReviews === 0 ? "Kravgranskningen är klar." : "Kravet är avvisat.");
+      } else {
+        setMessage("Kravet är markerat som oklart och behöver granskas igen.");
+      }
     } catch (reviewError) {
       setError(reviewError instanceof Error ? reviewError.message : "Kravet kunde inte uppdateras.");
+    } finally {
+      setReviewingRequirementId(null);
     }
   }
 
@@ -230,12 +327,13 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
         String(item.status)
       )
   ).length;
-  const currentStageIndex = Math.max(
-    0,
-    projectStages.findIndex(([stage]) => stage === data.project.current_stage)
-  );
+  const workflow = guidedProjectWorkflow({
+    documentCount: counts.documents,
+    requirements: data.requirements,
+    assignments: data.suggestions
+  });
   const stageProgress = Math.round(
-    ((currentStageIndex + 1) / projectStages.length) * 100
+    (workflow.completedStepIds.length / GUIDED_PROJECT_STEPS.length) * 100
   );
 
   return (
@@ -275,13 +373,17 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setTab("requirements")}>
-              <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
-              Granska krav{reviewCount > 0 ? ` (${reviewCount})` : ""}
-            </Button>
-            <Button onClick={() => setTab("documents")}>
+            <Button variant="secondary" onClick={() => selectTab("documents")}>
               <Upload className="h-4 w-4" aria-hidden="true" />
-              Ladda upp underlag
+              Underlag
+            </Button>
+            <Button onClick={() => selectTab(workflow.nextTab)}>
+              {workflow.nextTab === "requirements" ? (
+                <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              )}
+              {workflow.nextLabel}
             </Button>
           </div>
         </div>
@@ -291,7 +393,9 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-500">Arbetsflöde</p>
               <p className="mt-1 text-sm font-semibold text-ink-900">
-                Steg {currentStageIndex + 1} av {projectStages.length}: {projectStages[currentStageIndex]?.[1]}
+                {workflow.isComplete
+                  ? "Alla fyra steg är klara"
+                  : `Nästa: ${workflow.nextLabel}`}
               </p>
             </div>
             <span className="text-sm font-semibold text-flow-700">{stageProgress}%</span>
@@ -301,15 +405,21 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           </div>
           <div className="mt-4 overflow-x-auto pb-1">
             <ol className="flex min-w-max items-center gap-2">
-              {projectStages.map(([stage, label], index) => {
-                const active = data.project.current_stage === stage;
-                const completed = index < currentStageIndex;
+              {GUIDED_PROJECT_STEPS.map((step, index) => {
+                const active = tab === step.tab ||
+                  (tab === "decisions" && step.id === "products");
+                const completed = workflow.completedStepIds.includes(step.id);
                 return (
-                  <li key={stage} className="flex items-center gap-2">
-                    <span className={active ? "rounded-full bg-flow-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm" : completed ? "rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800" : "rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs text-ink-500"}>
-                      {index + 1}. {label}
-                    </span>
-                    {index < projectStages.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" />}
+                  <li key={step.id} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => selectTab(step.tab)}
+                      aria-current={active ? "step" : undefined}
+                      className={active ? "rounded-full bg-flow-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm" : completed ? "rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-200" : "rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs text-ink-600 transition hover:border-flow-300 hover:text-flow-700"}
+                    >
+                      {completed && !active ? "✓ " : ""}{index + 1}. {step.label}
+                    </button>
+                    {index < GUIDED_PROJECT_STEPS.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" />}
                   </li>
                 );
               })}
@@ -332,7 +442,7 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           ["products", "Ahlsells produktval", PackageSearch, counts.suggestions],
           ["decisions", "Beslutslogg", ClipboardCheck, counts.decisions]
         ] as const).map(([key, label, Icon, count]) => (
-          <button key={key} type="button" aria-current={tab === key ? "page" : undefined} onClick={() => setTab(key)} className={tab === key ? "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-flow-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm" : "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold text-ink-600 transition hover:bg-ink-100 hover:text-ink-950"}>
+          <button key={key} type="button" aria-current={tab === key ? "page" : undefined} onClick={() => selectTab(key)} className={tab === key ? "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-flow-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm" : "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold text-ink-600 transition hover:bg-ink-100 hover:text-ink-950"}>
             <Icon className="h-4 w-4" aria-hidden="true" />
             {label}
             {count !== null && <span className={tab === key ? "rounded-full bg-white/20 px-1.5 py-0.5 text-[11px]" : "rounded-full bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-600"}>{count}</span>}
@@ -345,10 +455,14 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           <section className="flex flex-col gap-3 rounded-xl border border-flow-200 bg-flow-50 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-flow-800">Rekommenderat nästa steg</p>
-              <p className="mt-1 text-sm font-medium text-flow-950">{nextStageLabel(data.project.current_stage)}</p>
+              <p className="mt-1 text-sm font-medium text-flow-950">
+                {workflow.isComplete
+                  ? "Underlag, kravgranskning och produktval är klara."
+                  : workflow.nextLabel}
+              </p>
             </div>
-            <Button variant="secondary" onClick={() => setTab(currentStageIndex < 2 ? "documents" : "requirements")}>
-              Fortsätt
+            <Button variant="secondary" onClick={() => selectTab(workflow.nextTab)}>
+              {workflow.isComplete ? "Visa produktval" : "Fortsätt till nästa steg"}
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </section>
@@ -398,7 +512,11 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
                 <Input id="workspace-start" name="expectedStartDate" label="Förväntad start" type="date" defaultValue={data.project.expected_start_date ?? ""} />
                 <Input id="workspace-delivery" name="expectedDeliveryDate" label="Förväntad leverans" type="date" defaultValue={data.project.expected_delivery_date ?? ""} />
                 <label className="block" htmlFor="workspace-status"><span className="mb-2 block text-sm font-medium text-ink-700">Projektstatus</span><select id="workspace-status" name="status" defaultValue={data.project.status} className="block h-11 w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500">{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                <label className="block" htmlFor="workspace-stage"><span className="mb-2 block text-sm font-medium text-ink-700">Aktuellt arbetssteg</span><select id="workspace-stage" name="currentStage" defaultValue={data.project.current_stage ?? "setup"} className="block h-11 w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500">{projectStages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                <div className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-500">Nästa arbetssteg</p>
+                  <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.nextLabel}</p>
+                  <p className="mt-1 text-xs text-ink-500">Uppdateras automatiskt när varje steg är klart.</p>
+                </div>
               </div>
             </fieldset>
 
@@ -441,13 +559,53 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
             </form>
           </section>
           <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-end justify-between gap-3"><div><h2 className="font-semibold text-ink-950">Dokumenthistorik</h2><p className="mt-1 text-sm text-ink-600">Status för projektets uppladdade och extraherade underlag.</p></div><span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-700">{counts.documents} dokument</span></div><div className="mt-4 divide-y divide-ink-100">{data.technicalDescriptions.length === 0 && distinctProjectDocuments.length === 0 ? <p className="rounded-lg bg-ink-50 px-4 py-8 text-center text-sm text-ink-600">Inga dokument är kopplade ännu. Börja med en teknisk beskrivning ovan.</p> : <>{data.technicalDescriptions.map((item) => <DocumentRow key={`technical-${item.id}`} item={item} source="Teknisk extraktion" />)}{distinctProjectDocuments.map((item) => <DocumentRow key={`project-${item.id}`} item={item} source="Projektfil" />)}</>}</div></section>
+          {counts.documents > 0 && (
+            <section className="flex flex-col gap-3 rounded-xl border border-flow-200 bg-flow-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-flow-950">Underlaget är sparat</p>
+                <p className="mt-1 text-sm text-flow-800">Nästa steg är att kontrollera varje extraherat krav.</p>
+              </div>
+              <Button onClick={() => selectTab("requirements")}>
+                Gå till kravgranskning
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </section>
+          )}
         </div>
       )}
 
       {tab === "requirements" && (
         <div className="space-y-5">
+          {data.requirements.length === 0 ? (
+            <section className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-amber-950">Inga krav finns att granska ännu</p>
+                <p className="mt-1 text-sm text-amber-800">Ladda upp en teknisk beskrivning eller lägg till ett krav manuellt nedan.</p>
+              </div>
+              <Button variant="secondary" onClick={() => selectTab("documents")}>Till underlaget</Button>
+            </section>
+          ) : reviewCount === 0 ? (
+            <section className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold text-emerald-950">Kravgranskningen är godkänd</p>
+                  <p className="mt-1 text-sm text-emerald-800">Alla {data.requirements.length} krav är granskade. Du kan nu registrera Ahlsells produkter och tillbehör.</p>
+                </div>
+              </div>
+              <Button onClick={() => selectTab("products")}>
+                Fortsätt till produktval
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </section>
+          ) : (
+            <section className="rounded-xl border border-flow-200 bg-flow-50 p-5">
+              <p className="font-semibold text-flow-950">{reviewCount} krav återstår att granska</p>
+              <p className="mt-1 text-sm text-flow-800">Godkänn, markera som oklart eller avvisa varje rad. När alla rader är hanterade öppnas nästa steg.</p>
+            </section>
+          )}
           <section className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-ink-950">Lägg till krav manuellt</h2><form className="mt-4 grid gap-4 md:grid-cols-3" onSubmit={addRequirement}><Input id="requirement-category" label="Kategori" value={requirementForm.category} onChange={(event) => setRequirementForm((current) => ({ ...current, category: event.target.value }))} /><Input id="requirement-key" label="Kravnyckel" value={requirementForm.key} onChange={(event) => setRequirementForm((current) => ({ ...current, key: event.target.value }))} /><Input id="requirement-value" label="Värde" value={requirementForm.value} onChange={(event) => setRequirementForm((current) => ({ ...current, value: event.target.value }))} /><div className="md:col-span-3"><Button type="submit">Lägg till krav</Button></div></form></section>
-          <section className="rounded-lg border border-ink-200 bg-white shadow-sm"><div className="border-b border-ink-100 px-5 py-4"><h2 className="font-semibold text-ink-950">Kravgranskning</h2><p className="mt-1 text-sm text-ink-600">Osäkra eller tolkade värden visas aldrig som slutligt bekräftade.</p></div>{data.requirements.length === 0 ? <p className="px-5 py-8 text-sm text-ink-600">Inga krav har extraherats ännu.</p> : <div className="divide-y divide-ink-100">{data.requirements.map((item) => <RequirementRow key={item.id} item={item} onReview={reviewRequirement} />)}</div>}</section>
+          <section className="rounded-lg border border-ink-200 bg-white shadow-sm"><div className="border-b border-ink-100 px-5 py-4"><h2 className="font-semibold text-ink-950">Kravgranskning</h2><p className="mt-1 text-sm text-ink-600">Osäkra eller tolkade värden visas aldrig som slutligt bekräftade.</p></div>{data.requirements.length === 0 ? <p className="px-5 py-8 text-sm text-ink-600">Inga krav har extraherats ännu.</p> : <div className="divide-y divide-ink-100">{data.requirements.map((item) => <RequirementRow key={item.id} item={item} reviewing={reviewingRequirementId === item.id} onReview={reviewRequirement} />)}</div>}</section>
           {data.conflicts.length > 0 && <section className="rounded-lg border border-amber-200 bg-amber-50 p-5"><div className="flex items-center gap-2 font-semibold text-amber-900"><AlertTriangle className="h-5 w-5" aria-hidden="true" />Konflikter kräver tekniskt beslut</div><div className="mt-3 space-y-2">{data.conflicts.map((item) => <div key={item.id} className="rounded-md border border-amber-200 bg-white p-3 text-sm"><p className="font-medium text-ink-950">{String(item.title)}</p><p className="mt-1 text-ink-700">{String(item.description)}</p></div>)}</div></section>}
         </div>
       )}
@@ -460,6 +618,8 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
           memories={data.mappingMemories}
           memoryAccessories={data.mappingAccessories}
           onReload={reload}
+          onGoToRequirements={() => selectTab("requirements")}
+          onFinish={() => selectTab("overview")}
         />
       )}
 
@@ -468,10 +628,60 @@ export function ProjectWorkspace({ initialData }: { initialData: ProjectModuleDa
   );
 }
 
-function RequirementRow({ item, onReview }: { item: ProjectRow; onReview: (id: string, status: string) => void }) {
+function RequirementRow({
+  item,
+  reviewing,
+  onReview
+}: {
+  item: ProjectRow;
+  reviewing: boolean;
+  onReview: (id: string, status: string) => Promise<void>;
+}) {
   const status = String(item.status ?? "extracted_unreviewed");
   const confidence = typeof item.confidence === "number" ? Math.round(item.confidence * 100) : null;
-  return <div className="px-5 py-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">{String(item.category)}</span><span className="font-semibold text-ink-950">{String(item.requirement_key)}</span><span className={requirementStatusClass(status)}>{requirementStatusLabel(status)}</span></div><p className="mt-2 text-sm text-ink-800">{String(item.value_text ?? "Inget värde")}</p><p className="mt-2 text-xs text-ink-500">{item.certainty === "explicit" ? "Explicit uppgift" : "Tolkad uppgift"}{confidence !== null ? ` · ${confidence}% säkerhet` : ""}{item.source_page ? ` · sida ${String(item.source_page)}` : ""}</p>{typeof item.source_excerpt === "string" && item.source_excerpt && <p className="mt-2 max-w-3xl border-l-2 border-ink-200 pl-3 text-xs italic text-ink-500">{item.source_excerpt}</p>}</div><div className="flex shrink-0 flex-wrap gap-2"><Button variant="secondary" onClick={() => onReview(item.id, "user_confirmed")}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Godkänn</Button><Button variant="secondary" onClick={() => onReview(item.id, "inferred_unreviewed")}>Oklart</Button><Button variant="ghost" onClick={() => onReview(item.id, "rejected")}>Avvisa</Button></div></div></div>;
+  const confirmed = ["user_confirmed", "user_modified"].includes(status);
+  const rejected = ["rejected", "superseded"].includes(status);
+  return (
+    <div className="px-5 py-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">{String(item.category)}</span>
+            <span className="font-semibold text-ink-950">{String(item.requirement_key)}</span>
+            <span className={requirementStatusClass(status)}>{requirementStatusLabel(status)}</span>
+          </div>
+          <p className="mt-2 text-sm text-ink-800">{String(item.value_text ?? "Inget värde")}</p>
+          <p className="mt-2 text-xs text-ink-500">{item.certainty === "explicit" ? "Explicit uppgift" : "Tolkad uppgift"}{confidence !== null ? ` · ${confidence}% säkerhet` : ""}{item.source_page ? ` · sida ${String(item.source_page)}` : ""}</p>
+          {typeof item.source_excerpt === "string" && item.source_excerpt && <p className="mt-2 max-w-3xl border-l-2 border-ink-200 pl-3 text-xs italic text-ink-500">{item.source_excerpt}</p>}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {confirmed ? (
+            <span className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-100 px-3.5 py-2 text-sm font-semibold text-emerald-800">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              Godkänt och sparat
+            </span>
+          ) : rejected ? (
+            <span className="inline-flex min-h-10 items-center rounded-lg bg-rose-50 px-3.5 py-2 text-sm font-semibold text-rose-700">
+              {status === "superseded" ? "Ersatt" : "Avvisat"}
+            </span>
+          ) : (
+            <Button variant="secondary" disabled={reviewing} onClick={() => void onReview(item.id, "user_confirmed")}>
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              {reviewing ? "Sparar…" : "Godkänn krav"}
+            </Button>
+          )}
+          {status !== "superseded" && (
+            <>
+              <Button variant="secondary" disabled={reviewing} onClick={() => void onReview(item.id, "inferred_unreviewed")}>
+                {rejected ? "Öppna igen" : "Markera oklart"}
+              </Button>
+              {!rejected && <Button variant="ghost" disabled={reviewing} onClick={() => void onReview(item.id, "rejected")}>Avvisa</Button>}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function requirementStatusClass(status: string) {
@@ -513,10 +723,4 @@ function isRecord(value: unknown): value is Record<string, unknown> { return Boo
 function isManualAssignment(item: ProjectRow) {
   const snapshot = isRecord(item.product_snapshot) ? item.product_snapshot : {};
   return snapshot.source === "distributor_manual" && item.status === "selected";
-}
-function nextStageLabel(stage: string | undefined) {
-  if (!stage || !projectStages.some(([value]) => value === stage)) return "Börja med att fylla i projektinformationen.";
-  const next = nextProjectStage(stage as (typeof PROJECT_STAGES)[number][0]);
-  const nextLabel = next && projectStages.find(([value]) => value === next)?.[1];
-  return nextLabel ? `Fortsätt med ${nextLabel}.` : "Alla obligatoriska arbetssteg är klara. Projektet kan exporteras när godkännandet är klart.";
 }

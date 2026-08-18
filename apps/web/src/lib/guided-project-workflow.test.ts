@@ -1,0 +1,81 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { guidedProjectWorkflow, isGuidedProjectTab } from "./guided-project-workflow";
+
+test("guides a new project from upload through review and product selection", () => {
+  const empty = guidedProjectWorkflow({
+    documentCount: 0,
+    requirements: [],
+    assignments: []
+  });
+  assert.equal(empty.nextTab, "documents");
+  assert.deepEqual(empty.completedStepIds, ["project"]);
+
+  const extracted = guidedProjectWorkflow({
+    documentCount: 1,
+    requirements: [{ id: "r1", status: "extracted_unreviewed" }],
+    assignments: []
+  });
+  assert.equal(extracted.nextTab, "requirements");
+  assert.equal(extracted.pendingRequirementCount, 1);
+
+  const reviewed = guidedProjectWorkflow({
+    documentCount: 1,
+    requirements: [{ id: "r1", status: "user_confirmed" }],
+    assignments: []
+  });
+  assert.equal(reviewed.nextTab, "products");
+  assert.equal(reviewed.remainingProductCount, 1);
+
+  const mapped = guidedProjectWorkflow({
+    documentCount: 1,
+    requirements: [{ id: "r1", status: "user_confirmed" }],
+    assignments: [
+      {
+        id: "a1",
+        requirement_id: "r1",
+        status: "selected",
+        product_snapshot: { source: "distributor_manual" }
+      }
+    ]
+  });
+  assert.equal(mapped.isComplete, true);
+  assert.deepEqual(mapped.completedStepIds, [
+    "project",
+    "documents",
+    "requirements",
+    "products"
+  ]);
+});
+
+test("rejected and removal rows do not block the product step", () => {
+  const workflow = guidedProjectWorkflow({
+    documentCount: 1,
+    requirements: [
+      { id: "rejected", status: "rejected" },
+      {
+        id: "removal",
+        status: "user_confirmed",
+        value_json: { operation: "remove" }
+      },
+      { id: "install", status: "user_confirmed" }
+    ],
+    assignments: [
+      {
+        id: "a1",
+        requirement_id: "install",
+        status: "selected",
+        product_snapshot: { source: "distributor_manual" }
+      }
+    ]
+  });
+
+  assert.equal(workflow.pendingRequirementCount, 0);
+  assert.equal(workflow.eligibleRequirementCount, 1);
+  assert.equal(workflow.isComplete, true);
+});
+
+test("recognizes only supported workspace tabs", () => {
+  assert.equal(isGuidedProjectTab("requirements"), true);
+  assert.equal(isGuidedProjectTab("decisions"), false);
+});

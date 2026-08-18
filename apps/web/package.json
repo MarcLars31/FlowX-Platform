@@ -17,7 +17,7 @@
     "test:extractor": "node --import tsx --test src/modules/pdf-extractor/extractor.test.ts",
     "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts",
     "test:product-pdf": "node --import tsx --test src/lib/product-document-pages.test.ts src/lib/product-pdf-processing.test.ts src/lib/product-pdf-staging.test.ts",
-    "test:project-governance": "node --import tsx --test src/lib/project-governance.test.ts",
+    "test:project-governance": "node --import tsx --test src/lib/project-governance.test.ts src/lib/guided-project-workflow.test.ts",
     "test:test-accounts": "node --import tsx --test scripts/test-account-fixtures.test.ts scripts/demo-account-fixture.test.ts src/lib/test-account-e2e-readiness.test.ts",
     "test:e2e:test-accounts": "node --import tsx --env-file-if-exists=.env.test.local --test scripts/test-account-http-e2e.test.ts",
     "test:sprsok": "node --import tsx --test src/lib/sprsok-sync-core.test.ts src/lib/sprsok-source-client.test.ts src/lib/sprsok-reconcile.test.ts src/lib/sprsok-search.test.ts",

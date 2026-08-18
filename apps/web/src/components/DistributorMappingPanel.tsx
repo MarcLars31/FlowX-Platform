@@ -27,7 +27,9 @@ export function DistributorMappingPanel({
   assignments,
   memories,
   memoryAccessories,
-  onReload
+  onReload,
+  onGoToRequirements,
+  onFinish
 }: {
   projectId: string;
   requirements: Row[];
@@ -35,6 +37,8 @@ export function DistributorMappingPanel({
   memories: Row[];
   memoryAccessories: Row[];
   onReload: () => Promise<void>;
+  onGoToRequirements: () => void;
+  onFinish: () => void;
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +51,12 @@ export function DistributorMappingPanel({
     const snapshot = record(assignment.product_snapshot);
     return snapshot.source === "distributor_manual" && assignment.status === "selected";
   });
+  const mappedRequirementIds = new Set(
+    manualAssignments.map((assignment) => String(assignment.requirement_id))
+  );
+  const remainingRequirementCount = confirmedRequirements.filter(
+    (requirement) => !mappedRequirementIds.has(requirement.id)
+  ).length;
 
   return (
     <section className="space-y-5">
@@ -93,9 +103,12 @@ export function DistributorMappingPanel({
       )}
 
       {confirmedRequirements.length === 0 ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          Godkänn minst ett extraherat installationskrav under Kravgranskning. Därefter kan
-          Ahlsell registrera produkt och tillbehör här.
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm leading-6 text-amber-900">
+            Godkänn minst ett extraherat installationskrav under Kravgranskning. Därefter kan
+            Ahlsell registrera produkt och tillbehör här.
+          </p>
+          <Button variant="secondary" onClick={onGoToRequirements}>Gå till kravgranskning</Button>
         </div>
       ) : (
         <div className="space-y-5">
@@ -129,6 +142,23 @@ export function DistributorMappingPanel({
               />
             );
           })}
+          {remainingRequirementCount === 0 ? (
+            <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold text-emerald-950">Produktvalet är klart</p>
+                  <p className="mt-1 text-sm text-emerald-800">Alla {confirmedRequirements.length} godkända installationskrav har en registrerad Ahlsell-artikel.</p>
+                </div>
+              </div>
+              <Button onClick={onFinish}>Till projektöversikten</Button>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-flow-200 bg-flow-50 p-5">
+              <p className="font-semibold text-flow-950">{remainingRequirementCount} produktval återstår</p>
+              <p className="mt-1 text-sm text-flow-800">Spara en Ahlsell-artikel för varje godkänt installationskrav för att slutföra flödet.</p>
+            </div>
+          )}
         </div>
       )}
     </section>
