@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { AlertTriangle, Calculator, FileSearch, Upload } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { PdfDropzone } from "@/components/PdfDropzone";
 import type {
   TechnicalDescriptionExtractionResult,
   TechnicalDescriptionMaterialLine
@@ -175,20 +176,21 @@ export default function TechnicalDescriptionsPage() {
             </p>
           </div>
         </div>
-        <form className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={extract}>
-          <label className="block flex-1">
-            <span className="mb-2 block text-sm font-medium text-ink-700">PDF-fil</span>
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              className="block h-11 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
-            />
-          </label>
-          <Button type="submit" disabled={isExtracting}>
-            <Upload className="h-4 w-4" aria-hidden="true" />
-            {isExtracting ? "Extraherar..." : "Extrahera och spara"}
-          </Button>
+        <form className="mt-5" onSubmit={extract}>
+          <PdfDropzone
+            id="technical-description-material-file"
+            file={file}
+            disabled={isExtracting}
+            compact
+            onFileChange={setFile}
+            onValidationError={setError}
+          />
+          <div className="mt-4 flex justify-end">
+            <Button type="submit" disabled={isExtracting || !file}>
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              {isExtracting ? "Extraherar..." : "Extrahera och spara"}
+            </Button>
+          </div>
         </form>
         {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
       </section>

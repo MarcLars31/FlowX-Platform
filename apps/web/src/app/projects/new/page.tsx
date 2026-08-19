@@ -6,12 +6,11 @@ import { type FormEvent, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
   FileText,
-  Loader2,
-  Upload
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/Button";
+import { PdfDropzone } from "@/components/PdfDropzone";
 
 type CreationResponse = {
   error?: string;
@@ -120,37 +119,12 @@ export default function CreateProjectPage() {
         </div>
 
         <div className="p-5 sm:p-6">
-          <label
-            htmlFor="technical-description"
-            className="flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink-200 bg-ink-50 px-6 py-10 text-center transition hover:border-[#0073b6]/50 hover:bg-[#0073b6]/5"
-          >
-            {selectedFile ? (
-              <>
-                <CheckCircle2 className="h-9 w-9 text-emerald-600" aria-hidden="true" />
-                <span className="mt-3 font-semibold text-ink-950">{selectedFile.name}</span>
-                <span className="mt-1 text-sm text-ink-500">
-                  {formatFileSize(selectedFile.size)} · Klicka för att välja en annan fil
-                </span>
-              </>
-            ) : (
-              <>
-                <Upload className="h-9 w-9 text-[#00649e]" aria-hidden="true" />
-                <span className="mt-3 font-semibold text-ink-950">Välj teknisk beskrivning</span>
-                <span className="mt-1 text-sm text-ink-500">Klicka för att välja en PDF</span>
-              </>
-            )}
-          </label>
-          <input
+          <PdfDropzone
             id="technical-description"
-            name="file"
-            type="file"
-            accept="application/pdf,.pdf"
-            className="sr-only"
+            file={selectedFile}
             disabled={creating}
-            onChange={(event) => {
-              setSelectedFile(event.target.files?.[0] ?? null);
-              setError(null);
-            }}
+            onFileChange={setSelectedFile}
+            onValidationError={setError}
           />
 
           {error && (
@@ -186,9 +160,4 @@ function Step({ number, title, text }: { number: string; title: string; text: st
       <p className="mt-1 text-xs leading-5 text-ink-500">{text}</p>
     </div>
   );
-}
-
-function formatFileSize(size: number) {
-  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} kB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }

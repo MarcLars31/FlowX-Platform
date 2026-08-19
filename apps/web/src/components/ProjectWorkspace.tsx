@@ -20,6 +20,7 @@ import { DemoBadge } from "@/components/DemoBadge";
 import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
 import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
+import { PdfDropzone } from "@/components/PdfDropzone";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
 import {
@@ -81,7 +82,7 @@ export function ProjectWorkspace({
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -253,12 +254,12 @@ export function ProjectWorkspace({
   async function uploadTechnicalDescription(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const file = form.get("file");
-    if (!(file instanceof File) || file.size === 0) {
+    if (!selectedFile) {
       setError("Välj en PDF med teknisk beskrivning.");
       return;
     }
+    const form = new FormData();
+    form.set("file", selectedFile);
     setUploading(true);
     setError(null);
     setMessage(null);
@@ -275,7 +276,7 @@ export function ProjectWorkspace({
       } else {
         setMessage("Underlaget är sparat, men inga produktrader hittades automatiskt. Prova ett tydligare dokument.");
       }
-      setSelectedFileName(null);
+      setSelectedFile(null);
       formElement.reset();
       selectTab("products");
     } catch (uploadError) {
@@ -638,15 +639,17 @@ export function ProjectWorkspace({
           <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="flex items-start gap-3"><FileText className="mt-0.5 h-5 w-5 text-flow-700" aria-hidden="true" /><div><h2 className="font-semibold text-ink-950">Teknisk beskrivning</h2><p className="mt-1 text-sm text-ink-600">Ladda upp underlag direkt till projektet. Extraherade produktrader går direkt vidare till produktvalet.</p></div></div>
             <form className="mt-5" onSubmit={uploadTechnicalDescription}>
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink-200 bg-ink-50 px-5 py-8 text-center transition hover:border-flow-400 hover:bg-flow-50">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-flow-700 shadow-sm"><Upload className="h-5 w-5" aria-hidden="true" /></span>
-                <span className="mt-3 text-sm font-semibold text-ink-900">{selectedFileName ?? "Välj en teknisk beskrivning i PDF-format"}</span>
-                <span className="mt-1 text-xs text-ink-500">Max 30 MB. Dokumentet sparas privat i projektet.</span>
-                <input name="file" type="file" accept=".pdf,application/pdf" className="sr-only" onChange={(event) => setSelectedFileName(event.target.files?.[0]?.name ?? null)} />
-              </label>
+              <PdfDropzone
+                id={`project-pdf-${data.project.id}`}
+                file={selectedFile}
+                disabled={uploading}
+                compact
+                onFileChange={setSelectedFile}
+                onValidationError={setError}
+              />
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-ink-500">Efter uppladdningen går du direkt vidare till Ahlsells produktval.</p>
-                <Button type="submit" disabled={uploading || !selectedFileName}><Upload className="h-4 w-4" aria-hidden="true" />{uploading ? "Extraherar och sparar..." : "Extrahera och spara"}</Button>
+                <Button type="submit" disabled={uploading || !selectedFile}><Upload className="h-4 w-4" aria-hidden="true" />{uploading ? "Extraherar och sparar..." : "Extrahera och spara"}</Button>
               </div>
             </form>
           </section>
