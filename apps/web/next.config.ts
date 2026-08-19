@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
     "pdf-parse",
     "pdfjs-dist",
     "@napi-rs/canvas",
+    "exceljs",
     "tesseract.js"
   ],
   // Tesseract starts a Node worker from a path that is resolved at runtime.

@@ -162,7 +162,11 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
 
   return (
     <div className="space-y-6">
-      <ProjectWorkspace initialData={data} initialTab={initialTab} />
+      <ProjectWorkspace
+        initialData={data}
+        initialTab={initialTab}
+        canExportMaterialList={context.permissions.includes("material_list.export")}
+      />
       {canManageAccess && (
         <details className="group mx-auto max-w-[1500px] overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">

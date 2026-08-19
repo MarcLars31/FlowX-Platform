@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = {
@@ -30,7 +31,8 @@ export function DistributorMappingPanel({
   onReload,
   onGoToRequirements,
   onFinish,
-  finishing = false
+  finishing = false,
+  canExport = false
 }: {
   projectId: string;
   requirements: Row[];
@@ -41,6 +43,7 @@ export function DistributorMappingPanel({
   onGoToRequirements: () => void;
   onFinish: () => void;
   finishing?: boolean;
+  canExport?: boolean;
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -153,9 +156,12 @@ export function DistributorMappingPanel({
                   <p className="mt-1 text-sm text-emerald-800">Alla {confirmedRequirements.length} godkända installationskrav har en registrerad Ahlsell-artikel.</p>
                 </div>
               </div>
-              <Button disabled={finishing} onClick={onFinish}>
-                {finishing ? "Slutför projektet..." : "Slutför och visa översikten"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {canExport && <ProjectMaterialListExportButton projectId={projectId} />}
+                <Button disabled={finishing} onClick={onFinish}>
+                  {finishing ? "Slutför projektet..." : "Slutför och visa översikten"}
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-flow-200 bg-flow-50 p-5">

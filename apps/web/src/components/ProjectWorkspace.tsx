@@ -20,6 +20,7 @@ import { Button } from "@/components/Button";
 import { DemoBadge } from "@/components/DemoBadge";
 import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
 import { Input } from "@/components/Input";
+import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
 import {
@@ -63,10 +64,12 @@ const statusLabels: Record<string, string> = {
 
 export function ProjectWorkspace({
   initialData,
-  initialTab = "overview"
+  initialTab = "overview",
+  canExportMaterialList = false
 }: {
   initialData: ProjectModuleData;
   initialTab?: GuidedProjectTab;
+  canExportMaterialList?: boolean;
 }) {
   const [data, setData] = useState(initialData);
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -431,6 +434,9 @@ export function ProjectWorkspace({
               <Upload className="h-4 w-4" aria-hidden="true" />
               Underlag
             </Button>
+            {workflow.isComplete && canExportMaterialList && (
+              <ProjectMaterialListExportButton projectId={data.project.id} />
+            )}
             <Button
               disabled={finishing}
               onClick={() =>
@@ -530,10 +536,15 @@ export function ProjectWorkspace({
                   : workflow.nextLabel}
               </p>
             </div>
-            <Button variant="secondary" onClick={() => selectTab(workflow.nextTab)}>
-              {workflow.isComplete ? "Visa produktval" : "Fortsätt till nästa steg"}
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {workflow.isComplete && canExportMaterialList && (
+                <ProjectMaterialListExportButton projectId={data.project.id} />
+              )}
+              <Button variant="secondary" onClick={() => selectTab(workflow.nextTab)}>
+                {workflow.isComplete ? "Visa produktval" : "Fortsätt till nästa steg"}
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
           </section>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Metric label="Dokument" value={counts.documents} detail="Projektunderlag och tekniska beskrivningar" />
@@ -690,6 +701,7 @@ export function ProjectWorkspace({
           onGoToRequirements={() => selectTab("requirements")}
           onFinish={() => void finishProject()}
           finishing={finishing}
+          canExport={canExportMaterialList}
         />
       )}
 
