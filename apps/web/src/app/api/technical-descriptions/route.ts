@@ -16,7 +16,10 @@ import type {
 import { clientTechnicalDescriptionResult } from "@/lib/technical-description-client-result";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
 import { hasPdfSignature } from "@/lib/pdf-security";
-import { automaticProjectDetails } from "@/lib/technical-description-project";
+import {
+  automaticProjectDetails,
+  nextAvailableProjectNumber
+} from "@/lib/technical-description-project";
 
 export const runtime = "nodejs";
 
@@ -32,6 +35,10 @@ type ProjectDocumentRow = {
 };
 type RequirementSetRow = { id: string; version: number; status: string };
 type ExtractionRunRow = { id: string };
+type ExistingSourceDocumentRow = {
+  id: string;
+  project_id: string | null;
+};
 
 export async function GET() {
   try {
@@ -133,21 +140,80 @@ export async function POST(request: Request) {
     if (!hasPdfSignature(buffer.subarray(0, 5))) {
       return NextResponse.json({ error: "Filen är inte en giltig PDF." }, { status: 415 });
     }
+    const fileSha256 = createHash("sha256").update(buffer).digest("hex");
     const pages = await extractTechnicalDescriptionPages(buffer);
     const result = extractTechnicalDescriptionFromPages(pages, {
       fileName: file.name
     });
     let createdProjectName: string | null = null;
     if (!projectId) {
+      const [existingSourceDocument] =
+        await selectUserRows<ExistingSourceDocumentRow>(
+          "technical_description_documents",
+          {
+            select: "id,project_id",
+            organization_id: `eq.${authorization.context.organization.id}`,
+            file_sha256: `eq.${fileSha256}`,
+            project_id: "not.is.null",
+            order: "created_at.desc",
+            limit: "1"
+          }
+        );
+      if (existingSourceDocument?.project_id) {
+        const [existingProject] = await selectUserRows<ProjectRow>("projects", {
+          select: "id,organization_id,name",
+          id: `eq.${existingSourceDocument.project_id}`,
+          organization_id: `eq.${authorization.context.organization.id}`,
+          deleted_at: "is.null",
+          limit: "1"
+        });
+        if (existingProject) {
+          const [persistedLines, persistedRequirements] = await Promise.all([
+            selectUserRows<{ id: string }>("technical_description_material_lines", {
+              select: "id",
+              document_id: `eq.${existingSourceDocument.id}`
+            }),
+            selectUserRows<{ id: string }>("project_requirements", {
+              select: "id",
+              project_id: `eq.${existingProject.id}`,
+              source_technical_description_document_id: `eq.${existingSourceDocument.id}`,
+              deleted_at: "is.null"
+            })
+          ]);
+          return NextResponse.json({
+            projectId: existingProject.id,
+            projectName: existingProject.name,
+            projectCreated: false,
+            reusedExistingProject: true,
+            documentId: existingSourceDocument.id,
+            persistedLineCount: persistedLines.length,
+            persistedRequirementCount: persistedRequirements.length,
+            duplicate: true,
+            ...clientTechnicalDescriptionResult(result)
+          });
+        }
+      }
+
       const details = automaticProjectDetails({
         extractedName: result.project.name,
         extractedProjectNumber: result.project.projectNumber,
         extractedStandards: result.standards,
         fileName: file.name
       });
-      const rpcResult = await callUserRpc<unknown>("create_project_with_details", {
+      const existingProjectNumbers = await selectUserRows<{
+        project_number: string | null;
+      }>("projects", {
+        select: "project_number",
+        organization_id: `eq.${authorization.context.organization.id}`,
+        deleted_at: "is.null"
+      });
+      const availableProjectNumber = nextAvailableProjectNumber(
+        details.projectNumber,
+        existingProjectNumbers.map((project) => project.project_number)
+      );
+      const automaticProjectPayload = {
         requested_organization_id: authorization.context.organization.id,
-        requested_project_number: details.projectNumber,
+        requested_project_number: availableProjectNumber,
         requested_name: details.name,
         requested_description: details.description,
         requested_customer_name: authorization.context.organization.name,
@@ -169,7 +235,27 @@ export async function POST(request: Request) {
           source_file_name: file.name.slice(0, 255),
           automatically_created: true
         }
-      });
+      };
+      let rpcResult: unknown;
+      try {
+        rpcResult = await callUserRpc<unknown>(
+          "create_project_with_details",
+          automaticProjectPayload
+        );
+      } catch (projectError) {
+        if (
+          !(projectError instanceof UserSupabaseError) ||
+          projectError.code !== "23505" ||
+          !details.projectNumber
+        ) {
+          throw projectError;
+        }
+        const collisionSafeNumber = `${details.projectNumber.slice(0, 93)}-${randomUUID().slice(0, 6)}`;
+        rpcResult = await callUserRpc<unknown>("create_project_with_details", {
+          ...automaticProjectPayload,
+          requested_project_number: collisionSafeNumber
+        });
+      }
       projectId = rpcProjectId(rpcResult);
       if (!projectId) {
         throw new Error("Supabase returned no project id after automatic creation.");
@@ -205,7 +291,6 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    const fileSha256 = createHash("sha256").update(buffer).digest("hex");
     const status = result.warnings.some((warning) => warning.severity === "warning")
       ? "review_required"
       : "extracted";

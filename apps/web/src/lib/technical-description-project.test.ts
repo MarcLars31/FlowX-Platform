@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { automaticProjectDetails } from "./technical-description-project";
+import {
+  automaticProjectDetails,
+  nextAvailableProjectNumber
+} from "./technical-description-project";
 
 test("uses the project metadata extracted from the technical description", () => {
   const details = automaticProjectDetails({
@@ -32,4 +35,13 @@ test("uses a stable dated fallback for an empty file name", () => {
   });
 
   assert.equal(details.name, "Teknisk analys 2026-08-19");
+});
+
+test("adds a stable suffix when an extracted project number already exists", () => {
+  assert.equal(
+    nextAvailableProjectNumber("C.2.3", ["C.2.3", "C.2.3-2"]),
+    "C.2.3-3"
+  );
+  assert.equal(nextAvailableProjectNumber("P-1042", ["P-999"]), "P-1042");
+  assert.equal(nextAvailableProjectNumber(null, ["P-999"]), null);
 });

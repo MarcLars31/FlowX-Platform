@@ -45,6 +45,27 @@ export function automaticProjectDetails({
   };
 }
 
+export function nextAvailableProjectNumber(
+  requestedProjectNumber: string | null,
+  existingProjectNumbers: readonly (string | null | undefined)[]
+) {
+  if (!requestedProjectNumber) return null;
+  const used = new Set(
+    existingProjectNumbers.flatMap((value) =>
+      typeof value === "string" && value.trim() ? [value.trim()] : []
+    )
+  );
+  if (!used.has(requestedProjectNumber)) return requestedProjectNumber;
+
+  for (let suffix = 2; suffix < 10_000; suffix += 1) {
+    const suffixText = `-${suffix}`;
+    const candidate = `${requestedProjectNumber.slice(0, 100 - suffixText.length)}${suffixText}`;
+    if (!used.has(candidate)) return candidate;
+  }
+
+  return null;
+}
+
 function displayFileName(fileName: string) {
   const withoutPath = fileName.split(/[\\/]/).pop() ?? fileName;
   return withoutPath
