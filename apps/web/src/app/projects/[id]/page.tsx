@@ -5,6 +5,7 @@ import type { OrganizationProject } from "@/types/organization";
 import { ProjectWorkspace, type ProjectModuleData } from "@/components/ProjectWorkspace";
 import { ProjectAccessEditor } from "@/components/ProjectAccessEditor";
 import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
+import { enrichProjectRequirements } from "@/lib/project-requirement-enrichment";
 import {
   isGuidedProjectTab,
   type GuidedProjectTab
@@ -86,7 +87,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
     };
   }
 
-  const requirements = context.permissions.includes("project.requirement.view")
+  const rawRequirements = context.permissions.includes("project.requirement.view")
     ? await selectUserRows<Record<string, unknown> & { id: string }>(
         "project_requirements",
         {
@@ -96,10 +97,24 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         }
       )
     : [];
+  const technicalDescriptions = context.permissions.includes("technical_description.view")
+    ? await selectUserRows<Record<string, unknown> & { id: string }>(
+        "technical_description_documents",
+        {
+          project_id: `eq.${id}`,
+          organization_id: `eq.${organizationId}`,
+          order: "created_at.desc"
+        }
+      )
+    : [];
+  const requirements = enrichProjectRequirements(
+    rawRequirements,
+    technicalDescriptions
+  );
   const productMemory = context.permissions.includes(
     "project.product_suggestion.view"
   )
-    ? await loadDistributorProductMemory(organizationId, requirements)
+    ? await loadDistributorProductMemory(organizationId, rawRequirements)
     : { mappingMemories: [], mappingAccessories: [] };
 
   const data: ProjectModuleData = {
@@ -119,13 +134,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
       organization_id: `eq.${organizationId}`,
       order: "supplier_kind.asc,selection_role.asc"
     }),
-    technicalDescriptions: context.permissions.includes("technical_description.view")
-      ? await selectUserRows("technical_description_documents", {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          order: "created_at.desc"
-        })
-      : [],
+    technicalDescriptions,
     requirements,
     conflicts: context.permissions.includes("project.requirement.view")
       ? await selectUserRows("project_requirement_conflicts", {

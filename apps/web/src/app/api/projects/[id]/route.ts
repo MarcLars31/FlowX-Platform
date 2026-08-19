@@ -9,6 +9,7 @@ import {
 import type { OrganizationProject } from "@/types/organization";
 import { DEMO_DATA_DISCLAIMER } from "@/lib/demo-data";
 import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
+import { enrichProjectRequirements } from "@/lib/project-requirement-enrichment";
 
 export const runtime = "nodejs";
 
@@ -40,7 +41,7 @@ export async function GET(_request: Request, context: RouteContext) {
     if (!project) return NextResponse.json({ error: "Projektet hittades inte." }, { status: 404 });
 
     const organizationId = authorization.context.organization.id;
-    const [systemTypes, standards, suppliers, requirements, conflicts, suggestions, decisions, versions] =
+    const [systemTypes, standards, suppliers, rawRequirements, conflicts, suggestions, decisions, versions] =
       await Promise.all([
         selectUserRows("project_system_types", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "is_primary.desc,created_at.asc" }),
         selectUserRows("project_standards", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "priority.asc,created_at.asc" }),
@@ -69,13 +70,17 @@ export async function GET(_request: Request, context: RouteContext) {
           order: "created_at.desc"
         })
       : [];
+    const requirements = enrichProjectRequirements(
+      rawRequirements as Array<Record<string, unknown> & { id: string }>,
+      technicalDescriptions as Array<Record<string, unknown> & { id: string }>
+    );
 
     const productMemory = authorization.context.permissions.includes(
       "project.product_suggestion.view"
     )
       ? await loadDistributorProductMemory(
           organizationId,
-          requirements as Array<Record<string, unknown>>
+          rawRequirements as Array<Record<string, unknown>>
         )
       : { mappingMemories: [], mappingAccessories: [] };
 

@@ -77,6 +77,29 @@ test("extracts technical-description material lines and rule hints", () => {
 test("extracts NS 3420 table quantities and pipe lengths", () => {
   const pages: TechnicalDescriptionPage[] = [
     {
+      pageNumber: 9,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "1403.33.332.",
+        "1",
+        "UB1.31114921934A",
+        "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+        "Slokkeanlegg/-medium: Sprinkler",
+        "Materiale: Stål – malingsbehandlet",
+        "Plassering: Under dekke",
+        "Montasje: Vertikalt og Horisontalt",
+        "Skjøt: Rilleskjøt",
+        "Trykk: 12 bar",
+        "Materialkvalitet: Pulverlakkerte sorte stålrør og deler inkl.",
+        "oppheng. Leveres i RAL3001.",
+        "Dimensjon: iht. underposter",
+        "Andre krav:",
+        "Skal følge NFPA 13:2025.",
+        "Sum denne side:"
+      ].join("\n")
+    },
+    {
       pageNumber: 10,
       method: "text",
       confidence: 0.98,
@@ -145,7 +168,19 @@ test("extracts NS 3420 table quantities and pipe lengths", () => {
       { postNumber: "1403.33.332.24", quantity: 10, unit: "st", category: "pipe" }
     ]
   );
-  assert.equal(result.materialLines[0].attributes.dimension, "DN100");
+  assert.equal(result.materialLines[0].parentPostNumber, "1403.33.332.1");
+  assert.equal(result.materialLines[0].nsCode, "UB1.31114921934A");
+  assert.equal(result.materialLines[0].attributes.dimensjon, "DN100");
+  assert.equal(result.materialLines[0].attributes.trykk, "12 bar");
+  assert.equal(
+    result.materialLines[0].attributes.materialkvalitet,
+    "Pulverlakkerte sorte stålrør og deler inkl. oppheng. Leveres i RAL3001."
+  );
+  assert.deepEqual(result.materialLines[0].standardRefs, ["NFPA-13:2025"]);
+  assert.match(
+    result.materialLines[0].technicalSpecification ?? "",
+    /Materiale: Stål – malingsbehandlet[\s\S]*UNDERPOST[\s\S]*Rillede rør/
+  );
   assert.equal(result.materialLines[5].attributes["k-faktor"], "80");
   assert.equal(
     result.materialLines[5].attributes["utløsningstemperatur"],

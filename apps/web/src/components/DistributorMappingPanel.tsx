@@ -16,6 +16,10 @@ import {
   formatProjectQuantity,
   projectRequirementQuantity
 } from "@/lib/project-requirement-quantity";
+import {
+  projectRequirementDetails,
+  specificationLabel
+} from "@/lib/project-requirement-details";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = {
@@ -209,8 +213,7 @@ function RequirementProductMappingCard({
     snapshotAccessories(currentSnapshot.accessories)
   );
   const [saving, setSaving] = useState(false);
-  const attributes = record(record(requirement.value_json).attributes);
-  const attributeEntries = Object.entries(attributes).slice(0, 8);
+  const requirementDetails = projectRequirementDetails(requirement);
   const requiredQuantity = projectRequirementQuantity(requirement.value_json);
 
   function applyMemory(memory: Row) {
@@ -274,11 +277,16 @@ function RequirementProductMappingCard({
               <span className="rounded bg-[#0073b6]/10 px-2 py-1 text-xs font-semibold text-[#00649e]">
                 {String(requirement.category)}
               </span>
-              <span className="font-semibold text-ink-950">
-                {String(requirement.requirement_key)}
+              <span className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-sm font-bold text-ink-950">
+                Postnr: {requirementDetails.postNumber ?? "saknas"}
               </span>
+              {requirementDetails.nsCode && (
+                <span className="text-sm font-semibold text-ink-600">
+                  NS-kod: {requirementDetails.nsCode}
+                </span>
+              )}
             </div>
-            <p className="mt-2 text-sm text-ink-700">
+            <p className="mt-2 text-base font-semibold text-ink-900">
               {String(requirement.value_text ?? "Tekniskt krav")}
             </p>
           </div>
@@ -287,7 +295,7 @@ function RequirementProductMappingCard({
               ? "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"
               : "rounded-full bg-[#0073b6]/10 px-3 py-1 text-xs font-semibold text-[#00649e]"}
             >
-              Behov: {formatProjectQuantity(requiredQuantity)}
+              Antal: {formatProjectQuantity(requiredQuantity)}
             </span>
             {assignment && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
@@ -297,15 +305,44 @@ function RequirementProductMappingCard({
             )}
           </div>
         </div>
-        {attributeEntries.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {attributeEntries.map(([key, value]) => (
-              <span key={key} className="rounded-md border border-ink-200 bg-white px-2 py-1 text-xs text-ink-600">
-                {key}: {String(value)}
-              </span>
-            ))}
+        <div className="mt-4 overflow-hidden rounded-lg border border-ink-200 bg-white">
+          <div className="border-b border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-600">
+            Information från teknisk beskrivning
           </div>
-        )}
+          <dl className="grid sm:grid-cols-2 xl:grid-cols-3">
+            <SpecificationRow label="Postnummer" value={requirementDetails.postNumber ?? "Saknas i underlaget"} />
+            <SpecificationRow label="Antal" value={formatProjectQuantity(requiredQuantity)} />
+            <SpecificationRow label="Enhet" value={requiredQuantity.unit} />
+            {requirementDetails.parentPostNumber && (
+              <SpecificationRow label="Huvudpost" value={requirementDetails.parentPostNumber} />
+            )}
+            {requirementDetails.nsCode && (
+              <SpecificationRow label="NS-kod" value={requirementDetails.nsCode} />
+            )}
+            {requirementDetails.system && (
+              <SpecificationRow label="System" value={requirementDetails.system} />
+            )}
+            {requirementDetails.standardRefs.length > 0 && (
+              <SpecificationRow label="Standarder" value={requirementDetails.standardRefs.join(", ")} />
+            )}
+            {requirementDetails.sourcePage && (
+              <SpecificationRow label="Källsida" value={String(requirementDetails.sourcePage)} />
+            )}
+            {requirementDetails.attributes.map(([key, value]) => (
+              <SpecificationRow key={key} label={specificationLabel(key)} value={value} />
+            ))}
+          </dl>
+          {requirementDetails.sourceExcerpt && (
+            <details className="border-t border-ink-100">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-[#00649e] hover:bg-[#0073b6]/5">
+                Visa all originaltext för posten
+              </summary>
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-ink-100 bg-ink-50 p-3 font-sans text-xs leading-5 text-ink-700">
+                {requirementDetails.sourceExcerpt}
+              </pre>
+            </details>
+          )}
+        </div>
       </div>
 
       <div className="space-y-5 p-5">
@@ -455,6 +492,17 @@ function RequirementProductMappingCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function SpecificationRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-b border-ink-100 px-3 py-2.5 sm:border-r">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        {label}
+      </dt>
+      <dd className="mt-1 break-words text-sm text-ink-900">{value}</dd>
+    </div>
   );
 }
 

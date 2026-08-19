@@ -15,7 +15,8 @@ const ITEM_CODE_PATTERN =
   /^\s*(?:(\d{2}\.\d{3}(?:\.\d+)?)\s*[|:]?\s*)?([A-ZÆØÅ]{2}\d[\w.-]*)\b/i;
 const POST_NUMBER_PATTERN = /^\s*(\d{2}\.\d{3}(?:\.\d+)?)/;
 const NS_CODE_PATTERN = /\b([A-ZÆØÅ]{2}\d[\w.-]*)\b/i;
-const STANDARD_PATTERN = /\b(NS[-\s]EN\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
+const STANDARD_PATTERN =
+  /\b((?:NS(?:[-\s]?EN)?|NFPA)\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
 const ATTRIBUTE_PATTERN = /^\s*([^:]{2,60}):\s*(.*?)\s*$/;
 const NS3420_BASE_POST_PATTERN = /^(\d+(?:\.\d+){2,})\.$/;
 const NS3420_ROW_NUMBER_PATTERN = /^(\d+(?:\.\d+)*)$/;
@@ -251,6 +252,7 @@ function extractLegacyMaterialLines(
 function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   const materialLines: TechnicalDescriptionMaterialLine[] = [];
   const seen = new Set<string>();
+  const parentContexts = new Map<string, TableParentContext>();
 
   for (const page of pages) {
     const pageLines = normalizedPageLines(page.text);
@@ -273,25 +275,57 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
       const blockLines = pageLines.slice(index + 2, blockEnd);
       const quantity = findTableQuantity(blockLines);
+      const fullPostNumber = `${baseMatch[1]}.${rowNumber}`;
+      const descriptionParts = quantity
+        ? blockLines.slice(0, quantity.lineIndex)
+        : blockLines;
+      if (quantity?.descriptionPrefix) {
+        descriptionParts.push(quantity.descriptionPrefix);
+      }
+      const { nsCode, description } = tableDescription(descriptionParts);
+      const sourceText = [pageLines[index], rowNumber, ...blockLines].join("\n");
+      const ownAttributes = {
+        ...extractTableAttributes(blockLines),
+        ...extractInlineAttributes(description)
+      };
+      const ownStandardRefs = unique(
+        [...sourceText.matchAll(STANDARD_PATTERN)].map((match) =>
+          normalizeStandard(match[1])
+        )
+      );
+
+      if (!rowNumber.includes(".")) {
+        parentContexts.set(fullPostNumber, {
+          nsCode,
+          attributes: ownAttributes,
+          system: inferSystem(`${description}\n${sourceText}`.toLocaleLowerCase()),
+          standardRefs: ownStandardRefs,
+          sourceText
+        });
+      }
+
       if (!quantity || quantity.quantity <= 0) {
         index = Math.max(index, blockEnd - 1);
         continue;
       }
 
-      const fullPostNumber = `${baseMatch[1]}.${rowNumber}`;
       const key = `${page.pageNumber}:${fullPostNumber}`;
       if (seen.has(key)) {
         index = Math.max(index, blockEnd - 1);
         continue;
       }
 
-      const descriptionParts = blockLines.slice(0, quantity.lineIndex);
-      if (quantity.descriptionPrefix) {
-        descriptionParts.push(quantity.descriptionPrefix);
-      }
-      const { nsCode, description } = tableDescription(descriptionParts);
-      const sourceText = [pageLines[index], rowNumber, ...blockLines].join("\n");
-      const normalizedText = `${description}\n${sourceText}`.toLocaleLowerCase();
+      const parentPostNumber = rowNumber.includes(".")
+        ? `${baseMatch[1]}.${rowNumber.split(".")[0]}`
+        : undefined;
+      const parent = parentPostNumber
+        ? parentContexts.get(parentPostNumber)
+        : undefined;
+      const attributes = {
+        ...(parent?.attributes ?? {}),
+        ...ownAttributes
+      };
+      const normalizedText = `${description}\n${sourceText}\n${parent?.system ?? ""}`.toLocaleLowerCase();
       const category = inferCategory(description.toLocaleLowerCase());
       const operation = inferOperation(normalizedText, true);
       const reviewFlags: string[] = [];
@@ -304,20 +338,23 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       materialLines.push({
         id: `technical-material-${page.pageNumber}-${fullPostNumber.replace(/[^a-zA-Z0-9]+/g, "-")}`,
         postNumber: fullPostNumber,
-        nsCode,
+        parentPostNumber,
+        nsCode: nsCode ?? parent?.nsCode,
         category,
         description: description || categoryLabel(category),
         operation,
         quantity: quantity.quantity,
         quantityText: quantity.text,
         unit: quantity.unit,
-        attributes: extractInlineAttributes(description),
-        system: inferSystem(normalizedText),
-        standardRefs: unique(
-          [...sourceText.matchAll(STANDARD_PATTERN)].map((match) =>
-            normalizeStandard(match[1])
-          )
-        ),
+        attributes,
+        system: inferSystem(normalizedText) ?? parent?.system,
+        standardRefs: unique([
+          ...(parent?.standardRefs ?? []),
+          ...ownStandardRefs
+        ]),
+        technicalSpecification: parent
+          ? `${parent.sourceText}\n\nUNDERPOST\n${sourceText}`
+          : sourceText,
         sourcePage: page.pageNumber,
         sourceText,
         confidence: Math.min(
@@ -338,6 +375,14 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
   return materialLines;
 }
+
+type TableParentContext = {
+  nsCode?: string;
+  attributes: Record<string, string>;
+  system?: string;
+  standardRefs: string[];
+  sourceText: string;
+};
 
 function normalizedPageLines(text: string) {
   return text
@@ -396,6 +441,33 @@ function tableDescription(parts: string[]) {
   };
 }
 
+function extractTableAttributes(lines: string[]) {
+  const attributes: Record<string, string> = {};
+  let activeKey: string | null = null;
+
+  for (const line of lines) {
+    const match = line.match(ATTRIBUTE_PATTERN);
+    if (match) {
+      activeKey = null;
+      if (!match[2].trim()) continue;
+      const key = normalizeAttributeKey(match[1]);
+      if (["gjelder", "andre krav", "postnr"].includes(key)) continue;
+      attributes[key] = match[2].trim();
+      activeKey = key;
+      continue;
+    }
+
+    if (
+      activeKey &&
+      !/^(?:[a-z]\)|Sum denne side|Akkumulert|Prosjekt:|\d{2}\.\d{2}\.\d{4})/i.test(line)
+    ) {
+      attributes[activeKey] = `${attributes[activeKey]} ${line}`.replace(/\s+/g, " ");
+    }
+  }
+
+  return attributes;
+}
+
 function extractInlineAttributes(description: string) {
   const attributes: Record<string, string> = {};
   const dimensions = unique(
@@ -403,7 +475,7 @@ function extractInlineAttributes(description: string) {
       (match) => match[0].replace(/\s+/g, "")
     )
   );
-  if (dimensions.length > 0) attributes.dimension = dimensions.join(", ");
+  if (dimensions.length > 0) attributes.dimensjon = dimensions.join(", ");
 
   const kFactor = description.match(/\bK\s*[=-]\s*(\d+(?:[.,]\d+)?)/i)?.[1];
   if (kFactor) attributes["k-faktor"] = kFactor.replace(",", ".");
@@ -507,6 +579,7 @@ function buildMaterialLine(
     attributes: block.attributes,
     system: block.attributes.sprinkleranlegg,
     standardRefs: unique(block.standardRefs),
+    technicalSpecification: sourceText,
     sourcePage: page.pageNumber,
     sourceText,
     confidence,

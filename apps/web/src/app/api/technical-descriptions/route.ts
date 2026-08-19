@@ -490,12 +490,17 @@ export async function POST(request: Request) {
         attribute_key: line.nsCode ?? line.category,
         raw_value: line.description,
         normalized_value: {
+          postNumber: line.postNumber ?? null,
+          parentPostNumber: line.parentPostNumber ?? null,
+          nsCode: line.nsCode ?? null,
           operation: line.operation,
           quantity: line.quantity ?? null,
+          quantityText: line.quantityText ?? null,
           unit: line.unit ?? null,
           attributes: line.attributes,
           system: line.system ?? null,
-          standardRefs: line.standardRefs
+          standardRefs: line.standardRefs,
+          technicalSpecification: line.technicalSpecification ?? line.sourceText
         },
         unit: line.unit ?? null,
         confidence: line.confidence,
@@ -520,11 +525,17 @@ export async function POST(request: Request) {
           value_type: "text",
           value_text: line.description,
           value_json: {
+            postNumber: line.postNumber ?? null,
+            parentPostNumber: line.parentPostNumber ?? null,
+            nsCode: line.nsCode ?? null,
             operation: line.operation,
             quantity: line.quantity ?? null,
+            quantityText: line.quantityText ?? null,
             unit: line.unit ?? null,
             attributes: line.attributes,
-            system: line.system ?? null
+            system: line.system ?? null,
+            standardRefs: line.standardRefs,
+            technicalSpecification: line.technicalSpecification ?? line.sourceText
           },
           certainty: "interpreted",
           confidence: line.confidence,

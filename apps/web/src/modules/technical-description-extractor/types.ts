@@ -20,6 +20,7 @@ export type TechnicalDescriptionCategory =
 export type TechnicalDescriptionMaterialLine = {
   id: string;
   postNumber?: string;
+  parentPostNumber?: string;
   nsCode?: string;
   category: TechnicalDescriptionCategory;
   description: string;
@@ -30,6 +31,7 @@ export type TechnicalDescriptionMaterialLine = {
   attributes: Record<string, string>;
   system?: string;
   standardRefs: string[];
+  technicalSpecification?: string;
   sourcePage: number;
   sourceText: string;
   confidence: number;
