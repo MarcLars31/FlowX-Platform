@@ -9,7 +9,7 @@ const stages = [
   ["setup", "Projektinformation"],
   ["documents", "Dokument"],
   ["technical_description", "Teknisk beskrivning"],
-  ["requirements_review", "Krav"],
+  ["requirements_review", "Äldre extraktionssteg"],
   ["analysis", "Analys"],
   ["product_matching", "Ahlsells produktval"],
   ["material_list", "Materiallista"],

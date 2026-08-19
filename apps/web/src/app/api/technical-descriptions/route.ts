@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
+  callUserRpc,
   insertUserRowReturning,
   selectUserRows,
   updateUserRowsReturning,
@@ -11,12 +12,13 @@ import {
 import type { TechnicalDescriptionMaterialLine } from "@/modules/technical-description-extractor";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
 import { hasPdfSignature } from "@/lib/pdf-security";
+import { automaticProjectDetails } from "@/lib/technical-description-project";
 
 export const runtime = "nodejs";
 
 const MAX_PDF_BYTES = 30 * 1024 * 1024;
 
-type ProjectRow = { id: string; organization_id: string };
+type ProjectRow = { id: string; organization_id: string; name: string };
 type ProjectModuleRow = { id: string; project_id: string; module_code: string };
 type DocumentRow = { id: string; status: string };
 type ProjectDocumentRow = {
@@ -99,22 +101,80 @@ export async function POST(request: Request) {
     } = await import("@/modules/technical-description-extractor");
 
     const projectIdValue = formData.get("projectId");
-    const projectId =
+    let projectId =
       typeof projectIdValue === "string" && projectIdValue.trim()
         ? projectIdValue.trim()
         : null;
-    if (!projectId) {
+    const createProject = formData.get("createProject") === "true";
+    if (!projectId && !createProject) {
       return NextResponse.json(
-        { error: "Öppna eller skapa ett projekt innan du laddar upp teknisk beskrivning." },
+        { error: "Projekt-id saknas och automatisk projektskapning är inte begärd." },
         { status: 400 }
       );
     }
-    if (!isUuid(projectId)) {
+    if (projectId && !isUuid(projectId)) {
       return NextResponse.json({ error: "Ogiltigt projekt-id." }, { status: 400 });
+    }
+    if (
+      !projectId &&
+      !authorization.context.permissions.includes("project.create")
+    ) {
+      return NextResponse.json(
+        { error: "Du saknar behörighet att skapa projekt." },
+        { status: 403 }
+      );
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    if (!hasPdfSignature(buffer.subarray(0, 5))) {
+      return NextResponse.json({ error: "Filen är inte en giltig PDF." }, { status: 415 });
+    }
+    const pages = await extractTechnicalDescriptionPages(buffer);
+    const result = extractTechnicalDescriptionFromPages(pages, {
+      fileName: file.name
+    });
+    let createdProjectName: string | null = null;
+    if (!projectId) {
+      const details = automaticProjectDetails({
+        extractedName: result.project.name,
+        extractedProjectNumber: result.project.projectNumber,
+        extractedStandards: result.standards,
+        fileName: file.name
+      });
+      const rpcResult = await callUserRpc<unknown>("create_project_with_details", {
+        requested_organization_id: authorization.context.organization.id,
+        requested_project_number: details.projectNumber,
+        requested_name: details.name,
+        requested_description: details.description,
+        requested_customer_name: authorization.context.organization.name,
+        requested_project_type: "Teknisk beskrivningsanalys",
+        requested_country_code: "Sweden",
+        requested_language_code: "sv",
+        requested_currency_code: "SEK",
+        requested_owner_user_id: authorization.user.id,
+        requested_module_code: "sprinkler",
+        requested_standard: details.standard,
+        requested_system_type: details.systemType,
+        requested_supplier: null,
+        requested_delivery_country: "Sweden",
+        requested_access_level: "own",
+        requested_team_id: null,
+        requested_details: {
+          procurement_strategy: "Ahlsell specialist selection",
+          preferred_distributor: "Ahlsell",
+          source_file_name: file.name.slice(0, 255),
+          automatically_created: true
+        }
+      });
+      projectId = rpcProjectId(rpcResult);
+      if (!projectId) {
+        throw new Error("Supabase returned no project id after automatic creation.");
+      }
+      createdProjectName = details.name;
     }
 
     const projects = await selectUserRows<ProjectRow>("projects", {
-      select: "id,organization_id",
+      select: "id,organization_id,name",
       id: `eq.${projectId}`,
       organization_id: `eq.${authorization.context.organization.id}`,
       deleted_at: "is.null",
@@ -141,15 +201,6 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    if (!hasPdfSignature(buffer.subarray(0, 5))) {
-      return NextResponse.json({ error: "Filen är inte en giltig PDF." }, { status: 415 });
-    }
-    const pages = await extractTechnicalDescriptionPages(buffer);
-    const result = extractTechnicalDescriptionFromPages(pages, {
-      fileName: file.name
-    });
     const fileSha256 = createHash("sha256").update(buffer).digest("hex");
     const status = result.warnings.some((warning) => warning.severity === "warning")
       ? "review_required"
@@ -243,6 +294,8 @@ export async function POST(request: Request) {
           })
         ]);
         return NextResponse.json({
+          projectId,
+          projectName: projects[0].name,
           documentId: document.id,
           persistedLineCount: persistedLines.length,
           persistedRequirementCount: persistedRequirements.length,
@@ -500,8 +553,27 @@ export async function POST(request: Request) {
       );
     }
 
+    if (createdProjectName) {
+      await updateUserRowsReturning<ProjectRow>(
+        "projects",
+        {
+          id: `eq.${projectId}`,
+          organization_id: `eq.${authorization.context.organization.id}`
+        },
+        {
+          status: "analysis",
+          current_stage: persistedRequirementCount > 0
+            ? "product_matching"
+            : "documents"
+        }
+      );
+    }
+
     return NextResponse.json(
       {
+        projectId,
+        projectName: projects[0].name,
+        projectCreated: Boolean(createdProjectName),
         documentId: document.id,
         persistedLineCount: result.materialLines.length,
         persistedRequirementCount,
@@ -546,6 +618,20 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value
   );
+}
+
+function rpcProjectId(value: unknown) {
+  if (typeof value === "string" && isUuid(value)) return value;
+  if (
+    value &&
+    typeof value === "object" &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    isUuid(value.id)
+  ) {
+    return value.id;
+  }
+  return null;
 }
 
 function technicalDescriptionErrorResponse(error: unknown) {

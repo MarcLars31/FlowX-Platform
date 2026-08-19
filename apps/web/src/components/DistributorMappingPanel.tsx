@@ -12,6 +12,10 @@ import {
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
+import {
+  formatProjectQuantity,
+  projectRequirementQuantity
+} from "@/lib/project-requirement-quantity";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = {
@@ -29,7 +33,7 @@ export function DistributorMappingPanel({
   memories,
   memoryAccessories,
   onReload,
-  onGoToRequirements,
+  onGoToDocuments,
   onFinish,
   finishing = false,
   canExport = false
@@ -40,16 +44,16 @@ export function DistributorMappingPanel({
   memories: Row[];
   memoryAccessories: Row[];
   onReload: () => Promise<void>;
-  onGoToRequirements: () => void;
+  onGoToDocuments: () => void;
   onFinish: () => void;
   finishing?: boolean;
   canExport?: boolean;
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const confirmedRequirements = requirements.filter(
+  const productRequirements = requirements.filter(
     (requirement) =>
-      ["user_confirmed", "user_modified"].includes(String(requirement.status)) &&
+      !["rejected", "superseded"].includes(String(requirement.status)) &&
       requirementOperation(requirement) !== "remove"
   );
   const manualAssignments = assignments.filter((assignment) => {
@@ -59,7 +63,7 @@ export function DistributorMappingPanel({
   const mappedRequirementIds = new Set(
     manualAssignments.map((assignment) => String(assignment.requirement_id))
   );
-  const remainingRequirementCount = confirmedRequirements.filter(
+  const remainingRequirementCount = productRequirements.filter(
     (requirement) => !mappedRequirementIds.has(requirement.id)
   ).length;
 
@@ -72,7 +76,7 @@ export function DistributorMappingPanel({
               Ahlsells produktval
             </p>
             <h2 className="mt-2 text-xl font-semibold text-ink-950">
-              Koppla bekräftade krav till rätt artikel och tillbehör
+              Koppla extraherade produktrader till rätt artikel och tillbehör
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-600">
               Produkten registreras av en distributörsspecialist. Varje godkänt val blir
@@ -88,7 +92,7 @@ export function DistributorMappingPanel({
           </div>
         </div>
         <div className="grid gap-px bg-ink-200 sm:grid-cols-3">
-          <WorkflowStep number="1" label="Extrahera och godkänn krav" />
+          <WorkflowStep number="1" label="Extrahera produktrader och mängder" />
           <WorkflowStep number="2" label="Ahlsell väljer produkt och tillbehör" />
           <WorkflowStep number="3" label="Valet föreslås nästa gång" />
         </div>
@@ -107,17 +111,17 @@ export function DistributorMappingPanel({
         </div>
       )}
 
-      {confirmedRequirements.length === 0 ? (
+      {productRequirements.length === 0 ? (
         <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm leading-6 text-amber-900">
-            Godkänn minst ett extraherat installationskrav under Kravgranskning. Därefter kan
-            Ahlsell registrera produkt och tillbehör här.
+            Inga produktrader kunde läsas ur underlaget. Ladda upp en tydligare teknisk
+            beskrivning för att registrera produkter och tillbehör.
           </p>
-          <Button variant="secondary" onClick={onGoToRequirements}>Gå till kravgranskning</Button>
+          <Button variant="secondary" onClick={onGoToDocuments}>Gå till underlaget</Button>
         </div>
       ) : (
         <div className="space-y-5">
-          {confirmedRequirements.map((requirement) => {
+          {productRequirements.map((requirement) => {
             const assignment = manualAssignments.find(
               (item) => item.requirement_id === requirement.id
             );
@@ -153,13 +157,13 @@ export function DistributorMappingPanel({
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
                 <div>
                   <p className="font-semibold text-emerald-950">Produktvalet är klart</p>
-                  <p className="mt-1 text-sm text-emerald-800">Alla {confirmedRequirements.length} godkända installationskrav har en registrerad Ahlsell-artikel.</p>
+                  <p className="mt-1 text-sm text-emerald-800">Alla {productRequirements.length} extraherade produktrader har en registrerad Ahlsell-artikel.</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 {canExport && <ProjectMaterialListExportButton projectId={projectId} />}
                 <Button disabled={finishing} onClick={onFinish}>
-                  {finishing ? "Slutför projektet..." : "Slutför och visa översikten"}
+                  {finishing ? "Slutför projektet..." : "Klart – visa resultat"}
                 </Button>
               </div>
             </div>
@@ -207,6 +211,7 @@ function RequirementProductMappingCard({
   const [saving, setSaving] = useState(false);
   const attributes = record(record(requirement.value_json).attributes);
   const attributeEntries = Object.entries(attributes).slice(0, 8);
+  const requiredQuantity = projectRequirementQuantity(requirement.value_json);
 
   function applyMemory(memory: Row) {
     setProductName(String(memory.product_name ?? ""));
@@ -277,12 +282,20 @@ function RequirementProductMappingCard({
               {String(requirement.value_text ?? "Tekniskt krav")}
             </p>
           </div>
-          {assignment && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Produkt registrerad
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className={requiredQuantity.quantity === null
+              ? "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"
+              : "rounded-full bg-[#0073b6]/10 px-3 py-1 text-xs font-semibold text-[#00649e]"}
+            >
+              Behov: {formatProjectQuantity(requiredQuantity)}
             </span>
-          )}
+            {assignment && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                Produkt registrerad
+              </span>
+            )}
+          </div>
         </div>
         {attributeEntries.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
@@ -390,7 +403,7 @@ function RequirementProductMappingCard({
                     onChange={(value) => updateAccessory(setAccessories, index, "productNumber", value)}
                   />
                   <CompactInput
-                    label="Antal"
+                    label="Antal per huvudprodukt"
                     type="number"
                     min="0.001"
                     step="0.001"

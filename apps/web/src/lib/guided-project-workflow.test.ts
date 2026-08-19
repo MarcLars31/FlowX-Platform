@@ -6,34 +6,27 @@ import {
   isGuidedProjectTab
 } from "./guided-project-workflow";
 
-test("guides a new project from upload through review and product selection", () => {
+test("guides a new project directly from upload to product selection", () => {
   const empty = guidedProjectWorkflow({
     documentCount: 0,
     requirements: [],
     assignments: []
   });
   assert.equal(empty.nextTab, "documents");
-  assert.deepEqual(empty.completedStepIds, ["project"]);
+  assert.deepEqual(empty.completedStepIds, []);
 
   const extracted = guidedProjectWorkflow({
     documentCount: 1,
     requirements: [{ id: "r1", status: "extracted_unreviewed" }],
     assignments: []
   });
-  assert.equal(extracted.nextTab, "requirements");
-  assert.equal(extracted.pendingRequirementCount, 1);
-
-  const reviewed = guidedProjectWorkflow({
-    documentCount: 1,
-    requirements: [{ id: "r1", status: "user_confirmed" }],
-    assignments: []
-  });
-  assert.equal(reviewed.nextTab, "products");
-  assert.equal(reviewed.remainingProductCount, 1);
+  assert.equal(extracted.nextTab, "products");
+  assert.equal(extracted.pendingRequirementCount, 0);
+  assert.equal(extracted.remainingProductCount, 1);
 
   const mapped = guidedProjectWorkflow({
     documentCount: 1,
-    requirements: [{ id: "r1", status: "user_confirmed" }],
+    requirements: [{ id: "r1", status: "extracted_unreviewed" }],
     assignments: [
       {
         id: "a1",
@@ -45,10 +38,9 @@ test("guides a new project from upload through review and product selection", ()
   });
   assert.equal(mapped.isComplete, true);
   assert.deepEqual(mapped.completedStepIds, [
-    "project",
     "documents",
-    "requirements",
-    "products"
+    "products",
+    "result"
   ]);
 });
 
@@ -80,7 +72,8 @@ test("rejected and removal rows do not block the product step", () => {
 });
 
 test("recognizes only supported workspace tabs", () => {
-  assert.equal(isGuidedProjectTab("requirements"), true);
+  assert.equal(isGuidedProjectTab("requirements"), false);
+  assert.equal(isGuidedProjectTab("products"), true);
   assert.equal(isGuidedProjectTab("decisions"), false);
 });
 

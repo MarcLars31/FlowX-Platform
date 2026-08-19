@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 
 export type MaterialListProject = {
   id: string;
@@ -17,6 +18,7 @@ export type MaterialListRequirement = {
   category: string;
   requirement_key: string;
   value_text: string | null;
+  value_json?: unknown;
 };
 
 export type MaterialListAssignment = {
@@ -70,6 +72,11 @@ export function buildProjectMaterialRows({
       requirementKey: requirement?.requirement_key ?? "",
       requirementValue: requirement?.value_text ?? ""
     };
+    const requiredQuantity = projectRequirementQuantity(requirement?.value_json);
+    const mainQuantity = requiredQuantity.quantity ?? 1;
+    const missingQuantityNote = requiredQuantity.quantity === null
+      ? "Antal saknas i den tekniska beskrivningen – kontrollera före beställning."
+      : "";
 
     rows.push({
       type: "Huvudprodukt",
@@ -77,9 +84,9 @@ export function buildProjectMaterialRows({
       productName: text(snapshot.name),
       productNumber: text(snapshot.productNumber),
       manufacturer: text(snapshot.manufacturer),
-      quantity: 1,
-      unit: "st",
-      notes: text(snapshot.notes),
+      quantity: mainQuantity,
+      unit: requiredQuantity.unit,
+      notes: joinNotes(text(snapshot.notes), missingQuantityNote),
       distributor: text(snapshot.distributor) || "Ahlsell"
     });
 
@@ -93,9 +100,9 @@ export function buildProjectMaterialRows({
         productName: name,
         productNumber: text(accessory.productNumber),
         manufacturer: "",
-        quantity: positiveNumber(accessory.quantity, 1),
+        quantity: mainQuantity * positiveNumber(accessory.quantity, 1),
         unit: text(accessory.unit) || "st",
-        notes: text(accessory.notes),
+        notes: joinNotes(text(accessory.notes), missingQuantityNote),
         distributor: text(snapshot.distributor) || "Ahlsell"
       });
     }
@@ -323,4 +330,8 @@ function positiveNumber(value: unknown, fallback: number) {
 
 function valueOrNull(value: string) {
   return value || null;
+}
+
+function joinNotes(...values: string[]) {
+  return values.filter(Boolean).join(" ");
 }

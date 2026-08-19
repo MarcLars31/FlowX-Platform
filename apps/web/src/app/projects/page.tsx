@@ -31,7 +31,7 @@ export default async function ProjectsPage() {
           <h1 className="mt-2 text-3xl font-semibold text-ink-950">Organisationens projekt</h1>
           <p className="mt-2 text-sm text-ink-600">Projektlistan visar endast projekt som din organisation och projektåtkomst tillåter.</p>
         </div>
-        {canCreate && <Link href="/projects/new"><Button><Plus className="h-4 w-4" aria-hidden="true" />Nytt projekt</Button></Link>}
+        {canCreate && <Link href="/projects/new"><Button><Plus className="h-4 w-4" aria-hidden="true" />Ny teknisk analys</Button></Link>}
       </header>
 
       <section className="overflow-hidden rounded-lg border border-ink-200 bg-white shadow-sm">
@@ -39,7 +39,7 @@ export default async function ProjectsPage() {
           <div className="flex flex-col items-center px-6 py-14 text-center">
             <FolderKanban className="h-8 w-8 text-ink-400" aria-hidden="true" />
             <h2 className="mt-3 font-semibold text-ink-950">Inga tillgängliga projekt</h2>
-            <p className="mt-1 max-w-md text-sm text-ink-600">Skapa ditt första projekt och ladda upp en teknisk beskrivning för att börja bygga produktminnet.</p>
+            <p className="mt-1 max-w-md text-sm text-ink-600">Ladda upp en teknisk beskrivning. Scipx skapar projektet automatiskt och tar dig direkt vidare till Ahlsells produktval.</p>
           </div>
         ) : user ? <ProjectListControls projects={projects} currentUserId={user.id} /> : null}
       </section>

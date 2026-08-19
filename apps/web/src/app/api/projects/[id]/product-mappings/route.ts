@@ -29,6 +29,13 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const input = validation.data;
+    await callUserRpc<string>(
+      "prepare_requirement_for_direct_product_mapping",
+      {
+        requested_project_id: id,
+        requested_requirement_id: input.requirementId
+      }
+    );
     const result = await callUserRpc<Record<string, unknown>>(
       "save_distributor_product_mapping",
       {
@@ -68,8 +75,11 @@ export async function POST(request: Request, context: RouteContext) {
 }
 
 function readableDatabaseError(message: string) {
+  if (message.includes("Rejected requirements")) {
+    return "En avvisad produktrad kan inte kopplas till en produkt.";
+  }
   if (message.includes("Only confirmed requirements")) {
-    return "Kravet måste godkännas innan en produkt kan registreras.";
+    return "Produktraden kunde inte förberedas för produktval.";
   }
   if (message.includes("Removal lines")) {
     return "En demonteringsrad ska inte kopplas till en ny produkt.";

@@ -1,8 +1,7 @@
 export const GUIDED_PROJECT_STEPS = [
-  { id: "project", label: "Projekt", tab: "overview" },
-  { id: "documents", label: "Underlag", tab: "documents" },
-  { id: "requirements", label: "Kravgranskning", tab: "requirements" },
-  { id: "products", label: "Produktval", tab: "products" }
+  { id: "documents", label: "Ladda upp", tab: "documents" },
+  { id: "products", label: "Välj produkter", tab: "products" },
+  { id: "result", label: "Klart", tab: "overview" }
 ] as const;
 
 export type GuidedProjectStepId = (typeof GUIDED_PROJECT_STEPS)[number]["id"];
@@ -41,26 +40,16 @@ export function guidedProjectCompletionUpdate(
     : null;
 }
 
-const reviewedStatuses = new Set([
-  "user_confirmed",
-  "user_modified",
-  "rejected",
-  "superseded"
-]);
-
-const confirmedStatuses = new Set(["user_confirmed", "user_modified"]);
+const excludedStatuses = new Set(["rejected", "superseded"]);
 
 export function guidedProjectWorkflow(input: {
   documentCount: number;
   requirements: WorkflowRequirement[];
   assignments: WorkflowAssignment[];
 }): GuidedProjectWorkflow {
-  const pendingRequirementCount = input.requirements.filter(
-    (requirement) => !reviewedStatuses.has(String(requirement.status ?? ""))
-  ).length;
-  const confirmedRequirements = input.requirements.filter(
+  const eligibleRequirements = input.requirements.filter(
     (requirement) =>
-      confirmedStatuses.has(String(requirement.status ?? "")) &&
+      !excludedStatuses.has(String(requirement.status ?? "")) &&
       requirementOperation(requirement) !== "remove"
   );
   const mappedRequirementIds = new Set(
@@ -73,25 +62,19 @@ export function guidedProjectWorkflow(input: {
         : [];
     })
   );
-  const mappedRequirementCount = confirmedRequirements.filter((requirement) =>
+  const mappedRequirementCount = eligibleRequirements.filter((requirement) =>
     mappedRequirementIds.has(requirement.id)
   ).length;
-  const requirementsComplete =
-    input.requirements.length > 0 && pendingRequirementCount === 0;
   const productsComplete =
-    confirmedRequirements.length > 0 &&
-    mappedRequirementCount === confirmedRequirements.length;
+    eligibleRequirements.length > 0 &&
+    mappedRequirementCount === eligibleRequirements.length;
 
-  const completedStepIds: GuidedProjectStepId[] = ["project"];
+  const completedStepIds: GuidedProjectStepId[] = [];
   if (input.documentCount > 0) completedStepIds.push("documents");
-  if (requirementsComplete) completedStepIds.push("requirements");
-  if (productsComplete) completedStepIds.push("products");
+  if (productsComplete) completedStepIds.push("products", "result");
 
   if (input.documentCount === 0 && input.requirements.length === 0) {
     return result("documents", "Ladda upp teknisk beskrivning", false);
-  }
-  if (input.requirements.length === 0 || pendingRequirementCount > 0) {
-    return result("requirements", "Granska och godkänn kraven", false);
   }
   if (!productsComplete) {
     return result("products", "Registrera Ahlsells produktval", false);
@@ -107,12 +90,12 @@ export function guidedProjectWorkflow(input: {
       nextTab,
       nextLabel,
       isComplete,
-      pendingRequirementCount,
-      confirmedRequirementCount: confirmedRequirements.length,
-      eligibleRequirementCount: confirmedRequirements.length,
+      pendingRequirementCount: 0,
+      confirmedRequirementCount: eligibleRequirements.length,
+      eligibleRequirementCount: eligibleRequirements.length,
       mappedRequirementCount,
       remainingProductCount: Math.max(
-        confirmedRequirements.length - mappedRequirementCount,
+        eligibleRequirements.length - mappedRequirementCount,
         0
       ),
       completedStepIds

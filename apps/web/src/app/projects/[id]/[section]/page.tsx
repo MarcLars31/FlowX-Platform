@@ -9,10 +9,9 @@ const sections: Record<string, { title: string; description: string }> = {
   settings: { title: "Projektinställningar", description: "Tekniska standarder och projektspecifika analysinställningar." },
   team: { title: "Projektteam", description: "Medlemmar och roller för projektet." },
   documents: { title: "Dokument", description: "Uppladdade projektunderlag och extraktionsstatus." },
-  "technical-description": { title: "Teknisk beskrivning", description: "Versionerade tekniska beskrivningar och granskning." },
-  requirements: { title: "Krav", description: "Extraherade och bekräftade krav." },
+  "technical-description": { title: "Teknisk beskrivning", description: "Versionerade tekniska beskrivningar och extraherade produktrader." },
   analysis: { title: "Analys", description: "Analyskörningar och eventuella inaktuella resultat." },
-  "product-matching": { title: "Ahlsells produktval", description: "Manuella produkt- och tillbehörsval efter bekräftade krav." },
+  "product-matching": { title: "Ahlsells produktval", description: "Manuella produkt- och tillbehörsval direkt från extraherade produktrader." },
   "material-list": { title: "Materiallista", description: "Materiallistor och godkända versioner." },
   exports: { title: "Export", description: "Exporter kan skapas efter godkänd materiallista." },
   activity: { title: "Aktivitet", description: "Projektets audit-logg och historik." }

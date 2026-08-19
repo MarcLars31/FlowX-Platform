@@ -108,8 +108,8 @@ export default async function DashboardPage() {
         <FlowCard
           icon={<FileUp className="h-5 w-5" aria-hidden="true" />}
           number="01"
-          title="Extrahera krav"
-          description="PDF-underlaget omvandlas till spårbara tekniska krav med källa och säkerhetsnivå."
+          title="Extrahera produktrader"
+          description="PDF-underlaget omvandlas till produktrader med mängd, källa och tekniska värden."
         />
         <FlowCard
           icon={<ClipboardCheck className="h-5 w-5" aria-hidden="true" />}

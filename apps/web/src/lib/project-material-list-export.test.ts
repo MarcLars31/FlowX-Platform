@@ -11,7 +11,8 @@ const requirements = [
     id: "requirement-1",
     category: "Sprinklerhuvud",
     requirement_key: "k_factor",
-    value_text: "K80"
+    value_text: "K80",
+    value_json: { quantity: 12, unit: "st" }
   }
 ];
 
@@ -47,8 +48,10 @@ test("builds separate, traceable rows for products and accessories", () => {
   assert.deepEqual(rows.map((row) => row.type), ["Huvudprodukt", "Tillbehör"]);
   assert.equal(rows[0]?.requirementValue, "K80");
   assert.equal(rows[0]?.productNumber, "AHL-1001");
+  assert.equal(rows[0]?.quantity, 12);
+  assert.equal(rows[0]?.unit, "st");
   assert.equal(rows[1]?.productNumber, "AHL-2001");
-  assert.equal(rows[1]?.quantity, 2);
+  assert.equal(rows[1]?.quantity, 24);
 });
 
 test("creates a valid xlsx workbook with project and material sheets", async () => {
@@ -80,5 +83,6 @@ test("creates a valid xlsx workbook with project and material sheets", async () 
     "Materiallista"
   ]);
   assert.equal(workbook.getWorksheet("Materiallista")?.getCell("G6").value, "AHL-1001");
-  assert.equal(workbook.getWorksheet("Materiallista")?.getCell("I7").value, 2);
+  assert.equal(workbook.getWorksheet("Materiallista")?.getCell("I6").value, 12);
+  assert.equal(workbook.getWorksheet("Materiallista")?.getCell("I7").value, 24);
 });

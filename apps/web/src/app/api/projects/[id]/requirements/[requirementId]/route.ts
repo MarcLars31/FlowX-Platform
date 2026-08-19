@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (error) {
     if (error instanceof UserSupabaseError) {
       const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
-      return NextResponse.json({ error: forbidden ? "Kravgranskningen nekades." : "Kravet kunde inte uppdateras." }, { status: forbidden ? 403 : 500 });
+      return NextResponse.json({ error: forbidden ? "Ändringen nekades." : "Produktraden kunde inte uppdateras." }, { status: forbidden ? 403 : 500 });
     }
     return NextResponse.json({ error: "Kravet kunde inte uppdateras." }, { status: 500 });
   }

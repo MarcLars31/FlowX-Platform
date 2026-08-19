@@ -42,7 +42,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const [requirements, assignments] = await Promise.all([
       selectUserRows<MaterialListRequirement>("project_requirements", {
-        select: "id,category,requirement_key,value_text",
+        select: "id,category,requirement_key,value_text,value_json",
         project_id: `eq.${id}`,
         organization_id: `eq.${organizationId}`,
         deleted_at: "is.null",

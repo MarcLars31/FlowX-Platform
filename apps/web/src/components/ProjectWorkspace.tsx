@@ -3,15 +3,14 @@
 import Link from "next/link";
 import { type FormEvent, useState } from "react";
 import {
-  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
+  FilePlus2,
   FileText,
   FolderKanban,
   LayoutDashboard,
-  ListChecks,
   PackageSearch,
   Save,
   Upload
@@ -23,6 +22,10 @@ import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
+import {
+  formatProjectQuantity,
+  projectRequirementQuantity
+} from "@/lib/project-requirement-quantity";
 import {
   GUIDED_PROJECT_STEPS,
   guidedProjectCompletionUpdate,
@@ -46,7 +49,7 @@ export type ProjectModuleData = {
 };
 
 type ProjectRow = Record<string, unknown> & { id: string };
-type Tab = "overview" | "documents" | "requirements" | "products" | "decisions";
+type Tab = "overview" | "documents" | "products" | "decisions";
 
 const statusLabels: Record<string, string> = {
   draft: "Utkast",
@@ -65,34 +68,28 @@ const statusLabels: Record<string, string> = {
 export function ProjectWorkspace({
   initialData,
   initialTab = "overview",
-  canExportMaterialList = false
+  canExportMaterialList = false,
+  canCreateProject = false
 }: {
   initialData: ProjectModuleData;
   initialTab?: GuidedProjectTab;
   canExportMaterialList?: boolean;
+  canCreateProject?: boolean;
 }) {
   const [data, setData] = useState(initialData);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [reviewingRequirementId, setReviewingRequirementId] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [requirementForm, setRequirementForm] = useState({ category: "Tekniskt krav", key: "", value: "" });
 
   function selectTab(nextTab: Tab) {
     setTab(nextTab);
     if (nextTab === "documents") {
       void advanceProjectStage("documents");
-    } else if (nextTab === "requirements") {
-      void advanceProjectStage("requirements_review");
-    } else if (
-      nextTab === "products" &&
-      data.requirements.length > 0 &&
-      workflow.pendingRequirementCount === 0
-    ) {
+    } else if (nextTab === "products" && data.requirements.length > 0) {
       void advanceProjectStage("product_matching");
     }
     if (typeof window !== "undefined") {
@@ -271,92 +268,20 @@ export function ProjectWorkspace({
       const payload = (await response.json().catch(() => null)) as { error?: string; persistedRequirementCount?: number } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Underlaget kunde inte extraheras.");
       await reload();
-      await advanceProjectStage("requirements_review");
+      await advanceProjectStage("product_matching");
       const requirementCount = payload?.persistedRequirementCount ?? 0;
       if (requirementCount > 0) {
-        setMessage(`Underlaget är sparat. ${requirementCount} krav väntar nu på granskning.`);
+        setMessage(`Underlaget är sparat. ${requirementCount} produktrader är klara för produktval.`);
       } else {
-        setMessage("Underlaget är sparat, men inga krav hittades automatiskt. Lägg till krav manuellt eller prova ett annat dokument.");
+        setMessage("Underlaget är sparat, men inga produktrader hittades automatiskt. Prova ett tydligare dokument.");
       }
       setSelectedFileName(null);
       formElement.reset();
-      selectTab("requirements");
+      selectTab("products");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Underlaget kunde inte extraheras.");
     } finally {
       setUploading(false);
-    }
-  }
-
-  async function addRequirement(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!requirementForm.key.trim() || !requirementForm.value.trim()) {
-      setError("Ange både kravnyckel och kravvärde.");
-      return;
-    }
-    setError(null);
-    try {
-      const response = await fetch(`/api/projects/${data.project.id}/requirements`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: requirementForm.category,
-          requirementKey: requirementForm.key,
-          valueText: requirementForm.value,
-          certainty: "explicit"
-        })
-      });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) throw new Error(payload?.error ?? "Kravet kunde inte läggas till.");
-      await reload();
-      await advanceProjectStage("requirements_review");
-      setRequirementForm({ category: "Tekniskt krav", key: "", value: "" });
-      setMessage("Kravet är tillagt och väntar på granskning.");
-    } catch (addError) {
-      setError(addError instanceof Error ? addError.message : "Kravet kunde inte läggas till.");
-    }
-  }
-
-  async function reviewRequirement(requirementId: string, status: string) {
-    setError(null);
-    setMessage(null);
-    setReviewingRequirementId(requirementId);
-    const normalizedStatus = status === "confirmed"
-      ? "user_confirmed"
-      : status === "unclear"
-        ? "inferred_unreviewed"
-        : status;
-    try {
-      const response = await fetch(`/api/projects/${data.project.id}/requirements/${requirementId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: normalizedStatus })
-      });
-      const payload = (await response.json().catch(() => null)) as { error?: string; requirement?: ProjectRow } | null;
-      if (!response.ok) throw new Error(payload?.error ?? "Kravet kunde inte uppdateras.");
-      await reload();
-      const remainingReviews = data.requirements.filter((item) => {
-        if (item.id === requirementId) {
-          return !["user_confirmed", "user_modified", "rejected", "superseded"].includes(normalizedStatus);
-        }
-        return !["user_confirmed", "user_modified", "rejected", "superseded"].includes(String(item.status));
-      }).length;
-      if (normalizedStatus === "user_confirmed") {
-        if (remainingReviews === 0) {
-          await advanceProjectStage("product_matching");
-          setMessage("Kravgranskningen är klar. Gå vidare till Ahlsells produktval.");
-        } else {
-          setMessage(`Kravet är godkänt. ${remainingReviews} krav återstår att granska.`);
-        }
-      } else if (normalizedStatus === "rejected") {
-        setMessage(remainingReviews === 0 ? "Kravgranskningen är klar." : "Kravet är avvisat.");
-      } else {
-        setMessage("Kravet är markerat som oklart och behöver granskas igen.");
-      }
-    } catch (reviewError) {
-      setError(reviewError instanceof Error ? reviewError.message : "Kravet kunde inte uppdateras.");
-    } finally {
-      setReviewingRequirementId(null);
     }
   }
 
@@ -373,24 +298,25 @@ export function ProjectWorkspace({
   const counts = {
     documents: distinctProjectDocuments.length + data.technicalDescriptions.length,
     requirements: data.requirements.length,
-    confirmed: data.requirements.filter((item) => ["user_confirmed", "user_modified"].includes(String(item.status))).length,
-    unclear: data.requirements.filter((item) => ["inferred_unreviewed", "conflicted"].includes(String(item.status))).length,
     suggestions: data.suggestions.filter(isManualAssignment).length,
     decisions: data.decisions.length
   };
-  const reviewCount = data.requirements.filter(
-    (item) =>
-      !["user_confirmed", "user_modified", "rejected", "superseded"].includes(
-        String(item.status)
-      )
-  ).length;
   const workflow = guidedProjectWorkflow({
     documentCount: counts.documents,
     requirements: data.requirements,
     assignments: data.suggestions
   });
+  const projectFinished =
+    workflow.isComplete && data.project.current_stage === "completed";
+  const completedVisualStepIds = workflow.completedStepIds.filter(
+    (stepId) => stepId !== "result" || projectFinished
+  );
   const stageProgress = Math.round(
-    (workflow.completedStepIds.length / GUIDED_PROJECT_STEPS.length) * 100
+    (completedVisualStepIds.length / GUIDED_PROJECT_STEPS.length) * 100
+  );
+  const selectedProductSummaries = summarizeSelectedProducts(
+    data.suggestions,
+    data.requirements
   );
 
   return (
@@ -447,8 +373,6 @@ export function ProjectWorkspace({
             >
               {workflow.isComplete ? (
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              ) : workflow.nextTab === "requirements" ? (
-                <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
               ) : (
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               )}
@@ -468,8 +392,10 @@ export function ProjectWorkspace({
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-500">Arbetsflöde</p>
               <p className="mt-1 text-sm font-semibold text-ink-900">
-                {workflow.isComplete
-                  ? "Alla fyra steg är klara"
+                {projectFinished
+                  ? "Alla tre steg är klara"
+                  : workflow.isComplete
+                    ? "Nästa: Markera projektet klart"
                   : `Nästa: ${workflow.nextLabel}`}
               </p>
             </div>
@@ -478,28 +404,62 @@ export function ProjectWorkspace({
           <div className="h-1.5 overflow-hidden rounded-full bg-ink-200" aria-hidden="true">
             <div className="h-full rounded-full bg-flow-600 transition-all" style={{ width: `${stageProgress}%` }} />
           </div>
-          <div className="mt-4 overflow-x-auto pb-1">
-            <ol className="flex min-w-max items-center gap-2">
+          <ol className="mt-4 grid gap-3 md:grid-cols-3">
               {GUIDED_PROJECT_STEPS.map((step, index) => {
-                const active = tab === step.tab ||
-                  (tab === "decisions" && step.id === "products");
-                const completed = workflow.completedStepIds.includes(step.id);
+                const completed = completedVisualStepIds.includes(step.id);
+                const next = step.id === "result"
+                  ? workflow.isComplete && !projectFinished
+                  : !workflow.isComplete && step.tab === workflow.nextTab;
+                const active = step.id === "result"
+                  ? projectFinished && tab === "overview"
+                  : tab === step.tab ||
+                    (tab === "decisions" && step.id === "products") ||
+                    (tab === "overview" && next);
+                const disabled = step.id === "result" && !workflow.isComplete;
                 return (
-                  <li key={step.id} className="flex items-center gap-2">
+                  <li key={step.id}>
                     <button
                       type="button"
+                      disabled={disabled}
                       onClick={() => selectTab(step.tab)}
                       aria-current={active ? "step" : undefined}
-                      className={active ? "rounded-full bg-flow-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm" : completed ? "rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-200" : "rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs text-ink-600 transition hover:border-flow-300 hover:text-flow-700"}
+                      className={active
+                        ? "flex w-full items-center gap-3 rounded-xl border-2 border-flow-500 bg-white p-4 text-left shadow-sm transition"
+                        : completed
+                          ? "flex w-full items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-left transition hover:border-emerald-300"
+                          : "flex w-full items-center gap-3 rounded-xl border border-ink-200 bg-white p-4 text-left text-ink-500 transition enabled:hover:border-flow-300 disabled:cursor-not-allowed disabled:opacity-60"}
                     >
-                      {completed && !active ? "✓ " : ""}{index + 1}. {step.label}
+                      <span className={active
+                        ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-flow-600 text-sm font-bold text-white"
+                        : completed
+                          ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
+                          : "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-100 text-sm font-bold text-ink-500"}
+                      >
+                        {completed && !active
+                          ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                          : index + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className={active ? "block font-semibold text-flow-950" : completed ? "block font-semibold text-emerald-950" : "block font-semibold text-ink-700"}>
+                          {step.label}
+                        </span>
+                        <span className={active ? "mt-0.5 block text-xs font-medium text-flow-700" : completed ? "mt-0.5 block text-xs font-medium text-emerald-700" : "mt-0.5 block text-xs text-ink-500"}>
+                          {active
+                            ? projectFinished && step.id === "result"
+                              ? "Projektet är färdigt"
+                              : "Du är här"
+                            : completed
+                              ? "Klar"
+                              : next
+                                ? "Nästa steg"
+                                : "Kommande"}
+                        </span>
+                      </span>
                     </button>
-                    {index < GUIDED_PROJECT_STEPS.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" />}
                   </li>
                 );
               })}
-            </ol>
-          </div>
+          </ol>
         </div>
       </header>
 
@@ -513,7 +473,6 @@ export function ProjectWorkspace({
         {([
           ["overview", "Översikt", LayoutDashboard, null],
           ["documents", "Underlag", FileText, counts.documents],
-          ["requirements", "Kravgranskning", ListChecks, reviewCount],
           ["products", "Ahlsells produktval", PackageSearch, counts.suggestions],
           ["decisions", "Beslutslogg", ClipboardCheck, counts.decisions]
         ] as const).map(([key, label, Icon, count]) => (
@@ -527,35 +486,69 @@ export function ProjectWorkspace({
 
       {tab === "overview" && (
         <div className="space-y-5">
-          <section className="flex flex-col gap-3 rounded-xl border border-flow-200 bg-flow-50 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-flow-800">Rekommenderat nästa steg</p>
-              <p className="mt-1 text-sm font-medium text-flow-950">
-                {workflow.isComplete
-                  ? "Underlag, kravgranskning och produktval är klara."
-                  : workflow.nextLabel}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {workflow.isComplete && canExportMaterialList && (
-                <ProjectMaterialListExportButton projectId={data.project.id} />
-              )}
-              <Button variant="secondary" onClick={() => selectTab(workflow.nextTab)}>
-                {workflow.isComplete ? "Visa produktval" : "Fortsätt till nästa steg"}
+          {projectFinished ? (
+            <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50 shadow-sm">
+              <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-start gap-4">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+                    <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700">Projektet är färdigt</p>
+                    <h2 className="mt-1 text-xl font-semibold text-emerald-950">Produktval och mängder är klara</h2>
+                    <p className="mt-1 text-sm leading-6 text-emerald-800">Ladda ner materiallistan eller starta nästa tekniska analys.</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {canExportMaterialList && (
+                    <ProjectMaterialListExportButton projectId={data.project.id} />
+                  )}
+                  {canCreateProject && (
+                    <Link
+                      href="/projects/new"
+                      className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-flow-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-flow-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
+                    >
+                      <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+                      Starta en ny analys
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </section>
+          ) : workflow.isComplete ? (
+            <section className="flex flex-col gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">En sista åtgärd</p>
+                <p className="mt-1 text-base font-semibold text-emerald-950">Alla produkter är valda</p>
+                <p className="mt-1 text-sm text-emerald-800">Markera projektet klart för att visa resultat och kunna starta nästa analys.</p>
+              </div>
+              <Button disabled={finishing} onClick={() => void finishProject()}>
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                {finishing ? "Slutför…" : "Markera projektet klart"}
+              </Button>
+            </section>
+          ) : (
+            <section className="flex flex-col gap-4 rounded-xl border-2 border-flow-300 bg-flow-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-flow-800">Gör detta nu</p>
+                <p className="mt-1 text-base font-semibold text-flow-950">{workflow.nextLabel}</p>
+              </div>
+              <Button onClick={() => selectTab(workflow.nextTab)}>
+                Fortsätt
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>
-            </div>
-          </section>
+            </section>
+          )}
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Metric label="Dokument" value={counts.documents} detail="Projektunderlag och tekniska beskrivningar" />
-            <Metric label="Krav att granska" value={reviewCount} detail={`${counts.confirmed} bekräftade av ${counts.requirements}`} tone={reviewCount ? "warning" : "success"} />
+            <Metric label="Extraherade produktrader" value={counts.requirements} detail="Redo för Ahlsells produktval" tone={counts.requirements ? "success" : "warning"} />
             <Metric label="Registrerade produktval" value={counts.suggestions} detail="Produkter valda av Ahlsell" />
             <Metric label="Spårbara beslut" value={counts.decisions} detail="Godkännanden och avvikelser" />
           </section>
           <form onSubmit={saveProject} className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
             <div className="px-5 py-5 sm:px-6">
               <h2 className="font-semibold text-ink-950">Projektförutsättningar</h2>
-              <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys, kravgranskning och Ahlsells produktval.</p>
+              <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys och Ahlsells produktval.</p>
             </div>
 
             <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
@@ -578,7 +571,7 @@ export function ProjectWorkspace({
                 <div className="rounded-lg border border-[#0073b6]/20 bg-[#0073b6]/5 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#00649e]">Distributör</p>
                   <p className="mt-1 font-semibold text-ink-950">Ahlsell</p>
-                  <p className="mt-1 text-xs leading-5 text-ink-600">Produkt och tillbehör väljs efter att de tekniska kraven har godkänts.</p>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">Produkt och tillbehör väljs direkt från de extraherade produktraderna.</p>
                 </div>
                 <Input id="workspace-currency" name="currency" label="Valuta" defaultValue={data.project.currency ?? "NOK"} />
                 <Input id="workspace-delivery-country" name="deliveryCountry" label="Leveransland" defaultValue={data.project.delivery_country ?? ""} />
@@ -614,8 +607,27 @@ export function ProjectWorkspace({
               <p className="mt-2 text-sm text-ink-600">{data.standards.length ? data.standards.map((item) => `${String(item.standard_name)}${item.edition ? ` (${String(item.edition)})` : ""}`).join(", ") : data.project.standard ?? "Ingen standard bekräftad ännu."}</p>
             </InfoCard>
             <InfoCard title="Ahlsells produktval" icon={<PackageSearch className="h-5 w-5 text-[#0073b6]" />}>
-              <p className="text-sm leading-6 text-ink-600">Ingen extern produktdatabas krävs. Ahlsell registrerar artikelnummer och vanliga tillbehör direkt mot ett bekräftat tekniskt krav.</p>
-              <p className="mt-3 text-xs font-medium text-[#00649e]">Tidigare registrerade val föreslås automatiskt i nästa liknande projekt.</p>
+              {selectedProductSummaries.length === 0 ? (
+                <p className="text-sm leading-6 text-ink-600">Ingen produkt har registrerats ännu. Ahlsell registrerar artikelnummer och vanliga tillbehör direkt mot en extraherad produktrad.</p>
+              ) : (
+                <div className="divide-y divide-ink-100">
+                  {selectedProductSummaries.map((product) => (
+                    <div key={product.key} className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink-950">{product.name}</p>
+                        <p className="mt-0.5 text-xs text-ink-500">Art.nr {product.productNumber}</p>
+                      </div>
+                      <span className={product.quantityMissing
+                        ? "shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800"
+                        : "shrink-0 rounded-full bg-[#0073b6]/10 px-2.5 py-1 text-xs font-semibold text-[#00649e]"}
+                      >
+                        {product.quantityLabel}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-3 text-xs font-medium text-[#00649e]">Antalen hämtas direkt från den tekniska beskrivningen.</p>
             </InfoCard>
           </div>
         </div>
@@ -624,7 +636,7 @@ export function ProjectWorkspace({
       {tab === "documents" && (
         <div className="space-y-5">
           <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex items-start gap-3"><FileText className="mt-0.5 h-5 w-5 text-flow-700" aria-hidden="true" /><div><h2 className="font-semibold text-ink-950">Teknisk beskrivning</h2><p className="mt-1 text-sm text-ink-600">Ladda upp underlag direkt till projektet. Extraherade rader blir krav som väntar på granskning.</p></div></div>
+            <div className="flex items-start gap-3"><FileText className="mt-0.5 h-5 w-5 text-flow-700" aria-hidden="true" /><div><h2 className="font-semibold text-ink-950">Teknisk beskrivning</h2><p className="mt-1 text-sm text-ink-600">Ladda upp underlag direkt till projektet. Extraherade produktrader går direkt vidare till produktvalet.</p></div></div>
             <form className="mt-5" onSubmit={uploadTechnicalDescription}>
               <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink-200 bg-ink-50 px-5 py-8 text-center transition hover:border-flow-400 hover:bg-flow-50">
                 <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-flow-700 shadow-sm"><Upload className="h-5 w-5" aria-hidden="true" /></span>
@@ -633,7 +645,7 @@ export function ProjectWorkspace({
                 <input name="file" type="file" accept=".pdf,application/pdf" className="sr-only" onChange={(event) => setSelectedFileName(event.target.files?.[0]?.name ?? null)} />
               </label>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-ink-500">Efter uppladdningen granskar du alla extraherade krav innan de används.</p>
+                <p className="text-xs text-ink-500">Efter uppladdningen går du direkt vidare till Ahlsells produktval.</p>
                 <Button type="submit" disabled={uploading || !selectedFileName}><Upload className="h-4 w-4" aria-hidden="true" />{uploading ? "Extraherar och sparar..." : "Extrahera och spara"}</Button>
               </div>
             </form>
@@ -643,50 +655,14 @@ export function ProjectWorkspace({
             <section className="flex flex-col gap-3 rounded-xl border border-flow-200 bg-flow-50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="font-semibold text-flow-950">Underlaget är sparat</p>
-                <p className="mt-1 text-sm text-flow-800">Nästa steg är att kontrollera varje extraherat krav.</p>
-              </div>
-              <Button onClick={() => selectTab("requirements")}>
-                Gå till kravgranskning
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </section>
-          )}
-        </div>
-      )}
-
-      {tab === "requirements" && (
-        <div className="space-y-5">
-          {data.requirements.length === 0 ? (
-            <section className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-semibold text-amber-950">Inga krav finns att granska ännu</p>
-                <p className="mt-1 text-sm text-amber-800">Ladda upp en teknisk beskrivning eller lägg till ett krav manuellt nedan.</p>
-              </div>
-              <Button variant="secondary" onClick={() => selectTab("documents")}>Till underlaget</Button>
-            </section>
-          ) : reviewCount === 0 ? (
-            <section className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
-                <div>
-                  <p className="font-semibold text-emerald-950">Kravgranskningen är godkänd</p>
-                  <p className="mt-1 text-sm text-emerald-800">Alla {data.requirements.length} krav är granskade. Du kan nu registrera Ahlsells produkter och tillbehör.</p>
-                </div>
+                <p className="mt-1 text-sm text-flow-800">Nästa steg är att registrera Ahlsells produkt och tillbehör för varje extraherad rad.</p>
               </div>
               <Button onClick={() => selectTab("products")}>
-                Fortsätt till produktval
+                Gå till produktval
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             </section>
-          ) : (
-            <section className="rounded-xl border border-flow-200 bg-flow-50 p-5">
-              <p className="font-semibold text-flow-950">{reviewCount} krav återstår att granska</p>
-              <p className="mt-1 text-sm text-flow-800">Godkänn, markera som oklart eller avvisa varje rad. När alla rader är hanterade öppnas nästa steg.</p>
-            </section>
           )}
-          <section className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-ink-950">Lägg till krav manuellt</h2><form className="mt-4 grid gap-4 md:grid-cols-3" onSubmit={addRequirement}><Input id="requirement-category" label="Kategori" value={requirementForm.category} onChange={(event) => setRequirementForm((current) => ({ ...current, category: event.target.value }))} /><Input id="requirement-key" label="Kravnyckel" value={requirementForm.key} onChange={(event) => setRequirementForm((current) => ({ ...current, key: event.target.value }))} /><Input id="requirement-value" label="Värde" value={requirementForm.value} onChange={(event) => setRequirementForm((current) => ({ ...current, value: event.target.value }))} /><div className="md:col-span-3"><Button type="submit">Lägg till krav</Button></div></form></section>
-          <section className="rounded-lg border border-ink-200 bg-white shadow-sm"><div className="border-b border-ink-100 px-5 py-4"><h2 className="font-semibold text-ink-950">Kravgranskning</h2><p className="mt-1 text-sm text-ink-600">Osäkra eller tolkade värden visas aldrig som slutligt bekräftade.</p></div>{data.requirements.length === 0 ? <p className="px-5 py-8 text-sm text-ink-600">Inga krav har extraherats ännu.</p> : <div className="divide-y divide-ink-100">{data.requirements.map((item) => <RequirementRow key={item.id} item={item} reviewing={reviewingRequirementId === item.id} onReview={reviewRequirement} />)}</div>}</section>
-          {data.conflicts.length > 0 && <section className="rounded-lg border border-amber-200 bg-amber-50 p-5"><div className="flex items-center gap-2 font-semibold text-amber-900"><AlertTriangle className="h-5 w-5" aria-hidden="true" />Konflikter kräver tekniskt beslut</div><div className="mt-3 space-y-2">{data.conflicts.map((item) => <div key={item.id} className="rounded-md border border-amber-200 bg-white p-3 text-sm"><p className="font-medium text-ink-950">{String(item.title)}</p><p className="mt-1 text-ink-700">{String(item.description)}</p></div>)}</div></section>}
         </div>
       )}
 
@@ -698,7 +674,7 @@ export function ProjectWorkspace({
           memories={data.mappingMemories}
           memoryAccessories={data.mappingAccessories}
           onReload={reload}
-          onGoToRequirements={() => selectTab("requirements")}
+          onGoToDocuments={() => selectTab("documents")}
           onFinish={() => void finishProject()}
           finishing={finishing}
           canExport={canExportMaterialList}
@@ -708,86 +684,6 @@ export function ProjectWorkspace({
       {tab === "decisions" && <section className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-ink-950">Beslutslogg</h2>{data.decisions.length === 0 ? <p className="mt-4 text-sm text-ink-600">Inga beslut är registrerade ännu.</p> : <div className="mt-4 divide-y divide-ink-100">{data.decisions.map((item) => <div key={item.id} className="py-4"><div className="flex justify-between gap-3"><p className="font-medium text-ink-950">{String(item.decision)}</p><span className="text-xs text-ink-500">{String(item.status)}</span></div><p className="mt-1 text-sm text-ink-600">{String(item.rationale)}</p></div>)}</div>}</section>}
     </div>
   );
-}
-
-function RequirementRow({
-  item,
-  reviewing,
-  onReview
-}: {
-  item: ProjectRow;
-  reviewing: boolean;
-  onReview: (id: string, status: string) => Promise<void>;
-}) {
-  const status = String(item.status ?? "extracted_unreviewed");
-  const confidence = typeof item.confidence === "number" ? Math.round(item.confidence * 100) : null;
-  const confirmed = ["user_confirmed", "user_modified"].includes(status);
-  const rejected = ["rejected", "superseded"].includes(status);
-  return (
-    <div className="px-5 py-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">{String(item.category)}</span>
-            <span className="font-semibold text-ink-950">{String(item.requirement_key)}</span>
-            <span className={requirementStatusClass(status)}>{requirementStatusLabel(status)}</span>
-          </div>
-          <p className="mt-2 text-sm text-ink-800">{String(item.value_text ?? "Inget värde")}</p>
-          <p className="mt-2 text-xs text-ink-500">{item.certainty === "explicit" ? "Explicit uppgift" : "Tolkad uppgift"}{confidence !== null ? ` · ${confidence}% säkerhet` : ""}{item.source_page ? ` · sida ${String(item.source_page)}` : ""}</p>
-          {typeof item.source_excerpt === "string" && item.source_excerpt && <p className="mt-2 max-w-3xl border-l-2 border-ink-200 pl-3 text-xs italic text-ink-500">{item.source_excerpt}</p>}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {confirmed ? (
-            <span className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-100 px-3.5 py-2 text-sm font-semibold text-emerald-800">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              Godkänt och sparat
-            </span>
-          ) : rejected ? (
-            <span className="inline-flex min-h-10 items-center rounded-lg bg-rose-50 px-3.5 py-2 text-sm font-semibold text-rose-700">
-              {status === "superseded" ? "Ersatt" : "Avvisat"}
-            </span>
-          ) : (
-            <Button variant="secondary" disabled={reviewing} onClick={() => void onReview(item.id, "user_confirmed")}>
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              {reviewing ? "Sparar…" : "Godkänn krav"}
-            </Button>
-          )}
-          {status !== "superseded" && (
-            <>
-              <Button variant="secondary" disabled={reviewing} onClick={() => void onReview(item.id, "inferred_unreviewed")}>
-                {rejected ? "Öppna igen" : "Markera oklart"}
-              </Button>
-              {!rejected && <Button variant="ghost" disabled={reviewing} onClick={() => void onReview(item.id, "rejected")}>Avvisa</Button>}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function requirementStatusClass(status: string) {
-  if (["user_confirmed", "user_modified"].includes(status)) {
-    return "text-xs font-semibold text-emerald-700";
-  }
-  if (["inferred_unreviewed", "conflicted"].includes(status)) {
-    return "text-xs font-semibold text-amber-700";
-  }
-  if (status === "rejected") return "text-xs font-semibold text-rose-700";
-  return "text-xs text-ink-500";
-}
-
-function requirementStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    user_confirmed: "Bekräftat",
-    user_modified: "Ändrat och bekräftat",
-    extracted_unreviewed: "Väntar på granskning",
-    inferred_unreviewed: "Tolkning att granska",
-    conflicted: "Konflikt",
-    rejected: "Avvisat",
-    superseded: "Ersatt"
-  };
-  return labels[status] ?? status;
 }
 
 function DocumentRow({ item, source }: { item: ProjectRow; source: string }) {
@@ -805,4 +701,55 @@ function isRecord(value: unknown): value is Record<string, unknown> { return Boo
 function isManualAssignment(item: ProjectRow) {
   const snapshot = isRecord(item.product_snapshot) ? item.product_snapshot : {};
   return snapshot.source === "distributor_manual" && item.status === "selected";
+}
+
+function summarizeSelectedProducts(
+  assignments: ProjectRow[],
+  requirements: ProjectRow[]
+) {
+  const requirementsById = new Map(
+    requirements.map((requirement) => [requirement.id, requirement])
+  );
+  const summaries = new Map<string, {
+    key: string;
+    name: string;
+    productNumber: string;
+    quantity: number;
+    unit: string;
+    quantityMissing: boolean;
+  }>();
+
+  for (const assignment of assignments.filter(isManualAssignment)) {
+    const snapshot = isRecord(assignment.product_snapshot)
+      ? assignment.product_snapshot
+      : {};
+    const productNumber = String(snapshot.productNumber ?? "").trim();
+    const name = String(snapshot.name ?? "Produkt").trim() || "Produkt";
+    const requirement = typeof assignment.requirement_id === "string"
+      ? requirementsById.get(assignment.requirement_id)
+      : undefined;
+    const required = projectRequirementQuantity(requirement?.value_json);
+    const key = `${productNumber || assignment.id}:${required.unit}`;
+    const current = summaries.get(key);
+    summaries.set(key, {
+      key,
+      name,
+      productNumber: productNumber || "Saknas",
+      quantity: (current?.quantity ?? 0) + (required.quantity ?? 0),
+      unit: required.unit,
+      quantityMissing: Boolean(current?.quantityMissing) || required.quantity === null
+    });
+  }
+
+  return [...summaries.values()].map((summary) => ({
+    ...summary,
+    quantityLabel: summary.quantityMissing
+      ? summary.quantity > 0
+        ? `${formatProjectQuantity({ quantity: summary.quantity, unit: summary.unit })} + antal saknas`
+        : "Antal saknas"
+      : formatProjectQuantity({
+          quantity: summary.quantity,
+          unit: summary.unit
+        })
+  }));
 }
