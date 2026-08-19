@@ -85,6 +85,7 @@ export default function TechnicalDescriptionsPage() {
     try {
       const formData = new FormData();
       formData.set("file", file);
+      formData.set("createProject", "true");
       const response = await fetch("/api/technical-descriptions", {
         method: "POST",
         body: formData

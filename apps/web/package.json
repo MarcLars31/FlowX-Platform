@@ -12,7 +12,7 @@
     "test:authz": "node --import tsx --test src/lib/platform-role.test.ts src/lib/administration-access.test.ts src/lib/backend-route-guards.test.ts src/lib/supabase-auth-config.test.ts src/lib/supabase-headers.test.ts",
     "test:security": "node --import tsx --test src/lib/request-rate-limit.test.ts src/lib/pdf-security.test.ts src/lib/request-body.test.ts src/lib/demo-data.test.ts",
     "test:rbac": "node --import tsx --test src/lib/organization-rbac.test.ts",
-    "test:technical-description": "node --import tsx --test src/modules/technical-description-extractor/extractor.test.ts src/lib/technical-description-project.test.ts src/lib/project-requirement-details.test.ts src/lib/pdf-dropzone.test.ts",
+    "test:technical-description": "node --import tsx --test src/modules/technical-description-extractor/extractor.test.ts src/lib/technical-description-project.test.ts src/lib/project-requirement-details.test.ts src/lib/pdf-dropzone.test.ts src/lib/technical-description-client-result.test.ts",
     "test:distributor-mapping": "node --import tsx --test src/lib/distributor-product-mapping.test.ts",
     "test:extractor": "node --import tsx --test src/modules/pdf-extractor/extractor.test.ts",
     "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts",

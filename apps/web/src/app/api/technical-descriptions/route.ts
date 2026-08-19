@@ -10,7 +10,10 @@ import {
   uploadUserStorageObject,
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
-import type { TechnicalDescriptionMaterialLine } from "@/modules/technical-description-extractor";
+import type {
+  TechnicalDescriptionMaterialLine
+} from "@/modules/technical-description-extractor";
+import { clientTechnicalDescriptionResult } from "@/lib/technical-description-client-result";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
 import { hasPdfSignature } from "@/lib/pdf-security";
 import { automaticProjectDetails } from "@/lib/technical-description-project";
@@ -301,7 +304,7 @@ export async function POST(request: Request) {
           persistedLineCount: persistedLines.length,
           persistedRequirementCount: persistedRequirements.length,
           duplicate: true,
-          ...result
+          ...clientTechnicalDescriptionResult(result)
         });
       }
 
@@ -594,7 +597,7 @@ export async function POST(request: Request) {
         documentId: document.id,
         persistedLineCount: result.materialLines.length,
         persistedRequirementCount,
-        ...result
+        ...clientTechnicalDescriptionResult(result)
       },
       { status: 201 }
     );
@@ -655,7 +658,8 @@ function technicalDescriptionErrorResponse(error: unknown) {
   console.error("Technical description extraction failed", {
     name: error instanceof Error ? error.name : "UnknownError",
     status: error instanceof UserSupabaseError ? error.status : undefined,
-    code: error instanceof UserSupabaseError ? error.code : undefined
+    code: error instanceof UserSupabaseError ? error.code : undefined,
+    message: error instanceof Error ? error.message.slice(0, 500) : undefined
   });
 
   if (error instanceof UserSupabaseError) {
