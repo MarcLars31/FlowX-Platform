@@ -73,3 +73,86 @@ test("extracts technical-description material lines and rule hints", () => {
     true
   );
 });
+
+test("extracts NS 3420 table quantities and pipe lengths", () => {
+  const pages: TechnicalDescriptionPage[] = [
+    {
+      pageNumber: 10,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Prosjekt: 100870, entreprise E04 Vedlikeholdsbygg Side 1403-10",
+        "1403.33.332.",
+        "1.1",
+        "Rillede rør for sprinkleranl. Pulverlakkert DN100",
+        "m 29,16 0,00 0,00",
+        "1403.33.332.",
+        "1.2",
+        "Rillerør Bend DN100",
+        "stk 10 0,00 0,00",
+        "1403.33.332.",
+        "7.1",
+        "%SMA.067 - Stengeventil med gir, overvåket DN65 - Stengeventil A10 stk 1 0,00 0,00",
+        "1403.33.332.",
+        "9.1",
+        "%XHZ.006 - Påveggs roterende akustisk/ optisk",
+        "alarmapparat stk 2 0,00 0,00"
+      ].join("\n")
+    },
+    {
+      pageNumber: 13,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "1403.33.332.",
+        "2.1",
+        "Red pipe sprinkler(Gjennomføring) DN40",
+        "Antall m 0,81 0,00 0,00",
+        "1403.33.332.",
+        "23.1",
+        "%UZA.403 - Tørr Sprinkler nedadrettet, QR, K=80, 68°C",
+        "(Våtanlegg) stk 3 0,00 0,00",
+        "1403.33.332.",
+        "24",
+        "UL2.1999A",
+        "MERKING AV INNENDØRS RØRLEDNING",
+        "Antall stk 10 0,00 0,00",
+        "Lokalisering: Rørnett"
+      ].join("\n")
+    }
+  ];
+
+  const result = extractTechnicalDescriptionFromPages(pages, {
+    fileName: "1403 AB - 33 Rev03.pdf"
+  });
+
+  assert.equal(result.project.projectNumber, "100870");
+  assert.equal(result.materialLines.length, 7);
+  assert.deepEqual(
+    result.materialLines.map((line) => ({
+      postNumber: line.postNumber,
+      quantity: line.quantity,
+      unit: line.unit,
+      category: line.category
+    })),
+    [
+      { postNumber: "1403.33.332.1.1", quantity: 29.16, unit: "m", category: "pipe" },
+      { postNumber: "1403.33.332.1.2", quantity: 10, unit: "st", category: "fitting" },
+      { postNumber: "1403.33.332.7.1", quantity: 1, unit: "st", category: "valve" },
+      { postNumber: "1403.33.332.9.1", quantity: 2, unit: "st", category: "control" },
+      { postNumber: "1403.33.332.2.1", quantity: 0.81, unit: "m", category: "pipe" },
+      { postNumber: "1403.33.332.23.1", quantity: 3, unit: "st", category: "sprinkler_head" },
+      { postNumber: "1403.33.332.24", quantity: 10, unit: "st", category: "pipe" }
+    ]
+  );
+  assert.equal(result.materialLines[0].attributes.dimension, "DN100");
+  assert.equal(result.materialLines[5].attributes["k-faktor"], "80");
+  assert.equal(
+    result.materialLines[5].attributes["utløsningstemperatur"],
+    "68 °C"
+  );
+  assert.equal(
+    result.warnings.some((warning) => warning.code === "MISSING_QUANTITY"),
+    false
+  );
+});

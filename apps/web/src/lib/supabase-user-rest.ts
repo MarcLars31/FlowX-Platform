@@ -60,6 +60,23 @@ export async function insertUserRowReturning<T>(
   return row;
 }
 
+export async function insertUserRows(
+  table: string,
+  payloads: Record<string, unknown>[]
+) {
+  if (payloads.length === 0) return;
+
+  const config = await getUserSupabaseConfig();
+  const response = await fetch(restUrl(config.url, table), {
+    method: "POST",
+    headers: userHeaders(config),
+    body: JSON.stringify(payloads),
+    cache: "no-store"
+  });
+
+  if (!response.ok) throw await readUserSupabaseError(response);
+}
+
 export async function updateUserRowsReturning<T>(
   table: string,
   filters: Record<string, string>,

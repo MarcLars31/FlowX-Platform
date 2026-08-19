@@ -1,9 +1,10 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
   callUserRpc,
   insertUserRowReturning,
+  insertUserRows,
   selectUserRows,
   updateUserRowsReturning,
   uploadUserStorageObject,
@@ -403,34 +404,38 @@ export async function POST(request: Request) {
       const existingPageNumbers = new Set(
         existingPages.map((page) => page.page_number)
       );
-      for (const page of result.pages) {
-        if (existingPageNumbers.has(page.pageNumber)) continue;
-        await insertUserRowReturning("document_pages", {
-          organization_id: authorization.context.organization.id,
-          project_id: projectId,
-          document_id: projectDocument.id,
-          page_number: page.pageNumber,
-          extracted_text: page.text,
-          extraction_method: page.method,
-          metadata: { confidence: page.confidence }
-        });
-      }
+      const projectDocumentId = projectDocument.id;
+      await insertUserRows(
+        "document_pages",
+        result.pages
+          .filter((page) => !existingPageNumbers.has(page.pageNumber))
+          .map((page) => ({
+            organization_id: authorization.context.organization.id,
+            project_id: projectId,
+            document_id: projectDocumentId,
+            page_number: page.pageNumber,
+            extracted_text: page.text,
+            extraction_method: page.method,
+            metadata: { confidence: page.confidence }
+          }))
+      );
     }
 
-    for (const line of result.materialLines) {
-      await insertUserRowReturning(
-        "technical_description_material_lines",
+    await insertUserRows(
+      "technical_description_material_lines",
+      result.materialLines.map((line) =>
         materialLinePayload(
           line,
           authorization.context.organization.id,
           document.id,
           authorization.user.id
         )
-      );
-    }
+      )
+    );
 
-    for (const hint of result.ruleHints) {
-      await insertUserRowReturning("technical_description_rule_hints", {
+    await insertUserRows(
+      "technical_description_rule_hints",
+      result.ruleHints.map((hint) => ({
         organization_id: authorization.context.organization.id,
         document_id: document.id,
         rule_key: hint.key,
@@ -438,8 +443,8 @@ export async function POST(request: Request) {
         source_page: hint.sourcePage,
         source_text: hint.sourceText,
         confidence: hint.confidence
-      });
-    }
+      }))
+    );
 
     let persistedRequirementCount = 0;
     if (
@@ -471,41 +476,42 @@ export async function POST(request: Request) {
         );
       }
 
-      for (const line of result.materialLines) {
-        const candidate = await insertUserRowReturning<{ id: string }>(
-          "requirement_candidates",
-          {
-            organization_id: authorization.context.organization.id,
-            project_id: projectId,
-            extraction_run_id: extractionRun?.id ?? null,
-            document_id: projectDocument?.id ?? null,
-            technical_description_document_id: document.id,
-            page_number: line.sourcePage,
-            raw_text: line.sourceText || line.description,
-            requirement_category: line.category,
-            attribute_key: line.nsCode ?? line.category,
-            raw_value: line.description,
-            normalized_value: {
-              operation: line.operation,
-              quantity: line.quantity ?? null,
-              unit: line.unit ?? null,
-              attributes: line.attributes,
-              system: line.system ?? null,
-              standardRefs: line.standardRefs
-            },
-            unit: line.unit ?? null,
-            confidence: line.confidence,
-            source_coordinates: [],
-            status: line.reviewFlags.length ? "requires_review" : "extracted",
-            created_by: authorization.user.id
-          }
-        );
+      const requirementSetId = requirementSet.id;
+      const candidatePayloads = result.materialLines.map((line) => ({
+        id: randomUUID(),
+        organization_id: authorization.context.organization.id,
+        project_id: projectId,
+        extraction_run_id: extractionRun?.id ?? null,
+        document_id: projectDocument?.id ?? null,
+        technical_description_document_id: document.id,
+        page_number: line.sourcePage,
+        raw_text: line.sourceText || line.description,
+        requirement_category: line.category,
+        attribute_key: line.nsCode ?? line.category,
+        raw_value: line.description,
+        normalized_value: {
+          operation: line.operation,
+          quantity: line.quantity ?? null,
+          unit: line.unit ?? null,
+          attributes: line.attributes,
+          system: line.system ?? null,
+          standardRefs: line.standardRefs
+        },
+        unit: line.unit ?? null,
+        confidence: line.confidence,
+        source_coordinates: [],
+        status: line.reviewFlags.length ? "requires_review" : "extracted",
+        created_by: authorization.user.id
+      }));
+      await insertUserRows("requirement_candidates", candidatePayloads);
 
-        await insertUserRowReturning("project_requirements", {
+      await insertUserRows(
+        "project_requirements",
+        result.materialLines.map((line, index) => ({
           organization_id: authorization.context.organization.id,
           project_id: projectId,
-          requirement_set_id: requirementSet.id,
-          source_candidate_id: candidate.id,
+          requirement_set_id: requirementSetId,
+          source_candidate_id: candidatePayloads[index].id,
           category: line.category,
           requirement_key: line.nsCode ?? line.category,
           attribute_key: line.nsCode ?? line.category,
@@ -533,9 +539,9 @@ export async function POST(request: Request) {
           source_page: line.sourcePage,
           source_excerpt: line.sourceText,
           created_by: authorization.user.id
-        });
-        persistedRequirementCount += 1;
-      }
+        }))
+      );
+      persistedRequirementCount = result.materialLines.length;
     }
 
     if (projectDocument) {
