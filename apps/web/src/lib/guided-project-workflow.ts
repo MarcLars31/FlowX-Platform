@@ -33,6 +33,14 @@ export type GuidedProjectWorkflow = {
   completedStepIds: GuidedProjectStepId[];
 };
 
+export function guidedProjectCompletionUpdate(
+  workflow: Pick<GuidedProjectWorkflow, "isComplete">
+) {
+  return workflow.isComplete
+    ? ({ currentStage: "completed", status: "proposal_ready" } as const)
+    : null;
+}
+
 const reviewedStatuses = new Set([
   "user_confirmed",
   "user_modified",

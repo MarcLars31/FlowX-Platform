@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { guidedProjectWorkflow, isGuidedProjectTab } from "./guided-project-workflow";
+import {
+  guidedProjectCompletionUpdate,
+  guidedProjectWorkflow,
+  isGuidedProjectTab
+} from "./guided-project-workflow";
 
 test("guides a new project from upload through review and product selection", () => {
   const empty = guidedProjectWorkflow({
@@ -78,4 +82,12 @@ test("rejected and removal rows do not block the product step", () => {
 test("recognizes only supported workspace tabs", () => {
   assert.equal(isGuidedProjectTab("requirements"), true);
   assert.equal(isGuidedProjectTab("decisions"), false);
+});
+
+test("only completes a project after every guided step is finished", () => {
+  assert.equal(guidedProjectCompletionUpdate({ isComplete: false }), null);
+  assert.deepEqual(guidedProjectCompletionUpdate({ isComplete: true }), {
+    currentStage: "completed",
+    status: "proposal_ready"
+  });
 });

@@ -29,7 +29,8 @@ export function DistributorMappingPanel({
   memoryAccessories,
   onReload,
   onGoToRequirements,
-  onFinish
+  onFinish,
+  finishing = false
 }: {
   projectId: string;
   requirements: Row[];
@@ -39,6 +40,7 @@ export function DistributorMappingPanel({
   onReload: () => Promise<void>;
   onGoToRequirements: () => void;
   onFinish: () => void;
+  finishing?: boolean;
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +153,9 @@ export function DistributorMappingPanel({
                   <p className="mt-1 text-sm text-emerald-800">Alla {confirmedRequirements.length} godkända installationskrav har en registrerad Ahlsell-artikel.</p>
                 </div>
               </div>
-              <Button onClick={onFinish}>Till projektöversikten</Button>
+              <Button disabled={finishing} onClick={onFinish}>
+                {finishing ? "Slutför projektet..." : "Slutför och visa översikten"}
+              </Button>
             </div>
           ) : (
             <div className="rounded-xl border border-flow-200 bg-flow-50 p-5">

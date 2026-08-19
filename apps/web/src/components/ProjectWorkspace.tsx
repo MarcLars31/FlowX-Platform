@@ -24,6 +24,7 @@ import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
 import {
   GUIDED_PROJECT_STEPS,
+  guidedProjectCompletionUpdate,
   guidedProjectWorkflow,
   type GuidedProjectTab
 } from "@/lib/guided-project-workflow";
@@ -70,6 +71,7 @@ export function ProjectWorkspace({
   const [data, setData] = useState(initialData);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [saving, setSaving] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [reviewingRequirementId, setReviewingRequirementId] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
@@ -123,6 +125,55 @@ export function ProjectWorkspace({
       }
     } catch {
       // The guided UI still works for read-only users and during transient network errors.
+    }
+  }
+
+  async function finishProject() {
+    if (data.project.current_stage === "completed") {
+      setError(null);
+      setMessage("Produktvalet är klart. Projektsammanfattningen visas nedan.");
+      selectTab("overview");
+      return;
+    }
+
+    const completionUpdate = guidedProjectCompletionUpdate(workflow);
+    if (!completionUpdate) {
+      setMessage(null);
+      setError("Alla krav måste ha ett registrerat produktval innan projektet kan slutföras.");
+      return;
+    }
+
+    setFinishing(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/projects/${data.project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(completionUpdate)
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { project?: OrganizationProject; error?: string }
+        | null;
+      if (!response.ok || !payload?.project) {
+        throw new Error(payload?.error ?? "Projektet kunde inte slutföras.");
+      }
+      setData((current) => ({
+        ...current,
+        project: payload.project as OrganizationProject
+      }));
+      setMessage(
+        "Produktvalet är klart. Projektet är markerat som produktförslag klart och sammanfattningen visas nedan."
+      );
+      selectTab("overview");
+    } catch (finishError) {
+      setError(
+        finishError instanceof Error
+          ? finishError.message
+          : "Projektet kunde inte slutföras."
+      );
+    } finally {
+      setFinishing(false);
     }
   }
 
@@ -380,13 +431,28 @@ export function ProjectWorkspace({
               <Upload className="h-4 w-4" aria-hidden="true" />
               Underlag
             </Button>
-            <Button onClick={() => selectTab(workflow.nextTab)}>
-              {workflow.nextTab === "requirements" ? (
+            <Button
+              disabled={finishing}
+              onClick={() =>
+                workflow.isComplete
+                  ? void finishProject()
+                  : selectTab(workflow.nextTab)
+              }
+            >
+              {workflow.isComplete ? (
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              ) : workflow.nextTab === "requirements" ? (
                 <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
               ) : (
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               )}
-              {workflow.nextLabel}
+              {finishing
+                ? "Slutför projektet..."
+                : workflow.isComplete
+                  ? data.project.current_stage === "completed"
+                    ? "Visa projektsammanfattning"
+                    : "Slutför produktvalet"
+                  : workflow.nextLabel}
             </Button>
           </div>
         </div>
@@ -622,7 +688,8 @@ export function ProjectWorkspace({
           memoryAccessories={data.mappingAccessories}
           onReload={reload}
           onGoToRequirements={() => selectTab("requirements")}
-          onFinish={() => selectTab("overview")}
+          onFinish={() => void finishProject()}
+          finishing={finishing}
         />
       )}
 
