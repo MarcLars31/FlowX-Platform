@@ -20,6 +20,7 @@ import {
   projectRequirementDetails,
   specificationLabel
 } from "@/lib/project-requirement-details";
+import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = {
@@ -55,11 +56,8 @@ export function DistributorMappingPanel({
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const productRequirements = requirements.filter(
-    (requirement) =>
-      !["rejected", "superseded"].includes(String(requirement.status)) &&
-      requirementOperation(requirement) !== "remove"
-  );
+  const { productRequirements, removalRequirements } =
+    splitDistributorRequirementLines(requirements);
   const manualAssignments = assignments.filter((assignment) => {
     const snapshot = record(assignment.product_snapshot);
     return snapshot.source === "distributor_manual" && assignment.status === "selected";
@@ -85,6 +83,7 @@ export function DistributorMappingPanel({
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-600">
               Produkten registreras av en distributörsspecialist. Varje godkänt val blir
               organisationsägd historik som återanvänds när samma tekniska krav förekommer igen.
+              Demontering visas separat så att ingen post försvinner.
             </p>
           </div>
           <div className="rounded-xl border border-white bg-white px-4 py-3 shadow-sm">
@@ -96,7 +95,7 @@ export function DistributorMappingPanel({
           </div>
         </div>
         <div className="grid gap-px bg-ink-200 sm:grid-cols-3">
-          <WorkflowStep number="1" label="Extrahera produktrader och mängder" />
+          <WorkflowStep number="1" label="Extrahera alla poster och mängder" />
           <WorkflowStep number="2" label="Ahlsell väljer produkt och tillbehör" />
           <WorkflowStep number="3" label="Valet föreslås nästa gång" />
         </div>
@@ -115,7 +114,7 @@ export function DistributorMappingPanel({
         </div>
       )}
 
-      {productRequirements.length === 0 ? (
+      {productRequirements.length === 0 && removalRequirements.length === 0 ? (
         <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm leading-6 text-amber-900">
             Inga produktrader kunde läsas ur underlaget. Ladda upp en tydligare teknisk
@@ -155,13 +154,36 @@ export function DistributorMappingPanel({
               />
             );
           })}
+          {removalRequirements.length > 0 && (
+            <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4 sm:p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-amber-700">
+                  Demontering
+                </p>
+                <h3 className="mt-1 font-semibold text-amber-950">
+                  {removalRequirements.length} extraherad {removalRequirements.length === 1 ? "demonteringspost" : "demonteringsposter"}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-amber-900">
+                  Posterna visas med all information från underlaget men kräver ingen ny Ahlsell-artikel.
+                </p>
+              </div>
+              {removalRequirements.map((requirement) => (
+                <RemovalRequirementCard key={requirement.id} requirement={requirement} />
+              ))}
+            </section>
+          )}
           {remainingRequirementCount === 0 ? (
             <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
                 <div>
                   <p className="font-semibold text-emerald-950">Produktvalet är klart</p>
-                  <p className="mt-1 text-sm text-emerald-800">Alla {productRequirements.length} extraherade produktrader har en registrerad Ahlsell-artikel.</p>
+                  <p className="mt-1 text-sm text-emerald-800">
+                    Alla {productRequirements.length} inköpsposter har en registrerad Ahlsell-artikel.
+                    {removalRequirements.length > 0
+                      ? ` ${removalRequirements.length} demonteringspost visas separat.`
+                      : ""}
+                  </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -174,12 +196,76 @@ export function DistributorMappingPanel({
           ) : (
             <div className="rounded-xl border border-flow-200 bg-flow-50 p-5">
               <p className="font-semibold text-flow-950">{remainingRequirementCount} produktval återstår</p>
-              <p className="mt-1 text-sm text-flow-800">Spara en Ahlsell-artikel för varje godkänt installationskrav för att slutföra flödet.</p>
+              <p className="mt-1 text-sm text-flow-800">Spara en Ahlsell-artikel för varje inköpspost för att slutföra flödet. Demontering visas separat.</p>
             </div>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+function RemovalRequirementCard({ requirement }: { requirement: Row }) {
+  const details = projectRequirementDetails(requirement);
+  const quantity = projectRequirementQuantity(requirement.value_json);
+
+  return (
+    <article className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
+              Demontering
+            </span>
+            <span className="rounded-md border border-amber-200 bg-white px-2.5 py-1 text-sm font-bold text-ink-950">
+              Postnr: {details.postNumber ?? "saknas"}
+            </span>
+            {details.nsCode && (
+              <span className="text-sm font-semibold text-ink-600">
+                NS-kod: {details.nsCode}
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-base font-semibold text-ink-900">
+            {String(requirement.value_text ?? "Demontering enligt teknisk beskrivning")}
+          </p>
+        </div>
+        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+          {formatProjectQuantity(quantity)}
+        </span>
+      </div>
+      <div className="overflow-hidden">
+        <dl className="grid sm:grid-cols-2 xl:grid-cols-3">
+          <SpecificationRow label="Postnummer" value={details.postNumber ?? "Saknas i underlaget"} />
+          <SpecificationRow label="Åtgärd" value="Demontering av befintlig produkt" />
+          <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
+          {details.parentPostNumber && (
+            <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />
+          )}
+          {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
+          {details.system && <SpecificationRow label="System" value={details.system} />}
+          {details.standardRefs.length > 0 && (
+            <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />
+          )}
+          {details.sourcePage && (
+            <SpecificationRow label="Källsida" value={String(details.sourcePage)} />
+          )}
+          {details.attributes.map(([key, value]) => (
+            <SpecificationRow key={key} label={specificationLabel(key)} value={value} />
+          ))}
+        </dl>
+        {details.sourceExcerpt && (
+          <details className="border-t border-ink-100">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50">
+              Visa all originaltext för posten
+            </summary>
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-ink-100 bg-ink-50 p-3 font-sans text-xs leading-5 text-ink-700">
+              {details.sourceExcerpt}
+            </pre>
+          </details>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -576,10 +662,6 @@ function snapshotAccessories(value: unknown): AccessoryDraft[] {
       }
     ];
   });
-}
-
-function requirementOperation(requirement: Row) {
-  return String(record(requirement.value_json).operation ?? "install").toLowerCase();
 }
 
 function numeric(value: unknown, fallback: number) {

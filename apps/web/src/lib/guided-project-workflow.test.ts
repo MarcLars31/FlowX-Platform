@@ -71,6 +71,24 @@ test("rejected and removal rows do not block the product step", () => {
   assert.equal(workflow.isComplete, true);
 });
 
+test("a project containing only removal rows needs no new product mapping", () => {
+  const workflow = guidedProjectWorkflow({
+    documentCount: 1,
+    requirements: [
+      {
+        id: "removal",
+        status: "user_confirmed",
+        value_json: { operation: "remove" }
+      }
+    ],
+    assignments: []
+  });
+
+  assert.equal(workflow.eligibleRequirementCount, 0);
+  assert.equal(workflow.remainingProductCount, 0);
+  assert.equal(workflow.isComplete, true);
+});
+
 test("recognizes only supported workspace tabs", () => {
   assert.equal(isGuidedProjectTab("requirements"), false);
   assert.equal(isGuidedProjectTab("products"), true);

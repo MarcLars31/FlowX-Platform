@@ -47,10 +47,11 @@ export function guidedProjectWorkflow(input: {
   requirements: WorkflowRequirement[];
   assignments: WorkflowAssignment[];
 }): GuidedProjectWorkflow {
-  const eligibleRequirements = input.requirements.filter(
-    (requirement) =>
-      !excludedStatuses.has(String(requirement.status ?? "")) &&
-      requirementOperation(requirement) !== "remove"
+  const visibleRequirements = input.requirements.filter(
+    (requirement) => !excludedStatuses.has(String(requirement.status ?? ""))
+  );
+  const eligibleRequirements = visibleRequirements.filter(
+    (requirement) => requirementOperation(requirement) !== "remove"
   );
   const mappedRequirementIds = new Set(
     input.assignments.flatMap((assignment) => {
@@ -66,7 +67,7 @@ export function guidedProjectWorkflow(input: {
     mappedRequirementIds.has(requirement.id)
   ).length;
   const productsComplete =
-    eligibleRequirements.length > 0 &&
+    visibleRequirements.length > 0 &&
     mappedRequirementCount === eligibleRequirements.length;
 
   const completedStepIds: GuidedProjectStepId[] = [];
