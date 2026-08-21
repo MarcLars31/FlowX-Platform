@@ -18,6 +18,7 @@ import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit"
 import { hasPdfSignature } from "@/lib/pdf-security";
 import {
   automaticProjectDetails,
+  hasTechnicalDescriptionConflict,
   nextAvailableProjectNumber
 } from "@/lib/technical-description-project";
 
@@ -38,6 +39,10 @@ type ExtractionRunRow = { id: string };
 type ExistingSourceDocumentRow = {
   id: string;
   project_id: string | null;
+};
+type ExistingProjectSourceDocumentRow = {
+  id: string;
+  file_sha256: string | null;
 };
 
 export async function GET() {
@@ -274,6 +279,29 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Projektet hittades inte eller du saknar projektåtkomst." },
         { status: 404 }
+      );
+    }
+    const existingProjectSourceDocuments =
+      await selectUserRows<ExistingProjectSourceDocumentRow>(
+        "technical_description_documents",
+        {
+          select: "id,file_sha256",
+          organization_id: `eq.${authorization.context.organization.id}`,
+          project_id: `eq.${projectId}`
+        }
+      );
+    if (
+      hasTechnicalDescriptionConflict(
+        existingProjectSourceDocuments.map((item) => item.file_sha256),
+        fileSha256
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Projektet har redan en teknisk beskrivning. Starta en ny analys för att ladda upp en annan PDF."
+        },
+        { status: 409 }
       );
     }
     const projectModules = await selectUserRows<ProjectModuleRow>("project_modules", {

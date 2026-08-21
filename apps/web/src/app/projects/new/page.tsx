@@ -77,7 +77,7 @@ export default function CreateProjectPage() {
       <ScipxPageHeader
         eyebrow="Ny teknisk analys"
         title="Börja med den tekniska beskrivningen"
-        description="Ladda upp PDF-underlaget. Scipx läser dokumentet, skapar projektet och tar dig automatiskt vidare till produktvalet."
+        description="Ladda upp en teknisk beskrivning. Scipx skapar ett projekt för just den PDF-filen och tar dig automatiskt vidare till produktvalet."
         icon={<FileText aria-hidden="true" />}
       >
         <Link
@@ -106,7 +106,7 @@ export default function CreateProjectPage() {
             </span>
             <div>
               <h2 className="font-bold text-white">Teknisk beskrivning</h2>
-              <p className="mt-1 text-sm text-slate-300">PDF, högst 30 MB</p>
+              <p className="mt-1 text-sm text-slate-300">En PDF per projekt, högst 30 MB</p>
             </div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}

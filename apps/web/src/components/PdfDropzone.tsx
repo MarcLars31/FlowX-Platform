@@ -58,6 +58,10 @@ export function PdfDropzone({
     event.preventDefault();
     setDragging(false);
     if (disabled) return;
+    if ((event.dataTransfer.files?.length ?? 0) > 1) {
+      onValidationError?.("Välj endast en PDF-fil. Ett projekt kan bara ha en teknisk beskrivning.");
+      return;
+    }
     selectFile(event.dataTransfer.files?.[0] ?? null);
   }
 
@@ -83,7 +87,8 @@ export function PdfDropzone({
         {file ? (
           <>
             <CheckCircle2 className="h-9 w-9 text-emerald-600" aria-hidden="true" />
-            <span className="mt-3 break-all font-semibold text-ink-950">{file.name}</span>
+            <span className="mt-3 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">1 PDF vald</span>
+            <span className="mt-2 break-all font-semibold text-ink-950">{file.name}</span>
             <span className="mt-1 text-sm text-ink-500">
               {formatFileSize(file.size)} · Dra in eller klicka för att byta fil
             </span>
@@ -95,7 +100,7 @@ export function PdfDropzone({
               aria-hidden="true"
             />
             <span className="mt-3 font-semibold text-ink-950">
-              {dragging ? "Släpp PDF-filen här" : "Dra PDF-filen hit"}
+              {dragging ? "Släpp en PDF-fil här" : "Dra en PDF-fil hit"}
             </span>
             <span className="mt-1 text-sm text-ink-500">
               eller klicka för att välja fil · högst {formatFileSize(maxBytes)}

@@ -66,6 +66,20 @@ export function nextAvailableProjectNumber(
   return null;
 }
 
+/**
+ * A project represents one technical description. Re-uploading the exact same
+ * file is allowed so interrupted processing can be resumed, but a different
+ * PDF must start a new project instead of mixing two sets of requirements.
+ */
+export function hasTechnicalDescriptionConflict(
+  existingFileHashes: readonly unknown[],
+  candidateFileHash: string
+) {
+  return existingFileHashes.some(
+    (hash) => typeof hash !== "string" || hash.trim() !== candidateFileHash
+  );
+}
+
 function displayFileName(fileName: string) {
   const withoutPath = fileName.split(/[\\/]/).pop() ?? fileName;
   return withoutPath

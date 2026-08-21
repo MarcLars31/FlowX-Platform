@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   automaticProjectDetails,
+  hasTechnicalDescriptionConflict,
   nextAvailableProjectNumber
 } from "./technical-description-project";
 
@@ -44,4 +45,15 @@ test("adds a stable suffix when an extracted project number already exists", () 
   );
   assert.equal(nextAvailableProjectNumber("P-1042", ["P-999"]), "P-1042");
   assert.equal(nextAvailableProjectNumber(null, ["P-999"]), null);
+});
+
+test("allows one technical PDF per project while permitting an exact retry", () => {
+  assert.equal(hasTechnicalDescriptionConflict([], "new-hash"), false);
+  assert.equal(hasTechnicalDescriptionConflict(["same-hash"], "same-hash"), false);
+  assert.equal(hasTechnicalDescriptionConflict(["other-hash"], "new-hash"), true);
+  assert.equal(
+    hasTechnicalDescriptionConflict(["same-hash", "other-hash"], "same-hash"),
+    true
+  );
+  assert.equal(hasTechnicalDescriptionConflict([null], "new-hash"), true);
 });

@@ -140,7 +140,7 @@ export function ProjectWorkspace({
       }
 
       const latestWorkflow = guidedProjectWorkflow({
-        documentCount: sourceData.documents.length + sourceData.technicalDescriptions.length,
+        documentCount: displayedProjectDocuments(sourceData).count,
         requirements: sourceData.requirements,
         assignments: sourceData.suggestions
       });
@@ -281,7 +281,7 @@ export function ProjectWorkspace({
       setSelectedFile(null);
       formElement.reset();
       const refreshedWorkflow = guidedProjectWorkflow({
-        documentCount: refreshedData.documents.length + refreshedData.technicalDescriptions.length,
+        documentCount: displayedProjectDocuments(refreshedData).count,
         requirements: refreshedData.requirements,
         assignments: refreshedData.suggestions
       });
@@ -297,18 +297,12 @@ export function ProjectWorkspace({
     }
   }
 
-  const technicalDocumentHashes = new Set(
-    data.technicalDescriptions
-      .map((item) => String(item.file_sha256 ?? ""))
-      .filter(Boolean)
-  );
-  const distinctProjectDocuments = data.documents.filter(
-    (item) =>
-      !item.file_sha256 ||
-      !technicalDocumentHashes.has(String(item.file_sha256))
-  );
+  const displayedDocuments = displayedProjectDocuments(data);
+  const uniqueTechnicalDescriptions = displayedDocuments.technicalDescriptions;
+  const distinctProjectDocuments = displayedDocuments.projectDocuments;
+  const primaryDocument = uniqueTechnicalDescriptions[0] ?? distinctProjectDocuments[0];
   const counts = {
-    documents: distinctProjectDocuments.length + data.technicalDescriptions.length,
+    documents: displayedDocuments.count,
     requirements: data.requirements.length,
     suggestions: data.suggestions.filter(isManualAssignment).length,
     decisions: data.decisions.length
@@ -545,24 +539,40 @@ export function ProjectWorkspace({
 
       {tab === "documents" && (
         <div className="space-y-5">
-          <section className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-sm sm:p-7">
-            <div className="flex items-start gap-4"><FileText className="mt-1 h-7 w-7 shrink-0 text-cyan-300" aria-hidden="true" /><div><p className="text-sm font-bold uppercase tracking-wide text-cyan-300">Steg 1 av 3</p><h2 className="mt-1 text-2xl font-bold text-white">Ladda upp teknisk beskrivning</h2><p className="mt-2 text-base leading-7 text-slate-300">Dra PDF-filen till rutan eller klicka på Välj fil. När analysen är klar öppnas produktvalet automatiskt.</p></div></div>
-            <form className="mt-5" onSubmit={uploadTechnicalDescription}>
-              <PdfDropzone
-                id={`project-pdf-${data.project.id}`}
-                file={selectedFile}
-                disabled={uploading}
-                compact
-                onFileChange={setSelectedFile}
-                onValidationError={setError}
-              />
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-medium text-slate-300">PDF är enda tillåtna filformatet.</p>
-                <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="submit" disabled={uploading || !selectedFile}><Upload className="h-5 w-5" aria-hidden="true" />{uploading ? "Läser PDF och skapar poster..." : "Läs PDF och fortsätt"}</Button>
+          {counts.documents === 0 ? (
+            <section className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-sm sm:p-7">
+              <div className="flex items-start gap-4"><FileText className="mt-1 h-7 w-7 shrink-0 text-cyan-300" aria-hidden="true" /><div><p className="text-sm font-bold uppercase tracking-wide text-cyan-300">Steg 1 av 3 · En PDF per projekt</p><h2 className="mt-1 text-2xl font-bold text-white">Ladda upp teknisk beskrivning</h2><p className="mt-2 text-base leading-7 text-slate-300">Dra en PDF-fil till rutan eller klicka på Välj fil. När analysen är klar låses PDF-steget och produktvalet öppnas automatiskt.</p></div></div>
+              <form className="mt-5" onSubmit={uploadTechnicalDescription}>
+                <PdfDropzone
+                  id={`project-pdf-${data.project.id}`}
+                  file={selectedFile}
+                  disabled={uploading}
+                  compact
+                  onFileChange={setSelectedFile}
+                  onValidationError={setError}
+                />
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-medium text-slate-300">Endast en PDF kan kopplas till projektet.</p>
+                  <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="submit" disabled={uploading || !selectedFile}><Upload className="h-5 w-5" aria-hidden="true" />{uploading ? "Läser PDF och skapar poster..." : "Läs PDF och fortsätt"}</Button>
+                </div>
+              </form>
+            </section>
+          ) : (
+            <section className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5 shadow-sm sm:p-7">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-4">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"><CheckCircle2 className="h-6 w-6" aria-hidden="true" /></span>
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">Steg 1 är klart · En PDF per projekt</p>
+                    <h2 className="mt-1 text-xl font-bold text-emerald-950">{projectDocumentName(primaryDocument)}</h2>
+                    <p className="mt-2 text-sm leading-6 text-emerald-900">Den tekniska beskrivningen är kopplad till projektet. Vill du analysera en annan PDF ska du starta en ny analys.</p>
+                  </div>
+                </div>
+                {canCreateProject && <Link href="/projects/new" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border-2 border-emerald-600 bg-white px-5 py-3 text-base font-bold text-emerald-800 transition hover:bg-emerald-100"><FilePlus2 className="h-5 w-5" aria-hidden="true" />Ny analys med annan PDF</Link>}
               </div>
-            </form>
-          </section>
-          <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-end justify-between gap-3"><div><h2 className="font-semibold text-ink-950">Dokumenthistorik</h2><p className="mt-1 text-sm text-ink-600">Status för projektets uppladdade och extraherade underlag.</p></div><span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-700">{counts.documents} dokument</span></div><div className="mt-4 divide-y divide-ink-100">{data.technicalDescriptions.length === 0 && distinctProjectDocuments.length === 0 ? <p className="rounded-lg bg-ink-50 px-4 py-8 text-center text-sm text-ink-600">Inga dokument är kopplade ännu. Börja med en teknisk beskrivning ovan.</p> : <>{data.technicalDescriptions.map((item) => <DocumentRow key={`technical-${item.id}`} item={item} source="Teknisk extraktion" />)}{distinctProjectDocuments.map((item) => <DocumentRow key={`project-${item.id}`} item={item} source="Projektfil" />)}</>}</div></section>
+            </section>
+          )}
+          <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-end justify-between gap-3"><div><h2 className="font-semibold text-ink-950">Projektets PDF</h2><p className="mt-1 text-sm text-ink-600">Den tekniska beskrivning som produkterna hämtas från.</p></div><span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-700">{counts.documents} {counts.documents === 1 ? "dokument" : "dokument"}</span></div><div className="mt-4 divide-y divide-ink-100">{uniqueTechnicalDescriptions.length === 0 && distinctProjectDocuments.length === 0 ? <p className="rounded-lg bg-ink-50 px-4 py-8 text-center text-sm text-ink-600">Ingen PDF är kopplad ännu.</p> : <>{uniqueTechnicalDescriptions.map((item) => <DocumentRow key={`technical-${item.id}`} item={item} source="Teknisk extraktion" />)}{distinctProjectDocuments.map((item) => <DocumentRow key={`project-${item.id}`} item={item} source="Projektfil" />)}</>}</div></section>
           {counts.documents > 0 && (
             <section className="flex flex-col gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -594,6 +604,50 @@ export function ProjectWorkspace({
 
     </div>
   );
+}
+
+function displayedProjectDocuments(
+  source: Pick<ProjectModuleData, "documents" | "technicalDescriptions">
+) {
+  const technicalDescriptions = deduplicateDocuments(source.technicalDescriptions);
+  const technicalDocumentKeys = new Set(
+    technicalDescriptions.flatMap(documentIdentityKeys)
+  );
+  const projectDocuments = deduplicateDocuments(source.documents).filter(
+    (item) => !documentIdentityKeys(item).some((key) => technicalDocumentKeys.has(key))
+  );
+
+  return {
+    technicalDescriptions,
+    projectDocuments,
+    count: technicalDescriptions.length + projectDocuments.length
+  };
+}
+
+function deduplicateDocuments(items: ProjectRow[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const keys = documentIdentityKeys(item);
+    if (keys.some((key) => seen.has(key))) return false;
+    keys.forEach((key) => seen.add(key));
+    return true;
+  });
+}
+
+function documentIdentityKeys(item: ProjectRow) {
+  const keys: string[] = [];
+  const hash = String(item.file_sha256 ?? item.checksum ?? "").trim().toLowerCase();
+  const name = String(item.file_name ?? item.fileName ?? item.original_filename ?? "").trim().toLowerCase();
+  if (hash) keys.push(`hash:${hash}`);
+  if (name) keys.push(`name:${name}`);
+  if (keys.length === 0) keys.push(`id:${item.id}`);
+  return keys;
+}
+
+function projectDocumentName(item: ProjectRow | undefined) {
+  return item
+    ? String(item.file_name ?? item.fileName ?? item.original_filename ?? "Teknisk beskrivning")
+    : "Teknisk beskrivning";
 }
 
 function DocumentRow({ item, source }: { item: ProjectRow; source: string }) {
