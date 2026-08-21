@@ -37,3 +37,47 @@ textarea {
   background: #b0eaf2;
   color: #0b1120;
 }
+
+.scipx-dashboard-frame {
+  height: calc(100dvh - 10.5rem - 2px);
+  min-height: 0;
+}
+
+.scipx-dashboard-visual {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .scipx-dashboard-frame {
+    height: calc(100dvh - 7rem - 2px);
+  }
+
+  .scipx-dashboard-visual {
+    display: flex;
+  }
+}
+
+@media (max-width: 639px), (max-height: 760px) {
+  .scipx-dashboard-capabilities {
+    display: none;
+  }
+}
+
+@media (max-height: 620px) {
+  .scipx-dashboard-description,
+  .scipx-dashboard-helper {
+    display: none;
+  }
+
+  .scipx-dashboard-content {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+}
+
+@media (max-height: 540px) {
+  .scipx-dashboard-eyebrow,
+  .scipx-dashboard-secondary {
+    display: none;
+  }
+}

@@ -27,27 +27,27 @@ export default async function DashboardPage() {
   const canCreateProject = context.permissions.includes("project.create");
 
   return (
-    <div className="mx-auto max-w-[1500px]">
-      <section className="relative isolate overflow-hidden rounded-[28px] border border-cyan-300/20 bg-[#03162d] text-white shadow-[0_24px_70px_rgba(2,17,38,0.25)]">
+    <div className="scipx-dashboard-frame mx-auto max-w-[1500px]">
+      <section className="relative isolate h-full overflow-hidden rounded-[28px] border border-cyan-300/20 bg-[#03162d] text-white shadow-[0_24px_70px_rgba(2,17,38,0.25)]">
         <BlueprintBackdrop />
-        <div className="relative grid min-h-[610px] lg:grid-cols-[minmax(0,1.02fr)_minmax(380px,0.98fr)]">
-          <div className="flex flex-col justify-between p-6 sm:p-9 lg:p-12 xl:p-14">
+        <div className="relative grid h-full lg:grid-cols-[minmax(0,1.02fr)_minmax(380px,0.98fr)]">
+          <div className="scipx-dashboard-content flex h-full flex-col justify-center p-5 sm:p-7 lg:p-8 xl:p-10 2xl:p-12">
             <div>
               <BrandLockup />
-              <p className="mt-7 max-w-2xl text-xs font-bold uppercase tracking-[0.2em] text-cyan-300 sm:text-sm">
+              <p className="scipx-dashboard-eyebrow mt-5 max-w-2xl text-xs font-bold uppercase tracking-[0.2em] text-cyan-300 sm:text-sm">
                 Från PDF till produktval
               </p>
               <h1 className="mt-3 max-w-3xl text-3xl font-black leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl xl:text-[3.15rem]">
                 Ladda upp PDF.
                 <span className="block text-cyan-300">Scipx ordnar resten.</span>
               </h1>
-              <p className="mt-6 max-w-xl text-base leading-7 text-slate-200">
+              <p className="scipx-dashboard-description mt-4 max-w-xl text-sm leading-6 text-slate-200 sm:text-base sm:leading-7">
                 Scipx läser postnummer, specifikationer och mängder. Ni väljer
                 rätt Ahlsell-artiklar och laddar ned sammanställningen i Excel
                 eller PDF.
               </p>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
                 {canCreateProject && (
                   <Link
                     href="/projects/new"
@@ -64,20 +64,20 @@ export default async function DashboardPage() {
                 {canViewProjects && (
                   <Link
                     href="/projects"
-                    className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-5 text-base font-bold text-white backdrop-blur transition hover:border-cyan-300/70 hover:bg-white/[0.12] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-cyan-200"
+                    className="scipx-dashboard-secondary inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-5 text-base font-bold text-white backdrop-blur transition hover:border-cyan-300/70 hover:bg-white/[0.12] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-cyan-200"
                   >
                     <FolderOpen className="h-5 w-5" aria-hidden="true" />
                     Öppna tidigare projekt
                   </Link>
                 )}
               </div>
-              <p className="mt-4 flex items-center gap-2 text-sm font-medium text-cyan-100">
+              <p className="scipx-dashboard-helper mt-3 flex items-center gap-2 text-sm font-medium text-cyan-100">
                 <CheckCircle2 className="h-4 w-4 text-cyan-300" aria-hidden="true" />
                 Börja här – projektet skapas automatiskt från din PDF
               </p>
             </div>
 
-            <div className="mt-12 grid max-w-2xl grid-cols-2 gap-x-4 gap-y-5 border-t border-cyan-200/20 pt-7 sm:grid-cols-4">
+            <div className="scipx-dashboard-capabilities mt-8 grid max-w-2xl grid-cols-2 gap-x-4 gap-y-5 border-t border-cyan-200/20 pt-5 sm:grid-cols-4">
               <Capability icon={<ScanText />} label="Texten läses" />
               <Capability icon={<FileText />} label="Poster hittas" />
               <Capability icon={<PackageCheck />} label="Produkt väljs" />
@@ -85,7 +85,7 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <div className="relative flex min-h-[490px] items-center justify-center border-t border-cyan-200/15 bg-[#021227]/35 p-6 sm:p-10 lg:min-h-full lg:border-l lg:border-t-0 xl:p-14">
+          <div className="scipx-dashboard-visual relative items-center justify-center border-t border-cyan-200/15 bg-[#021227]/35 p-6 sm:p-8 lg:border-l lg:border-t-0 xl:p-10">
             <div className="relative w-full max-w-[570px]">
               <div className="absolute -inset-10 rounded-full bg-cyan-400/10 blur-3xl" />
               <div className="relative grid gap-4 sm:grid-cols-[minmax(135px,0.92fr)_40px_minmax(155px,1.08fr)] sm:items-center">
