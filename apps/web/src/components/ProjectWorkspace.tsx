@@ -17,6 +17,7 @@ import { DemoBadge } from "@/components/DemoBadge";
 import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
 import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
+import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterialListPdfExportButton";
 import { PdfDropzone } from "@/components/PdfDropzone";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
@@ -125,25 +126,28 @@ export function ProjectWorkspace({
     }
   }
 
-  async function finishProject() {
-    if (data.project.current_stage === "completed") {
-      setError(null);
-      setMessage("Produktvalet är klart. Projektsammanfattningen visas nedan.");
-      selectTab("overview");
-      return;
-    }
-
-    const completionUpdate = guidedProjectCompletionUpdate(workflow);
-    if (!completionUpdate) {
-      setMessage(null);
-      setError("Alla krav måste ha ett registrerat produktval innan projektet kan slutföras.");
-      return;
-    }
-
+  async function finishProject(latestData?: ProjectModuleData) {
     setFinishing(true);
     setError(null);
     setMessage(null);
     try {
+      const sourceData = latestData ?? await reload();
+      if (sourceData.project.current_stage === "completed") {
+        setMessage("Produktvalet är klart. Projektsammanfattningen visas nedan.");
+        selectTab("overview");
+        return;
+      }
+
+      const latestWorkflow = guidedProjectWorkflow({
+        documentCount: sourceData.documents.length + sourceData.technicalDescriptions.length,
+        requirements: sourceData.requirements,
+        assignments: sourceData.suggestions
+      });
+      const completionUpdate = guidedProjectCompletionUpdate(latestWorkflow);
+      if (!completionUpdate) {
+        throw new Error("Alla produktposter måste vara sparade innan projektet kan slutföras.");
+      }
+
       const response = await fetch(`/api/projects/${data.project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -155,10 +159,10 @@ export function ProjectWorkspace({
       if (!response.ok || !payload?.project) {
         throw new Error(payload?.error ?? "Projektet kunde inte slutföras.");
       }
-      setData((current) => ({
-        ...current,
+      setData({
+        ...sourceData,
         project: payload.project as OrganizationProject
-      }));
+      });
       setMessage(
         "Produktvalet är klart. Projektet är markerat som produktförslag klart och sammanfattningen visas nedan."
       );
@@ -192,6 +196,7 @@ export function ProjectWorkspace({
       mappingAccessories: ProjectRow[];
     };
     setData(payload);
+    return payload;
   }
 
   async function saveProject(event: FormEvent<HTMLFormElement>) {
@@ -264,7 +269,7 @@ export function ProjectWorkspace({
       const response = await fetch("/api/technical-descriptions", { method: "POST", body: form });
       const payload = (await response.json().catch(() => null)) as { error?: string; persistedRequirementCount?: number } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Underlaget kunde inte extraheras.");
-      await reload();
+      const refreshedData = await reload();
       await advanceProjectStage("product_matching");
       const requirementCount = payload?.persistedRequirementCount ?? 0;
       if (requirementCount > 0) {
@@ -274,7 +279,16 @@ export function ProjectWorkspace({
       }
       setSelectedFile(null);
       formElement.reset();
-      selectTab("products");
+      const refreshedWorkflow = guidedProjectWorkflow({
+        documentCount: refreshedData.documents.length + refreshedData.technicalDescriptions.length,
+        requirements: refreshedData.requirements,
+        assignments: refreshedData.suggestions
+      });
+      if (refreshedWorkflow.isComplete) {
+        await finishProject(refreshedData);
+      } else {
+        selectTab("products");
+      }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Underlaget kunde inte extraheras.");
     } finally {
@@ -312,8 +326,8 @@ export function ProjectWorkspace({
   const currentInstruction = projectFinished
     ? {
         eyebrow: "Projektet är färdigt",
-        title: "Ladda ner resultatet i Excel",
-        description: "Excel-filen innehåller alla poster, postnummer, mängder, produktval, tillbehör och demontering."
+        title: "Ladda ner projektsammanfattningen",
+        description: "Excel och PDF innehåller alla poster, postnummer, mängder, produktval, tillbehör och demontering."
       }
     : counts.documents === 0
       ? {
@@ -366,7 +380,10 @@ export function ProjectWorkspace({
           </div>
           <div className="shrink-0">
             {projectFinished && canExportMaterialList ? (
-              <ProjectMaterialListExportButton projectId={data.project.id} />
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <ProjectMaterialListExportButton projectId={data.project.id} />
+                <ProjectMaterialListPdfExportButton projectId={data.project.id} />
+              </div>
             ) : workflow.isComplete ? (
               <Button className="min-h-14 w-full justify-center px-6 text-lg" disabled={finishing} onClick={() => void finishProject()}>
                 <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
@@ -387,7 +404,7 @@ export function ProjectWorkspace({
         <ol className="grid gap-3 md:grid-cols-3">
           <SimpleStep number={1} label="Ladda upp PDF" status={counts.documents > 0 ? "Klar" : tab === "documents" ? "Du är här" : "Nästa"} active={tab === "documents"} completed={counts.documents > 0} onClick={() => selectTab("documents")} />
           <SimpleStep number={2} label="Välj produkter" status={workflow.isComplete ? "Klar" : tab === "products" ? "Du är här" : `${workflow.remainingProductCount} kvar`} active={tab === "products"} completed={workflow.isComplete} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
-          <SimpleStep number={3} label="Resultat och Excel" status={projectFinished ? "Klar" : "Sista steget"} active={tab === "overview" && workflow.isComplete} completed={projectFinished} disabled={!workflow.isComplete} onClick={() => selectTab("overview")} />
+          <SimpleStep number={3} label="Resultat och filer" status={projectFinished ? "Klar" : "Sista steget"} active={tab === "overview" && workflow.isComplete} completed={projectFinished} disabled={!workflow.isComplete} onClick={() => selectTab("overview")} />
         </ol>
       </nav>
 
@@ -413,10 +430,7 @@ export function ProjectWorkspace({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {canExportMaterialList && (
-                    <ProjectMaterialListExportButton projectId={data.project.id} />
-                  )}
-                    {canCreateProject && (
+                  {canCreateProject && (
                     <Link
                       href="/projects/new"
                       className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-flow-600 px-5 py-3 text-base font-bold text-white shadow-sm transition hover:bg-flow-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
@@ -578,9 +592,8 @@ export function ProjectWorkspace({
           memoryAccessories={data.mappingAccessories}
           onReload={reload}
           onGoToDocuments={() => selectTab("documents")}
-          onFinish={() => void finishProject()}
+          onFinish={() => finishProject()}
           finishing={finishing}
-          canExport={canExportMaterialList}
         />
       )}
 

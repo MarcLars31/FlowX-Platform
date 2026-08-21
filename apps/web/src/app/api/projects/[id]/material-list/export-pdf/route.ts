@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
-import {
-  createProjectMaterialListWorkbook,
-  type MaterialListProject
-} from "@/lib/project-material-list-export";
 import { loadProjectMaterialListData } from "@/lib/project-material-list-data";
+import { createProjectMaterialListPdf } from "@/lib/project-material-list-pdf";
+import type { MaterialListProject } from "@/lib/project-material-list-export";
 import { UserSupabaseError } from "@/lib/supabase-user-rest";
 
 export const runtime = "nodejs";
@@ -26,30 +24,31 @@ export async function GET(_request: Request, context: RouteContext) {
     if (!isUuid(id)) {
       return NextResponse.json({ error: "Ogiltigt projekt-id." }, { status: 400 });
     }
-    const organizationId = authorization.context.organization.id;
-    const materialList = await loadProjectMaterialListData(id, organizationId);
+
+    const materialList = await loadProjectMaterialListData(
+      id,
+      authorization.context.organization.id
+    );
     if (!materialList) {
       return NextResponse.json({ error: "Projektet hittades inte." }, { status: 404 });
     }
-    const { project, rows } = materialList;
-    if (rows.length === 0) {
+    if (materialList.rows.length === 0) {
       return NextResponse.json(
-        { error: "Projektet har inga registrerade produktval att exportera." },
+        { error: "Projektet har inga poster att exportera." },
         { status: 409 }
       );
     }
 
-    const bytes = await createProjectMaterialListWorkbook({
+    const bytes = await createProjectMaterialListPdf({
       organizationName: authorization.context.organization.name,
-      project,
-      rows
+      project: materialList.project,
+      rows: materialList.rows
     });
-    const filename = exportFilename(project);
 
-    return new Response(bytes, {
+    return new Response(bytes.slice().buffer as ArrayBuffer, {
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${exportFilename(materialList.project)}"`,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff"
       }
@@ -63,7 +62,7 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
     return NextResponse.json(
-      { error: "Excel-exporten kunde inte skapas." },
+      { error: "PDF-exporten kunde inte skapas." },
       { status: 500 }
     );
   }
@@ -76,7 +75,7 @@ function exportFilename(project: MaterialListProject) {
     .replace(/[^a-z0-9_-]+/gi, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "projekt";
-  return `scipx-materiallista-${projectPart}.xlsx`;
+  return `scipx-projektsammanfattning-${projectPart}.pdf`;
 }
 
 function isUuid(value: string) {

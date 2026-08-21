@@ -4,25 +4,30 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 import { CheckCircle2, ChevronDown, History, Loader2, PackageCheck, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = { name: string; productNumber: string; quantity: number; unit: string; notes: string };
+type ProductSelection = {
+  productName: string;
+  productNumber: string;
+  manufacturerName: string;
+  notes: string;
+  accessories: AccessoryDraft[];
+};
 
-export function DistributorMappingPanel({ projectId, requirements, assignments, memories, memoryAccessories, onReload, onGoToDocuments, onFinish, finishing = false, canExport = false }: {
+export function DistributorMappingPanel({ projectId, requirements, assignments, memories, memoryAccessories, onReload, onGoToDocuments, onFinish, finishing = false }: {
   projectId: string;
   requirements: Row[];
   assignments: Row[];
   memories: Row[];
   memoryAccessories: Row[];
-  onReload: () => Promise<void>;
+  onReload: () => Promise<unknown>;
   onGoToDocuments: () => void;
-  onFinish: () => void;
+  onFinish: () => Promise<void>;
   finishing?: boolean;
-  canExport?: boolean;
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +83,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           {productRequirements.map((requirement, index) => {
             const assignment = manualAssignments.find((item) => item.requirement_id === requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
+            const completesProject = !assignment && remainingRequirements.length === 1;
             return (
               <RequirementProductMappingCard
                 key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
@@ -88,7 +94,12 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 totalPosts={totalPosts}
                 memories={matchingMemories}
                 memoryAccessories={memoryAccessories}
-                onSaved={async (successMessage) => { setError(null); setMessage(successMessage); await onReload(); }}
+                onSaved={async (successMessage) => {
+                  setError(null);
+                  setMessage(successMessage);
+                  await onReload();
+                  if (completesProject) await onFinish();
+                }}
                 onError={(errorMessage) => { setMessage(null); setError(errorMessage || null); }}
               />
             );
@@ -120,7 +131,6 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 <Button className="min-h-14 justify-center px-6 text-lg" disabled={finishing} onClick={onFinish}>
                   <CheckCircle2 className="h-5 w-5" aria-hidden="true" />{finishing ? "Slutför projektet…" : "Nästa: visa resultat"}
                 </Button>
-                {canExport && <ProjectMaterialListExportButton projectId={projectId} />}
               </div>
             </div>
           ) : (
@@ -156,24 +166,47 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
 
-  function applyMemory(memory: Row) {
-    setProductName(String(memory.product_name ?? ""));
-    setProductNumber(String(memory.product_number ?? ""));
-    setManufacturerName(String(memory.manufacturer_name ?? ""));
-    setNotes(String(memory.notes ?? ""));
-    setAccessories(memoryAccessories.filter((accessory) => accessory.memory_id === memory.id).map((accessory) => ({
+  function selectionFromMemory(memory: Row): ProductSelection {
+    return {
+      productName: String(memory.product_name ?? ""),
+      productNumber: String(memory.product_number ?? ""),
+      manufacturerName: String(memory.manufacturer_name ?? ""),
+      notes: String(memory.notes ?? ""),
+      accessories: memoryAccessories.filter((accessory) => accessory.memory_id === memory.id).map((accessory) => ({
       name: String(accessory.product_name ?? ""), productNumber: String(accessory.product_number ?? ""), quantity: numeric(accessory.quantity_per_main_product, 1), unit: String(accessory.unit ?? "st"), notes: String(accessory.notes ?? "")
-    })));
+      }))
+    };
   }
 
-  async function save() {
+  function showSelection(selection: ProductSelection) {
+    setProductName(selection.productName);
+    setProductNumber(selection.productNumber);
+    setManufacturerName(selection.manufacturerName);
+    setNotes(selection.notes);
+    setAccessories(selection.accessories);
+  }
+
+  async function applyMemoryAndSave(memory: Row) {
+    const selection = selectionFromMemory(memory);
+    showSelection(selection);
+    await save(selection);
+  }
+
+  async function save(selection?: ProductSelection) {
+    const chosen = selection ?? {
+      productName,
+      productNumber,
+      manufacturerName,
+      notes,
+      accessories
+    };
     setSaving(true);
     onError("");
     try {
       const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirementId: requirement.id, productName, productNumber, manufacturerName, notes, accessories })
+        body: JSON.stringify({ requirementId: requirement.id, ...chosen })
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Produktvalet kunde inte sparas.");
@@ -230,10 +263,10 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
             <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Förslag från ett tidigare projekt</div>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               {memories.map((memory) => (
-                <button key={memory.id} type="button" onClick={() => applyMemory(memory)} className="min-h-24 rounded-xl border-2 border-sky-200 bg-white p-4 text-left transition hover:border-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">
+                <button key={memory.id} type="button" disabled={saving} onClick={() => void applyMemoryAndSave(memory)} className="min-h-24 rounded-xl border-2 border-sky-200 bg-white p-4 text-left transition hover:border-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-wait disabled:opacity-60">
                   <p className="text-base font-bold text-ink-950">{String(memory.product_name)}</p>
                   <p className="mt-1 text-sm text-ink-700">Art.nr {String(memory.product_number)}</p>
-                  <p className="mt-3 text-sm font-bold text-sky-800">Använd detta förslag</p>
+                  <p className="mt-3 text-sm font-bold text-sky-800">{saving ? "Sparar förslaget…" : "Använd och spara förslaget"}</p>
                 </button>
               ))}
             </div>
@@ -269,7 +302,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
 
         <div className="flex flex-col gap-2 border-t border-ink-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-medium text-ink-600">{assignment ? "Posten är sparad. Du kan ändra uppgifterna och spara igen." : "Spara posten för att gå vidare."}</p>
-          <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="button" onClick={save} disabled={saving || !productName.trim() || !productNumber.trim()}>
+          <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="button" onClick={() => void save()} disabled={saving || !productName.trim() || !productNumber.trim()}>
             {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <PackageCheck className="h-5 w-5" aria-hidden="true" />}
             {saving ? "Sparar…" : assignment ? `Spara ändringar för post ${details.postNumber ?? position}` : `Spara post ${details.postNumber ?? position}`}
           </Button>
