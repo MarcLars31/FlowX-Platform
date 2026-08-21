@@ -176,6 +176,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         initialTab={initialTab}
         canExportMaterialList={context.permissions.includes("material_list.export")}
         canCreateProject={context.permissions.includes("project.create")}
+        canDeleteProject={context.permissions.includes("project.delete")}
       />
       {canManageAccess && (
         <details className="group mx-auto max-w-[1500px] overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">

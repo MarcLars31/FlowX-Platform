@@ -17,7 +17,7 @@ export async function POST(
     | null;
   if (!isUuid(id) || !body?.reason || !body.confirmation) {
     return NextResponse.json(
-      { error: "Project ID, reason and name confirmation are required." },
+      { error: "Projekt-id, anledning och bekräftelse krävs." },
       { status: 400 }
     );
   }
@@ -41,7 +41,7 @@ function isUuid(value: string) {
 function rpcError(error: unknown) {
   return NextResponse.json(
     {
-      error: "The project could not be moved to trash."
+      error: "Projektet kunde inte flyttas till papperskorgen."
     },
     { status: error instanceof UserSupabaseError ? 403 : 500 }
   );

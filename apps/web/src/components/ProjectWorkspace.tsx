@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import {
   ArrowLeft,
@@ -10,6 +11,7 @@ import {
   FileText,
   FolderKanban,
   Save,
+  Trash2,
   Upload
 } from "lucide-react";
 import { Button } from "@/components/Button";
@@ -68,18 +70,23 @@ export function ProjectWorkspace({
   initialData,
   initialTab = "overview",
   canExportMaterialList = false,
-  canCreateProject = false
+  canCreateProject = false,
+  canDeleteProject = false
 }: {
   initialData: ProjectModuleData;
   initialTab?: GuidedProjectTab;
   canExportMaterialList?: boolean;
   canCreateProject?: boolean;
+  canDeleteProject?: boolean;
 }) {
+  const router = useRouter();
   const [data, setData] = useState(initialData);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -294,6 +301,40 @@ export function ProjectWorkspace({
       setError(uploadError instanceof Error ? uploadError.message : "Underlaget kunde inte extraheras.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function moveProjectToTrash() {
+    setDeleting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/projects/${data.project.id}/trash`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: "Projektet avslutades av användaren under produktvalet.",
+          confirmation: data.project.name
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; detail?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(
+          payload?.detail ?? payload?.error ?? "Projektet kunde inte flyttas till papperskorgen."
+        );
+      }
+      router.push("/projects");
+      router.refresh();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Projektet kunde inte flyttas till papperskorgen."
+      );
+      setShowDeleteConfirmation(false);
+      setDeleting(false);
     }
   }
 
@@ -589,17 +630,42 @@ export function ProjectWorkspace({
       )}
 
       {tab === "products" && (
-        <DistributorMappingPanel
-          projectId={data.project.id}
-          requirements={data.requirements}
-          assignments={data.suggestions}
-          memories={data.mappingMemories}
-          memoryAccessories={data.mappingAccessories}
-          onReload={reload}
-          onGoToDocuments={() => selectTab("documents")}
-          onFinish={() => finishProject()}
-          finishing={finishing}
-        />
+        <div className="space-y-5">
+          {canDeleteProject && (
+            showDeleteConfirmation ? (
+              <section role="dialog" aria-labelledby="delete-project-title" className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 shadow-sm sm:p-6">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-700 text-white"><Trash2 className="h-6 w-6" aria-hidden="true" /></span>
+                    <div>
+                      <h2 id="delete-project-title" className="text-xl font-bold text-rose-950">Vill du avsluta projektet?</h2>
+                      <p className="mt-2 max-w-2xl text-base leading-7 text-rose-900"><strong>{data.project.name}</strong> flyttas till papperskorgen. PDF, produktval och projektdata sparas där och kan återställas av en administratör.</p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
+                    <Button type="button" variant="secondary" disabled={deleting} onClick={() => setShowDeleteConfirmation(false)}>Fortsätt arbeta</Button>
+                    <Button type="button" variant="danger" disabled={deleting} onClick={() => void moveProjectToTrash()}><Trash2 className="h-5 w-5" aria-hidden="true" />{deleting ? "Avslutar projektet…" : "Ja, avsluta projektet"}</Button>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <div className="flex justify-end">
+                <Button type="button" variant="danger" onClick={() => setShowDeleteConfirmation(true)}><Trash2 className="h-5 w-5" aria-hidden="true" />Avsluta och ta bort projekt</Button>
+              </div>
+            )
+          )}
+          <DistributorMappingPanel
+            projectId={data.project.id}
+            requirements={data.requirements}
+            assignments={data.suggestions}
+            memories={data.mappingMemories}
+            memoryAccessories={data.mappingAccessories}
+            onReload={reload}
+            onGoToDocuments={() => selectTab("documents")}
+            onFinish={() => finishProject()}
+            finishing={finishing}
+          />
+        </div>
       )}
 
     </div>
