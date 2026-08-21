@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FolderKanban, Plus } from "lucide-react";
-import { Button } from "@/components/Button";
 import { ProjectListControls } from "@/components/ProjectListControls";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { getCurrentUser } from "@/lib/supabase-auth";
 import { selectUserRows } from "@/lib/supabase-user-rest";
@@ -25,16 +25,24 @@ export default async function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">Projekt</p>
-          <h1 className="mt-2 text-3xl font-semibold text-ink-950">Organisationens projekt</h1>
-          <p className="mt-2 text-sm text-ink-600">Projektlistan visar endast projekt som din organisation och projektåtkomst tillåter.</p>
-        </div>
-        {canCreate && <Link href="/projects/new"><Button><Plus className="h-4 w-4" aria-hidden="true" />Ny teknisk analys</Button></Link>}
-      </header>
+      <ScipxPageHeader
+        eyebrow="Projekt"
+        title="Organisationens projekt"
+        description="Öppna ett tidigare projekt eller börja med en ny teknisk beskrivning."
+        icon={<FolderKanban aria-hidden="true" />}
+      >
+        {canCreate && (
+          <Link
+            href="/projects/new"
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-base font-black text-[#03162d] transition hover:bg-cyan-300"
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+            Ny teknisk analys
+          </Link>
+        )}
+      </ScipxPageHeader>
 
-      <section className="overflow-hidden rounded-lg border border-ink-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
         {projects.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-14 text-center">
             <FolderKanban className="h-8 w-8 text-ink-400" aria-hidden="true" />

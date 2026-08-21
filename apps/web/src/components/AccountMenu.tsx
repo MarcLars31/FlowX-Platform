@@ -53,7 +53,7 @@ export function AccountMenu({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         onClick={() => setIsOpen((open) => !open)}
-        className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink-900 text-sm font-semibold text-white transition hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
+        className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400 text-sm font-black text-[#03162d] transition hover:bg-cyan-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200"
       >
         {initials}
       </button>

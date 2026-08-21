@@ -19,6 +19,7 @@ import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterialListPdfExportButton";
 import { PdfDropzone } from "@/components/PdfDropzone";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
 import {
@@ -358,25 +359,19 @@ export function ProjectWorkspace({
         Alla projekt
       </Link>
 
-      <header className="rounded-2xl border border-ink-200 bg-white p-5 shadow-sm sm:p-7">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-flow-100 text-flow-700">
-            <FolderKanban className="h-6 w-6" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-flow-800">{data.project.project_number ?? "Scipx-projekt"}</p>
-            <h1 className="mt-1 text-2xl font-bold text-ink-950 sm:text-3xl">{data.project.name}</h1>
-            <p className="mt-2 text-base text-ink-600">{data.project.customer_name ?? "Kund saknas"} · {statusLabels[data.project.status] ?? data.project.status}</p>
-          </div>
-        </div>
-      </header>
+      <ScipxPageHeader
+        eyebrow={data.project.project_number ?? "Scipx-projekt"}
+        title={data.project.name}
+        description={`${data.project.customer_name ?? "Kund saknas"} · ${statusLabels[data.project.status] ?? data.project.status}`}
+        icon={<FolderKanban aria-hidden="true" />}
+      />
 
-      <section className="rounded-2xl border-2 border-flow-400 bg-flow-50 p-5 shadow-sm sm:p-7">
-        <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-800">{currentInstruction.eyebrow}</p>
+      <section className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-[0_16px_35px_rgba(2,17,38,0.12)] sm:p-7">
+        <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-300">{currentInstruction.eyebrow}</p>
         <div className="mt-2 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
-            <h2 className="text-2xl font-bold text-flow-950 sm:text-3xl">{currentInstruction.title}</h2>
-            <p className="mt-3 text-base leading-7 text-flow-900">{currentInstruction.description}</p>
+            <h2 className="text-2xl font-bold text-white sm:text-3xl">{currentInstruction.title}</h2>
+            <p className="mt-3 text-base leading-7 text-slate-300">{currentInstruction.description}</p>
           </div>
           <div className="shrink-0">
             {projectFinished && canExportMaterialList ? (
@@ -550,8 +545,8 @@ export function ProjectWorkspace({
 
       {tab === "documents" && (
         <div className="space-y-5">
-          <section className="rounded-2xl border-2 border-flow-300 bg-white p-5 shadow-sm sm:p-7">
-            <div className="flex items-start gap-4"><FileText className="mt-1 h-7 w-7 shrink-0 text-flow-700" aria-hidden="true" /><div><p className="text-sm font-bold uppercase tracking-wide text-flow-800">Steg 1 av 3</p><h2 className="mt-1 text-2xl font-bold text-ink-950">Ladda upp teknisk beskrivning</h2><p className="mt-2 text-base leading-7 text-ink-700">Dra PDF-filen till rutan eller klicka på Välj fil. När analysen är klar öppnas produktvalet automatiskt.</p></div></div>
+          <section className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-sm sm:p-7">
+            <div className="flex items-start gap-4"><FileText className="mt-1 h-7 w-7 shrink-0 text-cyan-300" aria-hidden="true" /><div><p className="text-sm font-bold uppercase tracking-wide text-cyan-300">Steg 1 av 3</p><h2 className="mt-1 text-2xl font-bold text-white">Ladda upp teknisk beskrivning</h2><p className="mt-2 text-base leading-7 text-slate-300">Dra PDF-filen till rutan eller klicka på Välj fil. När analysen är klar öppnas produktvalet automatiskt.</p></div></div>
             <form className="mt-5" onSubmit={uploadTechnicalDescription}>
               <PdfDropzone
                 id={`project-pdf-${data.project.id}`}
@@ -562,7 +557,7 @@ export function ProjectWorkspace({
                 onValidationError={setError}
               />
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-medium text-ink-600">PDF är enda tillåtna filformatet.</p>
+                <p className="text-sm font-medium text-slate-300">PDF är enda tillåtna filformatet.</p>
                 <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="submit" disabled={uploading || !selectedFile}><Upload className="h-5 w-5" aria-hidden="true" />{uploading ? "Läser PDF och skapar poster..." : "Läs PDF och fortsätt"}</Button>
               </div>
             </form>
@@ -632,7 +627,7 @@ function SimpleStep({
         onClick={onClick}
         aria-current={active ? "step" : undefined}
         className={active
-          ? "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-flow-500 bg-flow-50 p-4 text-left shadow-sm"
+          ? "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-cyan-400 bg-[#06213d] p-4 text-left shadow-sm"
           : completed
             ? "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-left"
             : "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-ink-200 bg-white p-4 text-left transition enabled:hover:border-flow-400 disabled:cursor-not-allowed disabled:opacity-50"}
@@ -640,14 +635,14 @@ function SimpleStep({
         <span className={completed
           ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
           : active
-            ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-flow-600 text-lg font-bold text-white"
+            ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cyan-400 text-lg font-bold text-[#03162d]"
             : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink-100 text-lg font-bold text-ink-700"}
         >
           {completed ? <CheckCircle2 className="h-6 w-6" aria-hidden="true" /> : number}
         </span>
         <span>
-          <span className="block text-base font-bold text-ink-950">{label}</span>
-          <span className={completed ? "mt-1 block text-sm font-semibold text-emerald-800" : active ? "mt-1 block text-sm font-semibold text-flow-800" : "mt-1 block text-sm text-ink-600"}>{status}</span>
+          <span className={active ? "block text-base font-bold text-white" : "block text-base font-bold text-ink-950"}>{label}</span>
+          <span className={completed ? "mt-1 block text-sm font-semibold text-emerald-800" : active ? "mt-1 block text-sm font-semibold text-cyan-300" : "mt-1 block text-sm text-ink-600"}>{status}</span>
         </span>
       </button>
     </li>

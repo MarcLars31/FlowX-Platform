@@ -67,7 +67,7 @@ export function Sidebar({
     : adminNavigation;
 
   return (
-    <aside className="flex h-full w-full flex-col bg-ink-950 text-white">
+    <aside className="flex h-full w-full flex-col bg-[#020e20] text-white [background-image:linear-gradient(rgba(66,173,217,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(66,173,217,0.045)_1px,transparent_1px)] [background-size:28px_28px]">
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
         <div className="flex h-10 w-[92px] items-center justify-center rounded-lg bg-white px-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -94,8 +94,8 @@ export function Sidebar({
               key={item.name}
               href={item.href}
               className={cn(
-                "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-300 transition hover:bg-white/8 hover:text-white",
-                isActive && "bg-white/10 text-white"
+                "flex min-h-11 items-center gap-3 rounded-lg border border-transparent px-3 text-sm font-medium text-slate-300 transition hover:bg-white/[0.08] hover:text-white",
+                isActive && "border-cyan-300/15 bg-cyan-300/10 font-bold text-cyan-200"
               )}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

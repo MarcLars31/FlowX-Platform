@@ -76,7 +76,7 @@ export function PdfDropzone({
             ? "scale-[1.01] border-[#0073b6] bg-[#0073b6]/10 shadow-md"
             : file
               ? "border-emerald-300 bg-emerald-50/70 hover:border-emerald-400"
-              : "border-ink-200 bg-ink-50 hover:border-[#0073b6]/50 hover:bg-[#0073b6]/5",
+              : "border-cyan-300/70 bg-[#f2fbfd] hover:border-cyan-500 hover:bg-cyan-50",
           disabled ? "cursor-not-allowed opacity-60" : ""
         ].join(" ")}
       >

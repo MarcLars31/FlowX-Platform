@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { PdfDropzone } from "@/components/PdfDropzone";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 
 type CreationResponse = {
   error?: string;
@@ -73,26 +74,20 @@ export default function CreateProjectPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
+      <ScipxPageHeader
+        eyebrow="Ny teknisk analys"
+        title="Börja med den tekniska beskrivningen"
+        description="Ladda upp PDF-underlaget. Scipx läser dokumentet, skapar projektet och tar dig automatiskt vidare till produktvalet."
+        icon={<FileText aria-hidden="true" />}
+      >
         <Link
           href="/projects"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-ink-600 transition hover:text-flow-700"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-bold text-white transition hover:border-cyan-300/60 hover:bg-white/15"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Till projekt
         </Link>
-        <p className="mt-6 text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-          Ny teknisk analys
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink-950">
-          Börja med den tekniska beskrivningen
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-600">
-          Ladda upp PDF-underlaget. Scipx läser dokumentet, skapar projektet och
-          föreslår projektnamnet automatiskt. Projektuppgifter kan kompletteras
-          senare i projektöversikten.
-        </p>
-      </div>
+      </ScipxPageHeader>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Step number="1" title="Ladda upp" text="Välj teknisk beskrivning i PDF-format." />
@@ -101,17 +96,17 @@ export default function CreateProjectPage() {
       </div>
 
       <form
-        className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm"
+        className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-[0_16px_40px_rgba(2,17,38,0.08)]"
         onSubmit={createFromTechnicalDescription}
       >
-        <div className="flex flex-col gap-4 border-b border-[#0073b6]/15 bg-[#0073b6]/5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex flex-col gap-4 border-b border-cyan-300/15 bg-[#06213d] p-5 text-white sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex items-start gap-3">
-            <span className="rounded-xl bg-white p-3 text-[#00649e] shadow-sm">
+            <span className="rounded-xl bg-cyan-300/10 p-3 text-cyan-300 ring-1 ring-cyan-200/20">
               <FileText className="h-6 w-6" aria-hidden="true" />
             </span>
             <div>
-              <h2 className="font-semibold text-ink-950">Teknisk beskrivning</h2>
-              <p className="mt-1 text-sm text-ink-600">PDF, högst 30 MB</p>
+              <h2 className="font-bold text-white">Teknisk beskrivning</h2>
+              <p className="mt-1 text-sm text-slate-300">PDF, högst 30 MB</p>
             </div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -154,10 +149,10 @@ export default function CreateProjectPage() {
 
 function Step({ number, title, text }: { number: string; title: string; text: string }) {
   return (
-    <div className="rounded-xl border border-ink-200 bg-white p-4 shadow-sm">
-      <span className="text-xs font-bold text-[#00649e]">{number}</span>
-      <h2 className="mt-1 text-sm font-semibold text-ink-950">{title}</h2>
-      <p className="mt-1 text-xs leading-5 text-ink-500">{text}</p>
+    <div className="rounded-xl border border-cyan-300/15 bg-[#06213d] p-4 text-white shadow-sm">
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cyan-400 text-xs font-black text-[#03162d]">{number}</span>
+      <h2 className="mt-3 text-sm font-bold text-white">{title}</h2>
+      <p className="mt-1 text-xs leading-5 text-slate-300">{text}</p>
     </div>
   );
 }

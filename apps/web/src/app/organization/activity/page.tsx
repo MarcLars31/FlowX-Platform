@@ -1,3 +1,5 @@
+import { Activity } from "lucide-react";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 
@@ -24,15 +26,13 @@ export default async function ActivityPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-          Säkerhet och spårbarhet
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink-950">
-          Aktivitetslogg
-        </h1>
-      </header>
-      <section className="divide-y divide-ink-100 rounded-lg border border-ink-200 bg-white shadow-sm">
+      <ScipxPageHeader
+        eyebrow="Säkerhet och spårbarhet"
+        title="Aktivitetslogg"
+        description="Här visas organisationens senaste registrerade händelser."
+        icon={<Activity aria-hidden="true" />}
+      />
+      <section className="divide-y divide-ink-100 rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
         {events.map((event) => (
           <div
             key={event.id}

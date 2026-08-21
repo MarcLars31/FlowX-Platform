@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { isPlatformAdmin } from "@/lib/platform-role";
 import { getCurrentUser } from "@/lib/supabase-auth";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
+import { Settings, ShieldCheck } from "lucide-react";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
@@ -17,19 +19,14 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <header>
-        <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-          {"Konto"}
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink-950">
-          {"Inst\u00e4llningar"}
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-ink-600">
-          {"Information om ditt personliga Scipx-konto och din aktiva arbetsyta."}
-        </p>
-      </header>
+      <ScipxPageHeader
+        eyebrow="Konto"
+        title="Inställningar"
+        description="Information om ditt personliga Scipx-konto och din aktiva arbetsyta."
+        icon={<Settings aria-hidden="true" />}
+      />
 
-      <section className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-cyan-900/10 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-ink-950">{"Profil"}</h2>
         <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
           <div>
@@ -55,8 +52,8 @@ export default async function SettingsPage() {
         </dl>
       </section>
 
-      <section className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-ink-950">{"S\u00e4kerhet"}</h2>
+      <section className="rounded-2xl border border-cyan-900/10 bg-white p-5 shadow-sm">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-ink-950"><ShieldCheck className="h-5 w-5 text-[#007aa8]" aria-hidden="true" />{"S\u00e4kerhet"}</h2>
         <p className="mt-2 text-sm leading-6 text-ink-600">
           {"Du kan logga ut fr\u00e5n kontomenyn uppe till h\u00f6ger. L\u00f6senords\u00e5terst\u00e4llning hanteras av Scipx-administrat\u00f6ren tills en sj\u00e4lvbetj\u00e4ningsfunktion har lagts till."}
         </p>

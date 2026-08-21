@@ -1,4 +1,6 @@
+import { Trash2 } from "lucide-react";
 import { OrganizationTrashActions } from "@/components/OrganizationTrashActions";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
@@ -27,17 +29,13 @@ export default async function TrashPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-          Projekt
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink-950">Papperskorg</h1>
-        <p className="mt-2 text-sm text-ink-600">
-          Ingen automatisk permanent radering sker utan en konfigurerad
-          retention-policy.
-        </p>
-      </header>
-      <section className="overflow-hidden rounded-lg border border-ink-200 bg-white shadow-sm">
+      <ScipxPageHeader
+        eyebrow="Projekt"
+        title="Papperskorg"
+        description="Ingen automatisk permanent radering sker utan en konfigurerad retention-policy."
+        icon={<Trash2 aria-hidden="true" />}
+      />
+      <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-ink-200 text-sm">
             <thead className="bg-ink-50 text-left text-xs uppercase text-ink-500">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Clock3, FolderKanban, History } from "lucide-react";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { PROJECT_STAGES } from "@/lib/project-governance";
 import { selectUserRows } from "@/lib/supabase-user-rest";
@@ -52,25 +53,19 @@ export default async function ProjectHistoryPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-            Projekt
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold text-ink-950">
-            Projekthistorik
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-600">
-            Följ när projekt skapades, uppdaterades och bytte arbetssteg.
-          </p>
-        </div>
+      <ScipxPageHeader
+        eyebrow="Projekt"
+        title="Projekthistorik"
+        description="Följ när projekt skapades, uppdaterades och bytte arbetssteg."
+        icon={<History aria-hidden="true" />}
+      >
         <Link
           href="/projects"
-          className="inline-flex min-h-10 items-center justify-center rounded-lg bg-flow-600 px-4 text-sm font-semibold text-white transition hover:bg-flow-700"
+          className="inline-flex min-h-11 items-center justify-center rounded-lg bg-cyan-400 px-4 text-sm font-black text-[#03162d] transition hover:bg-cyan-300"
         >
           Öppna projekt
         </Link>
-      </header>
+      </ScipxPageHeader>
 
       <section className="grid gap-4 sm:grid-cols-2">
         <HistoryMetric
@@ -87,10 +82,10 @@ export default async function ProjectHistoryPage() {
         />
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
-        <div className="border-b border-ink-100 px-5 py-4 sm:px-6">
-          <h2 className="font-semibold text-ink-950">Tidslinje</h2>
-          <p className="mt-1 text-sm text-ink-600">Nyaste händelsen visas först.</p>
+      <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
+        <div className="border-b border-cyan-300/15 bg-[#06213d] px-5 py-4 text-white sm:px-6">
+          <h2 className="font-bold text-white">Tidslinje</h2>
+          <p className="mt-1 text-sm text-slate-300">Nyaste händelsen visas först.</p>
         </div>
         <div className="divide-y divide-ink-100">
           {canViewAudit

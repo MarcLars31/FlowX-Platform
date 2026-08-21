@@ -5,6 +5,7 @@ import { AlertTriangle, Calculator, FileSearch, Upload } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { PdfDropzone } from "@/components/PdfDropzone";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import type {
   TechnicalDescriptionExtractionResult,
   TechnicalDescriptionMaterialLine
@@ -153,20 +154,14 @@ export default function TechnicalDescriptionsPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-          Teknisk beskrivning
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink-950">
-          Materialuttag och byggestimat
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-600">
-          Detta är en separat OCR-extractor för tekniska beskrivningar. Den sparar
-          dokument, materialrader och framtida kvotregler i organisationens databas.
-        </p>
-      </header>
+      <ScipxPageHeader
+        eyebrow="Teknisk beskrivning"
+        title="Materialuttag och byggestimat"
+        description="En separat extractor som sparar dokument, materialrader och framtida kvotregler i organisationens databas."
+        icon={<FileSearch aria-hidden="true" />}
+      />
 
-      <section className="rounded-lg border border-ink-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-cyan-900/10 bg-white p-5 shadow-sm">
         <div className="flex items-start gap-3">
           <FileSearch className="mt-0.5 h-5 w-5 text-flow-700" aria-hidden="true" />
           <div>

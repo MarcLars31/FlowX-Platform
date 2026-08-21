@@ -1,4 +1,6 @@
 import { Badge } from "@/components/Badge";
+import { Building2 } from "lucide-react";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { OrganizationInviteForm } from "@/components/OrganizationInviteForm";
 import { OrganizationJoinRequestActions } from "@/components/OrganizationJoinRequestActions";
 import { OrganizationMemberActions } from "@/components/OrganizationMemberActions";
@@ -124,17 +126,12 @@ export default async function OrganizationPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
-          Organisationsadministration
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink-950">
-          {context.organization.name}
-        </h1>
-        <p className="mt-2 text-sm text-ink-600">
-          Medlemmar, team och licensöversikt visas enligt dina behörigheter.
-        </p>
-      </header>
+      <ScipxPageHeader
+        eyebrow="Organisationsadministration"
+        title={context.organization.name}
+        description="Medlemmar, team och licensöversikt visas enligt dina behörigheter."
+        icon={<Building2 aria-hidden="true" />}
+      />
 
       {subscriptions[0] && (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">

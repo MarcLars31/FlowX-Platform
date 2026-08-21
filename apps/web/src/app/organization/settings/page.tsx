@@ -1,4 +1,6 @@
+import { Building2 } from "lucide-react";
 import { OrganizationSettingsForm } from "@/components/OrganizationSettingsForm";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 import type { Organization } from "@/types/organization";
@@ -26,11 +28,12 @@ export default async function OrganizationSettingsPage() {
   const activeOrganization = organization[0] ?? context.organization;
   return (
     <div className="space-y-6">
-      <header>
-        <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">Organisation</p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink-950">Organisationsinställningar</h1>
-        <p className="mt-2 text-sm text-ink-600">Hantera grunduppgifter och datalagring för organisationen.</p>
-      </header>
+      <ScipxPageHeader
+        eyebrow="Organisation"
+        title="Organisationsinställningar"
+        description="Hantera grunduppgifter och datalagring för organisationen."
+        icon={<Building2 aria-hidden="true" />}
+      />
       <OrganizationSettingsForm
         organization={activeOrganization}
         retentionDays={subscriptions[0]?.retention_days ?? null}

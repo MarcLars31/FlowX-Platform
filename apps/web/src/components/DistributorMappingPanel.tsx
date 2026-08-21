@@ -42,14 +42,14 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
 
   return (
     <section className="space-y-6">
-      <div className="rounded-2xl border-2 border-flow-300 bg-flow-50 p-5 shadow-sm sm:p-7">
+      <div className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-[0_16px_35px_rgba(2,17,38,0.12)] sm:p-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-800">Steg 2 av 3 · Välj produkter</p>
-            <h2 className="mt-2 text-2xl font-bold text-ink-950 sm:text-3xl">
+            <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-300">Steg 2 av 3 · Välj produkter</p>
+            <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
               {remainingRequirements.length === 0 ? "Alla produktval är klara" : `Välj artikel för ${remainingRequirements.length} ${remainingRequirements.length === 1 ? "post" : "poster"}`}
             </h2>
-            <p className="mt-3 text-base leading-7 text-ink-700">
+            <p className="mt-3 text-base leading-7 text-slate-300">
               Börja uppifrån. Läs postnumret och beskrivningen, fyll i produktnamn och Ahlsells artikelnummer och tryck sedan på den stora sparknappen.
             </p>
           </div>
@@ -60,7 +60,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           </div>
         </div>
         {remainingRequirements[0] && (
-          <a href={`#post-${remainingRequirements[0].id}`} className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-flow-600 px-5 py-3 text-base font-bold text-white shadow-sm transition hover:bg-flow-700 sm:w-auto">
+          <a href={`#post-${remainingRequirements[0].id}`} className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-cyan-400 px-5 py-3 text-base font-black text-[#03162d] shadow-sm transition hover:bg-cyan-300 sm:w-auto">
             Gå till första posten som återstår
           </a>
         )}

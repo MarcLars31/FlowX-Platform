@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { FolderKanban } from "lucide-react";
 import { notFound } from "next/navigation";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
@@ -37,13 +39,15 @@ export default async function ProjectSectionPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href={`/projects/${id}`} className="text-sm font-medium text-flow-700 hover:underline">← Till projektet</Link>
-        <p className="mt-5 text-sm font-medium uppercase tracking-[0.14em] text-flow-700">{project.project_number ?? "Projekt"}</p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink-950">{definition.title}</h1>
-        <p className="mt-2 text-sm text-ink-600">{definition.description}</p>
-      </div>
-      <section className="rounded-lg border border-ink-200 bg-white p-6 shadow-sm">
+      <ScipxPageHeader
+        eyebrow={project.project_number ?? "Projekt"}
+        title={definition.title}
+        description={definition.description}
+        icon={<FolderKanban aria-hidden="true" />}
+      >
+        <Link href={`/projects/${id}`} className="inline-flex min-h-11 items-center rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-bold text-white transition hover:border-cyan-300/60 hover:bg-white/15">← Till projektet</Link>
+      </ScipxPageHeader>
+      <section className="rounded-2xl border border-cyan-900/10 bg-white p-6 shadow-sm">
         <div className="rounded-lg bg-ink-50 p-5">
           <p className="font-semibold text-ink-950">{project.name}</p>
           <p className="mt-1 text-sm text-ink-600">{project.customer_name ?? "Ingen kund angiven"} · {project.status} · {project.current_stage ?? "setup"}</p>

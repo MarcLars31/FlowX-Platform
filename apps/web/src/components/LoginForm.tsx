@@ -50,7 +50,7 @@ export function LoginForm() {
   }
 
   return (
-    <main className="min-h-screen bg-ink-950 text-white">
+    <main className="min-h-screen bg-[#020e20] text-white [background-image:linear-gradient(rgba(66,173,217,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(66,173,217,0.06)_1px,transparent_1px)] [background-size:32px_32px]">
       <div className="mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="flex min-h-[46vh] flex-col justify-between px-6 py-8 sm:px-10 lg:min-h-screen lg:py-12">
           <div className="flex items-center gap-3">
@@ -71,8 +71,9 @@ export function LoginForm() {
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               Säker åtkomst
             </div>
-            <h1 className="text-4xl font-semibold leading-tight tracking-normal text-white sm:text-5xl">
-              Teknisk beskrivning till rätt Ahlsell-artikel
+            <h1 className="text-4xl font-black leading-tight tracking-[-0.025em] text-white sm:text-5xl">
+              Från PDF till
+              <span className="block text-cyan-300">rätt Ahlsell-artikel</span>
             </h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-ink-300">
               Extrahera tekniska krav, registrera produkt och tillbehör och

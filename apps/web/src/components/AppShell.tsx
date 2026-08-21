@@ -18,7 +18,7 @@ export function AppShell({
   roleLabel?: string;
 }) {
   return (
-    <div className="min-h-screen bg-ink-100">
+    <div className="min-h-screen bg-[#eaf1f6] [background-image:linear-gradient(rgba(20,94,126,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(20,94,126,0.045)_1px,transparent_1px)] [background-size:32px_32px]">
       <div className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">
         <Sidebar
           navigation={navigation}
