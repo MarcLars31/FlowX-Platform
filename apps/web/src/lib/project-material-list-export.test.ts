@@ -12,7 +12,37 @@ const requirements = [
     category: "Sprinklerhuvud",
     requirement_key: "k_factor",
     value_text: "K80",
-    value_json: { quantity: 12, unit: "st" }
+    value_json: {
+      postNumber: "33.335.1",
+      nsCode: "UB1.111",
+      operation: "install",
+      quantity: 12,
+      unit: "st"
+    }
+  },
+  {
+    id: "requirement-2",
+    category: "Sprinklerhuvud",
+    requirement_key: "temperature",
+    value_text: "Reservpost utan produktval",
+    value_json: {
+      postNumber: "33.335.2",
+      operation: "install",
+      quantity: 4,
+      unit: "st"
+    }
+  },
+  {
+    id: "requirement-3",
+    category: "Demontering",
+    requirement_key: "removal",
+    value_text: "Demontera sprinklerledning",
+    value_json: {
+      postNumber: "33.335.3",
+      operation: "remove",
+      quantity: 18,
+      unit: "m"
+    }
   }
 ];
 
@@ -41,17 +71,30 @@ const assignments = [
   }
 ];
 
-test("builds separate, traceable rows for products and accessories", () => {
+test("keeps every post number in products, accessories, unselected rows and removals", () => {
   const rows = buildProjectMaterialRows({ requirements, assignments });
 
-  assert.equal(rows.length, 2);
-  assert.deepEqual(rows.map((row) => row.type), ["Huvudprodukt", "Tillbehör"]);
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows.map((row) => row.type), [
+    "Huvudprodukt",
+    "Tillbehör",
+    "Ej produktvald",
+    "Demontering"
+  ]);
+  assert.deepEqual([...new Set(rows.map((row) => row.postNumber))], [
+    "33.335.1",
+    "33.335.2",
+    "33.335.3"
+  ]);
   assert.equal(rows[0]?.requirementValue, "K80");
   assert.equal(rows[0]?.productNumber, "AHL-1001");
   assert.equal(rows[0]?.quantity, 12);
   assert.equal(rows[0]?.unit, "st");
   assert.equal(rows[1]?.productNumber, "AHL-2001");
   assert.equal(rows[1]?.quantity, 24);
+  assert.equal(rows[2]?.quantity, 4);
+  assert.equal(rows[3]?.operation, "Demontering");
+  assert.equal(rows[3]?.quantity, 18);
 });
 
 test("creates a valid xlsx workbook with project and material sheets", async () => {
@@ -82,7 +125,13 @@ test("creates a valid xlsx workbook with project and material sheets", async () 
     "Projekt",
     "Materiallista"
   ]);
-  assert.equal(workbook.getWorksheet("Materiallista")?.getCell("G6").value, "AHL-1001");
-  assert.equal(workbook.getWorksheet("Materiallista")?.getCell("I6").value, 12);
-  assert.equal(workbook.getWorksheet("Materiallista")?.getCell("I7").value, 24);
+  const sheet = workbook.getWorksheet("Materiallista");
+  assert.equal(sheet?.getCell("B5").value, "Postnummer");
+  assert.equal(sheet?.getCell("B6").value, "33.335.1");
+  assert.equal(sheet?.getCell("H6").value, "AHL-1001");
+  assert.equal(sheet?.getCell("J6").value, 12);
+  assert.equal(sheet?.getCell("J7").value, 24);
+  assert.equal(sheet?.getCell("B8").value, "33.335.2");
+  assert.equal(sheet?.getCell("B9").value, "33.335.3");
+  assert.equal(sheet?.getCell("C9").value, "Demontering");
 });

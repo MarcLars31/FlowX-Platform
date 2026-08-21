@@ -50,11 +50,11 @@ export function ProjectMaterialListExportButton({
 
   return (
     <div className="flex flex-col items-start gap-1.5">
-      <Button type="button" variant={variant} disabled={downloading} onClick={() => void download()}>
+      <Button className="min-h-12 justify-center px-5 text-base" type="button" variant={variant} disabled={downloading} onClick={() => void download()}>
         {downloading ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         ) : (
-          <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+          <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
         )}
         {downloading ? "Skapar Excel..." : "Ladda ner Excel"}
       </Button>

@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs";
+import { distributorRequirementOperation } from "@/lib/distributor-requirement-lines";
+import { projectRequirementDetails } from "@/lib/project-requirement-details";
 import { projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 
 export type MaterialListProject = {
@@ -29,14 +31,17 @@ export type MaterialListAssignment = {
 };
 
 export type ProjectMaterialRow = {
-  type: "Huvudprodukt" | "Tillbehör";
+  type: "Huvudprodukt" | "Tillbehör" | "Ej produktvald" | "Demontering";
+  postNumber: string;
+  operation: "Installation" | "Demontering";
+  nsCode: string;
   requirementCategory: string;
   requirementKey: string;
   requirementValue: string;
   productName: string;
   productNumber: string;
   manufacturer: string;
-  quantity: number;
+  quantity: number | null;
   unit: string;
   notes: string;
   distributor: string;
@@ -49,34 +54,70 @@ export function buildProjectMaterialRows({
   requirements: MaterialListRequirement[];
   assignments: MaterialListAssignment[];
 }) {
-  const requirementsById = new Map(
-    requirements.map((requirement) => [requirement.id, requirement])
+  const assignmentsByRequirementId = new Map(
+    assignments.flatMap((assignment) => {
+      const snapshot = record(assignment.product_snapshot);
+      if (
+        !assignment.requirement_id ||
+        snapshot.source !== "distributor_manual" ||
+        !text(snapshot.name) ||
+        !text(snapshot.productNumber)
+      ) {
+        return [];
+      }
+      return [[assignment.requirement_id, assignment] as const];
+    })
   );
   const rows: ProjectMaterialRow[] = [];
 
-  for (const assignment of assignments) {
-    const snapshot = record(assignment.product_snapshot);
-    if (
-      snapshot.source !== "distributor_manual" ||
-      !text(snapshot.name) ||
-      !text(snapshot.productNumber)
-    ) {
-      continue;
-    }
-
-    const requirement = assignment.requirement_id
-      ? requirementsById.get(assignment.requirement_id)
-      : undefined;
+  for (const requirement of requirements) {
+    const assignment = assignmentsByRequirementId.get(requirement.id);
+    const snapshot = record(assignment?.product_snapshot);
+    const details = projectRequirementDetails(requirement);
+    const removal = distributorRequirementOperation(requirement) === "remove";
     const requirementFields = {
-      requirementCategory: requirement?.category ?? "",
-      requirementKey: requirement?.requirement_key ?? "",
-      requirementValue: requirement?.value_text ?? ""
+      postNumber: details.postNumber ?? "Saknas",
+      operation: removal ? "Demontering" as const : "Installation" as const,
+      nsCode: details.nsCode ?? "",
+      requirementCategory: requirement.category ?? "",
+      requirementKey: requirement.requirement_key ?? "",
+      requirementValue: requirement.value_text ?? ""
     };
-    const requiredQuantity = projectRequirementQuantity(requirement?.value_json);
-    const mainQuantity = requiredQuantity.quantity ?? 1;
+    const requiredQuantity = projectRequirementQuantity(requirement.value_json);
+    const mainQuantity = requiredQuantity.quantity;
     const missingQuantityNote = requiredQuantity.quantity === null
       ? "Antal saknas i den tekniska beskrivningen – kontrollera före beställning."
       : "";
+
+    if (removal) {
+      rows.push({
+        type: "Demontering",
+        ...requirementFields,
+        productName: "Demontering enligt teknisk beskrivning",
+        productNumber: "",
+        manufacturer: "",
+        quantity: mainQuantity,
+        unit: requiredQuantity.unit,
+        notes: missingQuantityNote,
+        distributor: ""
+      });
+      continue;
+    }
+
+    if (!assignment) {
+      rows.push({
+        type: "Ej produktvald",
+        ...requirementFields,
+        productName: "Ej produktvald",
+        productNumber: "",
+        manufacturer: "",
+        quantity: mainQuantity,
+        unit: requiredQuantity.unit,
+        notes: joinNotes("Produktval saknas.", missingQuantityNote),
+        distributor: "Ahlsell"
+      });
+      continue;
+    }
 
     rows.push({
       type: "Huvudprodukt",
@@ -100,7 +141,9 @@ export function buildProjectMaterialRows({
         productName: name,
         productNumber: text(accessory.productNumber),
         manufacturer: "",
-        quantity: mainQuantity * positiveNumber(accessory.quantity, 1),
+        quantity: mainQuantity === null
+          ? null
+          : mainQuantity * positiveNumber(accessory.quantity, 1),
         unit: text(accessory.unit) || "st",
         notes: joinNotes(text(accessory.notes), missingQuantityNote),
         distributor: text(snapshot.distributor) || "Ahlsell"
@@ -153,8 +196,10 @@ function addProjectSheet(
   sheet.getCell("A1").style = titleStyle();
   sheet.getRow(1).height = 30;
 
+  const postCount = new Set(rows.map((row) => row.postNumber)).size;
   const mainProductCount = rows.filter((row) => row.type === "Huvudprodukt").length;
-  const accessoryCount = rows.length - mainProductCount;
+  const accessoryCount = rows.filter((row) => row.type === "Tillbehör").length;
+  const removalCount = rows.filter((row) => row.type === "Demontering").length;
   const details: Array<[string, string | number | Date]> = [
     ["Projekt", project.name],
     ["Projektnummer", project.project_number ?? "—"],
@@ -165,8 +210,10 @@ function addProjectSheet(
     ["Systemtyp", project.system_type ?? "—"],
     ["Distributör", project.supplier ?? "Ahlsell"],
     ["Projektstatus", statusLabel(project.status)],
+    ["Poster från underlaget", postCount],
     ["Huvudprodukter", mainProductCount],
     ["Tillbehörsrader", accessoryCount],
+    ["Demonteringsposter", removalCount],
     ["Exporterad", generatedAt]
   ];
   details.forEach(([label, value], index) => {
@@ -175,12 +222,12 @@ function addProjectSheet(
     row.getCell(1).font = { bold: true, color: { argb: "FF334155" } };
     row.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
     row.getCell(1).alignment = { vertical: "middle" };
-    row.getCell(2).alignment = { vertical: "middle", wrapText: true };
+    row.getCell(2).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
     row.height = 22;
   });
-  sheet.getCell("B14").numFmt = "yyyy-mm-dd hh:mm";
-  sheet.mergeCells("A17:B18");
-  const note = sheet.getCell("A17");
+  sheet.getCell("B17").numFmt = "yyyy-mm-dd hh:mm";
+  sheet.mergeCells("A19:B20");
+  const note = sheet.getCell("A19");
   note.value = "Kontrollera alltid artikelnummer, antal, pris och tillgänglighet före beställning. Exporten bygger på de produktval som registrerats i projektet.";
   note.alignment = { vertical: "middle", wrapText: true };
   note.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF7ED" } };
@@ -203,11 +250,11 @@ function addMaterialListSheet(
       margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }
     }
   });
-  sheet.mergeCells("A1:K1");
+  sheet.mergeCells("A1:L1");
   sheet.getCell("A1").value = `Materiallista · ${project.name}`;
   sheet.getCell("A1").style = titleStyle();
   sheet.getRow(1).height = 31;
-  sheet.mergeCells("A2:K2");
+  sheet.mergeCells("A2:L2");
   sheet.getCell("A2").value = [
     project.project_number ? `Projekt ${project.project_number}` : null,
     project.customer_name,
@@ -215,16 +262,17 @@ function addMaterialListSheet(
   ].filter(Boolean).join(" · ");
   sheet.getCell("A2").font = { color: { argb: "FF475569" }, size: 10 };
   sheet.getCell("A2").alignment = { vertical: "middle" };
-  sheet.mergeCells("A3:K3");
+  sheet.mergeCells("A3:L3");
   sheet.getCell("A3").value = "Kontrollera artikelnummer, antal, pris och tillgänglighet före beställning.";
   sheet.getCell("A3").font = { italic: true, color: { argb: "FF9A3412" }, size: 10 };
 
   const tableRows = rows.map((row, index) => [
     index + 1,
+    row.postNumber,
+    row.operation,
     row.type,
-    valueOrNull(row.requirementCategory),
-    valueOrNull(row.requirementKey),
     valueOrNull(row.requirementValue),
+    valueOrNull(row.nsCode),
     row.productName,
     valueOrNull(row.productNumber),
     valueOrNull(row.manufacturer),
@@ -240,11 +288,12 @@ function addMaterialListSheet(
     style: { theme: "TableStyleMedium2", showRowStripes: true },
     columns: [
       { name: "Rad" },
-      { name: "Typ" },
-      { name: "Kravkategori" },
-      { name: "Krav" },
-      { name: "Kravvärde" },
-      { name: "Produkt" },
+      { name: "Postnummer" },
+      { name: "Åtgärd" },
+      { name: "Radtyp" },
+      { name: "Beskrivning från underlag" },
+      { name: "NS-kod" },
+      { name: "Vald produkt" },
       { name: "Artikelnummer" },
       { name: "Tillverkare" },
       { name: "Antal" },
@@ -254,24 +303,24 @@ function addMaterialListSheet(
     rows: tableRows
   });
 
-  const widths = [7, 16, 20, 22, 28, 30, 19, 20, 11, 10, 34];
+  const widths = [7, 16, 14, 17, 42, 17, 30, 19, 20, 11, 10, 34];
   widths.forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
-  sheet.getColumn(9).numFmt = "0.00";
+  sheet.getColumn(10).numFmt = "0.00";
   if (rows.length > 0) {
     for (let rowIndex = 6; rowIndex <= rows.length + 5; rowIndex += 1) {
       const row = sheet.getRow(rowIndex);
       row.height = 32;
-      for (let columnIndex = 1; columnIndex <= 11; columnIndex += 1) {
+      for (let columnIndex = 1; columnIndex <= 12; columnIndex += 1) {
         row.getCell(columnIndex).alignment = { vertical: "top", wrapText: true };
       }
       row.getCell(1).alignment = { horizontal: "center", vertical: "top" };
-      row.getCell(9).alignment = { horizontal: "right", vertical: "top" };
       row.getCell(10).alignment = { horizontal: "right", vertical: "top" };
+      row.getCell(11).alignment = { horizontal: "right", vertical: "top" };
     }
   }
-  sheet.autoFilter = `A5:K${Math.max(5, rows.length + 5)}`;
+  sheet.autoFilter = `A5:L${Math.max(5, rows.length + 5)}`;
   sheet.headerFooter.oddFooter = "Scipx · Sida &P av &N";
 }
 
