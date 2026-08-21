@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { CheckCircle2, ChevronDown, History, Loader2, PackageCheck, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, History, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
@@ -47,17 +47,21 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           <div className="max-w-3xl">
             <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-300">Steg 2 av 3 · Välj produkter</p>
             <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-              {remainingRequirements.length === 0 ? "Alla produktval är klara" : `Välj artikel för ${remainingRequirements.length} ${remainingRequirements.length === 1 ? "post" : "poster"}`}
+              {remainingRequirements.length === 0 ? "Alla produktval är bekräftade" : `Bekräfta ${remainingRequirements.length} ${remainingRequirements.length === 1 ? "produktval" : "produktval"}`}
             </h2>
             <p className="mt-3 text-base leading-7 text-slate-300">
-              Börja uppifrån. Läs postnumret och beskrivningen, fyll i produktnamn och Ahlsells artikelnummer och tryck sedan på den stora sparknappen.
+              Börja uppifrån. Kontrollera PDF-kravet, välj rätt artikel och bekräfta varje post med den stora knappen. Inget förslag sparas automatiskt.
             </p>
           </div>
           <div className="grid min-w-[250px] grid-cols-3 overflow-hidden rounded-xl border border-flow-200 bg-white text-center shadow-sm">
             <StatusNumber value={totalPosts} label="Poster" />
-            <StatusNumber value={mappedRequirementIds.size} label="Klara" tone="success" />
-            <StatusNumber value={remainingRequirements.length} label="Kvar" tone="warning" />
+            <StatusNumber value={mappedRequirementIds.size} label="Bekräftade" tone="success" />
+            <StatusNumber value={remainingRequirements.length} label="Att bekräfta" tone="warning" />
           </div>
+        </div>
+        <div className="mt-5 flex max-w-3xl items-start gap-3 rounded-xl border border-cyan-300/30 bg-white/10 p-4 text-sm font-semibold leading-6 text-cyan-50">
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
+          <p>Du bestämmer alltid själv. Tidigare produktval kan fylla i fälten som ett utkast, men varje rad måste bekräftas av dig.</p>
         </div>
         {remainingRequirements[0] && (
           <a href={`#post-${remainingRequirements[0].id}`} className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-cyan-400 px-5 py-3 text-base font-black text-[#03162d] shadow-sm transition hover:bg-cyan-300 sm:w-auto">
@@ -83,7 +87,6 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           {productRequirements.map((requirement, index) => {
             const assignment = manualAssignments.find((item) => item.requirement_id === requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
-            const completesProject = !assignment && remainingRequirements.length === 1;
             return (
               <RequirementProductMappingCard
                 key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
@@ -98,7 +101,6 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                   setError(null);
                   setMessage(successMessage);
                   await onReload();
-                  if (completesProject) await onFinish();
                 }}
                 onError={(errorMessage) => { setMessage(null); setError(errorMessage || null); }}
               />
@@ -124,7 +126,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 <CheckCircle2 className="mt-0.5 h-8 w-8 shrink-0 text-emerald-700" aria-hidden="true" />
                 <div>
                   <h3 className="text-2xl font-bold text-emerald-950">Bra – steg 2 är färdigt</h3>
-                  <p className="mt-2 text-base leading-7 text-emerald-900">Alla inköpsposter har en artikel. Tryck på knappen nedan för att gå till resultatet och ladda ner Excel.</p>
+                  <p className="mt-2 text-base leading-7 text-emerald-900">Du har själv bekräftat alla inköpsposter. Tryck på knappen nedan för att gå till sammanfattningen och ladda ner Excel eller PDF.</p>
                 </div>
               </div>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -163,8 +165,10 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   const [notes, setNotes] = useState(String(currentSnapshot.notes ?? ""));
   const [accessories, setAccessories] = useState<AccessoryDraft[]>(() => snapshotAccessories(currentSnapshot.accessories));
   const [saving, setSaving] = useState(false);
+  const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
+  const isConfirmed = Boolean(assignment) && !hasUnconfirmedChanges;
 
   function selectionFromMemory(memory: Row): ProductSelection {
     return {
@@ -184,16 +188,16 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
     setManufacturerName(selection.manufacturerName);
     setNotes(selection.notes);
     setAccessories(selection.accessories);
+    setHasUnconfirmedChanges(true);
   }
 
-  async function applyMemoryAndSave(memory: Row) {
-    const selection = selectionFromMemory(memory);
-    showSelection(selection);
-    await save(selection);
+  function applyMemory(memory: Row) {
+    showSelection(selectionFromMemory(memory));
+    onError("");
   }
 
-  async function save(selection?: ProductSelection) {
-    const chosen = selection ?? {
+  async function save() {
+    const chosen = {
       productName,
       productNumber,
       manufacturerName,
@@ -210,7 +214,8 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Produktvalet kunde inte sparas.");
-      await onSaved(payload?.message ?? `Produktvalet för post ${details.postNumber ?? position} är sparat.`);
+      setHasUnconfirmedChanges(false);
+      await onSaved(`Produktvalet för post ${details.postNumber ?? position} är bekräftat.`);
     } catch (saveError) {
       onError(saveError instanceof Error ? saveError.message : "Produktvalet kunde inte sparas.");
     } finally {
@@ -219,14 +224,18 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   }
 
   return (
-    <article id={`post-${requirement.id}`} className={assignment ? "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-emerald-300 bg-white shadow-sm" : "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-flow-300 bg-white shadow-sm"}>
-      <div className={assignment ? "bg-emerald-50 p-5 sm:p-6" : "bg-flow-50 p-5 sm:p-6"}>
+    <article id={`post-${requirement.id}`} className={isConfirmed ? "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-emerald-300 bg-white shadow-sm" : "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-amber-300 bg-white shadow-[0_12px_30px_rgba(120,53,15,0.08)]"}>
+      <div className={isConfirmed ? "bg-emerald-50 p-5 sm:p-6" : "bg-amber-50 p-5 sm:p-6"}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className={assignment ? "text-sm font-bold text-emerald-800" : "text-sm font-bold text-flow-800"}>POST {position} AV {totalPosts}</p>
+            <p className={isConfirmed ? "text-sm font-bold text-emerald-800" : "text-sm font-bold text-amber-900"}>1 · KONTROLLERA PDF-KRAVET · POST {position} AV {totalPosts}</p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <h3 className="text-2xl font-bold text-ink-950 sm:text-3xl">Postnr {details.postNumber ?? "saknas"}</h3>
-              {assignment && <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Klar</span>}
+              {isConfirmed ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Bekräftad</span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 px-3 py-1.5 text-sm font-bold text-white">Väntar på din bekräftelse</span>
+              )}
             </div>
             <p className="mt-3 max-w-4xl text-lg font-semibold leading-7 text-ink-900">{String(requirement.value_text ?? "Tekniskt krav")}</p>
           </div>
@@ -260,24 +269,25 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       <div className="space-y-5 p-5 sm:p-6">
         {memories.length > 0 && (
           <div className="rounded-xl border-2 border-sky-200 bg-sky-50 p-4">
-            <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Förslag från ett tidigare projekt</div>
+            <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Förslag från ett tidigare projekt – inte bekräftat</div>
+            <p className="mt-1 text-sm leading-6 text-sky-900">Välj ett förslag för att fylla i fälten. Kontrollera sedan uppgifterna och bekräfta raden själv.</p>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               {memories.map((memory) => (
-                <button key={memory.id} type="button" disabled={saving} onClick={() => void applyMemoryAndSave(memory)} className="min-h-24 rounded-xl border-2 border-sky-200 bg-white p-4 text-left transition hover:border-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-wait disabled:opacity-60">
+                <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="min-h-24 rounded-xl border-2 border-sky-200 bg-white p-4 text-left transition hover:border-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-wait disabled:opacity-60">
                   <p className="text-base font-bold text-ink-950">{String(memory.product_name)}</p>
                   <p className="mt-1 text-sm text-ink-700">Art.nr {String(memory.product_number)}</p>
-                  <p className="mt-3 text-sm font-bold text-sky-800">{saving ? "Sparar förslaget…" : "Använd och spara förslaget"}</p>
+                  <p className="mt-3 text-sm font-bold text-sky-800">Fyll i detta förslag</p>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        <div><h4 className="text-lg font-bold text-ink-950">Fyll i vald produkt</h4><p className="mt-1 text-sm text-ink-600">Fälten med * måste fyllas i innan posten kan sparas.</p></div>
+        <div><p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">2 · Välj produkt</p><h4 className="mt-1 text-xl font-bold text-ink-950">Fyll i den produkt du vill använda</h4><p className="mt-1 text-sm text-ink-600">Fälten med * måste fyllas i. Uppgifterna sparas först när du bekräftar produktvalet.</p></div>
         <div className="grid gap-4 md:grid-cols-3">
-          <Input className="h-12 text-base" id={`product-name-${requirement.id}`} label="Produktnamn *" value={productName} onChange={(event) => setProductName(event.target.value)} required />
-          <Input className="h-12 text-base" id={`product-number-${requirement.id}`} label="Ahlsells artikelnummer *" value={productNumber} onChange={(event) => setProductNumber(event.target.value)} required />
-          <Input className="h-12 text-base" id={`manufacturer-${requirement.id}`} label="Tillverkare (valfritt)" value={manufacturerName} onChange={(event) => setManufacturerName(event.target.value)} />
+          <Input className="h-12 text-base" id={`product-name-${requirement.id}`} label="Produktnamn *" value={productName} onChange={(event) => { setProductName(event.target.value); setHasUnconfirmedChanges(true); }} required />
+          <Input className="h-12 text-base" id={`product-number-${requirement.id}`} label="Ahlsells artikelnummer *" value={productNumber} onChange={(event) => { setProductNumber(event.target.value); setHasUnconfirmedChanges(true); }} required />
+          <Input className="h-12 text-base" id={`manufacturer-${requirement.id}`} label="Tillverkare (valfritt)" value={manufacturerName} onChange={(event) => { setManufacturerName(event.target.value); setHasUnconfirmedChanges(true); }} />
         </div>
 
         <details className="rounded-xl border border-ink-200 bg-ink-50">
@@ -285,26 +295,29 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
           <div className="space-y-5 border-t border-ink-200 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-ink-700">Lägg till produkter som normalt beställs tillsammans med huvudprodukten.</p>
-              <Button type="button" variant="secondary" onClick={() => setAccessories((current) => [...current, { name: "", productNumber: "", quantity: 1, unit: "st", notes: "" }])}><Plus className="h-4 w-4" aria-hidden="true" /> Lägg till tillbehör</Button>
+              <Button type="button" variant="secondary" onClick={() => { setAccessories((current) => [...current, { name: "", productNumber: "", quantity: 1, unit: "st", notes: "" }]); setHasUnconfirmedChanges(true); }}><Plus className="h-4 w-4" aria-hidden="true" /> Lägg till tillbehör</Button>
             </div>
             {accessories.map((accessory, index) => (
               <div key={index} className="grid gap-3 rounded-xl border border-ink-200 bg-white p-4 md:grid-cols-[2fr_1.3fr_0.8fr_0.7fr_auto]">
-                <CompactInput label="Tillbehör" value={accessory.name} onChange={(value) => updateAccessory(setAccessories, index, "name", value)} />
-                <CompactInput label="Artikelnummer" value={accessory.productNumber} onChange={(value) => updateAccessory(setAccessories, index, "productNumber", value)} />
-                <CompactInput label="Antal per produkt" type="number" min="0.001" step="0.001" value={String(accessory.quantity)} onChange={(value) => updateAccessory(setAccessories, index, "quantity", Number(value))} />
-                <CompactInput label="Enhet" value={accessory.unit} onChange={(value) => updateAccessory(setAccessories, index, "unit", value)} />
-                <button type="button" aria-label="Ta bort tillbehör" onClick={() => setAccessories((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="mt-7 flex h-11 w-11 items-center justify-center rounded-lg text-ink-500 transition hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></button>
+                <CompactInput label="Tillbehör" value={accessory.name} onChange={(value) => { updateAccessory(setAccessories, index, "name", value); setHasUnconfirmedChanges(true); }} />
+                <CompactInput label="Artikelnummer" value={accessory.productNumber} onChange={(value) => { updateAccessory(setAccessories, index, "productNumber", value); setHasUnconfirmedChanges(true); }} />
+                <CompactInput label="Antal per produkt" type="number" min="0.001" step="0.001" value={String(accessory.quantity)} onChange={(value) => { updateAccessory(setAccessories, index, "quantity", Number(value)); setHasUnconfirmedChanges(true); }} />
+                <CompactInput label="Enhet" value={accessory.unit} onChange={(value) => { updateAccessory(setAccessories, index, "unit", value); setHasUnconfirmedChanges(true); }} />
+                <button type="button" aria-label="Ta bort tillbehör" onClick={() => { setAccessories((current) => current.filter((_, itemIndex) => itemIndex !== index)); setHasUnconfirmedChanges(true); }} className="mt-7 flex h-11 w-11 items-center justify-center rounded-lg text-ink-500 transition hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></button>
               </div>
             ))}
-            <label className="block"><span className="mb-2 block text-sm font-semibold text-ink-700">Intern kommentar</span><textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} className="block w-full rounded-lg border-ink-200 bg-white text-base text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500" /></label>
+            <label className="block"><span className="mb-2 block text-sm font-semibold text-ink-700">Intern kommentar</span><textarea rows={3} value={notes} onChange={(event) => { setNotes(event.target.value); setHasUnconfirmedChanges(true); }} className="block w-full rounded-lg border-ink-200 bg-white text-base text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500" /></label>
           </div>
         </details>
 
-        <div className="flex flex-col gap-2 border-t border-ink-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-medium text-ink-600">{assignment ? "Posten är sparad. Du kan ändra uppgifterna och spara igen." : "Spara posten för att gå vidare."}</p>
+        <div className={isConfirmed ? "flex flex-col gap-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between" : "flex flex-col gap-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between"}>
+          <div>
+            <p className={isConfirmed ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-800" : "text-sm font-bold uppercase tracking-[0.08em] text-amber-900"}>3 · Bekräfta produktvalet</p>
+            <p className={isConfirmed ? "mt-1 text-sm font-medium text-emerald-900" : "mt-1 text-sm font-medium text-amber-950"}>{isConfirmed ? "Produktvalet är bekräftat. Ändringar måste bekräftas på nytt." : "Kontrollera produktnamn och artikelnummer. Bekräfta sedan raden själv."}</p>
+          </div>
           <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="button" onClick={() => void save()} disabled={saving || !productName.trim() || !productNumber.trim()}>
-            {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <PackageCheck className="h-5 w-5" aria-hidden="true" />}
-            {saving ? "Sparar…" : assignment ? `Spara ändringar för post ${details.postNumber ?? position}` : `Spara post ${details.postNumber ?? position}`}
+            {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+            {saving ? "Bekräftar…" : assignment ? `Bekräfta ändringar för post ${details.postNumber ?? position}` : `Bekräfta produktval för post ${details.postNumber ?? position}`}
           </Button>
         </div>
       </div>
