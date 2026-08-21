@@ -28,6 +28,7 @@ export function AppShell({
       </div>
       <div className="lg:pl-64">
         <Topbar
+          navigation={navigation}
           organizationName={organizationName}
           userName={userName}
           userEmail={userEmail}
