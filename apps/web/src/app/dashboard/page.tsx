@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  Clock3,
   FileSpreadsheet,
   FileText,
   FileUp,
@@ -11,6 +12,8 @@ import {
   ScanText
 } from "lucide-react";
 import { getOrganizationContext } from "@/lib/organization-context";
+import { selectUserRows } from "@/lib/supabase-user-rest";
+import type { OrganizationProject } from "@/types/organization";
 
 export default async function DashboardPage() {
   const context = await getOrganizationContext();
@@ -25,6 +28,17 @@ export default async function DashboardPage() {
     ].includes(permission)
   );
   const canCreateProject = context.permissions.includes("project.create");
+  const availableProjects = canViewProjects
+    ? await selectUserRows<OrganizationProject>("projects", {
+        select: "id,name,project_number,status,current_stage,updated_at,organization_id,access_level,created_at",
+        organization_id: `eq.${context.organization.id}`,
+        deleted_at: "is.null",
+        order: "updated_at.desc",
+        limit: "50"
+      })
+    : [];
+  const openProjects = availableProjects.filter(isOpenProject);
+  const latestOpenProject = openProjects[0];
 
   return (
     <div className="scipx-dashboard-frame mx-auto max-w-[1500px]">
@@ -77,32 +91,118 @@ export default async function DashboardPage() {
               </p>
             </div>
 
-            <div className="scipx-dashboard-capabilities mt-8 grid max-w-2xl grid-cols-2 gap-x-4 gap-y-5 border-t border-cyan-200/20 pt-5 sm:grid-cols-4">
-              <Capability icon={<ScanText />} label="Texten läses" />
-              <Capability icon={<FileText />} label="Poster hittas" />
-              <Capability icon={<PackageCheck />} label="Produkt väljs" />
-              <Capability icon={<FileSpreadsheet />} label="Underlag skapas" />
-            </div>
+            {latestOpenProject ? (
+              <div className="lg:hidden">
+                <OpenProjectCard project={latestOpenProject} total={openProjects.length} />
+              </div>
+            ) : (
+              <div className="scipx-dashboard-capabilities mt-8 grid max-w-2xl grid-cols-2 gap-x-4 gap-y-5 border-t border-cyan-200/20 pt-5 sm:grid-cols-4">
+                <Capability icon={<ScanText />} label="Texten läses" />
+                <Capability icon={<FileText />} label="Poster hittas" />
+                <Capability icon={<PackageCheck />} label="Produkt väljs" />
+                <Capability icon={<FileSpreadsheet />} label="Underlag skapas" />
+              </div>
+            )}
           </div>
 
           <div className="scipx-dashboard-visual relative items-center justify-center border-t border-cyan-200/15 bg-[#021227]/35 p-6 sm:p-8 lg:border-l lg:border-t-0 xl:p-10">
-            <div className="relative w-full max-w-[570px]">
-              <div className="absolute -inset-10 rounded-full bg-cyan-400/10 blur-3xl" />
-              <div className="relative grid gap-4 sm:grid-cols-[minmax(135px,0.92fr)_40px_minmax(155px,1.08fr)] sm:items-center">
-                <DocumentPreview />
-                <div className="hidden justify-center sm:flex" aria-hidden="true">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-200/50 bg-cyan-400/15 text-cyan-200 shadow-[0_0_30px_rgba(34,211,238,0.38)]">
-                    <ArrowRight className="h-5 w-5" />
-                  </span>
+            {latestOpenProject ? (
+              <OpenProjectsPanel projects={openProjects.slice(0, 3)} total={openProjects.length} />
+            ) : (
+              <div className="relative w-full max-w-[570px]">
+                <div className="absolute -inset-10 rounded-full bg-cyan-400/10 blur-3xl" />
+                <div className="relative grid gap-4 sm:grid-cols-[minmax(135px,0.92fr)_40px_minmax(155px,1.08fr)] sm:items-center">
+                  <DocumentPreview />
+                  <div className="hidden justify-center sm:flex" aria-hidden="true">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-200/50 bg-cyan-400/15 text-cyan-200 shadow-[0_0_30px_rgba(34,211,238,0.38)]">
+                      <ArrowRight className="h-5 w-5" />
+                    </span>
+                  </div>
+                  <ProductPreview />
                 </div>
-                <ProductPreview />
               </div>
-            </div>
+            )}
           </div>
         </div>
       </section>
     </div>
   );
+}
+
+function OpenProjectsPanel({ projects, total }: { projects: OrganizationProject[]; total: number }) {
+  const [primary, ...secondary] = projects;
+  if (!primary) return null;
+  const continuation = projectContinuation(primary);
+  return (
+    <section className="relative w-full max-w-[570px] rounded-[24px] border border-cyan-300/30 bg-white p-6 text-[#10233d] shadow-[0_24px_65px_rgba(0,0,0,0.3)] xl:p-8">
+      <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
+          <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#007598]"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />Pågående projekt</p>
+          <h2 className="mt-1 text-2xl font-black text-[#06213d]">Fortsätt där du slutade</h2>
+        </div>
+        <span className="rounded-full bg-cyan-50 px-3 py-1.5 text-sm font-black text-[#006b91]">{total} öppna</span>
+      </div>
+
+      <div className="mt-5 rounded-2xl border-2 border-cyan-300 bg-cyan-50/60 p-5">
+        <p className="text-xs font-black uppercase tracking-[0.1em] text-[#007598]">Senast använt</p>
+        <h3 className="mt-2 line-clamp-2 text-xl font-black leading-7 text-[#06213d]">{primary.name}</h3>
+        <p className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-600"><Clock3 className="h-4 w-4" aria-hidden="true" />Nästa steg: {continuation.label}</p>
+        <Link href={continuation.href} className="group mt-5 inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-xl bg-[#06213d] px-5 text-lg font-black text-white transition hover:bg-[#0a3156] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-cyan-500">
+          Fortsätt projektet
+          <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" aria-hidden="true" />
+        </Link>
+      </div>
+
+      {secondary.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {secondary.map((project) => {
+            const next = projectContinuation(project);
+            return <Link key={project.id} href={next.href} className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-2.5 transition hover:border-cyan-400 hover:bg-cyan-50"><span className="min-w-0 truncate text-sm font-bold text-slate-800">{project.name}</span><span className="shrink-0 text-xs font-bold text-[#007598]">Fortsätt →</span></Link>;
+          })}
+        </div>
+      )}
+
+      <Link href="/projects" className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-black text-[#006b91] underline decoration-2 underline-offset-4 hover:text-[#004f70]"><FolderOpen className="h-4 w-4" aria-hidden="true" />Visa alla projekt</Link>
+    </section>
+  );
+}
+
+function OpenProjectCard({ project, total }: { project: OrganizationProject; total: number }) {
+  const continuation = projectContinuation(project);
+  return (
+    <section className="scipx-dashboard-open-project mt-6 max-w-2xl rounded-2xl border-2 border-cyan-300 bg-white p-4 text-[#10233d] shadow-[0_14px_35px_rgba(0,0,0,0.22)] sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#007598]"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />Pågående projekt</span>
+            {total > 1 && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{total} öppna</span>}
+          </div>
+          <h2 className="mt-2 truncate text-lg font-black sm:text-xl">{project.name}</h2>
+          <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-600"><Clock3 className="h-4 w-4 shrink-0" aria-hidden="true" />Nästa steg: {continuation.label}</p>
+        </div>
+        <Link href={continuation.href} className="group inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#06213d] px-5 text-base font-black text-white transition hover:bg-[#0a3156] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-cyan-500">
+          Fortsätt projektet
+          <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" aria-hidden="true" />
+        </Link>
+      </div>
+      {total > 1 && <Link href="/projects" className="mt-3 inline-flex text-sm font-bold text-[#007598] underline decoration-2 underline-offset-4 hover:text-[#004f70]">Visa alla pågående projekt</Link>}
+    </section>
+  );
+}
+
+function isOpenProject(project: OrganizationProject) {
+  return project.current_stage !== "completed" && !["completed", "archived"].includes(project.status);
+}
+
+function projectContinuation(project: OrganizationProject) {
+  const stage = project.current_stage ?? "documents";
+  if (["setup", "documents", "technical_description"].includes(stage)) {
+    return { href: `/projects/${project.id}?step=documents`, label: "Ladda upp PDF" };
+  }
+  if (["requirements_review", "analysis", "product_matching"].includes(stage)) {
+    return { href: `/projects/${project.id}?step=products`, label: "Välj produkter" };
+  }
+  return { href: `/projects/${project.id}`, label: "Visa sammanfattningen" };
 }
 
 function BrandLockup() {
