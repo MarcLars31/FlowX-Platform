@@ -10,7 +10,7 @@ import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignme
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
-import { splitAhlsellMatchGroups, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
+import { splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 
 type Row = Record<string, unknown> & { id: string };
@@ -45,42 +45,90 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
       ? [memory.requirement_fingerprint]
       : [])
   );
-  const { greenRequirements, yellowRequirements } = splitAhlsellMatchGroups(
+  const staticallySafeRequirementIds = new Set(productRequirements.flatMap((requirement) => {
+    const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
+    const safe = approvedRequirementIds.has(requirement.id)
+      || Boolean(fingerprint && memoryFingerprints.has(fingerprint))
+      || buildAhlsellRequirementGuide(requirement).directCandidates.length > 0;
+    return safe ? [requirement.id] : [];
+  }));
+  const catalogCheckRequirementIds = productRequirements
+    .filter((requirement) => !staticallySafeRequirementIds.has(requirement.id))
+    .map((requirement) => requirement.id);
+  const catalogCheckKey = catalogCheckRequirementIds.join(",");
+  const [catalogStatuses, setCatalogStatuses] = useState<Record<string, AhlsellCatalogMatchStatus>>({});
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const requirementIds = catalogCheckKey ? catalogCheckKey.split(",") : [];
+    let nextIndex = 0;
+
+    async function worker() {
+      while (!controller.signal.aborted) {
+        const requirementId = requirementIds[nextIndex];
+        nextIndex += 1;
+        if (!requirementId) return;
+        try {
+          const response = await fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates`, {
+            signal: controller.signal,
+            headers: { Accept: "application/json" }
+          });
+          if (!response.ok) continue;
+          const payload = await response.json().catch(() => null) as AhlsellCatalogResult | null;
+          if (!payload || !Array.isArray(payload.candidates)) continue;
+          const status: AhlsellCatalogMatchStatus = payload.candidates.some((candidate) => candidate.recommendation === "recommended")
+            ? "safe"
+            : payload.candidates.length > 0 ? "found" : "none";
+          setCatalogStatuses((current) => ({ ...current, [requirementId]: status }));
+        } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") return;
+        }
+      }
+    }
+
+    void Promise.all(Array.from({ length: Math.min(3, requirementIds.length) }, () => worker()));
+    return () => controller.abort();
+  }, [catalogCheckKey, projectId]);
+
+  const { greenRequirements, yellowRequirements, redRequirements } = splitAhlsellMatchGroups(
     productRequirements,
-    { approvedRequirementIds, memoryFingerprints }
+    { approvedRequirementIds, memoryFingerprints, catalogStatuses }
   );
   const initialGroup: AhlsellMatchGroup = greenRequirements.some(
     (requirement) => !approvedRequirementIds.has(requirement.id)
-  ) || yellowRequirements.length === 0
+  ) || (yellowRequirements.length === 0 && redRequirements.length === 0)
     ? "green"
-    : "yellow";
-  const initialQueue = initialGroup === "green" ? greenRequirements : yellowRequirements;
+    : yellowRequirements.length > 0 ? "yellow" : "red";
+  const requirementsByGroup: Record<AhlsellMatchGroup, Row[]> = {
+    green: greenRequirements,
+    yellow: yellowRequirements,
+    red: redRequirements
+  };
+  const initialQueue = requirementsByGroup[initialGroup];
   const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup>(initialGroup);
   const totalPosts = productRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(
     () => initialQueue.find((requirement) => !approvedRequirementIds.has(requirement.id))?.id ?? initialQueue[0]?.id ?? null
   );
-  const effectiveQueueGroup: AhlsellMatchGroup = queueGroup === "green"
-    && greenRequirements.length === 0
-    && yellowRequirements.length > 0
-      ? "yellow"
-      : queueGroup === "yellow"
-        && yellowRequirements.length === 0
-        && greenRequirements.length > 0
-          ? "green"
-          : queueGroup;
-  const queueRequirements = effectiveQueueGroup === "green"
-    ? greenRequirements
-    : yellowRequirements;
+  const effectiveQueueGroup: AhlsellMatchGroup = requirementsByGroup[queueGroup].length > 0
+    ? queueGroup
+    : (["green", "yellow", "red"] as const).find((group) => requirementsByGroup[group].length > 0) ?? queueGroup;
+  const queueRequirements = requirementsByGroup[effectiveQueueGroup];
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex >= 0 ? requestedActiveIndex : 0;
   const activeRequirement = queueRequirements[activeIndex];
   const approvedCount = productRequirements.length - remainingRequirements.length;
   const greenRemainingCount = greenRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
   const yellowRemainingCount = yellowRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
-  const activeGroupRemainingCount = effectiveQueueGroup === "green"
-    ? greenRemainingCount
-    : yellowRemainingCount;
+  const redRemainingCount = redRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
+  const remainingByGroup: Record<AhlsellMatchGroup, number> = {
+    green: greenRemainingCount,
+    yellow: yellowRemainingCount,
+    red: redRemainingCount
+  };
+  const activeGroupRemainingCount = remainingByGroup[effectiveQueueGroup];
+  const checkedCatalogCount = catalogCheckRequirementIds.filter((requirementId) => catalogStatuses[requirementId]).length;
+  const catalogChecksRemaining = Math.max(0, catalogCheckRequirementIds.length - checkedCatalogCount);
   const activeGroupApprovedCount = queueRequirements.length - activeGroupRemainingCount;
   const progressPercent = queueRequirements.length > 0
     ? Math.round((activeGroupApprovedCount / queueRequirements.length) * 100)
@@ -93,7 +141,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   }
 
   function showQueue(group: AhlsellMatchGroup) {
-    const nextQueue = group === "green" ? greenRequirements : yellowRequirements;
+    const nextQueue = requirementsByGroup[group];
     if (nextQueue.length === 0) return;
     setQueueGroup(group);
     setActiveRequirementId(
@@ -134,10 +182,11 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
         <section aria-labelledby="match-queues-heading" className="rounded-2xl border-2 border-ink-200 bg-white p-4 shadow-sm sm:p-5">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">Välj arbetskö</p>
-            <h3 id="match-queues-heading" className="mt-1 text-2xl font-bold text-ink-950">Arbeta med gröna och gula produkter var för sig</h3>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Grön betyder att Scipx redan har en Ahlsellträff. Gul betyder att produkten behöver sökas och väljas manuellt.</p>
+            <h3 id="match-queues-heading" className="mt-1 text-2xl font-bold text-ink-950">Visa gröna, gula eller röda poster</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Grön är en säker träff. Gul betyder att produkter hittades hos Ahlsell men att rätt artikel måste kontrolleras. Röd betyder att ingen Ahlsellträff hittades.</p>
+            {catalogChecksRemaining > 0 && <p className="mt-2 text-sm font-bold text-flow-700" role="status">Scipx kontrollerar Ahlsell för {catalogChecksRemaining} {catalogChecksRemaining === 1 ? "post" : "poster"}… Grupperna uppdateras automatiskt.</p>}
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
             <QueueButton
               group="green"
               active={effectiveQueueGroup === "green"}
@@ -152,14 +201,25 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
               remaining={yellowRemainingCount}
               onClick={() => showQueue("yellow")}
             />
+            <QueueButton
+              group="red"
+              active={effectiveQueueGroup === "red"}
+              count={redRequirements.length}
+              remaining={redRemainingCount}
+              onClick={() => showQueue("red")}
+            />
           </div>
           <div className={effectiveQueueGroup === "green"
             ? "mt-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-950"
-            : "mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950"}
+            : effectiveQueueGroup === "yellow"
+              ? "mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950"
+              : "mt-4 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-950"}
           >
             {effectiveQueueGroup === "green"
-              ? "Du arbetar nu med gröna produkter. Kontrollera träffen och godkänn varje produkt själv."
-              : "Du arbetar nu med gula produkter. Sök hos Ahlsell eller fyll i rätt artikel manuellt."}
+              ? "Du ser alla gröna poster. Scipx har hittat en tekniskt säker Ahlsellträff, men du godkänner fortfarande varje produkt själv."
+              : effectiveQueueGroup === "yellow"
+                ? "Du ser alla gula poster. Ahlsell har träffar, men du behöver välja och kontrollera rätt produkt."
+                : "Du ser alla röda poster. Ingen Ahlsellträff hittades; sök manuellt eller fyll i produktuppgifterna själv."}
           </div>
         </section>
       )}
@@ -183,12 +243,12 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             const assignment = approvedAssignments.find((item) => item.requirement_id === requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
             return <div id="product-work-queue" className="space-y-4 scroll-mt-5">
-              <nav aria-label="Navigera mellan produktposter" className={effectiveQueueGroup === "green" ? "rounded-2xl border-2 border-emerald-300 bg-white p-4 shadow-sm sm:p-5" : "rounded-2xl border-2 border-amber-300 bg-white p-4 shadow-sm sm:p-5"}>
+              <nav aria-label="Navigera mellan produktposter" className={effectiveQueueGroup === "green" ? "rounded-2xl border-2 border-emerald-300 bg-white p-4 shadow-sm sm:p-5" : effectiveQueueGroup === "yellow" ? "rounded-2xl border-2 border-amber-300 bg-white p-4 shadow-sm sm:p-5" : "rounded-2xl border-2 border-rose-300 bg-white p-4 shadow-sm sm:p-5"}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-center gap-3">
-                    <span className={effectiveQueueGroup === "green" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white" : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-amber-950"}><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
+                    <span className={effectiveQueueGroup === "green" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white" : effectiveQueueGroup === "yellow" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-amber-950" : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white"}><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
                     <div>
-                      <p className={effectiveQueueGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : "text-sm font-bold uppercase tracking-[0.08em] text-amber-800"}>{effectiveQueueGroup === "green" ? "Grön kö · Ahlsellträff" : "Gul kö · Manuell matchning"}</p>
+                      <p className={effectiveQueueGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : effectiveQueueGroup === "yellow" ? "text-sm font-bold uppercase tracking-[0.08em] text-amber-800" : "text-sm font-bold uppercase tracking-[0.08em] text-rose-700"}>{effectiveQueueGroup === "green" ? "Grön kö · Säker träff" : effectiveQueueGroup === "yellow" ? "Gul kö · Ahlsellträff finns" : "Röd kö · Ingen Ahlsellträff"}</p>
                       <p className="mt-0.5 text-base font-bold text-ink-950">Produkt {activeIndex + 1} av {queueRequirements.length} · {activeGroupRemainingCount} kvar i denna kö</p>
                     </div>
                   </div>
@@ -223,14 +283,15 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                   if (nextRequirement) {
                     setActiveRequirementId(nextRequirement.id);
                   } else {
-                    const otherQueue = effectiveQueueGroup === "green"
-                      ? yellowRequirements
-                      : greenRequirements;
-                    const nextInOtherQueue = otherQueue.find(
-                      (item) => !approvedRequirementIds.has(item.id)
+                    const nextGroup = (["green", "yellow", "red"] as const).find((group) =>
+                      group !== effectiveQueueGroup
+                      && requirementsByGroup[group].some((item) => !approvedRequirementIds.has(item.id))
                     );
-                    if (nextInOtherQueue) {
-                      setQueueGroup(effectiveQueueGroup === "green" ? "yellow" : "green");
+                    const nextInOtherQueue = nextGroup
+                      ? requirementsByGroup[nextGroup].find((item) => !approvedRequirementIds.has(item.id))
+                      : null;
+                    if (nextGroup && nextInOtherQueue) {
+                      setQueueGroup(nextGroup);
                       setActiveRequirementId(nextInOtherQueue.id);
                     }
                   }
@@ -278,7 +339,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           ) : (
             <div className="rounded-xl border-2 border-flow-300 bg-flow-50 p-4 text-center">
               <p className="text-lg font-bold text-flow-950">{remainingRequirements.length} produktval återstår</p>
-              <p className="mt-1 text-base text-flow-800">Gröna kvar: {greenRemainingCount} · Gula kvar: {yellowRemainingCount}. Godkänn produkten ovan eller byt arbetskö.</p>
+              <p className="mt-1 text-base text-flow-800">Gröna kvar: {greenRemainingCount} · Gula kvar: {yellowRemainingCount} · Röda kvar: {redRemainingCount}. Godkänn produkten ovan eller byt arbetskö.</p>
             </div>
           )}
         </div>
@@ -755,28 +816,38 @@ function QueueButton({ group, active, count, remaining, onClick }: {
   onClick: () => void;
 }) {
   const green = group === "green";
-  const title = green ? "Gröna · Ahlsellträff finns" : "Gula · manuell matchning";
+  const yellow = group === "yellow";
+  const title = green ? "Gröna · säker träff" : yellow ? "Gula · Ahlsellträff finns" : "Röda · ingen träff";
   const description = green
-    ? "Artikelnummer, tidigare produktval eller säker katalogträff finns."
-    : "Ingen säker artikelträff finns ännu. Sök eller fyll i produkten manuellt.";
+    ? "Scipx har hittat en produkt som stämmer tekniskt."
+    : yellow
+      ? "Ahlsell har produkter, men rätt artikel måste kontrolleras."
+      : "Ingen produkt hittades hos Ahlsell. Fyll i eller sök manuellt.";
   const className = green
     ? active
       ? "min-h-36 rounded-2xl border-4 border-emerald-600 bg-emerald-50 p-5 text-left shadow-sm"
       : "min-h-36 rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-5 text-left transition hover:border-emerald-500"
-    : active
-      ? "min-h-36 rounded-2xl border-4 border-amber-500 bg-amber-50 p-5 text-left shadow-sm"
-      : "min-h-36 rounded-2xl border-2 border-amber-300 bg-amber-50/60 p-5 text-left transition hover:border-amber-500";
+    : yellow
+      ? active
+        ? "min-h-36 rounded-2xl border-4 border-amber-500 bg-amber-50 p-5 text-left shadow-sm"
+        : "min-h-36 rounded-2xl border-2 border-amber-300 bg-amber-50/60 p-5 text-left transition hover:border-amber-500"
+      : active
+        ? "min-h-36 rounded-2xl border-4 border-rose-600 bg-rose-50 p-5 text-left shadow-sm"
+        : "min-h-36 rounded-2xl border-2 border-rose-300 bg-rose-50/60 p-5 text-left transition hover:border-rose-500";
+  const titleClass = green ? "text-emerald-950" : yellow ? "text-amber-950" : "text-rose-950";
+  const countClass = green ? "bg-emerald-600 text-white" : yellow ? "bg-amber-400 text-amber-950" : "bg-rose-600 text-white";
+  const remainingClass = green ? "text-emerald-800" : yellow ? "text-amber-800" : "text-rose-800";
 
   return (
     <button type="button" aria-pressed={active} disabled={count === 0} onClick={onClick} className={`${className} disabled:cursor-not-allowed disabled:opacity-45`}>
       <span className="flex items-start justify-between gap-4">
         <span>
-          <span className={green ? "block text-lg font-black text-emerald-950" : "block text-lg font-black text-amber-950"}>{title}</span>
+          <span className={`block text-lg font-black ${titleClass}`}>{title}</span>
           <span className="mt-1 block text-sm leading-6 text-ink-700">{description}</span>
         </span>
-        <span className={green ? "flex h-12 min-w-12 items-center justify-center rounded-full bg-emerald-600 px-3 text-xl font-black text-white" : "flex h-12 min-w-12 items-center justify-center rounded-full bg-amber-400 px-3 text-xl font-black text-amber-950"}>{count}</span>
+        <span className={`flex h-12 min-w-12 items-center justify-center rounded-full px-3 text-xl font-black ${countClass}`}>{count}</span>
       </span>
-      <span className={green ? "mt-3 block text-sm font-bold text-emerald-800" : "mt-3 block text-sm font-bold text-amber-800"}>{remaining === 0 ? "Klar" : `${remaining} kvar att godkänna`}{active ? " · Öppen nu" : ""}</span>
+      <span className={`mt-3 block text-sm font-bold ${remainingClass}`}>{remaining === 0 ? "Klar" : `${remaining} kvar att godkänna`}{active ? " · Öppen nu" : ""}</span>
     </button>
   );
 }

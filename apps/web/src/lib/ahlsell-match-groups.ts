@@ -1,6 +1,7 @@
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 
-export type AhlsellMatchGroup = "green" | "yellow";
+export type AhlsellMatchGroup = "green" | "yellow" | "red";
+export type AhlsellCatalogMatchStatus = "safe" | "found" | "none";
 
 type RequirementRow = Record<string, unknown> & { id: string };
 
@@ -8,14 +9,17 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
   requirements: readonly Row[],
   {
     approvedRequirementIds,
-    memoryFingerprints
+    memoryFingerprints,
+    catalogStatuses = {}
   }: {
     approvedRequirementIds: ReadonlySet<string>;
     memoryFingerprints: ReadonlySet<string>;
+    catalogStatuses?: Readonly<Record<string, AhlsellCatalogMatchStatus>>;
   }
 ) {
   const greenRequirements: Row[] = [];
   const yellowRequirements: Row[] = [];
+  const redRequirements: Row[] = [];
 
   for (const requirement of requirements) {
     const hasApprovedProduct = approvedRequirementIds.has(requirement.id);
@@ -27,13 +31,16 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
     );
     const hasDirectAhlsellMatch = buildAhlsellRequirementGuide(requirement)
       .directCandidates.length > 0;
+    const catalogStatus = catalogStatuses[requirement.id];
 
-    if (hasApprovedProduct || hasLearnedProduct || hasDirectAhlsellMatch) {
+    if (hasApprovedProduct || hasLearnedProduct || hasDirectAhlsellMatch || catalogStatus === "safe") {
       greenRequirements.push(requirement);
+    } else if (catalogStatus === "none") {
+      redRequirements.push(requirement);
     } else {
       yellowRequirements.push(requirement);
     }
   }
 
-  return { greenRequirements, yellowRequirements };
+  return { greenRequirements, yellowRequirements, redRequirements };
 }

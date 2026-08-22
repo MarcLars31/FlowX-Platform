@@ -25,18 +25,47 @@ test("separates Ahlsell matches from rows requiring manual work", () => {
       id: "manual",
       category: "unknown",
       value_text: "Teknisk produkt utan säker artikelträff"
+    },
+    {
+      id: "catalog-found",
+      category: "control",
+      value_text: "TRYKKVAKT"
+    },
+    {
+      id: "catalog-safe",
+      category: "control",
+      value_text: "MÅLEINSTRUMENT"
     }
   ], {
     approvedRequirementIds: new Set(["approved"]),
-    memoryFingerprints: new Set(["known-fingerprint"])
+    memoryFingerprints: new Set(["known-fingerprint"]),
+    catalogStatuses: {
+      manual: "none",
+      "catalog-found": "found",
+      "catalog-safe": "safe"
+    }
   });
 
   assert.deepEqual(
     result.greenRequirements.map((requirement) => requirement.id),
-    ["pdf-article", "learned", "approved"]
+    ["pdf-article", "learned", "approved", "catalog-safe"]
   );
   assert.deepEqual(
     result.yellowRequirements.map((requirement) => requirement.id),
+    ["catalog-found"]
+  );
+  assert.deepEqual(
+    result.redRequirements.map((requirement) => requirement.id),
     ["manual"]
   );
+});
+
+test("keeps unchecked catalog rows yellow until Ahlsell has answered", () => {
+  const result = splitAhlsellMatchGroups([{ id: "checking", value_text: "Okänd produkt" }], {
+    approvedRequirementIds: new Set(),
+    memoryFingerprints: new Set()
+  });
+
+  assert.deepEqual(result.yellowRequirements.map((item) => item.id), ["checking"]);
+  assert.equal(result.redRequirements.length, 0);
 });
