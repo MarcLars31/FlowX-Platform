@@ -57,6 +57,16 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
       ? [memory.requirement_fingerprint]
       : [])
   ), [memories]);
+  const preferredMemoryByFingerprint = useMemo(() => {
+    const preferred = new Map<string, Row>();
+    for (const memory of memories) {
+      const fingerprint = typeof memory.requirement_fingerprint === "string"
+        ? memory.requirement_fingerprint
+        : null;
+      if (fingerprint && !preferred.has(fingerprint)) preferred.set(fingerprint, memory);
+    }
+    return preferred;
+  }, [memories]);
   const staticallySafeRequirementIds = useMemo(() => new Set(productRequirements.flatMap((requirement) => {
     const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
     const safe = approvedRequirementIds.has(requirement.id)
@@ -259,6 +269,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                   approved={approvedRequirementIds.has(requirement.id)}
                   group={queueGroup}
                   assignment={approvedAssignments.find((item) => item.requirement_id === requirement.id)}
+                  memory={typeof requirement.mapping_fingerprint === "string"
+                    ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint)
+                    : undefined}
                   onClick={() => showRequirement(requirement.id)}
                 />
               ))}
@@ -478,7 +491,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Produktvalet kunde inte sparas.");
       setHasUnapprovedChanges(false);
-      await onSaved(`Produkten för post ${details.postNumber ?? position} är godkänd.`);
+      await onSaved(`Produkten för post ${details.postNumber ?? position} är godkänd och sparad för framtida projekt.`);
     } catch (saveError) {
       onError(saveError instanceof Error ? saveError.message : "Produktvalet kunde inte sparas.");
     } finally {
@@ -534,14 +547,14 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       <div className="space-y-5 p-5 sm:p-6">
         {memories.length > 0 && (
           <div className="rounded-xl border-2 border-sky-200 bg-sky-50 p-4">
-            <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Tidigare godkänt produktval – måste bekräftas i detta projekt</div>
-            <p className="mt-1 text-sm leading-6 text-sky-900">Scipx kommer ihåg produkten och tillbehören inom organisationen. Välj den för att fylla i allt, kontrollera uppgifterna och godkänn sedan med ett knapptryck.</p>
+            <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Tidigare bekräftad produkt – måste godkännas i detta projekt</div>
+            <p className="mt-1 text-sm leading-6 text-sky-900">Scipx har sparat produkten och tillbehören från ett tidigare projekt i samma organisation. Använd valet för att fylla i allt, kontrollera uppgifterna och godkänn sedan på nytt.</p>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               {memories.map((memory) => (
                 <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="min-h-24 rounded-xl border-2 border-sky-200 bg-white p-4 text-left transition hover:border-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-wait disabled:opacity-60">
                   <p className="text-base font-bold text-ink-950">{String(memory.product_name)}</p>
                   <p className="mt-1 text-sm text-ink-700">Art.nr {String(memory.product_number)}</p>
-                  <p className="mt-3 text-sm font-bold text-sky-800">Välj tidigare produkt</p>
+                  <p className="mt-3 text-sm font-bold text-sky-800">Använd tidigare bekräftad produkt</p>
                 </button>
               ))}
             </div>
@@ -835,9 +848,10 @@ function RemovalRequirementCard({ requirement, position, totalPosts }: { require
   );
 }
 
-function RequirementQueueCard({ requirement, assignment, position, approved, group, onClick }: {
+function RequirementQueueCard({ requirement, assignment, memory, position, approved, group, onClick }: {
   requirement: Row;
   assignment?: Row;
+  memory?: Row;
   position: number;
   approved: boolean;
   group: AhlsellMatchGroup;
@@ -848,6 +862,9 @@ function RequirementQueueCard({ requirement, assignment, position, approved, gro
   const productSnapshot = record(assignment?.product_snapshot);
   const productName = String(productSnapshot.name ?? "").trim();
   const productNumber = String(productSnapshot.productNumber ?? "").trim();
+  const memoryProductName = String(memory?.product_name ?? "").trim();
+  const memoryProductNumber = String(memory?.product_number ?? "").trim();
+  const hasReusableMemory = !approved && Boolean(memoryProductName && memoryProductNumber);
   const borderClass = group === "green"
     ? "border-emerald-300 hover:border-emerald-600 focus-visible:outline-emerald-600"
     : group === "yellow"
@@ -870,6 +887,8 @@ function RequirementQueueCard({ requirement, assignment, position, approved, gro
         <span className={`rounded-full px-3 py-1.5 text-sm font-black ${numberClass}`}>PDF-post {details.postNumber ?? position}</span>
         {approved ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
+        ) : hasReusableMemory ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white"><History className="h-3.5 w-3.5" aria-hidden="true" />Tidigare bekräftad</span>
         ) : (
           <span className="rounded-full bg-ink-100 px-2.5 py-1.5 text-xs font-bold text-ink-700">Inte godkänd</span>
         )}
@@ -882,7 +901,14 @@ function RequirementQueueCard({ requirement, assignment, position, approved, gro
           {productNumber && <span className="mt-0.5 block">Art.nr {productNumber}</span>}
         </span>
       )}
-      <span className="mt-auto pt-5 text-base font-black text-flow-800 group-hover:text-flow-950">Öppna och kontrollera →</span>
+      {hasReusableMemory && (
+        <span className="mt-3 block rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+          <span className="block text-xs font-black uppercase tracking-wide text-sky-700">Sparad från tidigare projekt</span>
+          <span className="mt-1 block font-bold">{memoryProductName}</span>
+          <span className="mt-0.5 block">Art.nr {memoryProductNumber}</span>
+        </span>
+      )}
+      <span className="mt-auto pt-5 text-base font-black text-flow-800 group-hover:text-flow-950">{hasReusableMemory ? "Öppna och använd tidigare val →" : "Öppna och kontrollera →"}</span>
     </button>
   );
 }
