@@ -123,29 +123,18 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     }),
     [approvedRequirementIds, catalogStatuses, memoryFingerprints, productRequirements, staticallySafeRequirementIds]
   );
-  const initialGroup: AhlsellMatchGroup = greenRequirements.some(
-    (requirement) => !approvedRequirementIds.has(requirement.id)
-  ) || (yellowRequirements.length === 0 && redRequirements.length === 0)
-    ? "green"
-    : yellowRequirements.length > 0 ? "yellow" : "red";
   const requirementsByGroup = useMemo<Record<AhlsellMatchGroup, Row[]>>(() => ({
     green: greenRequirements,
     yellow: yellowRequirements,
     red: redRequirements
   }), [greenRequirements, redRequirements, yellowRequirements]);
-  const initialQueue = requirementsByGroup[initialGroup];
-  const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup>(initialGroup);
+  const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup | null>(null);
   const totalPosts = productRequirements.length + removalRequirements.length;
-  const [activeRequirementId, setActiveRequirementId] = useState<string | null>(
-    () => initialQueue.find((requirement) => !approvedRequirementIds.has(requirement.id))?.id ?? initialQueue[0]?.id ?? null
-  );
-  const effectiveQueueGroup: AhlsellMatchGroup = requirementsByGroup[queueGroup].length > 0
-    ? queueGroup
-    : (["green", "yellow", "red"] as const).find((group) => requirementsByGroup[group].length > 0) ?? queueGroup;
-  const queueRequirements = requirementsByGroup[effectiveQueueGroup];
+  const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
+  const queueRequirements = queueGroup ? requirementsByGroup[queueGroup] : [];
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
-  const activeIndex = requestedActiveIndex >= 0 ? requestedActiveIndex : 0;
-  const activeRequirement = queueRequirements[activeIndex];
+  const activeIndex = requestedActiveIndex;
+  const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
   const approvedCount = productRequirements.length - remainingRequirements.length;
   const greenRemainingCount = greenRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
   const yellowRemainingCount = yellowRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
@@ -155,7 +144,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     yellow: yellowRemainingCount,
     red: redRemainingCount
   };
-  const activeGroupRemainingCount = remainingByGroup[effectiveQueueGroup];
+  const activeGroupRemainingCount = queueGroup ? remainingByGroup[queueGroup] : 0;
   const checkedCatalogCount = catalogCheckRequirementIds.filter((requirementId) => catalogStatuses[requirementId]).length;
   const catalogChecksRemaining = Math.max(0, catalogCheckRequirementIds.length - checkedCatalogCount);
   const activeGroupApprovedCount = queueRequirements.length - activeGroupRemainingCount;
@@ -167,19 +156,24 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     setActiveRequirementId(requirementId);
     setMessage(null);
     setError(null);
+    window.requestAnimationFrame(() => document.getElementById("product-work-queue")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   function showQueue(group: AhlsellMatchGroup) {
     const nextQueue = requirementsByGroup[group];
     if (nextQueue.length === 0) return;
     setQueueGroup(group);
-    setActiveRequirementId(
-      nextQueue.find((requirement) => !approvedRequirementIds.has(requirement.id))?.id
-        ?? nextQueue[0]?.id
-        ?? null
-    );
+    setActiveRequirementId(null);
     setMessage(null);
     setError(null);
+    window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function closeRequirement() {
+    setActiveRequirementId(null);
+    setMessage(null);
+    setError(null);
+    window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   return (
@@ -210,46 +204,71 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
       {productRequirements.length > 0 && (
         <section aria-labelledby="match-queues-heading" className="rounded-2xl border-2 border-ink-200 bg-white p-4 shadow-sm sm:p-5">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">Välj arbetskö</p>
-            <h3 id="match-queues-heading" className="mt-1 text-2xl font-bold text-ink-950">Visa gröna, gula eller röda poster</h3>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Grön är en säker träff. Gul betyder att produkter hittades hos Ahlsell men att rätt artikel måste kontrolleras. Röd betyder att ingen Ahlsellträff hittades.</p>
+            <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">Välj färg</p>
+            <h3 id="match-queues-heading" className="mt-1 text-2xl font-bold text-ink-950">Vilka produkter vill du arbeta med?</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Tryck först på grön, gul eller röd. Då visas alla produkter i den gruppen som tydliga kort.</p>
             {catalogChecksRemaining > 0 && <p className="mt-2 text-sm font-bold text-flow-700" role="status">Scipx kontrollerar Ahlsell för {catalogChecksRemaining} {catalogChecksRemaining === 1 ? "post" : "poster"}… Grupperna uppdateras automatiskt.</p>}
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <QueueButton
               group="green"
-              active={effectiveQueueGroup === "green"}
+              active={queueGroup === "green"}
               count={greenRequirements.length}
               remaining={greenRemainingCount}
               onClick={() => showQueue("green")}
             />
             <QueueButton
               group="yellow"
-              active={effectiveQueueGroup === "yellow"}
+              active={queueGroup === "yellow"}
               count={yellowRequirements.length}
               remaining={yellowRemainingCount}
               onClick={() => showQueue("yellow")}
             />
             <QueueButton
               group="red"
-              active={effectiveQueueGroup === "red"}
+              active={queueGroup === "red"}
               count={redRequirements.length}
               remaining={redRemainingCount}
               onClick={() => showQueue("red")}
             />
           </div>
-          <div className={effectiveQueueGroup === "green"
-            ? "mt-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-950"
-            : effectiveQueueGroup === "yellow"
-              ? "mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950"
-              : "mt-4 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-950"}
-          >
-            {effectiveQueueGroup === "green"
-              ? "Du ser alla gröna poster. Scipx har hittat en tekniskt säker Ahlsellträff, men du godkänner fortfarande varje produkt själv."
-              : effectiveQueueGroup === "yellow"
-                ? "Du ser alla gula poster. Ahlsell har träffar, men du behöver välja och kontrollera rätt produkt."
-                : "Du ser alla röda poster. Ingen Ahlsellträff hittades; sök manuellt eller fyll i produktuppgifterna själv."}
+          {!queueGroup && (
+            <p className="mt-4 rounded-xl border border-flow-200 bg-flow-50 px-4 py-3 text-center text-sm font-bold text-flow-900">Välj en färg ovan för att visa produktkorten.</p>
+          )}
+        </section>
+      )}
+
+      {queueGroup && !activeRequirement && (
+        <section id="product-group-cards" aria-labelledby="product-group-cards-heading" className="scroll-mt-5 rounded-2xl border-2 border-ink-200 bg-ink-50 p-4 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className={queueGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : queueGroup === "yellow" ? "text-sm font-bold uppercase tracking-[0.08em] text-amber-800" : "text-sm font-bold uppercase tracking-[0.08em] text-rose-700"}>{queueGroup === "green" ? "Gröna produkter" : queueGroup === "yellow" ? "Gula produkter" : "Röda produkter"}</p>
+              <h3 id="product-group-cards-heading" className="mt-1 text-2xl font-bold text-ink-950">Välj en produkt att kontrollera</h3>
+              <p className="mt-1 text-sm text-ink-700">{queueRequirements.length} {queueRequirements.length === 1 ? "produkt visas" : "produkter visas"}. Tryck på ett kort för att öppna produktvalet.</p>
+            </div>
+            <p className="rounded-full bg-white px-4 py-2 text-sm font-bold text-ink-800 shadow-sm">{activeGroupRemainingCount} kvar att godkänna</p>
           </div>
+
+          {queueRequirements.length > 0 ? (
+            <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {queueRequirements.map((requirement, index) => (
+                <RequirementQueueCard
+                  key={requirement.id}
+                  requirement={requirement}
+                  position={index + 1}
+                  approved={approvedRequirementIds.has(requirement.id)}
+                  group={queueGroup}
+                  assignment={approvedAssignments.find((item) => item.requirement_id === requirement.id)}
+                  onClick={() => showRequirement(requirement.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-xl border border-ink-200 bg-white p-6 text-center">
+              <p className="font-bold text-ink-950">Det finns inga produkter i den här gruppen längre.</p>
+              <p className="mt-1 text-sm text-ink-700">Välj en annan färg ovan.</p>
+            </div>
+          )}
         </section>
       )}
 
@@ -265,28 +284,27 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           <p className="mx-auto mt-2 max-w-2xl text-base leading-7 text-amber-900">Ladda upp en ny eller tydligare teknisk beskrivning och försök igen.</p>
           <Button className="mt-5 min-h-12 text-base" variant="secondary" onClick={onGoToDocuments}>Gå tillbaka och ladda upp PDF</Button>
         </div>
-      ) : (
+      ) : queueGroup || productRequirements.length === 0 ? (
         <div className="space-y-6">
           {activeRequirement && (() => {
             const requirement = activeRequirement;
+            const activeGroup = queueGroup ?? "yellow";
             const assignment = approvedAssignments.find((item) => item.requirement_id === requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
             return <div id="product-work-queue" className="space-y-4 scroll-mt-5">
-              <nav aria-label="Navigera mellan produktposter" className={effectiveQueueGroup === "green" ? "rounded-2xl border-2 border-emerald-300 bg-white p-4 shadow-sm sm:p-5" : effectiveQueueGroup === "yellow" ? "rounded-2xl border-2 border-amber-300 bg-white p-4 shadow-sm sm:p-5" : "rounded-2xl border-2 border-rose-300 bg-white p-4 shadow-sm sm:p-5"}>
+              <nav aria-label="Navigera mellan produktposter" className={activeGroup === "green" ? "rounded-2xl border-2 border-emerald-300 bg-white p-4 shadow-sm sm:p-5" : activeGroup === "yellow" ? "rounded-2xl border-2 border-amber-300 bg-white p-4 shadow-sm sm:p-5" : "rounded-2xl border-2 border-rose-300 bg-white p-4 shadow-sm sm:p-5"}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-center gap-3">
-                    <span className={effectiveQueueGroup === "green" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white" : effectiveQueueGroup === "yellow" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-amber-950" : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white"}><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
+                    <span className={activeGroup === "green" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white" : activeGroup === "yellow" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-amber-950" : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white"}><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
                     <div>
-                      <p className={effectiveQueueGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : effectiveQueueGroup === "yellow" ? "text-sm font-bold uppercase tracking-[0.08em] text-amber-800" : "text-sm font-bold uppercase tracking-[0.08em] text-rose-700"}>{effectiveQueueGroup === "green" ? "Grön kö · Säker träff" : effectiveQueueGroup === "yellow" ? "Gul kö · Ahlsellträff finns" : "Röd kö · Ingen Ahlsellträff"}</p>
+                      <p className={activeGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : activeGroup === "yellow" ? "text-sm font-bold uppercase tracking-[0.08em] text-amber-800" : "text-sm font-bold uppercase tracking-[0.08em] text-rose-700"}>{activeGroup === "green" ? "Grön · Säker träff" : activeGroup === "yellow" ? "Gul · Ahlsellträff finns" : "Röd · Ingen Ahlsellträff"}</p>
                       <p className="mt-0.5 text-base font-bold text-ink-950">Produkt {activeIndex + 1} av {queueRequirements.length} · {activeGroupRemainingCount} kvar i denna kö</p>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <label className="block min-w-64"><span className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-600">Hoppa till PDF-post i denna kö</span><select value={requirement.id} onChange={(event) => showRequirement(event.target.value)} className="block h-12 w-full rounded-xl border-2 border-ink-200 bg-white px-3 text-base font-bold text-ink-900 focus:border-flow-500 focus:ring-flow-500">{queueRequirements.map((item, index) => { const details = projectRequirementDetails(item); return <option key={item.id} value={item.id}>{approvedRequirementIds.has(item.id) ? "✓" : "○"} {details.postNumber ? `PDF-post ${details.postNumber}` : `Produkt ${index + 1}`}</option>; })}</select></label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Föregående</Button>
-                      <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
-                    </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button variant="secondary" className="min-h-12 justify-center" onClick={closeRequirement}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Tillbaka till alla kort</Button>
+                    <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Föregående</Button>
+                    <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
                   </div>
                 </div>
                 <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink-100" aria-label={`${progressPercent} procent av produkterna godkända`}><div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} /></div>
@@ -303,29 +321,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 onSaved={async (successMessage) => {
                   setError(null);
                   setMessage(successMessage);
-                  const remainingAfterApproval = queueRequirements.filter(
-                    (item) => item.id !== requirement.id && !approvedRequirementIds.has(item.id)
-                  );
-                  const nextRequirement = remainingAfterApproval.find(
-                    (item) => queueRequirements.findIndex((candidate) => candidate.id === item.id) > activeIndex
-                  ) ?? remainingAfterApproval[0];
-                  if (nextRequirement) {
-                    setActiveRequirementId(nextRequirement.id);
-                  } else {
-                    const nextGroup = (["green", "yellow", "red"] as const).find((group) =>
-                      group !== effectiveQueueGroup
-                      && requirementsByGroup[group].some((item) => !approvedRequirementIds.has(item.id))
-                    );
-                    const nextInOtherQueue = nextGroup
-                      ? requirementsByGroup[nextGroup].find((item) => !approvedRequirementIds.has(item.id))
-                      : null;
-                    if (nextGroup && nextInOtherQueue) {
-                      setQueueGroup(nextGroup);
-                      setActiveRequirementId(nextInOtherQueue.id);
-                    }
-                  }
+                  setActiveRequirementId(null);
                   await onReload();
-                  window.requestAnimationFrame(() => document.getElementById("product-work-queue")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                  window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
                 }}
                 onError={(errorMessage) => { setMessage(null); setError(errorMessage || null); }}
               />
@@ -372,7 +370,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             </div>
           )}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -837,6 +835,58 @@ function RemovalRequirementCard({ requirement, position, totalPosts }: { require
   );
 }
 
+function RequirementQueueCard({ requirement, assignment, position, approved, group, onClick }: {
+  requirement: Row;
+  assignment?: Row;
+  position: number;
+  approved: boolean;
+  group: AhlsellMatchGroup;
+  onClick: () => void;
+}) {
+  const details = projectRequirementDetails(requirement);
+  const quantity = projectRequirementQuantity(requirement.value_json);
+  const productSnapshot = record(assignment?.product_snapshot);
+  const productName = String(productSnapshot.name ?? "").trim();
+  const productNumber = String(productSnapshot.productNumber ?? "").trim();
+  const borderClass = group === "green"
+    ? "border-emerald-300 hover:border-emerald-600 focus-visible:outline-emerald-600"
+    : group === "yellow"
+      ? "border-amber-300 hover:border-amber-600 focus-visible:outline-amber-600"
+      : "border-rose-300 hover:border-rose-600 focus-visible:outline-rose-600";
+  const numberClass = group === "green"
+    ? "bg-emerald-100 text-emerald-950"
+    : group === "yellow"
+      ? "bg-amber-100 text-amber-950"
+      : "bg-rose-100 text-rose-950";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Öppna PDF-post ${details.postNumber ?? position}`}
+      className={`group flex min-h-64 flex-col rounded-2xl border-2 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 ${borderClass}`}
+    >
+      <span className="flex items-start justify-between gap-3">
+        <span className={`rounded-full px-3 py-1.5 text-sm font-black ${numberClass}`}>PDF-post {details.postNumber ?? position}</span>
+        {approved ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
+        ) : (
+          <span className="rounded-full bg-ink-100 px-2.5 py-1.5 text-xs font-bold text-ink-700">Inte godkänd</span>
+        )}
+      </span>
+      <span className="mt-4 block max-h-[4.5rem] overflow-hidden text-lg font-bold leading-6 text-ink-950">{String(requirement.value_text ?? "Tekniskt produktkrav")}</span>
+      <span className="mt-3 block text-sm font-semibold text-ink-700">Mängd: {formatProjectQuantity(quantity)}</span>
+      {productName && (
+        <span className="mt-3 block rounded-lg bg-emerald-50 p-3 text-sm text-emerald-950">
+          <span className="block font-bold">{productName}</span>
+          {productNumber && <span className="mt-0.5 block">Art.nr {productNumber}</span>}
+        </span>
+      )}
+      <span className="mt-auto pt-5 text-base font-black text-flow-800 group-hover:text-flow-950">Öppna och kontrollera →</span>
+    </button>
+  );
+}
+
 function QueueButton({ group, active, count, remaining, onClick }: {
   group: AhlsellMatchGroup;
   active: boolean;
@@ -846,7 +896,7 @@ function QueueButton({ group, active, count, remaining, onClick }: {
 }) {
   const green = group === "green";
   const yellow = group === "yellow";
-  const title = green ? "Gröna · säker träff" : yellow ? "Gula · Ahlsellträff finns" : "Röda · ingen träff";
+  const title = green ? "Grön" : yellow ? "Gul" : "Röd";
   const description = green
     ? "Scipx har hittat en produkt som stämmer tekniskt."
     : yellow
@@ -871,7 +921,7 @@ function QueueButton({ group, active, count, remaining, onClick }: {
     <button type="button" aria-pressed={active} disabled={count === 0} onClick={onClick} className={`${className} disabled:cursor-not-allowed disabled:opacity-45`}>
       <span className="flex items-start justify-between gap-4">
         <span>
-          <span className={`block text-lg font-black ${titleClass}`}>{title}</span>
+          <span className={`block text-2xl font-black ${titleClass}`}>{title}</span>
           <span className="mt-1 block text-sm leading-6 text-ink-700">{description}</span>
         </span>
         <span className={`flex h-12 min-w-12 items-center justify-center rounded-full px-3 text-xl font-black ${countClass}`}>{count}</span>
