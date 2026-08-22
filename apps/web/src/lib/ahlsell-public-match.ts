@@ -29,6 +29,51 @@ export type AhlsellRequirementGuide = {
 type Orientation = "pendent" | "upright" | "sidewall";
 type Response = "quick" | "standard";
 type Finish = "brass" | "white" | "black" | "chrome";
+type AhlsellProductIntent =
+  | "sprinkler_head"
+  | "sprinkler_guard"
+  | "pipe"
+  | "coupling"
+  | "bend"
+  | "tee"
+  | "reducer"
+  | "cap"
+  | "branch"
+  | "flange_adapter"
+  | "wet_alarm_valve"
+  | "dry_alarm_valve"
+  | "check_valve"
+  | "butterfly_valve"
+  | "shutoff_valve"
+  | "ball_valve"
+  | "pressure_reducing_valve"
+  | "manometer"
+  | "pressure_switch"
+  | "flow_switch"
+  | "test_drain"
+  | "pump"
+  | "strainer"
+  | "support"
+  | "custom_fabrication"
+  | "generic";
+
+const PIPE_OUTSIDE_DIAMETER_BY_DN: Record<number, number> = {
+  10: 17.2,
+  15: 21.3,
+  20: 26.9,
+  25: 33.7,
+  32: 42.4,
+  40: 48.3,
+  50: 60.3,
+  65: 76.1,
+  80: 88.9,
+  100: 114.3,
+  125: 139.7,
+  150: 168.3,
+  200: 219.1,
+  250: 273,
+  300: 323.9
+};
 
 type SprinklerCandidateDefinition = AhlsellPublicCandidate & {
   kFactor: number;
@@ -65,22 +110,43 @@ export function buildAhlsellRequirementGuide(
   const category = text(requirement.category) ?? text(requirement.requirement_key) ?? "unknown";
   const description = text(requirement.value_text) ?? text(requirement.display_name) ?? "Teknisk produkt";
   const technicalSpecification = text(value.technicalSpecification) ?? text(requirement.source_excerpt) ?? "";
-  const sourceLanguageText = `${description} ${technicalSpecification} ${[...attributes.values()].join(" ")}`;
+  const rowSourceText = text(value.sourceText) ?? text(requirement.source_excerpt) ?? "";
+  const attributeText = [...attributes].map(([key, attributeValue]) => `${key} ${attributeValue}`).join(" ");
+  const primarySourceText = `${description} ${attributeText}`;
+  const sourceLanguageText = `${primarySourceText} ${rowSourceText} ${technicalSpecification}`;
+  const primaryCombined = normalize(primarySourceText);
   const combined = normalize(sourceLanguageText);
   const isNorwegianSource = isNorwegianTechnicalText(sourceLanguageText);
   const ahlsellSearchUrl = isNorwegianSource
     ? AHLSELL_NORWAY_SEARCH_URL
     : AHLSELL_SWEDEN_SEARCH_URL;
-  const isSprinklerAccessory = /beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg/i.test(description);
+  const unit = normalize(text(value.unit) ?? "");
+  const intent = detectAhlsellProductIntent(primaryCombined, combined, category, unit);
+  const isSprinklerAccessory = intent === "sprinkler_guard";
 
   const rawKFactor = numberFromAttribute(attributes, ["k faktor", "k factor", "k verdi", "k value"])
     ?? numberFromText(combined, /\bk\s*[-=]?\s*(\d+(?:[.,]\d+)?)/i);
   // Norwegian descriptions frequently write K-80. The hyphen is a separator,
   // not a negative hydraulic value.
   const kFactor = rawKFactor === null ? null : Math.abs(rawKFactor);
-  const dn = numberFromAttribute(attributes, ["gjengedimensjon dn", "dimension", "dimensjon", "dn"])
+  const explicitOutsideDiameters = outsideDiametersFromText(`${description} ${rowSourceText}`);
+  const dnValues = uniqueNumbers([
+    ...dnValuesFromText(description),
+    ...dnValuesFromText(rowSourceText),
+    ...dnValuesFromText(firstAttribute(attributes, ["gjengedimensjon dn", "dimension", "dimensjon", "dn"]) ?? "")
+  ]);
+  if (dnValues.length === 0) {
+    const inferredDn = dnFromOutsideDiameter(explicitOutsideDiameters[0]);
+    if (inferredDn !== null) dnValues.push(inferredDn);
+  }
+  const dn = dnValues[0]
+    ?? numberFromAttribute(attributes, ["gjengedimensjon dn", "dimension", "dimensjon", "dn"])
     ?? numberFromText(combined, /\bdn\s*(\d{1,3})\b/i);
-  const temperatureC = category === "sprinkler_head"
+  const outsideDiameters = uniqueNumbers([
+    ...explicitOutsideDiameters,
+    ...dnValues.map((dimension) => PIPE_OUTSIDE_DIAMETER_BY_DN[dimension]).filter((value): value is number => value !== undefined)
+  ]);
+  const temperatureC = intent === "sprinkler_head"
     ? numberFromAttribute(attributes, ["utlosningstemperatur", "utløsningstemperatur", "temperature"])
       ?? numberFromText(combined, /(-?\d+(?:[.,]\d+)?)\s*(?:°\s*)?c\b/i)
     : null;
@@ -94,10 +160,11 @@ export function buildAhlsellRequirementGuide(
   const specialApplication = /\b(torrsprinkler|torrorssprinkler|dry sprinkler)\b/i.test(combined)
     || /\b(residential|boende|bolig(?:sprinkler)?)\b/i.test(combined)
     || /\b(extended coverage|qrec|ec hsw|flat spray)\b/i.test(combined);
-  const isWetAlarmValve = /\b(vat alarmventil|wet alarm valve|kontrollventilsett)\b/i.test(combined);
+  const pn = numberFromAttribute(attributes, ["trykk", "arbeidstrykk", "trykklasse", "pressure"])
+    ?? numberFromText(primaryCombined, /\bpn\s*(\d{1,3})\b/i);
 
   const criteria = compact([
-    categoryLabel(category, description),
+    intentLabel(intent, category, description),
     kFactor === null ? null : `K${formatNumber(kFactor)}`,
     dn === null ? null : `DN${formatNumber(dn)}`,
     temperatureC === null ? null : `${formatNumber(temperatureC)}°C`,
@@ -121,6 +188,7 @@ export function buildAhlsellRequirementGuide(
     ? [pdfReferenceCandidate.articleNumber]
     : buildCatalogQueries({
         category,
+        intent,
         description,
         combined,
         criteria,
@@ -132,7 +200,8 @@ export function buildAhlsellRequirementGuide(
         response: responseResult.response,
         finish,
         isSprinklerAccessory,
-        isWetAlarmValve
+        outsideDiameters,
+        pn
       });
   const searchQueries = unique(plannedQueries).slice(0, 3);
   const searchQuery = searchQueries[0] ?? description;
@@ -143,19 +212,19 @@ export function buildAhlsellRequirementGuide(
     responseResult.conflict
       ? "PDF-underlaget innehåller både standard- och quick-respons för samma post. Kontrollera originaltexten innan val."
       : null,
-    category === "sprinkler_head" && kFactor !== null && dn !== null && dn === 15 && kFactor >= 115
+    intent === "sprinkler_head" && kFactor !== null && dn !== null && dn === 15 && kFactor >= 115
       ? `K${formatNumber(kFactor)} tillsammans med DN15 avviker från de offentliga Ahlsell-familjer som hittades. Ingen artikel föreslås automatiskt.`
       : null,
-    category === "sprinkler_head" && /\b(torrsprinkler|dry sprinkler)\b/i.test(combined) && dn !== null && dn !== 25
+    intent === "sprinkler_head" && /\b(torrsprinkler|dry sprinkler)\b/i.test(combined) && dn !== null && dn !== 25
       ? "Ahlsells offentliga torrsprinklerfamiljer som hittades använder DN25. Kontrollera PDF-postens DN innan val."
       : null,
-    category === "sprinkler_head" && !isSprinklerAccessory && [kFactor, dn, temperatureC].some((value) => value === null)
+    intent === "sprinkler_head" && !isSprinklerAccessory && [kFactor, dn, temperatureC].some((value) => value === null)
       ? "Ett eller flera huvudvärden (K-faktor, DN eller temperatur) saknas. Använd sökningen men välj inte produkt utan manuell kontroll."
       : null
   ]);
 
   const verifiedCandidates = !isNorwegianSource
-    && category === "sprinkler_head"
+    && intent === "sprinkler_head"
     && !orientationResult.mixed
     && !responseResult.conflict
     && !concealed
@@ -187,7 +256,7 @@ export function buildAhlsellRequirementGuide(
     searchQueries.length > 1
       ? `Scipx provar ${searchQueries.length} Ahlsell-anpassade sökningar och slår ihop träffarna.`
       : null,
-    category === "sprinkler_head" && !isSprinklerAccessory
+    intent === "sprinkler_head" && !isSprinklerAccessory
       ? "Scipx kontrollerar Ahlsells exakta variantvärden för K-faktor, temperatur, respons och färg."
       : null,
     /\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/.test(combined)
@@ -208,6 +277,7 @@ export function buildAhlsellRequirementGuide(
 
 function buildCatalogQueries({
   category,
+  intent,
   description,
   combined,
   criteria,
@@ -219,9 +289,11 @@ function buildCatalogQueries({
   response,
   finish,
   isSprinklerAccessory,
-  isWetAlarmValve
+  outsideDiameters,
+  pn
 }: {
   category: string;
+  intent: AhlsellProductIntent;
   description: string;
   combined: string;
   criteria: string[];
@@ -233,34 +305,113 @@ function buildCatalogQueries({
   response: Response | null;
   finish: Finish | null;
   isSprinklerAccessory: boolean;
-  isWetAlarmValve: boolean;
+  outsideDiameters: number[];
+  pn: number | null;
 }) {
-  if (isWetAlarmValve) return ["Sprinklersentral", dn ? `Sprinklersentral DN${dn}` : null];
+  const dnTerm = dn === null ? null : `DN${formatNumber(dn)}`;
+  const outsideDiameterTerm = outsideDiameters[0] === undefined
+    ? null
+    : `${formatCatalogDecimal(outsideDiameters[0])}mm`;
+  const outsideDiameterPair = outsideDiameters.slice(0, 2)
+    .map((value) => `${formatCatalogDecimal(value)}mm`)
+    .join(" ");
+  const pressureTerm = pn === null ? null : `PN${formatNumber(pn)}`;
+
+  if (intent === "wet_alarm_valve") return ["Sprinklersentral", compact(["Sprinklersentral våt", dnTerm]).join(" ")];
+  if (intent === "dry_alarm_valve") return ["Sprinklersentral", compact(["Sprinklersentral tørr", dnTerm]).join(" ")];
   if (isSprinklerAccessory) return ["Sprinklergitter", "Gitter sprinklerhode"];
 
-  if (/\b(maleinstrument|manometer|analog.*trykk|absolutt trykk.*direkte)\b/.test(combined)) {
+  if (intent === "pressure_switch") {
+    return ["Pressostat", "Pressostat vann", "PS10 pressostat"];
+  }
+  if (intent === "flow_switch") {
+    return ["Strømningsvakt", "Flow switch sprinkler"];
+  }
+  if (intent === "manometer") {
     return ["Manometer sprinkler", "Manometer 0-16 bar"];
   }
-  if (/\b(trykkvakt|pressostat|pressure switch)\b/.test(combined)) {
-    return ["Pressostat vann", "PS10 pressostat"];
-  }
-  if (/\b(testarrangement|test og drener|testventil)\b/.test(combined)) {
+  if (intent === "test_drain") {
     return ["Test og dreneringsventil sprinkler", "Sprinkler testventil"];
   }
-  if (/\b(kuleventil|ball valve)\b/.test(combined)) {
-    return [compact(["Kuleventil", dn ? `DN${dn}` : null, /\bpn\s*16\b/.test(combined) ? "PN16" : null]).join(" ")];
+  if (intent === "ball_valve") {
+    return [compact(["Kuleventil", dnTerm, pressureTerm]).join(" "), compact(["Kuleventil", dnTerm]).join(" ")];
   }
-  if (/\bbend\b/.test(combined) && /\b(flens|flanged)\b/.test(combined)) {
+  if (intent === "butterfly_valve") {
+    return ["Spjeldventil sprinkler", compact(["Spjeldventil", dnTerm]).join(" "), "Spjeldventil rillede tilkoblinger"];
+  }
+  if (intent === "check_valve") {
+    return [compact(["Tilbakeslagsventil rillet", dnTerm]).join(" "), compact(["Tilbakeslagsventil", dnTerm]).join(" "), "Tilbakeslagsventil rillet"];
+  }
+  if (intent === "pressure_reducing_valve") {
+    return [compact(["Trykkreduksjonsventil", dnTerm]).join(" "), "Trykkreduksjonsventil"];
+  }
+  if (intent === "shutoff_valve") {
+    return ["Sprinklerventil", compact(["Sprinklerventil", dnTerm]).join(" ")];
+  }
+  if (intent === "flange_adapter") {
+    return [compact(["Flensadapter rillet", outsideDiameterTerm]).join(" "), compact(["Flenseadapter", dnTerm]).join(" ")];
+  }
+  if (intent === "bend" && /\b(flens|flanged)\b/.test(combined)) {
     return [
-      compact(["Flensebend", dn ? `DN${dn}` : null, /\bpn\s*16\b/.test(combined) ? "PN16" : null]).join(" "),
-      compact(["Bend flens", dn ? `DN${dn}` : null]).join(" ")
+      compact(["Flensebend", dnTerm, pressureTerm]).join(" "),
+      compact(["Bend flens", dnTerm]).join(" ")
     ];
   }
-  if (/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/.test(combined)) {
+  if (intent === "pipe") {
+    return [
+      compact(["Rør sprinkler", outsideDiameterTerm]).join(" "),
+      compact(["Rillede rør", outsideDiameterTerm]).join(" "),
+      compact(["Stålrør sprinkler", dnTerm]).join(" ")
+    ];
+  }
+  if (intent === "coupling") {
+    return [
+      compact(["Kupling sprinkler", outsideDiameterTerm]).join(" "),
+      compact(["Kupling fast", outsideDiameterTerm]).join(" "),
+      compact(["Kupling", outsideDiameterTerm]).join(" ")
+    ];
+  }
+  if (intent === "bend") {
+    return [
+      compact(["Bend rillet", outsideDiameterTerm]).join(" "),
+      compact(["Rillede bend", outsideDiameterTerm]).join(" "),
+      compact(["Bend sprinkler", dnTerm]).join(" ")
+    ];
+  }
+  if (intent === "tee") {
+    return [
+      compact(["T-rør rillet", outsideDiameterTerm]).join(" "),
+      compact(["Rillede T-rør", outsideDiameterTerm]).join(" "),
+      compact(["T-rør sprinkler", dnTerm]).join(" ")
+    ];
+  }
+  if (intent === "reducer") {
+    return [
+      compact(["Reduksjon rillet", outsideDiameterPair || outsideDiameterTerm]).join(" "),
+      compact(["Reduksjonskupling", outsideDiameterPair || outsideDiameterTerm]).join(" "),
+      compact(["T-rør reduksjon rillet", outsideDiameterTerm]).join(" ")
+    ];
+  }
+  if (intent === "cap") {
+    return [compact(["Endelokk", outsideDiameterTerm]).join(" "), compact(["Endelokk rillet", dnTerm]).join(" ")];
+  }
+  if (intent === "branch") {
+    return [compact(["Anboringsklammer", outsideDiameterTerm]).join(" "), compact(["Utløpskupling", dnTerm]).join(" ")];
+  }
+  if (intent === "pump") {
+    return ["Lensepumpe", "Pumpe avløpsvann", "Sprinklerpumpe"];
+  }
+  if (intent === "strainer") {
+    return [compact(["Sil", dnTerm]).join(" "), compact(["Grovfilter", dnTerm]).join(" "), compact(["Filter", dnTerm]).join(" ")];
+  }
+  if (intent === "support") {
+    return [compact(["Røroppheng", dnTerm]).join(" "), "Rørklammer sprinkler"];
+  }
+  if (intent === "custom_fabrication") {
     return ["Dreneringskar sprinkler"];
   }
 
-  if (category === "sprinkler_head" && kFactor !== null) {
+  if (intent === "sprinkler_head" && kFactor !== null) {
     const responseCode = response === "standard" ? "SR" : response === "quick" ? "QR" : null;
     const orientationCode = orientation === "upright" ? "Opp" : orientation === "pendent" ? "Ned" : orientation === "sidewall" ? "HSW" : null;
     const dry = /\b(torrsprinkler|torrorssprinkler|dry sprinkler)\b/.test(combined) ? "Tørr" : null;
@@ -271,7 +422,21 @@ function buildCatalogQueries({
     const finishQuery = finish
       ? compact(["Sprinklerhode", `K${formatNumber(kFactor)}`, finishSearchLabel(finish)]).join(" ")
       : null;
-    return [exact, temperatureQuery, finishQuery ?? `Sprinklerhode K${formatNumber(kFactor)}`];
+    return [`Sprinklerhode K${formatNumber(kFactor)}`, exact, temperatureQuery ?? finishQuery];
+  }
+
+  if (category === "fitting") {
+    return [
+      compact(["Kupling sprinkler", outsideDiameterTerm]).join(" "),
+      compact(["Rilledeler sprinkler", outsideDiameterTerm]).join(" "),
+      conciseCatalogQuery(criteria, searchDescription ?? description)
+    ];
+  }
+  if (category === "valve") {
+    return ["Sprinklerventil", compact(["Sprinklerventil", dnTerm]).join(" ")];
+  }
+  if (category === "control") {
+    return ["Sprinkler overvåkning", compact(["Sprinkler alarm", dnTerm]).join(" ")];
   }
 
   return [conciseCatalogQuery(criteria, searchDescription ?? description)];
@@ -333,7 +498,7 @@ function candidateFromPdfReference(
 }
 
 function isNorwegianTechnicalText(value: string) {
-  return /\b(?:dimensjon|sprinkleranlegg|brannslokking|mengde|lokalisering|utførelse|overvåket|åpen|hengende|stående|beskyttelsesgitre?|føl(?:somhetsgrad)?)\b/i.test(value);
+  return /\b(?:dimensjon|sprinkleranlegg|brannslokking|mengde|lokalisering|utførelse|overvåket|åpen|hengende|stående|beskyttelsesgitre?|føl(?:somhetsgrad)?|rør|kupling|ventil|trykk|skjøt|montering)\b/i.test(value);
 }
 
 function normalizedAttributeMap(attributes: Record<string, unknown>) {
@@ -417,6 +582,106 @@ function categoryLabel(category: string, description: string) {
   } as Record<string, string>)[category] ?? "Sprinklerprodukt";
 }
 
+function intentLabel(intent: AhlsellProductIntent, category: string, description: string) {
+  const label = ({
+    sprinkler_head: "Sprinkler",
+    sprinkler_guard: "Sprinkler skyddskorg",
+    pipe: "Sprinklerrör",
+    coupling: "Rillkoppling",
+    bend: "Rörböj",
+    tee: "T-rör",
+    reducer: "Rörreduktion",
+    cap: "Ändlock",
+    branch: "Avstick",
+    flange_adapter: "Flänsadapter",
+    wet_alarm_valve: "Våt sprinklersentral",
+    dry_alarm_valve: "Torr sprinklersentral",
+    check_valve: "Backventil",
+    butterfly_valve: "Spjällventil",
+    shutoff_valve: "Avstängningsventil",
+    ball_valve: "Kulventil",
+    pressure_reducing_valve: "Tryckreduceringsventil",
+    manometer: "Manometer",
+    pressure_switch: "Tryckvakt",
+    flow_switch: "Flödesvakt",
+    test_drain: "Test- och dräneringsventil",
+    pump: "Pump",
+    strainer: "Sil/filter",
+    support: "Rörupphängning",
+    custom_fabrication: "Specialtillverkad produkt"
+  } as Partial<Record<AhlsellProductIntent, string>>)[intent];
+  return label ?? categoryLabel(category, description);
+}
+
+function detectAhlsellProductIntent(
+  primaryText: string,
+  combinedText: string,
+  category: string,
+  unit: string
+): AhlsellProductIntent {
+  const source = primaryText || combinedText;
+  // Product family must come from the row heading or its structured attributes.
+  // Parent prose often mentions several sibling products and must not turn a
+  // pipe row into, for example, a valve or an end cap.
+  const has = (pattern: RegExp) => pattern.test(source);
+
+  if (has(/\b(beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg)\b/)) return "sprinkler_guard";
+  if (has(/\b(pumpe innendors|sprinklerpumpe|lensepumpe|type pumpe|pumpedrift)\b/)) return "pump";
+  if (has(/\b(partikkelutskiller|grovfilter|y filter|sil netting|type partikkelutskiller)\b/)) return "strainer";
+  if (has(/\b(torr.*(?:alarmventil|sprinklersentral)|dry (?:alarm )?valve|d769n)\b/)) return "dry_alarm_valve";
+  if (has(/\b(vat alarmventil|wet alarm valve|kontrollventilsett)\b/)) return "wet_alarm_valve";
+  if (has(/\b(trykkreduksjonsventil|pressure reducing valve|reduksjonsventil)\b/)) return "pressure_reducing_valve";
+  if (has(/\b(tilbakeslagsventil|backventil|check valve)\b/)) return "check_valve";
+  if (has(/\b(dreiespjeldventil|spjeldventil|butterfly valve)\b/)) return "butterfly_valve";
+  if (has(/\b(kuleventil|ball valve)\b/)) return "ball_valve";
+  if (has(/\b(stengeventil|sluseventil|gate valve|sprinklerventil)\b/)) return "shutoff_valve";
+  if (has(/\b(trykkvakt|trykkbryter|pressostat|pressure switch)\b/)) return "pressure_switch";
+  if (has(/\b(stromningsvakt|flow switch)\b/)) return "flow_switch";
+  if (has(/\b(maleinstrument|manometer|analog.*trykk|absolutt trykk.*direkte|maling av absolutt trykk|direkte maling|avlesning analog)\b/)) return "manometer";
+  if (has(/\b(testarrangement|test og drener|testventil)\b/)) return "test_drain";
+  if (category === "valve") return "shutoff_valve";
+  if (has(/\b(overgang fra pe til stal|flens pa pe rille|flensadapter|flenseadapter)\b/)) return "flange_adapter";
+  if (has(/\b(blindflens|endelokk|endebunn|plugg)\b/)) return "cap";
+  if (has(/\b(anboringsklammer|anborring|avstikk|utlopskupling)\b/)) return "branch";
+  if (has(/\b(dimensjonsovergang|reduksjonskupling|reduksjon|reducer)\b/)) return "reducer";
+  if (has(/\b(t ror|t klave|tee)\b/)) return "tee";
+  if (has(/\b(bend|rorboy|elbow)\b/)) return "bend";
+  if (has(/\b(kupling|rillekobling|hurtigrillekobling|coupling)\b/)) return "coupling";
+  if (has(/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/)) return "custom_fabrication";
+  if (category === "sprinkler_head" || has(/\bsprinkler head\b|\bk faktor\b|\butlosningstemperatur\b/)) return "sprinkler_head";
+  if (category === "pipe" || (unit === "m" && !has(/\b(oppheng|isolasjon|kanal|kabel|groft)\b/))) return "pipe";
+  if (category === "support" || has(/\b(oppheng|rorstotte|support|rorbarer|klammer)\b/)) return "support";
+  return "generic";
+}
+
+function dnValuesFromText(value: string) {
+  const dimensions: number[] = [];
+  for (const match of value.matchAll(/\bdn\s*(\d{1,3})(?:\s*[\/-]\s*(?:dn\s*)?(\d{1,3}))?/gi)) {
+    dimensions.push(Number(match[1]));
+    if (match[2]) dimensions.push(Number(match[2]));
+  }
+  return uniqueNumbers(dimensions);
+}
+
+function outsideDiametersFromText(value: string) {
+  const dimensions: number[] = [];
+  const normalized = normalize(value);
+  for (const match of normalized.matchAll(/\b(?:ytre|utvendig|outside)\s*(?:ror)?\s*diameter\s*[=:]?\s*(\d+(?:[.,]\d+)?)/g)) {
+    dimensions.push(Number(match[1].replace(",", ".")));
+  }
+  return uniqueNumbers(dimensions);
+}
+
+function dnFromOutsideDiameter(outsideDiameter: number | undefined) {
+  if (outsideDiameter === undefined) return null;
+  const match = Object.entries(PIPE_OUTSIDE_DIAMETER_BY_DN).find(([, diameter]) => closeEnough(diameter, outsideDiameter));
+  return match ? Number(match[0]) : null;
+}
+
+function uniqueNumbers(values: Array<number | null | undefined>) {
+  return [...new Set(values.filter((value): value is number => typeof value === "number" && Number.isFinite(value)))];
+}
+
 function specialSearchTerm(value: string) {
   if (/\b(torrsprinkler|dry sprinkler)\b/i.test(value)) return "Torrörsprinkler";
   if (/\b(residential|boende|bolig(?:sprinkler)?)\b/i.test(value)) return "Residential";
@@ -457,6 +722,10 @@ function closeEnough(left: number, right: number) {
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
+}
+
+function formatCatalogDecimal(value: number) {
+  return String(value);
 }
 
 function orientationLabel(value: Orientation) {

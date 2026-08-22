@@ -5,6 +5,7 @@ import {
   searchAhlsellPublicCatalogQueries
 } from "@/lib/ahlsell-public-catalog";
 import { rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
+import { classifyAhlsellCatalogCandidates } from "@/lib/ahlsell-match-groups";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
@@ -67,9 +68,7 @@ export async function GET(request: Request, context: RouteContext) {
     };
 
     if (classificationMode) {
-      const classification = rankedResult.candidates.some((candidate) => candidate.recommendation === "recommended")
-        ? "safe"
-        : rankedResult.candidates.length > 0 ? "found" : "none";
+      const classification = classifyAhlsellCatalogCandidates(rankedResult.candidates);
       return NextResponse.json({ classification }, {
         headers: { "Cache-Control": "private, max-age=60" }
       });

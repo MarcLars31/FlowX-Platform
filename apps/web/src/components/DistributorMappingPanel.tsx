@@ -36,7 +36,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { productRequirements, removalRequirements } = useMemo(
+  const { productRequirements, removalRequirements, workRequirements } = useMemo(
     () => splitDistributorRequirementLines(requirements),
     [requirements]
   );
@@ -139,7 +139,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     red: redRequirements
   }), [greenRequirements, redRequirements, yellowRequirements]);
   const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup | null>(null);
-  const totalPosts = productRequirements.length + removalRequirements.length;
+  const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const queueRequirements = queueGroup ? requirementsByGroup[queueGroup] : [];
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
@@ -157,6 +157,10 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const activeGroupRemainingCount = queueGroup ? remainingByGroup[queueGroup] : 0;
   const checkedCatalogCount = catalogCheckRequirementIds.filter((requirementId) => catalogStatuses[requirementId]).length;
   const catalogChecksRemaining = Math.max(0, catalogCheckRequirementIds.length - checkedCatalogCount);
+  const matchedRequirementCount = greenRequirements.length + yellowRequirements.length;
+  const ahlsellCoveragePercent = productRequirements.length > 0
+    ? Math.round((matchedRequirementCount / productRequirements.length) * 100)
+    : 0;
   const activeGroupApprovedCount = queueRequirements.length - activeGroupRemainingCount;
   const progressPercent = queueRequirements.length > 0
     ? Math.round((activeGroupApprovedCount / queueRequirements.length) * 100)
@@ -218,6 +222,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             <h3 id="match-queues-heading" className="mt-1 text-2xl font-bold text-ink-950">Vilka produkter vill du arbeta med?</h3>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Tryck först på grön, gul eller röd. Då visas alla produkter i den gruppen som tydliga kort.</p>
             {catalogChecksRemaining > 0 && <p className="mt-2 text-sm font-bold text-flow-700" role="status">Scipx kontrollerar Ahlsell för {catalogChecksRemaining} {catalogChecksRemaining === 1 ? "post" : "poster"}… Grupperna uppdateras automatiskt.</p>}
+            {catalogChecksRemaining === 0 && productRequirements.length > 0 && (
+              <p className="mt-2 text-sm font-bold text-flow-800" role="status">Ahlsell-täckning: {matchedRequirementCount} av {productRequirements.length} produktposter ({ahlsellCoveragePercent} %). Arbetsmoment och demontering räknas inte som produktmissar.</p>
+            )}
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <QueueButton
@@ -355,7 +362,25 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
               </summary>
               <div className="space-y-4 border-t border-amber-300 p-5 sm:p-6">
                 {removalRequirements.map((requirement, index) => (
-                  <RemovalRequirementCard key={requirement.id} requirement={requirement} position={productRequirements.length + index + 1} totalPosts={totalPosts} />
+                  <NonProductRequirementCard key={requirement.id} requirement={requirement} position={productRequirements.length + workRequirements.length + index + 1} totalPosts={totalPosts} kind="remove" />
+                ))}
+              </div>
+            </details>
+          )}
+
+          {workRequirements.length > 0 && (
+            <details className="group rounded-2xl border-2 border-slate-300 bg-slate-50">
+              <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 p-5 sm:p-6">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-[0.08em] text-slate-700">Arbetsmoment</p>
+                  <h3 className="mt-1 text-xl font-bold text-ink-950">{workRequirements.length} {workRequirements.length === 1 ? "post" : "poster"} ska inte sökas som Ahlsell-produkter</h3>
+                  <p className="mt-1 text-sm text-ink-700">Exempelvis håltagning, schaktning och totalsummor följer med i resultatet men påverkar inte produktträffarna.</p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold text-ink-800">Visa poster<ChevronDown className="h-5 w-5 transition group-open:rotate-180" aria-hidden="true" /></span>
+              </summary>
+              <div className="space-y-4 border-t border-slate-300 p-5 sm:p-6">
+                {workRequirements.map((requirement, index) => (
+                  <NonProductRequirementCard key={requirement.id} requirement={requirement} position={productRequirements.length + index + 1} totalPosts={totalPosts} kind="work" />
                 ))}
               </div>
             </details>
@@ -816,23 +841,24 @@ function compactText(values: Array<string | null | undefined>) {
   return values.filter((value): value is string => Boolean(value)).join(" ");
 }
 
-function RemovalRequirementCard({ requirement, position, totalPosts }: { requirement: Row; position: number; totalPosts: number }) {
+function NonProductRequirementCard({ requirement, position, totalPosts, kind }: { requirement: Row; position: number; totalPosts: number; kind: "remove" | "work" }) {
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
+  const operationLabel = kind === "remove" ? "Demontering" : "Arbetsmoment";
   return (
-    <article className="overflow-hidden rounded-xl border-2 border-amber-300 bg-white">
+    <article className={kind === "remove" ? "overflow-hidden rounded-xl border-2 border-amber-300 bg-white" : "overflow-hidden rounded-xl border-2 border-slate-300 bg-white"}>
       <div className="p-5">
-        <p className="text-sm font-bold text-amber-800">POST {position} AV {totalPosts} · DEMONTERING</p>
+        <p className={kind === "remove" ? "text-sm font-bold text-amber-800" : "text-sm font-bold text-slate-700"}>POST {position} AV {totalPosts} · {operationLabel.toUpperCase()}</p>
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div><h4 className="text-2xl font-bold text-ink-950">PDF-post {details.postNumber ?? "saknas"}</h4><p className="mt-2 text-base font-semibold leading-7 text-ink-800">{String(requirement.value_text ?? "Demontering enligt teknisk beskrivning")}</p></div>
-          <span className="shrink-0 rounded-xl bg-amber-100 px-4 py-2 text-base font-bold text-amber-950">{formatProjectQuantity(quantity)}</span>
+          <div><h4 className="text-2xl font-bold text-ink-950">PDF-post {details.postNumber ?? "saknas"}</h4><p className="mt-2 text-base font-semibold leading-7 text-ink-800">{String(requirement.value_text ?? (kind === "remove" ? "Demontering enligt teknisk beskrivning" : "Arbetsmoment enligt teknisk beskrivning"))}</p></div>
+          <span className={kind === "remove" ? "shrink-0 rounded-xl bg-amber-100 px-4 py-2 text-base font-bold text-amber-950" : "shrink-0 rounded-xl bg-slate-100 px-4 py-2 text-base font-bold text-ink-950"}>{formatProjectQuantity(quantity)}</span>
         </div>
         <details className="mt-4 rounded-lg border border-ink-200">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-base font-bold text-ink-800">Visa alla uppgifter<ChevronDown className="h-5 w-5" aria-hidden="true" /></summary>
           <dl className="grid border-t border-ink-100 sm:grid-cols-2 xl:grid-cols-3">
             <SpecificationRow label="PDF-postnummer" value={details.postNumber ?? "Saknas"} />
             {details.chapterPost && <SpecificationRow label="Kapitelpost" value={details.chapterPost} />}
-            <SpecificationRow label="Åtgärd" value="Demontering" />
+            <SpecificationRow label="Åtgärd" value={operationLabel} />
             <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
             {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
             {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}

@@ -136,6 +136,63 @@ test("always places Scipx most likely product first without mutating the input",
   assert.deepEqual(input.map((item) => item.articleNumber), ["2", "1", "3"]);
 });
 
+test("ranks a dimensionally matching sprinkler pipe above a tee from the same broad search", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "unknown",
+    value_text: "DN40",
+    value_json: { unit: "m", attributes: { dimensjon: "DN40" } }
+  }, [
+    candidate("tee", "T-rør rett rillet", "DN40, utvendig diameter 48.3 mm", "/tee/"),
+    candidate("pipe", "Malte rillede rør, 6 m lengder", "Sprinklerrør DN40, utvendig diameter 48.3 mm", "/pipe/")
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "pipe");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.equal(ranked[1].recommendation, "unlikely");
+});
+
+test("recognizes common Ahlsell fitting and valve families", () => {
+  const [bend] = rankAhlsellCandidates({
+    category: "fitting",
+    value_text: "DN80",
+    value_json: { attributes: { rørdel: "Bend", dimensjon: "DN80" } }
+  }, [candidate("bend", "Bend rillet 90º", "Nominell diameter tilkobling 1: DN80", "/bend/")]);
+  const [checkValve] = rankAhlsellCandidates({
+    category: "valve",
+    value_text: "INNENDØRS TILBAKESLAGSVENTIL",
+    value_json: { attributes: { "dimensjon, tilkoblinger": "DN100" } }
+  }, [candidate("check", "Tilbakeslagsventil rillet", "Nominell diameter DN100", "/check/")]);
+
+  assert.equal(bend.recommendation, "recommended");
+  assert.equal(checkValve.recommendation, "recommended");
+});
+
+test("does not present an unrelated search result as an Ahlsell match", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "valve",
+    value_text: "TESTARRANGEMENT FOR SPRINKLER",
+    value_json: { attributes: {} }
+  }, [candidate("oring", "O-Ring Rems", "Reservedel", "/oring/")]);
+
+  assert.equal(ranked.recommendation, "unlikely");
+  assert.equal(ranked.matchScore, 0);
+});
+
+test("ranks a submersible drainage pump above a groundwater pump", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "valve",
+    value_text: "PUMPE INNENDØRS",
+    value_json: { attributes: { "type pumpe": "Neddykket pumpe", medium: "Avløpsvann" } }
+  }, [
+    candidate("ground", "Grunnvannspumpe SXM3 GW", "Pumpe", "/ground/"),
+    candidate("drainage", "Lensepumpe HS", "Neddykket pumpe", "/drainage/")
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "drainage");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.ok(ranked[1].matchWarnings?.some((warning) => warning.includes("grundvattenpump")));
+});
+
 function candidate(articleNumber: string, productName: string, description: string, path: string): AhlsellPublicCandidate {
   return {
     articleNumber,

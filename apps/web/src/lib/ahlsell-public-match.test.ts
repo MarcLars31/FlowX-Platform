@@ -22,8 +22,8 @@ test("builds a verified but unapproved Ahlsell candidate from an exact PDF requi
   assert.equal(guide.directCandidates[0].articleNumber, "19045188");
   assert.equal(guide.directCandidates[0].source, "public_verified");
   assert.match(guide.searchQuery, /K80/);
-  assert.match(guide.searchQuery, /QR/);
-  assert.match(guide.searchQuery, /Ned/);
+  assert.ok(guide.searchQueries.some((query) => /QR/.test(query)));
+  assert.ok(guide.searchQueries.some((query) => /Ned/.test(query)));
   assert.ok(guide.searchQueries.some((query) => /68/.test(query)));
   assert.match(guide.searchUrl, /parameters\.SearchPhrase=/);
 });
@@ -112,8 +112,8 @@ test("creates an Ahlsell search for non-sprinkler-head material rows", () => {
   });
 
   assert.equal(guide.directCandidates.length, 0);
-  assert.match(guide.searchQuery, /Sprinklerrör/);
-  assert.match(decodeURIComponent(guide.searchUrl), /DN100/);
+  assert.equal(guide.searchQuery, "Rør sprinkler 114.3mm");
+  assert.match(decodeURIComponent(guide.searchUrl), /114.3mm/);
 });
 
 test("keeps valve searches concise so Ahlsell can return relevant candidates", () => {
@@ -194,7 +194,7 @@ test("translates procurement language into Ahlsell product terminology", () => {
   });
 
   assert.equal(manometer.searchQuery, "Manometer sprinkler");
-  assert.equal(pressureSwitch.searchQuery, "Pressostat vann");
+  assert.equal(pressureSwitch.searchQuery, "Pressostat");
   assert.equal(bend.searchQuery, "Flensebend DN100 PN16");
 });
 
@@ -211,7 +211,56 @@ test("uses Ahlsell orientation and response abbreviations for Norwegian sprinkle
     } }
   });
 
-  assert.equal(guide.searchQuery, "Sprinkler K80 SR Opp");
+  assert.equal(guide.searchQuery, "Sprinklerhode K80");
+  assert.ok(guide.searchQueries.includes("Sprinkler K80 SR Opp"));
   assert.ok(guide.searchQueries.includes("Sprinklerhode K80 SR 68"));
   assert.ok(guide.recognitionNotes.some((note) => note.includes("variantvärden")));
+});
+
+test("uses Ahlsell's Norwegian family terms and pipe outside diameters", () => {
+  const pipe = buildAhlsellRequirementGuide({
+    category: "unknown",
+    value_text: "DN40",
+    value_json: { unit: "m", attributes: { dimensjon: "DN40" } }
+  });
+  const bend = buildAhlsellRequirementGuide({
+    category: "fitting",
+    value_text: "DN80",
+    value_json: { attributes: { rørdel: "Bend", skjøt: "Rilleskjøt", dimensjon: "DN80" } }
+  });
+  const coupling = buildAhlsellRequirementGuide({
+    category: "fitting",
+    value_text: "DN80",
+    value_json: { attributes: { rørdel: "Kupling", dimensjon: "DN80" } }
+  });
+
+  assert.equal(pipe.searchQuery, "Rør sprinkler 48.3mm");
+  assert.equal(bend.searchQuery, "Bend rillet 88.9mm");
+  assert.equal(coupling.searchQuery, "Kupling sprinkler 88.9mm");
+});
+
+test("prioritizes the row's explicit outside diameter over dimensions in parent text", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "pipe",
+    value_text: "Stålrør sprinkler Ytre diameter=42.4",
+    value_json: {
+      unit: "m",
+      sourceText: "Stålrør sprinkler Ytre diameter=42.4",
+      technicalSpecification: "Se underposter DN150 DN200",
+      attributes: { materiale: "Stål" }
+    }
+  });
+
+  assert.equal(guide.searchQuery, "Rør sprinkler 42.4mm");
+  assert.doesNotMatch(guide.searchQuery, /DN150|168.3/);
+});
+
+test("uses fitting subtype and both dimensions for reductions", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "fitting",
+    value_text: "DN50/80",
+    value_json: { attributes: { rørdel: "Dimensjonsovergang", dimensjon: "DN50/80" } }
+  });
+
+  assert.equal(guide.searchQuery, "Reduksjon rillet 60.3mm 88.9mm");
 });

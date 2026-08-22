@@ -73,6 +73,7 @@ test("keeps unchecked catalog rows yellow until Ahlsell has answered", () => {
 test("classifies safe, uncertain and empty Ahlsell responses", () => {
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "recommended" }]), "safe");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible" }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "unlikely" }]), "none");
   assert.equal(classifyAhlsellCatalogCandidates([]), "none");
 });
 

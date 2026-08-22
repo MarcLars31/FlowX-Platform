@@ -11,7 +11,7 @@ export function classifyAhlsellCatalogCandidates(
   candidates: ReadonlyArray<{ recommendation?: "recommended" | "possible" | "unlikely" }>
 ): AhlsellCatalogMatchStatus {
   if (candidates.some((candidate) => candidate.recommendation === "recommended")) return "safe";
-  return candidates.length > 0 ? "found" : "none";
+  return candidates.some((candidate) => candidate.recommendation === "possible") ? "found" : "none";
 }
 
 export function ahlsellCatalogStatusFromPayload(value: unknown): AhlsellCatalogMatchStatus | null {
