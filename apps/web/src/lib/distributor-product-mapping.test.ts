@@ -13,6 +13,7 @@ test("accepts canonical project UUIDs used by product mapping routes", () => {
 test("accepts a distributor product with normalized accessories", () => {
   const result = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
     productName: "  Quick response sprinkler  ",
     productNumber: " 1234567 ",
     manufacturerName: "Viking",
@@ -33,6 +34,7 @@ test("accepts a distributor product with normalized accessories", () => {
 test("requires an Ahlsell article number and positive accessory quantity", () => {
   const missingNumber = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
     productName: "Sprinkler",
     productNumber: ""
   });
@@ -40,9 +42,31 @@ test("requires an Ahlsell article number and positive accessory quantity", () =>
 
   const invalidQuantity = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
     productName: "Sprinkler",
     productNumber: "123",
     accessories: [{ name: "Rosett", quantity: 0 }]
   });
   assert.ok("error" in invalidQuantity);
+});
+
+test("never accepts a product without explicit user approval", () => {
+  const missingApproval = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    productName: "Sprinkler",
+    productNumber: "123"
+  });
+  assert.deepEqual(missingApproval, {
+    error: "Produkten måste godkännas uttryckligen av användaren."
+  });
+
+  const rejectedApproval = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: false,
+    productName: "Sprinkler",
+    productNumber: "123"
+  });
+  assert.deepEqual(rejectedApproval, {
+    error: "Produkten måste godkännas uttryckligen av användaren."
+  });
 });

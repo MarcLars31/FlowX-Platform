@@ -4,6 +4,10 @@ import {
   validateDistributorProductMapping
 } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
+import {
+  selectSupabaseRows,
+  updateSupabaseRowsReturning
+} from "@/lib/supabase-rest";
 import { callUserRpc, UserSupabaseError } from "@/lib/supabase-user-rest";
 
 export const runtime = "nodejs";
@@ -36,23 +40,16 @@ export async function POST(request: Request, context: RouteContext) {
         requested_requirement_id: input.requirementId
       }
     );
-    const result = await callUserRpc<Record<string, unknown>>(
-      "save_distributor_product_mapping",
-      {
-        requested_project_id: id,
-        requested_requirement_id: input.requirementId,
-        requested_product_name: input.productName,
-        requested_product_number: input.productNumber,
-        requested_manufacturer_name: input.manufacturerName || null,
-        requested_notes: input.notes || null,
-        requested_accessories: input.accessories
-      }
+    const result = await saveExplicitlyApprovedMapping(
+      id,
+      authorization.user.id,
+      input
     );
 
     return NextResponse.json({
       mapping: result,
       message:
-        "Produktvalet och tillbehören är sparade. Kopplingen kan nu föreslås i kommande liknande projekt."
+        "Produkten är godkänd och sparad. Kopplingen kan nu föreslås i kommande liknande projekt."
     });
   } catch (error) {
     if (error instanceof UserSupabaseError) {
@@ -72,6 +69,110 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 500 }
     );
   }
+}
+
+async function saveExplicitlyApprovedMapping(
+  projectId: string,
+  actorId: string,
+  input: {
+    requirementId: string;
+    userApproved: true;
+    productName: string;
+    productNumber: string;
+    manufacturerName: string;
+    notes: string;
+    accessories: unknown[];
+  }
+) {
+  const mappingPayload = {
+    requested_project_id: projectId,
+    requested_requirement_id: input.requirementId,
+    requested_product_name: input.productName,
+    requested_product_number: input.productNumber,
+    requested_manufacturer_name: input.manufacturerName || null,
+    requested_notes: input.notes || null,
+    requested_accessories: input.accessories
+  };
+
+  try {
+    return await callUserRpc<Record<string, unknown>>(
+      "approve_distributor_product_mapping",
+      {
+        ...mappingPayload,
+        requested_user_approved: input.userApproved
+      }
+    );
+  } catch (error) {
+    if (!isMissingApprovalRpc(error)) throw error;
+  }
+
+  // Deployment-safe fallback while the new migration reaches Supabase. The
+  // legacy RPC still performs all project access checks. Its result is stamped
+  // server-side before the application can regard the product as approved.
+  const result = await callUserRpc<Record<string, unknown>>(
+    "save_distributor_product_mapping",
+    mappingPayload
+  );
+  const assignmentId = result.assignmentId;
+  if (!isUuid(assignmentId)) {
+    throw new Error("The approved assignment id was not returned.");
+  }
+
+  const [assignment] = await selectSupabaseRows<{
+    product_snapshot: unknown;
+  }>("project_product_suggestions", {
+    id: `eq.${assignmentId}`,
+    project_id: `eq.${projectId}`,
+    requirement_id: `eq.${input.requirementId}`,
+    selected_by: `eq.${actorId}`,
+    status: "eq.selected",
+    limit: "1"
+  });
+  if (!assignment) throw new Error("The approved product assignment was not found.");
+
+  const approvedAt = new Date().toISOString();
+  const updatedRows = await updateSupabaseRowsReturning(
+    "project_product_suggestions",
+    {
+      id: `eq.${assignmentId}`,
+      project_id: `eq.${projectId}`,
+      requirement_id: `eq.${input.requirementId}`,
+      selected_by: `eq.${actorId}`,
+      status: "eq.selected"
+    },
+    {
+      product_snapshot: {
+        ...record(assignment.product_snapshot),
+        approvedByUser: true,
+        approvalStatus: "user_approved",
+        approvedBy: actorId,
+        approvedAt
+      }
+    }
+  );
+  if (updatedRows.length !== 1) {
+    throw new Error("The approved product assignment could not be marked approved.");
+  }
+
+  return {
+    ...result,
+    approvedByUser: true,
+    approvalStatus: "user_approved",
+    approvedAt
+  };
+}
+
+function isMissingApprovalRpc(error: unknown) {
+  return error instanceof UserSupabaseError &&
+    (error.code === "PGRST202" ||
+      error.code === "42883" ||
+      error.message.includes("approve_distributor_product_mapping"));
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function readableDatabaseError(message: string) {

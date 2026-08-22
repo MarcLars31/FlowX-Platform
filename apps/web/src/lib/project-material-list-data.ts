@@ -29,7 +29,7 @@ export async function loadProjectMaterialListData(
       limit: "1000"
     }),
     selectUserRows<MaterialListAssignment>("project_product_suggestions", {
-      select: "id,requirement_id,product_snapshot,selected_at",
+      select: "id,requirement_id,status,product_snapshot,selected_at",
       project_id: `eq.${projectId}`,
       organization_id: `eq.${organizationId}`,
       status: "eq.selected",
@@ -43,4 +43,3 @@ export async function loadProjectMaterialListData(
     rows: buildProjectMaterialRows({ requirements, assignments })
   };
 }
-

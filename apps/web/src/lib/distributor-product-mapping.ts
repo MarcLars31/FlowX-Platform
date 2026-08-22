@@ -8,6 +8,7 @@ export type DistributorAccessoryInput = {
 
 export type DistributorProductMappingInput = {
   requirementId: string;
+  userApproved: true;
   productName: string;
   productNumber: string;
   manufacturerName: string;
@@ -31,6 +32,9 @@ export function validateDistributorProductMapping(
   const manufacturerName = text(value.manufacturerName, 200);
   const notes = text(value.notes, 2000);
   if (!isUuid(requirementId)) return { error: "Ogiltigt krav-id." };
+  if (value.userApproved !== true) {
+    return { error: "Produkten måste godkännas uttryckligen av användaren." };
+  }
   if (!productName) return { error: "Produktnamn krävs." };
   if (!productNumber) return { error: "Ahlsells artikelnummer krävs." };
   if (value.accessories != null && !Array.isArray(value.accessories)) {
@@ -63,6 +67,7 @@ export function validateDistributorProductMapping(
   return {
     data: {
       requirementId,
+      userApproved: true,
       productName,
       productNumber,
       manufacturerName,

@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
 import { distributorRequirementOperation } from "@/lib/distributor-requirement-lines";
 import { projectRequirementDetails } from "@/lib/project-requirement-details";
 import { projectRequirementQuantity } from "@/lib/project-requirement-quantity";
@@ -26,6 +27,7 @@ export type MaterialListRequirement = {
 export type MaterialListAssignment = {
   id: string;
   requirement_id: string | null;
+  status: string;
   product_snapshot: unknown;
   selected_at: string | null;
 };
@@ -59,7 +61,7 @@ export function buildProjectMaterialRows({
       const snapshot = record(assignment.product_snapshot);
       if (
         !assignment.requirement_id ||
-        snapshot.source !== "distributor_manual" ||
+        !isUserApprovedProductAssignment(assignment) ||
         !text(snapshot.name) ||
         !text(snapshot.productNumber)
       ) {
@@ -228,7 +230,7 @@ function addProjectSheet(
   sheet.getCell("B17").numFmt = "yyyy-mm-dd hh:mm";
   sheet.mergeCells("A19:B20");
   const note = sheet.getCell("A19");
-  note.value = "Kontrollera alltid artikelnummer, antal, pris och tillgänglighet före beställning. Exporten bygger på de produktval som registrerats i projektet.";
+  note.value = "Kontrollera alltid artikelnummer, antal, pris och tillgänglighet före beställning. Exporten innehåller endast produkter som en användare uttryckligen har godkänt.";
   note.alignment = { vertical: "middle", wrapText: true };
   note.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF7ED" } };
   note.font = { italic: true, color: { argb: "FF9A3412" } };

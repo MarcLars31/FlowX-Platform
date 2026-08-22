@@ -50,9 +50,12 @@ const assignments = [
   {
     id: "assignment-1",
     requirement_id: "requirement-1",
+    status: "selected",
     selected_at: "2026-08-19T10:00:00.000Z",
     product_snapshot: {
       source: "distributor_manual",
+      approvedByUser: true,
+      approvalStatus: "user_approved",
       distributor: "Ahlsell",
       name: "Demo sprinkler K80",
       productNumber: "AHL-1001",
@@ -134,4 +137,23 @@ test("creates a valid xlsx workbook with project and material sheets", async () 
   assert.equal(sheet?.getCell("B8").value, "33.335.2");
   assert.equal(sheet?.getCell("B9").value, "33.335.3");
   assert.equal(sheet?.getCell("C9").value, "Demontering");
+});
+
+test("does not export a suggested product before user approval", () => {
+  const unapprovedAssignments = assignments.map((assignment) => ({
+    ...assignment,
+    product_snapshot: {
+      ...(assignment.product_snapshot as Record<string, unknown>),
+      approvedByUser: false,
+      approvalStatus: "suggested"
+    }
+  }));
+
+  const rows = buildProjectMaterialRows({
+    requirements,
+    assignments: unapprovedAssignments
+  });
+
+  assert.equal(rows[0]?.type, "Ej produktvald");
+  assert.equal(rows[0]?.productNumber, "");
 });

@@ -1,3 +1,5 @@
+import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
+
 export const GUIDED_PROJECT_STEPS = [
   { id: "documents", label: "Ladda upp", tab: "documents" },
   { id: "products", label: "Välj produkter", tab: "products" },
@@ -55,9 +57,7 @@ export function guidedProjectWorkflow(input: {
   );
   const mappedRequirementIds = new Set(
     input.assignments.flatMap((assignment) => {
-      const snapshot = record(assignment.product_snapshot);
-      return assignment.status === "selected" &&
-        snapshot.source === "distributor_manual" &&
+      return isUserApprovedProductAssignment(assignment) &&
         typeof assignment.requirement_id === "string"
         ? [assignment.requirement_id]
         : [];

@@ -32,7 +32,11 @@ test("guides a new project directly from upload to product selection", () => {
         id: "a1",
         requirement_id: "r1",
         status: "selected",
-        product_snapshot: { source: "distributor_manual" }
+        product_snapshot: {
+          source: "distributor_manual",
+          approvedByUser: true,
+          approvalStatus: "user_approved"
+        }
       }
     ]
   });
@@ -61,7 +65,11 @@ test("rejected and removal rows do not block the product step", () => {
         id: "a1",
         requirement_id: "install",
         status: "selected",
-        product_snapshot: { source: "distributor_manual" }
+        product_snapshot: {
+          source: "distributor_manual",
+          approvedByUser: true,
+          approvalStatus: "user_approved"
+        }
       }
     ]
   });
@@ -87,6 +95,25 @@ test("a project containing only removal rows needs no new product mapping", () =
   assert.equal(workflow.eligibleRequirementCount, 0);
   assert.equal(workflow.remainingProductCount, 0);
   assert.equal(workflow.isComplete, true);
+});
+
+test("does not complete the product step for an unapproved suggestion", () => {
+  const workflow = guidedProjectWorkflow({
+    documentCount: 1,
+    requirements: [{ id: "r1", status: "user_confirmed" }],
+    assignments: [
+      {
+        id: "a1",
+        requirement_id: "r1",
+        status: "selected",
+        product_snapshot: { source: "distributor_manual" }
+      }
+    ]
+  });
+
+  assert.equal(workflow.isComplete, false);
+  assert.equal(workflow.mappedRequirementCount, 0);
+  assert.equal(workflow.remainingProductCount, 1);
 });
 
 test("recognizes only supported workspace tabs", () => {

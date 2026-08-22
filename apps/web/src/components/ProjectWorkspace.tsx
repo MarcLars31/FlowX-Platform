@@ -24,6 +24,7 @@ import { PdfDropzone } from "@/components/PdfDropzone";
 import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
+import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
 import {
   formatProjectQuantity,
   projectRequirementQuantity
@@ -345,7 +346,7 @@ export function ProjectWorkspace({
   const counts = {
     documents: displayedDocuments.count,
     requirements: data.requirements.length,
-    suggestions: data.suggestions.filter(isManualAssignment).length,
+    suggestions: data.suggestions.filter(isUserApprovedProductAssignment).length,
     decisions: data.decisions.length
   };
   const workflow = guidedProjectWorkflow({
@@ -774,11 +775,6 @@ function TextArea({ name, label, defaultValue }: { name: string; label: string; 
 function formatDate(value: unknown) { if (typeof value !== "string" || !value) return ""; return new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium" }).format(new Date(value)); }
 function documentStatusLabel(status: string) { const labels: Record<string, string> = { completed: "Klar", extracted: "Extraherad", review_required: "Kräver granskning", requires_review: "Kräver granskning", uploaded: "Uppladdad", uploading: "Laddar upp", extracting: "Extraherar", failed: "Misslyckades" }; return labels[status] ?? status; }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
-function isManualAssignment(item: ProjectRow) {
-  const snapshot = isRecord(item.product_snapshot) ? item.product_snapshot : {};
-  return snapshot.source === "distributor_manual" && item.status === "selected";
-}
-
 function summarizeSelectedProducts(
   assignments: ProjectRow[],
   requirements: ProjectRow[]
@@ -795,7 +791,7 @@ function summarizeSelectedProducts(
     quantityMissing: boolean;
   }>();
 
-  for (const assignment of assignments.filter(isManualAssignment)) {
+  for (const assignment of assignments.filter(isUserApprovedProductAssignment)) {
     const snapshot = isRecord(assignment.product_snapshot)
       ? assignment.product_snapshot
       : {};
