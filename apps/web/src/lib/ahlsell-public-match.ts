@@ -4,7 +4,8 @@ export type AhlsellPublicCandidate = {
   manufacturer: string;
   productUrl: string;
   specifications: string[];
-  verifiedAt: string;
+  source: "public_verified" | "pdf_reference";
+  verifiedAt?: string;
 };
 
 export type AhlsellRequirementGuide = {
@@ -88,10 +89,13 @@ export function buildAhlsellRequirementGuide(
     specialSearchTerm(combined)
   ]);
 
+  const pdfReferenceCandidate = candidateFromPdfReference(description, criteria);
+
   const searchDescription = usefulDescription(description) && !isSprinklerAccessory
     ? description.replace(/\s+/g, " ").trim().slice(0, 110)
     : null;
-  const searchQuery = compact([...criteria, searchDescription]).join(" ").slice(0, 220);
+  const searchQuery = pdfReferenceCandidate?.articleNumber
+    ?? compact([...criteria, searchDescription]).join(" ").slice(0, 220);
   const warnings = compact([
     orientationResult.mixed
       ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."
@@ -110,7 +114,7 @@ export function buildAhlsellRequirementGuide(
       : null
   ]);
 
-  const directCandidates = category === "sprinkler_head"
+  const verifiedCandidates = category === "sprinkler_head"
     && !orientationResult.mixed
     && !responseResult.conflict
     && !concealed
@@ -130,6 +134,10 @@ export function buildAhlsellRequirementGuide(
           && (!finish || item.finish === finish)
         )
       : [];
+  const directCandidates: AhlsellPublicCandidate[] = compact([
+    pdfReferenceCandidate,
+    ...verifiedCandidates
+  ]);
 
   const searchUrl = new URL(AHLSELL_SEARCH_URL);
   searchUrl.searchParams.set("parameters.SearchPhrase", searchQuery || description);
@@ -161,6 +169,7 @@ function candidate(
     manufacturer: "Reliable",
     productUrl: `https://www.ahlsell.se/products/varme--sanitet/sprinklersortiment-for-sprinklerkunder/sprinklerhuvud/${route}/${articleNumber}`,
     specifications: [`K${kFactor}`, `DN${dn}`, `${temperatureC}°C`, orientationLabel(orientation), responseLabel(response), finishLabel(finish), `SIN ${sin}`],
+    source: "public_verified",
     verifiedAt: VERIFIED_AT,
     kFactor,
     dn,
@@ -168,6 +177,31 @@ function candidate(
     orientation,
     response,
     finish
+  };
+}
+
+function candidateFromPdfReference(
+  description: string,
+  criteria: string[]
+): AhlsellPublicCandidate | null {
+  const articleNumber = description.match(/\b(\d{6,8})\b/)?.[1];
+  if (!articleNumber) return null;
+
+  const productName = description
+    .replace(new RegExp(`\\b${articleNumber}\\b`), "")
+    .replace(/\s+/g, " ")
+    .replace(/[,:;-]+$/g, "")
+    .trim();
+  const searchUrl = new URL(AHLSELL_SEARCH_URL);
+  searchUrl.searchParams.set("parameters.SearchPhrase", articleNumber);
+
+  return {
+    articleNumber,
+    productName: productName || `Produkt ${articleNumber}`,
+    manufacturer: /\b(?:vic|victaulic)\b/i.test(description) ? "Victaulic" : "",
+    productUrl: searchUrl.toString(),
+    specifications: compact(["Artikelnummer angivet i PDF", ...criteria]),
+    source: "pdf_reference"
   };
 }
 

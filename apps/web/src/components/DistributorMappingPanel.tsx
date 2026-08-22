@@ -246,11 +246,14 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   }
 
   function applyAhlsellCandidate(candidate: AhlsellPublicCandidate) {
+    const candidateNote = candidate.source === "pdf_reference"
+      ? "Artikelnumret hämtades från den uppladdade PDF-posten. Kontrollera produkten hos Ahlsell före beställning."
+      : `Offentlig Ahlsell-träff kontrollerad ${candidate.verifiedAt}. Aktuella godkännanden, pris och saldo måste verifieras före beställning.`;
     showSelection({
       productName: candidate.productName,
       productNumber: candidate.articleNumber,
       manufacturerName: candidate.manufacturer,
-      notes: notes.trim() || `Offentlig Ahlsell-träff kontrollerad ${candidate.verifiedAt}. Aktuella godkännanden, pris och saldo måste verifieras före beställning.`,
+      notes: notes.trim() || candidateNote,
       accessories
     });
     onError("");
@@ -403,7 +406,9 @@ function AhlsellPublicMatchPanel({ guide, disabled, onUseCandidate }: {
           <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-900">Ahlsell-matchning · inte godkänd</p>
           <h4 id="ahlsell-match-heading" className="mt-1 text-xl font-bold text-ink-950">
             {guide.directCandidates.length > 0
-              ? `${guide.directCandidates.length} verifierad ${guide.directCandidates.length === 1 ? "artikelträff" : "artikelträffar"}`
+              ? guide.directCandidates.some((candidate) => candidate.source === "pdf_reference")
+                ? `${guide.directCandidates.length} artikelnummer hittat i PDF`
+                : `${guide.directCandidates.length} verifierad ${guide.directCandidates.length === 1 ? "artikelträff" : "artikelträffar"}`
               : "Sök med PDF-postens tekniska värden"}
           </h4>
           <p className="mt-1 text-sm leading-6 text-ink-700">
@@ -442,6 +447,7 @@ function AhlsellPublicMatchPanel({ guide, disabled, onUseCandidate }: {
                 <div>
                   <p className="text-base font-bold text-ink-950">{candidate.productName}</p>
                   <p className="mt-1 text-sm font-bold text-cyan-900">Ahlsell art.nr {candidate.articleNumber}</p>
+                  <p className="mt-1 text-xs font-semibold text-ink-600">{candidate.source === "pdf_reference" ? "Angivet i den uppladdade PDF-filen" : "Verifierad i Ahlsells offentliga katalog"}</p>
                 </div>
                 <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />

@@ -10,6 +10,7 @@ import type { OrganizationProject } from "@/types/organization";
 import { DEMO_DATA_DISCLAIMER } from "@/lib/demo-data";
 import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
 import { enrichProjectRequirements } from "@/lib/project-requirement-enrichment";
+import { sortProjectRequirementsBySource } from "@/lib/project-requirement-order";
 
 export const runtime = "nodejs";
 
@@ -46,7 +47,7 @@ export async function GET(_request: Request, context: RouteContext) {
         selectUserRows("project_system_types", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "is_primary.desc,created_at.asc" }),
         selectUserRows("project_standards", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "priority.asc,created_at.asc" }),
         selectUserRows("project_supplier_options", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "supplier_kind.asc,selection_role.asc" }),
-        selectUserRows("project_requirements", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "updated_at.desc" }),
+        selectUserRows("project_requirements", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "source_page.asc,created_at.asc" }),
         selectUserRows("project_requirement_conflicts", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "updated_at.desc" }),
         selectUserRows("project_product_suggestions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "match_score.desc" }),
         selectUserRows("project_decisions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "updated_at.desc" }),
@@ -70,9 +71,11 @@ export async function GET(_request: Request, context: RouteContext) {
           order: "created_at.desc"
         })
       : [];
-    const requirements = enrichProjectRequirements(
-      rawRequirements as Array<Record<string, unknown> & { id: string }>,
-      technicalDescriptions as Array<Record<string, unknown> & { id: string }>
+    const requirements = sortProjectRequirementsBySource(
+      enrichProjectRequirements(
+        rawRequirements as Array<Record<string, unknown> & { id: string }>,
+        technicalDescriptions as Array<Record<string, unknown> & { id: string }>
+      )
     );
 
     const productMemory = authorization.context.permissions.includes(

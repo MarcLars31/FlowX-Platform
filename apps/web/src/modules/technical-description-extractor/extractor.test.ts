@@ -90,6 +90,37 @@ test("classifies a sprinkler capacity meter as control equipment, not a sprinkle
   assert.equal(result.materialLines[0].category, "control");
 });
 
+test("keeps visually aligned Ahlsell article numbers, posts and quantities together", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 3,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "K-30 Brannslokkingsanlegg",
+      "Postnr. NS-kode/Firmakode/Spesifikasjon Enhet Mengde",
+      "2 UC1.51124A",
+      "INNENDØRS STENGEVENTIL",
+      "Ventiltype: Dreiespjeldventil",
+      "2.1 Dimensjon: DN65 VIC 705, overvåket åpen 9253497 stk 2 0 0",
+      "2.2 Dimensjon: DN100 VIC 705, overvåket åpen 9253499 stk 2 0 0",
+      "2.3 Dimensjon: DN150 VIC 705, overvåket åpen 9253502 stk 2 0 0"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    quantity: line.quantity,
+    unit: line.unit,
+    category: line.category,
+    description: line.description
+  })), [
+    { postNumber: "2.1", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN65 VIC 705, overvåket åpen 9253497" },
+    { postNumber: "2.2", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN100 VIC 705, overvåket åpen 9253499" },
+    { postNumber: "2.3", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN150 VIC 705, overvåket åpen 9253502" }
+  ]);
+  assert.equal(result.materialLines[0].attributes.dimensjon, "DN65");
+});
+
 test("extracts NS 3420 table quantities and pipe lengths", () => {
   const pages: TechnicalDescriptionPage[] = [
     {

@@ -321,7 +321,10 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       if (quantity?.descriptionPrefix) {
         descriptionParts.push(quantity.descriptionPrefix);
       }
-      const { nsCode, description } = tableDescription(descriptionParts);
+      const parsedDescription = tableDescription(descriptionParts);
+      const nsCode = parsedDescription.nsCode;
+      const description = parsedDescription.description
+        || (start.quantity ? start.description.trim() : "");
       const sourceText = pageLines.slice(start.lineIndex, blockEnd).join("\n");
       const ownAttributes = {
         ...extractTableAttributes(blockLines),
@@ -445,7 +448,12 @@ const LEADING_LUMP_SUM_POST_PATTERN = new RegExp(
   String.raw`^RS(?:\s+${STRUCTURED_NUMBER_SOURCE}){1,3}\s+(?<post>\d+(?:\.\d+){1,7}\.?)\s*(?<description>.*)$`,
   "i"
 );
+const TRAILING_QUANTITY_POST_PATTERN = new RegExp(
+  String.raw`^(?<post>\d+(?:\.\d+){1,7}\.?)\s+(?<description>.+?)\s+(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})(?:\s+${STRUCTURED_NUMBER_SOURCE}){1,3}$`,
+  "i"
+);
 const FULL_POST_LINE_PATTERN = /^(\d+(?:\.\d+){1,7})\s+(.+)$/;
+const PARENT_POST_LINE_PATTERN = /^(\d{1,4})\s+((?:%?[A-ZÆØÅ]{1,10}\d[\w.%-]*|[A-ZÆØÅ][A-ZÆØÅ /-]{4,}))$/;
 const EXACT_POST_LINE_PATTERN = /^(\d+(?:\.\d+){1,7}\.?)$/;
 const POST_CONTINUATION_PATTERN = /^(\.?\d+(?:\.\d+)*)\s*(.*)$/;
 
@@ -454,6 +462,25 @@ function parseStructuredPostStart(
   lineIndex: number
 ): StructuredPostStart | undefined {
   const line = lines[lineIndex];
+  const trailingQuantity = line.match(TRAILING_QUANTITY_POST_PATTERN);
+  if (trailingQuantity?.groups) {
+    const quantityValue = parseLocalizedNumber(trailingQuantity.groups.quantity);
+    if (quantityValue === undefined) return undefined;
+    return completeStructuredStart({
+      lines,
+      lineIndex,
+      post: trailingQuantity.groups.post,
+      description: trailingQuantity.groups.description,
+      quantity: {
+        quantity: quantityValue,
+        unit: normalizeUnit(trailingQuantity.groups.unit),
+        text: `${trailingQuantity.groups.quantity} ${trailingQuantity.groups.unit}`,
+        lineIndex: 0,
+        descriptionPrefix: ""
+      }
+    });
+  }
+
   const leadingQuantity = line.match(LEADING_QUANTITY_POST_PATTERN);
   if (leadingQuantity?.groups) {
     const quantityValue = parseLocalizedNumber(leadingQuantity.groups.quantity);
@@ -490,6 +517,16 @@ function parseStructuredPostStart(
       consumedLineCount: 1,
       postNumber: fullPost[1],
       description: fullPost[2].trim()
+    };
+  }
+
+  const parentPost = line.match(PARENT_POST_LINE_PATTERN);
+  if (parentPost) {
+    return {
+      lineIndex,
+      consumedLineCount: 1,
+      postNumber: parentPost[1],
+      description: parentPost[2].trim()
     };
   }
 

@@ -1,6 +1,7 @@
 import { createWorker } from "tesseract.js";
 import { ensurePdfCanvasRuntime } from "@/lib/pdf-runtime";
 import type { TechnicalDescriptionPage } from "./types";
+import { layoutTextFromPdfItems, shouldPreferPdfLayoutText } from "./pdf-layout";
 
 const OCR_SCALE = 2;
 const MIN_TEXT_PAGE_LENGTH = 80;
@@ -22,12 +23,29 @@ export async function extractTechnicalDescriptionPages(
     let textExtractionError: unknown;
     try {
       const textResult = await parser.getText();
-      textPages = textResult.pages.map((page) => ({
-        pageNumber: page.num,
-        text: page.text.trim(),
-        method: "text" as const,
-        confidence: 0.98,
-        status: "success" as const
+      const internalDocument = (parser as unknown as {
+        doc?: { getPage(pageNumber: number): Promise<{ getTextContent(): Promise<{ items: unknown[] }> }> };
+      }).doc;
+      textPages = await Promise.all(textResult.pages.map(async (page) => {
+        const plainText = page.text.trim();
+        let text = plainText;
+        if (internalDocument && /postnr\.?|mengde|enhetspris/i.test(plainText)) {
+          try {
+            const pdfPage = await internalDocument.getPage(page.num);
+            const content = await pdfPage.getTextContent();
+            const layoutText = layoutTextFromPdfItems(content.items);
+            if (shouldPreferPdfLayoutText(plainText, layoutText)) text = layoutText;
+          } catch {
+            // A page-level layout failure must not discard otherwise readable text.
+          }
+        }
+        return {
+          pageNumber: page.num,
+          text,
+          method: "text" as const,
+          confidence: 0.98,
+          status: "success" as const
+        };
       }));
     } catch (error) {
       textExtractionError = error;

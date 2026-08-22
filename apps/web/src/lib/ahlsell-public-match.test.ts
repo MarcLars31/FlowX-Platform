@@ -20,9 +20,27 @@ test("builds a verified but unapproved Ahlsell candidate from an exact PDF requi
 
   assert.equal(guide.directCandidates.length, 1);
   assert.equal(guide.directCandidates[0].articleNumber, "19045188");
+  assert.equal(guide.directCandidates[0].source, "public_verified");
   assert.match(guide.searchQuery, /K80/);
   assert.match(guide.searchQuery, /DN15/);
   assert.match(guide.searchUrl, /parameters\.SearchPhrase=/);
+});
+
+test("uses an article number printed on the PDF row as the exact Ahlsell search", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "valve",
+    value_text: "Dimensjon: DN65 VIC 705, overvåket åpen 9253497",
+    value_json: {
+      attributes: { dimensjon: "DN65" }
+    }
+  });
+
+  assert.equal(guide.searchQuery, "9253497");
+  assert.equal(guide.directCandidates.length, 1);
+  assert.equal(guide.directCandidates[0].articleNumber, "9253497");
+  assert.equal(guide.directCandidates[0].manufacturer, "Victaulic");
+  assert.equal(guide.directCandidates[0].source, "pdf_reference");
+  assert.match(decodeURIComponent(guide.directCandidates[0].productUrl), /SearchPhrase=9253497/);
 });
 
 test("does not suggest a visible sprinkler for a concealed ceiling requirement", () => {
