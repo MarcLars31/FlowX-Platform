@@ -18,8 +18,6 @@ const NS_CODE_PATTERN = /\b([A-ZÆØÅ]{2}\d[\w.-]*)\b/i;
 const STANDARD_PATTERN =
   /\b((?:NS(?:[-\s]?EN)?|NFPA)\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
 const ATTRIBUTE_PATTERN = /^\s*([^:]{2,60}):\s*(.*?)\s*$/;
-const NS3420_BASE_POST_PATTERN = /^(\d+(?:\.\d+){2,})\.$/;
-const NS3420_ROW_NUMBER_PATTERN = /^(\d+(?:\.\d+)*)$/;
 const NS3420_CODE_PATTERN =
   /^(%?[A-ZÆØÅ][A-ZÆØÅ0-9]*\.[A-ZÆØÅ0-9.]+[A-ZÆØÅ]?)\s*(?:-\s*)?(.*)$/i;
 const TABLE_QUANTITY_PATTERN = new RegExp(
@@ -113,7 +111,7 @@ export function extractTechnicalDescriptionFromPages(
 function extractProject(pages: TechnicalDescriptionPage[]) {
   for (const page of pages) {
     const projectMatch = page.text.match(
-      /Prosjekt:\s*(.+?)(?:\s+Side\s+\d+[-/]\d+|$)/i
+      /Prosjekt:\s*([^\r\n\t]+?)(?=\s+Side\b|$)/i
     );
     const chapterMatch = page.text.match(/Kapittel:\s*([^\n]+)/i);
     if (!projectMatch && !chapterMatch) continue;
@@ -136,10 +134,45 @@ function extractMaterialLines(
   pages: TechnicalDescriptionPage[],
   warnings: TechnicalDescriptionWarning[]
 ) {
-  const tableLines = extractNs3420TableLines(pages);
-  if (tableLines.length > 0) return tableLines;
+  const structuredLines = extractNs3420TableLines(pages);
+  const legacyWarnings: TechnicalDescriptionWarning[] = [];
+  const legacyLines = extractLegacyMaterialLines(pages, legacyWarnings);
 
-  return extractLegacyMaterialLines(pages, warnings);
+  if (structuredLines.length === 0) {
+    warnings.push(...legacyWarnings);
+    return legacyLines;
+  }
+
+  const structuredUsable = usableMaterialLineCount(structuredLines);
+  const legacyUsable = usableMaterialLineCount(legacyLines);
+  if (
+    (structuredLines.length >= 2 && structuredUsable === structuredLines.length) ||
+    structuredUsable >= legacyUsable ||
+    materialLineQuality(structuredLines) >= materialLineQuality(legacyLines)
+  ) {
+    return structuredLines;
+  }
+
+  warnings.push(...legacyWarnings);
+  return legacyLines;
+}
+
+function usableMaterialLineCount(lines: TechnicalDescriptionMaterialLine[]) {
+  return lines.filter(
+    (line) => line.quantity !== undefined || line.operation === "remove"
+  ).length;
+}
+
+function materialLineQuality(lines: TechnicalDescriptionMaterialLine[]) {
+  return lines.reduce(
+    (score, line) =>
+      score +
+      (line.postNumber ? 2 : -2) +
+      (line.quantity !== undefined ? 3 : line.operation === "remove" ? 1 : -1) +
+      (line.category === "unknown" ? -0.5 : 1) -
+      (line.reviewFlags.includes("inferred-post-number") ? 3 : 0),
+    0
+  );
 }
 
 function extractLegacyMaterialLines(
@@ -187,7 +220,8 @@ function extractLegacyMaterialLines(
             postNumber,
             nsCode,
             rawLine,
-            page
+            page,
+            !itemMatch[1]
           );
           previousPostNumber = postNumber;
           pendingPostNumber = undefined;
@@ -256,34 +290,39 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
   for (const page of pages) {
     const pageLines = normalizedPageLines(page.text);
+    if (!isFireProtectionPage(page.text)) continue;
 
-    for (let index = 0; index < pageLines.length - 1; index += 1) {
-      const baseMatch = pageLines[index].match(NS3420_BASE_POST_PATTERN);
-      if (!baseMatch) continue;
+    const starts: StructuredPostStart[] = [];
+    for (let index = 0; index < pageLines.length; index += 1) {
+      const start = parseStructuredPostStart(pageLines, index);
+      if (!start) continue;
+      starts.push(start);
+      index += start.consumedLineCount - 1;
+    }
 
-      const rowNumber = pageLines[index + 1]?.match(NS3420_ROW_NUMBER_PATTERN)?.[1];
-      if (!rowNumber) continue;
-
-      let blockEnd = index + 2;
-      while (
-        blockEnd < pageLines.length &&
-        !NS3420_BASE_POST_PATTERN.test(pageLines[blockEnd]) &&
-        !isTableFooter(pageLines[blockEnd])
-      ) {
-        blockEnd += 1;
-      }
-
-      const blockLines = pageLines.slice(index + 2, blockEnd);
-      const quantity = findTableQuantity(blockLines);
-      const fullPostNumber = `${baseMatch[1]}.${rowNumber}`;
-      const descriptionParts = quantity
-        ? blockLines.slice(0, quantity.lineIndex)
-        : blockLines;
+    for (let startIndex = 0; startIndex < starts.length; startIndex += 1) {
+      const start = starts[startIndex];
+      const blockEnd = Math.min(
+        starts[startIndex + 1]?.lineIndex ?? pageLines.length,
+        footerIndex(pageLines, start.lineIndex)
+      );
+      const bodyStart = start.lineIndex + start.consumedLineCount;
+      const blockLines = [
+        ...(start.description ? [start.description] : []),
+        ...pageLines.slice(bodyStart, blockEnd)
+      ];
+      const quantity = start.quantity ?? findTableQuantity(blockLines);
+      const fullPostNumber = start.postNumber;
+      const descriptionParts = start.quantity
+        ? blockLines
+        : quantity
+          ? blockLines.slice(0, quantity.lineIndex)
+          : blockLines;
       if (quantity?.descriptionPrefix) {
         descriptionParts.push(quantity.descriptionPrefix);
       }
       const { nsCode, description } = tableDescription(descriptionParts);
-      const sourceText = [pageLines[index], rowNumber, ...blockLines].join("\n");
+      const sourceText = pageLines.slice(start.lineIndex, blockEnd).join("\n");
       const ownAttributes = {
         ...extractTableAttributes(blockLines),
         ...extractInlineAttributes(description)
@@ -293,59 +332,66 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
           normalizeStandard(match[1])
         )
       );
+      const parent = findTableParent(parentContexts, fullPostNumber);
+      const ownCategory = inferCategory(`${description}\n${sourceText}`.toLocaleLowerCase());
+      const category = ownCategory === "unknown"
+        ? parent?.category ?? ownCategory
+        : ownCategory;
+      const system = inferSystem(`${description}\n${sourceText}`.toLocaleLowerCase()) ?? parent?.system;
 
-      if (!rowNumber.includes(".")) {
+      if (
+        nsCode ||
+        description ||
+        category !== "unknown" ||
+        Object.keys(ownAttributes).length > 0
+      ) {
         parentContexts.set(fullPostNumber, {
-          nsCode,
-          attributes: ownAttributes,
-          system: inferSystem(`${description}\n${sourceText}`.toLocaleLowerCase()),
-          standardRefs: ownStandardRefs,
-          sourceText
+          postNumber: fullPostNumber,
+          nsCode: nsCode ?? parent?.nsCode,
+          category,
+          attributes: {
+            ...(parent?.attributes ?? {}),
+            ...ownAttributes
+          },
+          system,
+          standardRefs: unique([...(parent?.standardRefs ?? []), ...ownStandardRefs]),
+          sourceText: parent
+            ? `${parent.sourceText}\n\nUNDERPOST\n${sourceText}`
+            : sourceText
         });
       }
 
-      if (!quantity || quantity.quantity <= 0) {
-        index = Math.max(index, blockEnd - 1);
-        continue;
-      }
+      const normalizedText = `${description}\n${sourceText}\n${parent?.sourceText ?? ""}`.toLocaleLowerCase();
+      const operation = inferOperation(normalizedText, Boolean(quantity));
+      if (!quantity || quantity.quantity <= 0) continue;
 
-      const key = `${page.pageNumber}:${fullPostNumber}`;
+      const key = fullPostNumber;
       if (seen.has(key)) {
-        index = Math.max(index, blockEnd - 1);
         continue;
       }
-
-      const parentPostNumber = rowNumber.includes(".")
-        ? `${baseMatch[1]}.${rowNumber.split(".")[0]}`
-        : undefined;
-      const parent = parentPostNumber
-        ? parentContexts.get(parentPostNumber)
-        : undefined;
       const attributes = {
         ...(parent?.attributes ?? {}),
         ...ownAttributes
       };
-      const normalizedText = `${description}\n${sourceText}\n${parent?.system ?? ""}`.toLocaleLowerCase();
-      const category = inferCategory(description.toLocaleLowerCase());
-      const operation = inferOperation(normalizedText, true);
       const reviewFlags: string[] = [];
       if (category === "unknown") reviewFlags.push("unknown-category");
       if (page.method === "ocr") reviewFlags.push("ocr-source");
-      if (category === "pipe" && quantity.unit !== "m") {
+      if (!quantity && operation !== "remove") reviewFlags.push("missing-quantity");
+      if (category === "pipe" && quantity && quantity.unit !== "m") {
         reviewFlags.push("pipe-unit-not-length");
       }
 
       materialLines.push({
         id: `technical-material-${page.pageNumber}-${fullPostNumber.replace(/[^a-zA-Z0-9]+/g, "-")}`,
         postNumber: fullPostNumber,
-        parentPostNumber,
+        parentPostNumber: parent?.postNumber,
         nsCode: nsCode ?? parent?.nsCode,
         category,
         description: description || categoryLabel(category),
         operation,
-        quantity: quantity.quantity,
-        quantityText: quantity.text,
-        unit: quantity.unit,
+        quantity: quantity?.quantity,
+        quantityText: quantity?.text,
+        unit: quantity?.unit,
         attributes,
         system: inferSystem(normalizedText) ?? parent?.system,
         standardRefs: unique([
@@ -369,15 +415,169 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         reviewFlags
       });
       seen.add(key);
-      index = Math.max(index, blockEnd - 1);
     }
   }
 
   return materialLines;
 }
 
+type StructuredPostStart = {
+  lineIndex: number;
+  consumedLineCount: number;
+  postNumber: string;
+  description: string;
+  quantity?: {
+    quantity: number;
+    text: string;
+    unit: string;
+    lineIndex: number;
+    descriptionPrefix: string;
+  };
+};
+
+const STRUCTURED_NUMBER_SOURCE = String.raw`(?:\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)`;
+const STRUCTURED_UNIT_SOURCE = String.raw`(?:stk|st|pcs?|m|lm|meter|løpemeter|m2|m²|m3|m³|kg|l)`;
+const LEADING_QUANTITY_POST_PATTERN = new RegExp(
+  String.raw`^(?:(?:Antall|Lengde)\s+)?(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})(?:\s+${STRUCTURED_NUMBER_SOURCE}){1,3}\s+(?<post>\d+(?:\.\d+){1,7}\.?)\s*(?<description>.*)$`,
+  "i"
+);
+const LEADING_LUMP_SUM_POST_PATTERN = new RegExp(
+  String.raw`^RS(?:\s+${STRUCTURED_NUMBER_SOURCE}){1,3}\s+(?<post>\d+(?:\.\d+){1,7}\.?)\s*(?<description>.*)$`,
+  "i"
+);
+const FULL_POST_LINE_PATTERN = /^(\d+(?:\.\d+){1,7})\s+(.+)$/;
+const EXACT_POST_LINE_PATTERN = /^(\d+(?:\.\d+){1,7}\.?)$/;
+const POST_CONTINUATION_PATTERN = /^(\.?\d+(?:\.\d+)*)\s*(.*)$/;
+
+function parseStructuredPostStart(
+  lines: string[],
+  lineIndex: number
+): StructuredPostStart | undefined {
+  const line = lines[lineIndex];
+  const leadingQuantity = line.match(LEADING_QUANTITY_POST_PATTERN);
+  if (leadingQuantity?.groups) {
+    const quantityValue = parseLocalizedNumber(leadingQuantity.groups.quantity);
+    if (quantityValue === undefined) return undefined;
+    return completeStructuredStart({
+      lines,
+      lineIndex,
+      post: leadingQuantity.groups.post,
+      description: leadingQuantity.groups.description,
+      quantity: {
+        quantity: quantityValue,
+        unit: normalizeUnit(leadingQuantity.groups.unit),
+        text: `${leadingQuantity.groups.unit} ${leadingQuantity.groups.quantity}`,
+        lineIndex: 0,
+        descriptionPrefix: ""
+      }
+    });
+  }
+
+  const leadingLumpSum = line.match(LEADING_LUMP_SUM_POST_PATTERN);
+  if (leadingLumpSum?.groups) {
+    return completeStructuredStart({
+      lines,
+      lineIndex,
+      post: leadingLumpSum.groups.post,
+      description: leadingLumpSum.groups.description
+    });
+  }
+
+  const fullPost = line.match(FULL_POST_LINE_PATTERN);
+  if (fullPost) {
+    return {
+      lineIndex,
+      consumedLineCount: 1,
+      postNumber: fullPost[1],
+      description: fullPost[2].trim()
+    };
+  }
+
+  const exactPost = line.match(EXACT_POST_LINE_PATTERN);
+  if (!exactPost) return undefined;
+  return completeStructuredStart({
+    lines,
+    lineIndex,
+    post: exactPost[1],
+    description: ""
+  });
+}
+
+function completeStructuredStart({
+  lines,
+  lineIndex,
+  post,
+  description,
+  quantity
+}: {
+  lines: string[];
+  lineIndex: number;
+  post: string;
+  description: string;
+  quantity?: StructuredPostStart["quantity"];
+}): StructuredPostStart {
+  const cleanPost = post.trim();
+  if (description.trim()) {
+    return {
+      lineIndex,
+      consumedLineCount: 1,
+      postNumber: cleanPost.replace(/\.$/, ""),
+      description: description.trim(),
+      quantity
+    };
+  }
+
+  const continuation = lines[lineIndex + 1]?.match(POST_CONTINUATION_PATTERN);
+  if (!continuation) {
+    return {
+      lineIndex,
+      consumedLineCount: 1,
+      postNumber: cleanPost.replace(/\.$/, ""),
+      description: "",
+      quantity
+    };
+  }
+
+  const continuationNumber = continuation[1];
+  return {
+    lineIndex,
+    consumedLineCount: 2,
+    postNumber: composeWrappedPostNumber(cleanPost, continuationNumber),
+    description: continuation[2].trim(),
+    quantity
+  };
+}
+
+function composeWrappedPostNumber(base: string, continuation: string) {
+  if (continuation.startsWith(".")) {
+    return `${base.replace(/\.$/, "")}${continuation}`;
+  }
+  if (base.endsWith(".")) return `${base}${continuation}`;
+  return `${base} ${continuation}`;
+}
+
+function footerIndex(lines: string[], afterIndex: number) {
+  const offset = lines.slice(afterIndex + 1).findIndex(isTableFooter);
+  return offset < 0 ? lines.length : afterIndex + 1 + offset;
+}
+
+function findTableParent(
+  contexts: Map<string, TableParentContext>,
+  postNumber: string
+) {
+  return [...contexts.values()]
+    .filter((context) => postNumber.startsWith(`${context.postNumber}.`))
+    .sort((left, right) => right.postNumber.length - left.postNumber.length)[0];
+}
+
+function isFireProtectionPage(text: string) {
+  return /sprinkler|brann(?:slokk|vann|vern)|slokke(?:anlegg|gass|vann)|inergen|håndslukker/i.test(text);
+}
+
 type TableParentContext = {
+  postNumber: string;
   nsCode?: string;
+  category: TechnicalDescriptionCategory;
   attributes: Record<string, string>;
   system?: string;
   standardRefs: string[];
@@ -507,13 +707,15 @@ type ParsedBlock = {
   unit?: string;
   sourcePage: number;
   ocrConfidence: number;
+  inferredPostNumber?: boolean;
 };
 
 function createBlock(
   postNumber: string | undefined,
   nsCode: string | undefined,
   rawLine: string,
-  page: TechnicalDescriptionPage
+  page: TechnicalDescriptionPage,
+  inferredPostNumber = false
 ): ParsedBlock {
   return {
     postNumber,
@@ -523,7 +725,8 @@ function createBlock(
     attributes: {},
     standardRefs: [],
     sourcePage: page.pageNumber,
-    ocrConfidence: page.confidence
+    ocrConfidence: page.confidence,
+    inferredPostNumber
   };
 }
 
@@ -550,6 +753,7 @@ function buildMaterialLine(
   if (category === "unknown") reviewFlags.push("unknown-category");
   if (page.method === "ocr") reviewFlags.push("ocr-source");
   if (!block.postNumber) reviewFlags.push("missing-post-number");
+  if (block.inferredPostNumber) reviewFlags.push("inferred-post-number");
 
   const confidence = Math.min(
     0.99,
@@ -617,24 +821,24 @@ function extractRuleHints(pages: TechnicalDescriptionPage[]) {
 
 function inferCategory(text: string): TechnicalDescriptionCategory {
   if (/ventil|valve/.test(text)) return "valve";
-  if (/fitting|bend|muffe|kobling|kupling|t-rør|rørdel|overgang|endebunn|anborring/.test(text)) {
+  if (/fitting|bend|muffe|kobling|kupling|t-rør|t-klave|rørdel|overgang|endebunn|anborring|blindflens/.test(text)) {
     return "fitting";
   }
-  if (/rør\b|rørledning|rillerør|rillede rør|\bpipe\b|red pipe/.test(text)) {
+  if (/rør\b|rørledning|vannledning|stålrør|rillerør|rillede rør|sprinklerslange|\bpipe\b|red pipe/.test(text)) {
     return "pipe";
   }
   if (/oppheng|støtte|support/.test(text)) return "support";
-  if (/kontroll|alarm|sensor|detektor|sentral|signalapparat|strømningsvakt|melder/.test(text)) {
+  if (/kontroll|alarm|sensor|detektor|sentral|signalapparat|strømningsvakt|trykkvakt|måleinstrument|manometer|måleblende|kompressor|melder/.test(text)) {
     return "control";
   }
-  if (/sprinkler|sprinklerhode|standard spray|utvidet dekning/.test(text)) {
+  if (/\bsprinkler\b|sprinklerhode|sprinklerdyse|standard spray|utvidet dekning/.test(text)) {
     return "sprinkler_head";
   }
   return "unknown";
 }
 
 function inferOperation(text: string, hasQuantity: boolean) {
-  if (/demontering|demontere|fjerne|riving|eksisterende/.test(text)) {
+  if (/demontering|demontere|frakobling|fjerne|riving/.test(text)) {
     return "remove" as const;
   }
   if (/montering|installasjon|levering/.test(text) || hasQuantity) {
