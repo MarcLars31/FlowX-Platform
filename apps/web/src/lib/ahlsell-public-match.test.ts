@@ -110,9 +110,19 @@ test("creates an Ahlsell search for non-sprinkler-head material rows", () => {
   });
 
   assert.equal(guide.directCandidates.length, 0);
-  assert.match(guide.searchQuery, /Rillede rør/);
   assert.match(guide.searchQuery, /Sprinklerrör/);
   assert.match(decodeURIComponent(guide.searchUrl), /DN100/);
+});
+
+test("keeps valve searches concise so Ahlsell can return relevant candidates", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "valve",
+    value_text: "KONTROLLVENTILSETT FOR SPRINKLERANLEGG",
+    value_json: { attributes: { dimensjon: "DN100" } }
+  });
+
+  assert.equal(guide.searchQuery, "Sprinklerventil DN100");
+  assert.doesNotMatch(guide.searchQuery, /KONTROLLVENTILSETT/);
 });
 
 test("detects conflicting standard and quick response wording", () => {

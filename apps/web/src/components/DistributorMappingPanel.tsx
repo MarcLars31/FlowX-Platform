@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, History, ListChecks, Loader2, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
+import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
@@ -341,7 +342,9 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   function applyAhlsellCandidate(candidate: AhlsellPublicCandidate) {
     const candidateNote = candidate.source === "pdf_reference"
       ? "Artikelnumret hämtades från den uppladdade PDF-posten. Kontrollera produkten hos Ahlsell före beställning."
-      : `Offentlig Ahlsell-träff kontrollerad ${candidate.verifiedAt}. Aktuella godkännanden, pris och saldo måste verifieras före beställning.`;
+      : candidate.source === "catalog_search"
+        ? "Produkten hittades i Ahlsells offentliga katalog. Kontrollera tekniska krav, godkännanden, pris och saldo före beställning."
+        : `Offentlig Ahlsell-träff kontrollerad ${candidate.verifiedAt}. Aktuella godkännanden, pris och saldo måste verifieras före beställning.`;
     showSelection({
       productName: candidate.productName,
       productNumber: candidate.articleNumber,
@@ -442,6 +445,8 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
         )}
 
         <AhlsellPublicMatchPanel
+          projectId={projectId}
+          requirementId={requirement.id}
           guide={ahlsellGuide}
           disabled={saving}
           onUseCandidate={applyAhlsellCandidate}
@@ -489,25 +494,68 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   );
 }
 
-function AhlsellPublicMatchPanel({ guide, disabled, onUseCandidate }: {
+const CANDIDATES_PER_PAGE = 6;
+
+function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, onUseCandidate }: {
+  projectId: string;
+  requirementId: string;
   guide: AhlsellRequirementGuide;
   disabled: boolean;
   onUseCandidate: (candidate: AhlsellPublicCandidate) => void;
 }) {
+  const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [candidatePage, setCandidatePage] = useState(1);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates`, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" }
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as (AhlsellCatalogResult & { error?: string }) | null;
+        if (!response.ok) throw new Error(payload?.error ?? "Ahlsell-sökningen misslyckades.");
+        if (!payload) throw new Error("Ahlsell-sökningen gav inget läsbart svar.");
+        setCatalogResult(payload);
+      })
+      .catch((error) => {
+        if (error instanceof Error && error.name === "AbortError") return;
+        setCatalogError(error instanceof Error ? error.message : "Ahlsell-sökningen misslyckades.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingCatalog(false);
+      });
+
+    return () => controller.abort();
+  }, [projectId, requirementId]);
+
+  const candidatesByArticle = new Map<string, AhlsellPublicCandidate>();
+  for (const candidate of guide.directCandidates) candidatesByArticle.set(candidate.articleNumber, candidate);
+  for (const candidate of catalogResult?.candidates ?? []) candidatesByArticle.set(candidate.articleNumber, candidate);
+  const candidates = [...candidatesByArticle.values()];
+  const pageCount = Math.max(1, Math.ceil(candidates.length / CANDIDATES_PER_PAGE));
+  const visibleCandidates = candidates.slice(
+    (candidatePage - 1) * CANDIDATES_PER_PAGE,
+    candidatePage * CANDIDATES_PER_PAGE
+  );
+
   return (
     <section className="rounded-xl border-2 border-cyan-200 bg-cyan-50 p-4 sm:p-5" aria-labelledby="ahlsell-match-heading">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-3xl">
           <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-900">Ahlsell-matchning · inte godkänd</p>
           <h4 id="ahlsell-match-heading" className="mt-1 text-xl font-bold text-ink-950">
-            {guide.directCandidates.length > 0
-              ? guide.directCandidates.some((candidate) => candidate.source === "pdf_reference")
-                ? `${guide.directCandidates.length} artikelnummer hittat i PDF`
-                : `${guide.directCandidates.length} verifierad ${guide.directCandidates.length === 1 ? "artikelträff" : "artikelträffar"}`
-              : "Sök med PDF-postens tekniska värden"}
+            {loadingCatalog
+              ? "Söker alla produkter hos Ahlsell…"
+              : candidates.length > 0
+                ? `${candidates.length} ${candidates.length === 1 ? "produkt hittad" : "produkter hittade"}`
+                : "Ingen produkt hittades med denna sökning"}
           </h4>
           <p className="mt-1 text-sm leading-6 text-ink-700">
-            Scipx använder bara uppgifterna i den uppladdade PDF-posten. Öppna Ahlsell för att kontrollera aktuell produktdata, godkännanden, pris och saldo.
+            Scipx söker i Ahlsells offentliga katalog med uppgifterna i PDF-posten. Välj en kandidat för att fylla i utkastet. Ingen produkt godkänns automatiskt.
           </p>
         </div>
         <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#06213d] px-5 py-3 text-base font-bold text-white transition hover:bg-[#0a3158] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700">
@@ -519,6 +567,25 @@ function AhlsellPublicMatchPanel({ guide, disabled, onUseCandidate }: {
         <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Förifylld sökning</p>
         <p className="mt-1 break-words text-sm font-semibold text-ink-900">{guide.searchQuery}</p>
       </div>
+
+      {loadingCatalog && (
+        <div className="mt-4 flex min-h-24 items-center justify-center gap-3 rounded-xl border border-cyan-200 bg-white text-base font-bold text-cyan-950" role="status">
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Hämtar alla Ahlsell-träffar…
+        </div>
+      )}
+
+      {catalogError && (
+        <div className="mt-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="alert">
+          <p className="font-bold">Produktlistan kunde inte hämtas automatiskt.</p>
+          <p>{catalogError} Använd knappen ”Sök på Ahlsell” som reserv.</p>
+        </div>
+      )}
+
+      {!loadingCatalog && !catalogError && catalogResult?.truncated && (
+        <div className="mt-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-950">
+          Ahlsell uppgav {catalogResult.total} träffar. Scipx visar de {catalogResult.candidates.length} första; förfina sökningen för en fullständig och relevant lista.
+        </div>
+      )}
 
       {guide.warnings.length > 0 && (
         <div className="mt-4 rounded-lg border-2 border-amber-300 bg-amber-50 p-4 text-amber-950">
@@ -534,21 +601,22 @@ function AhlsellPublicMatchPanel({ guide, disabled, onUseCandidate }: {
         </div>
       )}
 
-      {guide.directCandidates.length > 0 && (
+      {visibleCandidates.length > 0 && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {guide.directCandidates.map((candidate) => (
+          {visibleCandidates.map((candidate) => (
             <article key={candidate.articleNumber} className="rounded-xl border-2 border-cyan-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-base font-bold text-ink-950">{candidate.productName}</p>
                   <p className="mt-1 text-sm font-bold text-cyan-900">Ahlsell art.nr {candidate.articleNumber}</p>
-                  <p className="mt-1 text-xs font-semibold text-ink-600">{candidate.source === "pdf_reference" ? "Angivet i den uppladdade PDF-filen" : "Verifierad i Ahlsells offentliga katalog"}</p>
+                  <p className="mt-1 text-xs font-semibold text-ink-600">{candidateSourceLabel(candidate.source)}</p>
                 </div>
                 <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 </a>
               </div>
-              <p className="mt-3 text-sm leading-6 text-ink-700">{candidate.specifications.join(" · ")}</p>
+              {candidate.description && <p className="mt-3 line-clamp-4 text-sm leading-6 text-ink-700">{candidate.description}</p>}
+              {candidate.specifications.length > 0 && <p className="mt-3 text-sm font-semibold leading-6 text-ink-700">{candidate.specifications.join(" · ")}</p>}
               <Button type="button" variant="secondary" className="mt-4 min-h-12 w-full justify-center" disabled={disabled} onClick={() => onUseCandidate(candidate)}>
                 Fyll i som utkast
               </Button>
@@ -557,8 +625,25 @@ function AhlsellPublicMatchPanel({ guide, disabled, onUseCandidate }: {
           ))}
         </div>
       )}
+
+      {pageCount > 1 && (
+        <div className="mt-4 flex flex-col items-center justify-between gap-3 rounded-xl border border-cyan-200 bg-white p-3 sm:flex-row">
+          <p className="text-sm font-bold text-ink-700">Visar {(candidatePage - 1) * CANDIDATES_PER_PAGE + 1}–{Math.min(candidatePage * CANDIDATES_PER_PAGE, candidates.length)} av {candidates.length}</p>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="secondary" disabled={candidatePage === 1} onClick={() => setCandidatePage((page) => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Föregående</Button>
+            <span className="min-w-20 text-center text-sm font-bold text-ink-700">Sida {candidatePage} av {pageCount}</span>
+            <Button type="button" variant="secondary" disabled={candidatePage === pageCount} onClick={() => setCandidatePage((page) => Math.min(pageCount, page + 1))}>Nästa <ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+          </div>
+        </div>
+      )}
     </section>
   );
+}
+
+function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {
+  if (source === "pdf_reference") return "Artikelnumret står i den uppladdade PDF-filen";
+  if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog – kontroll krävs";
+  return "Tidigare verifierad i Ahlsells offentliga katalog";
 }
 
 function RemovalRequirementCard({ requirement, position, totalPosts }: { requirement: Row; position: number; totalPosts: number }) {

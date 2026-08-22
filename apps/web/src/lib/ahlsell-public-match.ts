@@ -3,8 +3,10 @@ export type AhlsellPublicCandidate = {
   productName: string;
   manufacturer: string;
   productUrl: string;
+  description?: string;
+  imageUrl?: string;
   specifications: string[];
-  source: "public_verified" | "pdf_reference";
+  source: "public_verified" | "pdf_reference" | "catalog_search";
   verifiedAt?: string;
 };
 
@@ -107,7 +109,7 @@ export function buildAhlsellRequirementGuide(
     ? description.replace(/\s+/g, " ").trim().slice(0, 110)
     : null;
   const searchQuery = pdfReferenceCandidate?.articleNumber
-    ?? compact([...criteria, searchDescription]).join(" ").slice(0, 220);
+    ?? conciseCatalogQuery(criteria, searchDescription);
   const warnings = compact([
     orientationResult.mixed
       ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."
@@ -315,6 +317,15 @@ function specialSearchTerm(value: string) {
 function usefulDescription(description: string) {
   const normalized = normalize(description);
   return normalized.length >= 8 && !/^(sprinkler|sprinklerhode|teknisk produkt)$/.test(normalized);
+}
+
+function conciseCatalogQuery(criteria: string[], description: string | null) {
+  // Ahlsell's public search becomes markedly less useful when a complete
+  // procurement sentence is appended. Prefer normalized category and
+  // dimensions (for example "Sprinklerventil DN100") and only fall back to
+  // the source description when extraction produced no technical qualifier.
+  if (criteria.length >= 2) return criteria.join(" ").slice(0, 160);
+  return compact([...criteria, description]).join(" ").slice(0, 160);
 }
 
 function normalize(value: string) {
