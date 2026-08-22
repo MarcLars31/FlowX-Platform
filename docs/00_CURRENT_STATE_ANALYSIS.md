@@ -610,9 +610,8 @@ Demoanalys och materialdata kan ligga kvar mellan användare i samma browser.
   `py.typed`; `mypy src/document_crawler` passerar.
 - PDF Extractors Node self-test hoppades över eftersom `REFERENCE_PDF` inte var
   satt.
-- Next build varnar att `middleware.ts`-konventionen är deprecated och bör
-  migreras till `proxy`.
-- Full npm-audit innehåller fyra dev/build-sårbarheter.
+- Next-sessionens refreshlager använder den stödda `proxy.ts`-konventionen.
+- Full npm-audit rapporterar 0 sårbarheter.
 - Inget riktigt browser-E2E-verktyg som Playwright eller Cypress finns i
   webbprojektet.
 - GitHub-workflowen kör build men inte lint, typkontroll, tester, SQL-test eller
@@ -807,7 +806,7 @@ kunna tas bort enbart via `data_set_id`.
 
 ### Auth, säkerhet och requestlager
 
-- `apps/web/src/middleware.ts` till stödd Next `proxy`-konvention;
+- `apps/web/src/proxy.ts` för Supabase-sessionens refreshlager;
 - `apps/web/src/lib/supabase-rest.ts` och domänspecifika ersättare;
 - `apps/web/src/lib/organization-context.ts`;
 - ny central Origin/CSRF-guard;
