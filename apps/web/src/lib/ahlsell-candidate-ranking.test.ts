@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
+import { orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
 test("ranks the DN100 Series 751 wet alarm station above a gate valve and residential manifold", () => {
@@ -121,6 +121,19 @@ test("recognizes Ahlsell manometer terminology from a generic measuring-instrume
   }, [candidate("9255634", "Manometer til sprinkler", "Manometer for sprinkleranlegg", "/manometer/9255634/")]);
 
   assert.equal(ranked.recommendation, "recommended");
+});
+
+test("always places Scipx most likely product first without mutating the input", () => {
+  const input: AhlsellPublicCandidate[] = [
+    { ...candidate("2", "Möjlig produkt", "", "/2/"), matchScore: 60, recommendation: "possible" },
+    { ...candidate("1", "Mest sannolik produkt", "", "/1/"), matchScore: 95, recommendation: "recommended" },
+    { ...candidate("3", "Osannolik produkt", "", "/3/"), matchScore: 5, recommendation: "unlikely" }
+  ];
+
+  const ordered = orderAhlsellCandidatesForDisplay(input);
+
+  assert.deepEqual(ordered.map((item) => item.articleNumber), ["1", "2", "3"]);
+  assert.deepEqual(input.map((item) => item.articleNumber), ["2", "1", "3"]);
 });
 
 function candidate(articleNumber: string, productName: string, description: string, path: string): AhlsellPublicCandidate {

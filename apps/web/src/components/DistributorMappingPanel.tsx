@@ -11,6 +11,7 @@ import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 import { splitAhlsellMatchGroups, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
+import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = { name: string; productNumber: string; quantity: number; unit: string; notes: string };
@@ -558,8 +559,13 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
   const candidatesByArticle = new Map<string, AhlsellPublicCandidate>();
   for (const candidate of guide.directCandidates) candidatesByArticle.set(candidate.articleNumber, candidate);
   for (const candidate of catalogResult?.candidates ?? []) candidatesByArticle.set(candidate.articleNumber, candidate);
-  const candidates = [...candidatesByArticle.values()];
+  const candidates = orderAhlsellCandidatesForDisplay([...candidatesByArticle.values()]);
   const recommendedCount = candidates.filter((candidate) => candidate.recommendation === "recommended").length;
+  const mostLikelyArticleNumber = candidates.find((candidate) =>
+    candidate.source === "pdf_reference"
+    || candidate.source === "public_verified"
+    || candidate.recommendation === "recommended"
+  )?.articleNumber ?? null;
   const pageCount = Math.max(1, Math.ceil(candidates.length / CANDIDATES_PER_PAGE));
   const visibleCandidates = candidates.slice(
     (candidatePage - 1) * CANDIDATES_PER_PAGE,
@@ -576,7 +582,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
               ? "Söker alla produkter hos Ahlsell…"
               : candidates.length > 0
                 ? recommendedCount > 0
-                  ? `${recommendedCount} rekommenderad av ${candidates.length} produkter`
+                  ? `Mest sannolik produkt visas först · ${candidates.length} träffar`
                   : `${candidates.length} ${candidates.length === 1 ? "produkt hittad" : "produkter hittade"}`
                 : "Ingen produkt hittades med denna sökning"}
           </h4>
@@ -639,9 +645,11 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
 
       {visibleCandidates.length > 0 && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {visibleCandidates.map((candidate) => (
-            <article key={candidate.articleNumber} className={candidate.recommendation === "recommended" ? "rounded-xl border-4 border-emerald-500 bg-emerald-50 p-4 shadow-sm" : "rounded-xl border-2 border-cyan-200 bg-white p-4"}>
-              {candidate.recommendation === "recommended" && (
+          {visibleCandidates.map((candidate) => {
+            const isMostLikely = candidate.articleNumber === mostLikelyArticleNumber;
+            return (
+            <article key={candidate.articleNumber} className={isMostLikely ? "rounded-xl border-4 border-emerald-500 bg-emerald-50 p-4 shadow-sm" : "rounded-xl border-2 border-cyan-200 bg-white p-4"}>
+              {isMostLikely && (
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-700 px-3 py-1.5 text-sm font-black text-white">
                   <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Mest sannolik produkt
                 </div>
@@ -675,11 +683,11 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
                 </div>
               )}
               <Button type="button" variant="secondary" className="mt-4 min-h-12 w-full justify-center" disabled={disabled} onClick={() => onUseCandidate(candidate)}>
-                {candidate.recommendation === "recommended" ? "Välj rekommenderad produkt" : "Välj denna produkt"}
+                {isMostLikely ? "Välj rekommenderad produkt" : "Välj denna produkt"}
               </Button>
               <p className="mt-2 text-center text-xs font-semibold text-amber-800">Fyller bara i fälten – produkten är fortfarande inte godkänd.</p>
             </article>
-          ))}
+          );})}
         </div>
       )}
 

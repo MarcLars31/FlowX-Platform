@@ -26,12 +26,25 @@ type TechnicalProfile = {
 
 export function rankAhlsellCandidates(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
   const profile = requirementProfile(requirement);
-  return candidates
-    .map((candidate) => scoreCandidate(candidate, profile))
-    .sort((left, right) =>
-      (right.matchScore ?? 0) - (left.matchScore ?? 0)
-      || left.productName.localeCompare(right.productName, "sv")
-    );
+  return orderAhlsellCandidatesForDisplay(
+    candidates.map((candidate) => scoreCandidate(candidate, profile))
+  );
+}
+
+export function orderAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandidate[]) {
+  return [...candidates].sort((left, right) =>
+    confidenceTier(left) - confidenceTier(right)
+    || (right.matchScore ?? 0) - (left.matchScore ?? 0)
+    || left.productName.localeCompare(right.productName, "sv")
+  );
+}
+
+function confidenceTier(candidate: AhlsellPublicCandidate) {
+  if (candidate.source === "pdf_reference" || candidate.source === "public_verified") return 0;
+  if (candidate.recommendation === "recommended") return 1;
+  if (candidate.recommendation === "possible") return 2;
+  if (candidate.recommendation === "unlikely") return 3;
+  return 4;
 }
 
 function requirementProfile(requirement: Record<string, unknown>): TechnicalProfile {
