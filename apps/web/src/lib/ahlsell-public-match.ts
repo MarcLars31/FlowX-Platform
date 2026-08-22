@@ -29,7 +29,8 @@ type SprinklerCandidateDefinition = AhlsellPublicCandidate & {
   finish: Finish;
 };
 
-const AHLSELL_SEARCH_URL = "https://www.ahlsell.se/search";
+const AHLSELL_SWEDEN_SEARCH_URL = "https://www.ahlsell.se/search";
+const AHLSELL_NORWAY_SEARCH_URL = "https://www.ahlsell.no/search";
 const VERIFIED_AT = "2026-08-22";
 
 // A deliberately small, manually verified set for the uploaded technical
@@ -54,7 +55,12 @@ export function buildAhlsellRequirementGuide(
   const category = text(requirement.category) ?? text(requirement.requirement_key) ?? "unknown";
   const description = text(requirement.value_text) ?? text(requirement.display_name) ?? "Teknisk produkt";
   const technicalSpecification = text(value.technicalSpecification) ?? text(requirement.source_excerpt) ?? "";
-  const combined = normalize(`${description} ${technicalSpecification} ${[...attributes.values()].join(" ")}`);
+  const sourceLanguageText = `${description} ${technicalSpecification} ${[...attributes.values()].join(" ")}`;
+  const combined = normalize(sourceLanguageText);
+  const isNorwegianSource = isNorwegianTechnicalText(sourceLanguageText);
+  const ahlsellSearchUrl = isNorwegianSource
+    ? AHLSELL_NORWAY_SEARCH_URL
+    : AHLSELL_SWEDEN_SEARCH_URL;
   const isSprinklerAccessory = /beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg/i.test(description);
 
   const rawKFactor = numberFromAttribute(attributes, ["k faktor", "k factor", "k verdi", "k value"])
@@ -64,8 +70,10 @@ export function buildAhlsellRequirementGuide(
   const kFactor = rawKFactor === null ? null : Math.abs(rawKFactor);
   const dn = numberFromAttribute(attributes, ["gjengedimensjon dn", "dimension", "dimensjon", "dn"])
     ?? numberFromText(combined, /\bdn\s*(\d{1,3})\b/i);
-  const temperatureC = numberFromAttribute(attributes, ["utlosningstemperatur", "temperatur", "temperature"])
-    ?? numberFromText(combined, /(-?\d+(?:[.,]\d+)?)\s*(?:°\s*)?c\b/i);
+  const temperatureC = category === "sprinkler_head"
+    ? numberFromAttribute(attributes, ["utlosningstemperatur", "utløsningstemperatur", "temperature"])
+      ?? numberFromText(combined, /(-?\d+(?:[.,]\d+)?)\s*(?:°\s*)?c\b/i)
+    : null;
   const placement = firstAttribute(attributes, ["plassering", "placering", "orientation", "sprinklertype", "type"]);
   const responseText = firstAttribute(attributes, ["folsomhetsgrad", "respons", "response"]);
   const finishText = `${firstAttribute(attributes, ["overflatebehandling", "farge", "farg", "finish", "colour", "color"]) ?? ""} ${description}`;
@@ -89,7 +97,11 @@ export function buildAhlsellRequirementGuide(
     specialSearchTerm(combined)
   ]);
 
-  const pdfReferenceCandidate = candidateFromPdfReference(description, criteria);
+  const pdfReferenceCandidate = candidateFromPdfReference(
+    description,
+    criteria,
+    ahlsellSearchUrl
+  );
 
   const searchDescription = usefulDescription(description) && !isSprinklerAccessory
     ? description.replace(/\s+/g, " ").trim().slice(0, 110)
@@ -114,7 +126,8 @@ export function buildAhlsellRequirementGuide(
       : null
   ]);
 
-  const verifiedCandidates = category === "sprinkler_head"
+  const verifiedCandidates = !isNorwegianSource
+    && category === "sprinkler_head"
     && !orientationResult.mixed
     && !responseResult.conflict
     && !concealed
@@ -139,7 +152,7 @@ export function buildAhlsellRequirementGuide(
     ...verifiedCandidates
   ]);
 
-  const searchUrl = new URL(AHLSELL_SEARCH_URL);
+  const searchUrl = new URL(ahlsellSearchUrl);
   searchUrl.searchParams.set("parameters.SearchPhrase", searchQuery || description);
 
   return {
@@ -182,7 +195,8 @@ function candidate(
 
 function candidateFromPdfReference(
   description: string,
-  criteria: string[]
+  criteria: string[],
+  ahlsellSearchUrl: string
 ): AhlsellPublicCandidate | null {
   const articleNumber = description.match(/\b(\d{6,8})\b/)?.[1];
   if (!articleNumber) return null;
@@ -192,7 +206,7 @@ function candidateFromPdfReference(
     .replace(/\s+/g, " ")
     .replace(/[,:;-]+$/g, "")
     .trim();
-  const searchUrl = new URL(AHLSELL_SEARCH_URL);
+  const searchUrl = new URL(ahlsellSearchUrl);
   searchUrl.searchParams.set("parameters.SearchPhrase", articleNumber);
 
   return {
@@ -203,6 +217,10 @@ function candidateFromPdfReference(
     specifications: compact(["Artikelnummer angivet i PDF", ...criteria]),
     source: "pdf_reference"
   };
+}
+
+function isNorwegianTechnicalText(value: string) {
+  return /\b(?:dimensjon|sprinkleranlegg|brannslokking|mengde|lokalisering|utførelse|overvåket|åpen|hengende|stående|beskyttelsesgitre?|føl(?:somhetsgrad)?)\b/i.test(value);
 }
 
 function normalizedAttributeMap(attributes: Record<string, unknown>) {

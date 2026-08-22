@@ -8,12 +8,12 @@ test("builds a verified but unapproved Ahlsell candidate from an exact PDF requi
     value_text: "SPRINKLER",
     value_json: {
       attributes: {
-        "plassering": "Hengende",
-        "følsomhetsgrad": "Kvikk respons",
-        "utløsningstemperatur": "68 C",
-        "k-faktor": "80",
-        "gjengedimensjon (dn)": "15",
-        "overflatebehandling": "Farge: Hvit"
+        "orientation": "Pendent",
+        "response": "Quick",
+        "temperature": "68 C",
+        "k factor": "80",
+        "dimension": "15",
+        "finish": "White"
       }
     }
   });
@@ -40,6 +40,8 @@ test("uses an article number printed on the PDF row as the exact Ahlsell search"
   assert.equal(guide.directCandidates[0].articleNumber, "9253497");
   assert.equal(guide.directCandidates[0].manufacturer, "Victaulic");
   assert.equal(guide.directCandidates[0].source, "pdf_reference");
+  assert.equal(guide.criteria.includes("4°C"), false);
+  assert.match(guide.directCandidates[0].productUrl, /^https:\/\/www\.ahlsell\.no\/search/);
   assert.match(decodeURIComponent(guide.directCandidates[0].productUrl), /SearchPhrase=9253497/);
 });
 
@@ -154,8 +156,9 @@ test("treats Norwegian K-80 notation as K80 and searches protection grids as acc
     value_json: { attributes: {} }
   });
 
-  assert.equal(sprinkler.directCandidates[0]?.articleNumber, "19045185");
+  assert.equal(sprinkler.directCandidates.length, 0);
   assert.match(sprinkler.searchQuery, /K80/);
+  assert.match(sprinkler.searchUrl, /^https:\/\/www\.ahlsell\.no\/search/);
   assert.match(guard.searchQuery, /skyddskorg/);
   assert.equal(guard.warnings.length, 0);
 });
