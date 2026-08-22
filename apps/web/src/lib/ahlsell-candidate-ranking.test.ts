@@ -167,6 +167,38 @@ test("recognizes common Ahlsell fitting and valve families", () => {
   assert.equal(checkValve.recommendation, "recommended");
 });
 
+test("never marks a dimensioned ball-valve accessory as a safe valve", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "valve",
+    value_text: "INNENDØRS STENGEVENTIL",
+    value_json: { attributes: { ventiltype: "Kuleventil", "dimensjon, tilkoblinger": "DN25", trykk: "PN16" } }
+  }, [
+    candidate("accessory", "Isolasjonspute til Kuleventiler", "DN25 isolering", "/accessory/"),
+    candidate("valve", "Kuleventil 2-veis", "Nominell diameter DN25, PN16", "/valve/")
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "valve");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.notEqual(ranked[1].recommendation, "recommended");
+  assert.ok(ranked[1].matchWarnings?.some((warning) => warning.includes("tillbehör")));
+});
+
+test("keeps a springless check valve yellow when the PDF requires a spring", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "valve",
+    value_text: "INNENDØRS TILBAKESLAGSVENTIL",
+    value_json: { attributes: { ventiltype: "Fjærbelastet", "dimensjon, tilkoblinger": "DN150", trykk: "PN16" } }
+  }, [candidate(
+    "check",
+    "Klaff, tilbakeslagsventil CV",
+    "DN150 PN16, uten fjær",
+    "/check/"
+  )]);
+
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("utan fjäder")));
+});
+
 test("does not present an unrelated search result as an Ahlsell match", () => {
   const [ranked] = rankAhlsellCandidates({
     category: "valve",

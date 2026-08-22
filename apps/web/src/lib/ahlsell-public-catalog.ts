@@ -259,16 +259,86 @@ async function enrichAhlsellVariants(
 ) {
   const origin = MARKET_ORIGINS[market];
   const enrichable = candidates
-    .filter((candidate) => candidate.familyCode && (candidate.variantCount ?? 0) > 1)
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate }) => candidate.familyCode && (candidate.variantCount ?? 0) > 1)
+    .sort((left, right) =>
+      familyQueryScore(right.candidate, query) - familyQueryScore(left.candidate, query)
+      || left.index - right.index
+    )
     .slice(0, Math.min(Math.max(Math.floor(maxVariantFamilies), 0), MAX_VARIANT_FAMILIES));
   if (enrichable.length === 0) return candidates;
 
   const replacements = new Map<string, AhlsellPublicCandidate>();
-  await Promise.all(enrichable.map(async (candidate) => {
+  await Promise.all(enrichable.map(async ({ candidate }) => {
     const enriched = await fetchBestVariant(fetchImpl, origin, candidate, query).catch(() => null);
     if (enriched) replacements.set(candidate.articleNumber, enriched);
   }));
   return candidates.map((candidate) => replacements.get(candidate.articleNumber) ?? candidate);
+}
+
+/**
+ * Ahlsell's search response is relevance ordered for a shopper, but the first
+ * cards are not necessarily the technical family requested by the PDF row.
+ * Rank families before spending the limited variant-detail requests so an
+ * exact pipe, fitting, valve or sprinkler family is verified first.
+ */
+function familyQueryScore(candidate: AhlsellPublicCandidate, query: string) {
+  const normalizedQuery = normalize(query);
+  const candidateName = normalize(candidate.productName);
+  const candidateText = normalize(`${candidate.productName} ${candidate.description ?? ""}`);
+  let score = 0;
+
+  const familyRule = CATALOG_FAMILY_RULES.find((rule) => rule.query.test(normalizedQuery));
+  if (familyRule) {
+    if (familyRule.candidate.test(candidateName)) score += 200;
+    if (familyRule.exclude?.test(candidateName)) score -= 220;
+  }
+
+  for (const token of significantQueryTokens(normalizedQuery)) {
+    if (candidateName.includes(token)) score += 8;
+    else if (candidateText.includes(token)) score += 3;
+  }
+
+  for (const dimension of normalizedQuery.match(/\b(?:dn\s*)?\d+(?:[.,]\d+)?\s*(?:mm)?\b/g) ?? []) {
+    if (candidateText.includes(dimension.replace(/\s+/g, ""))) score += 15;
+  }
+  return score;
+}
+
+const CATALOG_FAMILY_RULES: Array<{
+  query: RegExp;
+  candidate: RegExp;
+  exclude?: RegExp;
+}> = [
+  { query: /\bsprinklerhode\b|\bsprinkler\s+k\s*\d/, candidate: /\bsprinklerhode(?:r)?\b/, exclude: /\b(?:gitter|dekkplate|rosett|nokkel)\b/ },
+  { query: /\bsprinklergitter\b|\bgitter sprinklerhode\b/, candidate: /\b(?:sprinklergitter|gitter.*sprinkler|beskyttelsesgitter)\b/ },
+  { query: /\bsprinklersentral\b/, candidate: /\bsprinklersentral\b/, exclude: /\b(?:skilt|pakningssett|reservedel)\b/ },
+  { query: /\bpressostat\b/, candidate: /\b(?:pressostat|trykkvakt|ps10)\b/, exclude: /\bmanometer\b/ },
+  { query: /\bstromningsvakt\b|\bflow switch\b/, candidate: /\b(?:stromningsvakt|flow switch|vsr)\b/ },
+  { query: /\bmanometer\b/, candidate: /\bmanometer\b/ },
+  { query: /\btest og dreneringsventil\b|\bsprinkler testventil\b/, candidate: /\b(?:test.*drener|drener.*test|testventil|inspector)\b/ },
+  { query: /\btrykkreduksjonsventil\b/, candidate: /\b(?:trykkreduksjonsventil|reduksjonsventil)\b/ },
+  { query: /\btilbakeslagsventil\b/, candidate: /\btilbakeslagsventil\b/ },
+  { query: /\bspjeldventil\b/, candidate: /\bspjeldventil\b/ },
+  { query: /\bkuleventil\b/, candidate: /\bkuleventil\b/, exclude: /\b(?:waterguard|isolasjonspute|isoleringspute|krage|adapter|reservedel|pakningssett)\b.*\b(?:til|for)\s+kuleventil/ },
+  { query: /\bsprinklerventil\b/, candidate: /\b(?:sprinklerventil|stengeventil|spjeldventil|sluseventil)\b/, exclude: /\b(?:alarmkit|pakningssett|reservedel|skilt)\b/ },
+  { query: /\bflensadapter\b|\bflenseadapter\b/, candidate: /\b(?:flensadapter|flenseadapter|flens overgang)\b/ },
+  { query: /\bflensebend\b|\bbend flens\b/, candidate: /\b(?:flensebend|flensbend|bend)\b/ },
+  { query: /\banboringsklammer\b|\butlopskupling\b/, candidate: /\b(?:anboringsklammer|utlopskupling|mekanisk t)\b/ },
+  { query: /\bendelokk\b/, candidate: /\b(?:endelokk|blindflens|plugg)\b/ },
+  { query: /\breduksjon\b|\breduksjonskupling\b/, candidate: /\b(?:reduksjon|reduksjonskupling|redusert)\b/ },
+  { query: /\bt ror\b/, candidate: /\b(?:t ror|tee)\b/ },
+  { query: /\bbend\b/, candidate: /\b(?:bend|rorboy|elbow)\b/ },
+  { query: /\bkupling\b/, candidate: /\b(?:kupling|rillekobling|coupling)\b/, exclude: /\b(?:bend|t ror|ventil|endelokk)\b/ },
+  { query: /\bror sprinkler\b|\brillede ror\b|\bstalror sprinkler\b/, candidate: /\b(?:rillede ror|stalror|sprinklerror|ror.*lengder|red pipe)\b/, exclude: /\b(?:bend|t ror|kupling|ventil|flensadapter|anboringsklammer)\b/ },
+  { query: /\blensepumpe\b|\bpumpe avlopsvann\b|\bsprinklerpumpe\b/, candidate: /\b(?:lensepumpe|avlopspumpe|sprinklerpumpe|pumpe)\b/ },
+  { query: /\bgrovfilter\b|\bfilter\b|\bsil\b/, candidate: /\b(?:grovfilter|y filter|sil|filter)\b/ },
+  { query: /\broroppheng\b|\brorklammer sprinkler\b/, candidate: /\b(?:roroppheng|rorklammer|oppheng)\b/ }
+];
+
+function significantQueryTokens(query: string) {
+  const ignored = new Set(["sprinkler", "rillede", "rillet", "med", "for", "mm", "dn", "pn"]);
+  return [...new Set(query.split(" ").filter((token) => token.length >= 3 && !ignored.has(token) && !/^\d/.test(token)))];
 }
 
 async function fetchBestVariant(

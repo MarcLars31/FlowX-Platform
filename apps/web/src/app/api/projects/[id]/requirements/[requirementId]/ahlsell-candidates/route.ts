@@ -58,9 +58,13 @@ export async function GET(request: Request, context: RouteContext) {
     const guide = buildAhlsellRequirementGuide(requirement);
     const result = await searchAhlsellPublicCatalogQueries({
       market: ahlsellMarketFromSearchUrl(guide.searchUrl),
-      queries: classificationMode ? guide.searchQueries.slice(0, 1) : guide.searchQueries,
-      maxCandidates: classificationMode ? 30 : 80,
-      maxVariantFamilies: classificationMode ? 2 : 8
+      // The compact group check still needs the second synonym search and a
+      // handful of exact variant families. Otherwise many dimensioned Ahlsell
+      // products remain yellow simply because the correct family was not one
+      // of the first two broad-search cards.
+      queries: classificationMode ? guide.searchQueries.slice(0, 2) : guide.searchQueries,
+      maxCandidates: classificationMode ? 50 : 80,
+      maxVariantFamilies: classificationMode ? 5 : 8
     });
     const rankedResult = {
       ...result,

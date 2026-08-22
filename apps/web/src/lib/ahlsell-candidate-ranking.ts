@@ -133,9 +133,14 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   } else if (requirement.intent === "flow_switch") {
     score += scoreNamedProductFamily(candidateName, /\b(stromningsvakt|flow switch|vsr)\b/, "Produkttypen motsvarar en flödesvakt.", reasons);
   } else if (requirement.intent === "ball_valve") {
-    if (/\bkuleventil\b/.test(candidateText)) {
+    if (/\bkuleventil\b/.test(candidateName)) {
       score += 55;
       reasons.push("Produkttypen är en kulventil.");
+    }
+    if (/\b(?:isolasjonspute|isoleringspute|krage|flens|adapter|aktuator|handtak|spak|reservedel|pakningssett)\b.*\b(?:til|for)\s+kuleventil/.test(candidateName)
+      || /\b(?:til|for)\s+kuleventil(?:er)?\b/.test(candidateName)) {
+      score -= 80;
+      warnings.push("Träffen är ett tillbehör till en kulventil, inte en komplett kulventil.");
     }
     if (/\bwaterguard\b/.test(candidateText)) {
       score -= 45;
@@ -145,6 +150,15 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     score += scoreNamedProductFamily(candidateName, /\b(spjeldventil|butterfly valve)\b/, "Produkttypen är en spjällventil.", reasons);
   } else if (requirement.intent === "check_valve") {
     score += scoreNamedProductFamily(candidateName, /\b(tilbakeslagsventil|backventil|check valve)\b/, "Produkttypen är en backventil.", reasons);
+    if (/\bfjaerbelastet\b/.test(requirement.text)) {
+      if (/\buten fjaer\b/.test(candidateText)) {
+        score -= 60;
+        warnings.push("PDF-kravet anger fjäderbelastad backventil, men Ahlsell-träffen är utan fjäder.");
+      } else if (/\b(?:med fjaer|fjaerbelastet)\b/.test(candidateText)) {
+        score += 10;
+        reasons.push("Fjäderbelastat utförande stämmer med PDF-kravet.");
+      }
+    }
   } else if (requirement.intent === "pressure_reducing_valve") {
     score += scoreNamedProductFamily(candidateName, /\b(trykkreduksjonsventil|reduksjonsventil|pressure reducing valve)\b/, "Produkttypen är en tryckreduceringsventil.", reasons);
   } else if (requirement.intent === "shutoff_valve") {

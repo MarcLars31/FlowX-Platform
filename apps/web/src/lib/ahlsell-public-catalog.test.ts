@@ -97,6 +97,53 @@ test("combines synonym searches and resolves the exact Ahlsell variant article",
   assert.ok(result.candidates[0].specifications.includes("Farge: Hvit"));
 });
 
+test("checks the technically relevant product family before earlier unrelated search cards", async () => {
+  const variantRequests: string[] = [];
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/api/search/variants") {
+      variantRequests.push(url.searchParams.get("productCode") ?? "");
+      return Response.json({
+        settings: { headers: { "0": "Utvendig rørdiameter" } },
+        items: [{
+          code: "10000483",
+          buyable: true,
+          url: "/products/ror/10000483/",
+          productName: "Rillede rør 48,3 mm",
+          isActiveVariant: true,
+          attributes: { "0": { value: "48,3", unit: "mm" } }
+        }]
+      });
+    }
+    return Response.json({
+      productCount: 2,
+      productCards: [
+        {
+          ...product("9000001", "Anboringsklammer 48,3 mm", "Demo"),
+          code: "WRONG_FAMILY",
+          numberOfVariants: 10
+        },
+        {
+          ...product("10000480", "Rillede rør i lengder", "Demo"),
+          code: "PIPE_FAMILY",
+          numberOfVariants: 12
+        }
+      ]
+    });
+  };
+
+  const result = await searchAhlsellPublicCatalogQueries({
+    market: "no",
+    queries: ["Rør sprinkler 48.3mm"],
+    maxVariantFamilies: 1,
+    fetchImpl
+  });
+
+  assert.deepEqual(variantRequests, ["PIPE_FAMILY"]);
+  assert.equal(result.candidates[1].articleNumber, "10000483");
+  assert.ok(result.candidates[1].specifications.includes("Utvendig rørdiameter: 48,3 mm"));
+});
+
 function product(articleNumber: string, name: string, brand: string) {
   return {
     name,
