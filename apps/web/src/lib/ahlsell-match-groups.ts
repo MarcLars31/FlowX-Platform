@@ -14,6 +14,18 @@ export function classifyAhlsellCatalogCandidates(
   return candidates.length > 0 ? "found" : "none";
 }
 
+export function ahlsellCatalogStatusFromPayload(value: unknown): AhlsellCatalogMatchStatus | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const payload = value as Record<string, unknown>;
+  if (isAhlsellCatalogMatchStatus(payload.classification)) return payload.classification;
+  if (!Array.isArray(payload.candidates)) return null;
+  return classifyAhlsellCatalogCandidates(
+    payload.candidates.filter((candidate): candidate is { recommendation?: "recommended" | "possible" | "unlikely" } =>
+      Boolean(candidate) && typeof candidate === "object" && !Array.isArray(candidate)
+    )
+  );
+}
+
 type RequirementRow = Record<string, unknown> & { id: string };
 
 export function splitAhlsellMatchGroups<Row extends RequirementRow>(

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyAhlsellCatalogCandidates, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
+import { ahlsellCatalogStatusFromPayload, classifyAhlsellCatalogCandidates, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
 
 test("separates Ahlsell matches from rows requiring manual work", () => {
   const result = splitAhlsellMatchGroups([
@@ -74,4 +74,11 @@ test("classifies safe, uncertain and empty Ahlsell responses", () => {
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "recommended" }]), "safe");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible" }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([]), "none");
+});
+
+test("accepts compact and legacy catalog payloads during a rolling deployment", () => {
+  assert.equal(ahlsellCatalogStatusFromPayload({ classification: "safe" }), "safe");
+  assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ recommendation: "possible" }] }), "found");
+  assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [] }), "none");
+  assert.equal(ahlsellCatalogStatusFromPayload({ error: "temporary" }), null);
 });

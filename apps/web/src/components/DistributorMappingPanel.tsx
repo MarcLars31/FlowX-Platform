@@ -10,7 +10,7 @@ import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignme
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
-import { isAhlsellCatalogMatchStatus, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
+import { ahlsellCatalogStatusFromPayload, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 
 type Row = Record<string, unknown> & { id: string };
@@ -99,9 +99,10 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             headers: { Accept: "application/json" }
           });
           if (!response.ok) continue;
-          const payload = await response.json().catch(() => null) as { classification?: unknown } | null;
-          if (!payload || !isAhlsellCatalogMatchStatus(payload.classification)) continue;
-          statusBatch[requirementId] = payload.classification;
+          const payload = await response.json().catch(() => null);
+          const classification = ahlsellCatalogStatusFromPayload(payload);
+          if (!classification) continue;
+          statusBatch[requirementId] = classification;
           if (Object.keys(statusBatch).length >= 4) flush();
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") return;
