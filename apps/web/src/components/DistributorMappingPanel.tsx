@@ -305,6 +305,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   const [accessories, setAccessories] = useState<AccessoryDraft[]>(() => snapshotAccessories(currentSnapshot.accessories));
   const [saving, setSaving] = useState(false);
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
@@ -325,17 +326,27 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
     };
   }
 
-  function showSelection(selection: ProductSelection) {
+  function showSelection(selection: ProductSelection, notice: string) {
     setProductName(selection.productName);
     setProductNumber(selection.productNumber);
     setManufacturerName(selection.manufacturerName);
     setNotes(selection.notes);
     setAccessories(selection.accessories);
     setHasUnapprovedChanges(true);
+    setDraftNotice(notice);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`product-selection-${requirement.id}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
   }
 
   function applyMemory(memory: Row) {
-    showSelection(selectionFromMemory(memory));
+    showSelection(
+      selectionFromMemory(memory),
+      `Tidigare godkänd produkt har valts för kontroll: ${String(memory.product_name)} · art.nr ${String(memory.product_number)}.`
+    );
     onError("");
   }
 
@@ -355,7 +366,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       manufacturerName: candidate.manufacturer,
       notes: notes.trim() || candidateNote,
       accessories
-    });
+    }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · art.nr ${candidate.articleNumber}.`);
     onError("");
   }
 
@@ -434,14 +445,14 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       <div className="space-y-5 p-5 sm:p-6">
         {memories.length > 0 && (
           <div className="rounded-xl border-2 border-sky-200 bg-sky-50 p-4">
-            <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Förslag från ett tidigare projekt – inte godkänt</div>
-            <p className="mt-1 text-sm leading-6 text-sky-900">Välj ett förslag för att fylla i fälten. Kontrollera sedan uppgifterna och godkänn produkten själv.</p>
+            <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Tidigare godkänt produktval – måste bekräftas i detta projekt</div>
+            <p className="mt-1 text-sm leading-6 text-sky-900">Scipx kommer ihåg produkten och tillbehören inom organisationen. Välj den för att fylla i allt, kontrollera uppgifterna och godkänn sedan med ett knapptryck.</p>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               {memories.map((memory) => (
                 <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="min-h-24 rounded-xl border-2 border-sky-200 bg-white p-4 text-left transition hover:border-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-wait disabled:opacity-60">
                   <p className="text-base font-bold text-ink-950">{String(memory.product_name)}</p>
                   <p className="mt-1 text-sm text-ink-700">Art.nr {String(memory.product_number)}</p>
-                  <p className="mt-3 text-sm font-bold text-sky-800">Fyll i detta förslag</p>
+                  <p className="mt-3 text-sm font-bold text-sky-800">Välj tidigare produkt</p>
                 </button>
               ))}
             </div>
@@ -456,7 +467,15 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
           onUseCandidate={applyAhlsellCandidate}
         />
 
-        <div><p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">2 · Välj produkt</p><h4 className="mt-1 text-xl font-bold text-ink-950">Fyll i den produkt du vill använda</h4><p className="mt-1 text-sm text-ink-600">Fälten med * måste fyllas i. Produkten sparas som godkänd först när du trycker på ”Godkänn produkt”.</p></div>
+        <div id={`product-selection-${requirement.id}`} className="scroll-mt-6"><p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">2 · Välj produkt</p><h4 className="mt-1 text-xl font-bold text-ink-950">Kontrollera den valda produkten</h4><p className="mt-1 text-sm text-ink-600">Fälten med * måste fyllas i. Produkten sparas som godkänd först när du trycker på ”Godkänn produkt”.</p></div>
+        {draftNotice && hasUnapprovedChanges && (
+          <div className="rounded-xl border-4 border-emerald-500 bg-emerald-50 p-4" role="status" aria-live="polite">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700" aria-hidden="true" />
+              <div><p className="text-lg font-black text-emerald-950">Produkten är vald – ett steg återstår</p><p className="mt-1 text-sm font-semibold leading-6 text-emerald-900">{draftNotice} Kontrollera fälten och tryck därefter på den stora knappen ”Godkänn produkt”.</p></div>
+            </div>
+          </div>
+        )}
         <div className="grid gap-4 md:grid-cols-3">
           <Input className="h-12 text-base" id={`product-name-${requirement.id}`} label="Produktnamn *" value={productName} onChange={(event) => { setProductName(event.target.value); setHasUnapprovedChanges(true); }} required />
           <Input className="h-12 text-base" id={`product-number-${requirement.id}`} label="Ahlsells artikelnummer *" value={productNumber} onChange={(event) => { setProductNumber(event.target.value); setHasUnapprovedChanges(true); }} required />
@@ -646,7 +665,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
                 </div>
               )}
               <Button type="button" variant="secondary" className="mt-4 min-h-12 w-full justify-center" disabled={disabled} onClick={() => onUseCandidate(candidate)}>
-                {candidate.recommendation === "recommended" ? "Använd rekommenderad produkt som utkast" : "Fyll i som utkast"}
+                {candidate.recommendation === "recommended" ? "Välj rekommenderad produkt" : "Välj denna produkt"}
               </Button>
               <p className="mt-2 text-center text-xs font-semibold text-amber-800">Fyller bara i fälten – produkten är fortfarande inte godkänd.</p>
             </article>
