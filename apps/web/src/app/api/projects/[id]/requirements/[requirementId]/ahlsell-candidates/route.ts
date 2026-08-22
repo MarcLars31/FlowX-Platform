@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   AhlsellCatalogError,
   ahlsellMarketFromSearchUrl,
-  searchAhlsellPublicCatalog
+  searchAhlsellPublicCatalogQueries
 } from "@/lib/ahlsell-public-catalog";
 import { rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
@@ -54,9 +54,9 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const guide = buildAhlsellRequirementGuide(requirement);
-    const result = await searchAhlsellPublicCatalog({
+    const result = await searchAhlsellPublicCatalogQueries({
       market: ahlsellMarketFromSearchUrl(guide.searchUrl),
-      query: guide.searchQuery
+      queries: guide.searchQueries
     });
     const rankedResult = {
       ...result,

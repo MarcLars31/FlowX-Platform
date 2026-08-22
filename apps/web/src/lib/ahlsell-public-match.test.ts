@@ -22,7 +22,9 @@ test("builds a verified but unapproved Ahlsell candidate from an exact PDF requi
   assert.equal(guide.directCandidates[0].articleNumber, "19045188");
   assert.equal(guide.directCandidates[0].source, "public_verified");
   assert.match(guide.searchQuery, /K80/);
-  assert.match(guide.searchQuery, /DN15/);
+  assert.match(guide.searchQuery, /QR/);
+  assert.match(guide.searchQuery, /Ned/);
+  assert.ok(guide.searchQueries.some((query) => /68/.test(query)));
   assert.match(guide.searchUrl, /parameters\.SearchPhrase=/);
 });
 
@@ -169,6 +171,47 @@ test("treats Norwegian K-80 notation as K80 and searches protection grids as acc
   assert.equal(sprinkler.directCandidates.length, 0);
   assert.match(sprinkler.searchQuery, /K80/);
   assert.match(sprinkler.searchUrl, /^https:\/\/www\.ahlsell\.no\/search/);
-  assert.match(guard.searchQuery, /skyddskorg/);
+  assert.equal(guard.searchQuery, "Sprinklergitter");
+  assert.deepEqual(guard.searchQueries, ["Sprinklergitter", "Gitter sprinklerhode"]);
   assert.equal(guard.warnings.length, 0);
+});
+
+test("translates procurement language into Ahlsell product terminology", () => {
+  const manometer = buildAhlsellRequirementGuide({
+    category: "control",
+    value_text: "MÅLEINSTRUMENT",
+    value_json: { attributes: { type: "Analog, absolutt trykk, direkte måling" } }
+  });
+  const pressureSwitch = buildAhlsellRequirementGuide({
+    category: "control",
+    value_text: "TRYKKVAKT",
+    value_json: { attributes: { trykk: "Min. 12 bar" } }
+  });
+  const bend = buildAhlsellRequirementGuide({
+    category: "fitting",
+    value_text: "INNENDØRS VANNLEDNING - RØRDEL",
+    value_json: { attributes: { type: "Bend med flens", dimensjon: "DN100", trykk: "PN16" } }
+  });
+
+  assert.equal(manometer.searchQuery, "Manometer sprinkler");
+  assert.equal(pressureSwitch.searchQuery, "Pressostat vann");
+  assert.equal(bend.searchQuery, "Flensebend DN100 PN16");
+});
+
+test("uses Ahlsell orientation and response abbreviations for Norwegian sprinkler heads", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      plassering: "Stående",
+      "følsomhetsgrad": "Standard-respons",
+      "utløsningstemperatur": "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "15"
+    } }
+  });
+
+  assert.equal(guide.searchQuery, "Sprinkler K80 SR Opp");
+  assert.ok(guide.searchQueries.includes("Sprinklerhode K80 SR 68"));
+  assert.ok(guide.recognitionNotes.some((note) => note.includes("variantvärden")));
 });

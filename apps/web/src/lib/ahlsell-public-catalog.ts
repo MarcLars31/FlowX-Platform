@@ -4,7 +4,9 @@ export type AhlsellMarket = "no" | "se";
 
 export type AhlsellCatalogResult = {
   query: string;
+  queries: string[];
   searchUrl: string;
+  searchUrls: string[];
   total: number;
   candidates: AhlsellPublicCandidate[];
   truncated: boolean;
@@ -23,6 +25,13 @@ type AhlsellProductCard = {
   variantNumber?: unknown;
   brand?: unknown;
   image?: unknown;
+  code?: unknown;
+  numberOfVariants?: unknown;
+};
+
+type AhlsellVariantPayload = {
+  settings?: unknown;
+  items?: unknown;
 };
 
 const MARKET_ORIGINS: Record<AhlsellMarket, string> = {
@@ -33,6 +42,8 @@ const MARKET_ORIGINS: Record<AhlsellMarket, string> = {
 const MAX_PAGES = 6;
 const DEFAULT_MAX_CANDIDATES = 300;
 const REQUEST_TIMEOUT_MS = 8_000;
+const MAX_SEARCH_QUERIES = 3;
+const MAX_VARIANT_FAMILIES = 8;
 
 export class AhlsellCatalogError extends Error {
   constructor(message: string) {
@@ -82,10 +93,58 @@ export async function searchAhlsellPublicCatalog({
 
   return {
     query: cleanQuery,
+    queries: [cleanQuery],
     searchUrl: searchUrl.toString(),
+    searchUrls: [searchUrl.toString()],
     total: Math.max(total, candidates.length),
     candidates,
     truncated: total > candidates.length
+  };
+}
+
+export async function searchAhlsellPublicCatalogQueries({
+  market,
+  queries,
+  fetchImpl = fetch,
+  maxCandidates = 80
+}: {
+  market: AhlsellMarket;
+  queries: string[];
+  fetchImpl?: typeof fetch;
+  maxCandidates?: number;
+}): Promise<AhlsellCatalogResult> {
+  const cleanQueries = [...new Set(
+    queries
+      .map((query) => query.replace(/\s+/g, " ").trim().slice(0, 180))
+      .filter(Boolean)
+  )].slice(0, MAX_SEARCH_QUERIES);
+  if (cleanQueries.length === 0) throw new AhlsellCatalogError("Ahlsell-sökningen saknar sökord.");
+
+  const byArticleNumber = new Map<string, AhlsellPublicCandidate>();
+  const results: AhlsellCatalogResult[] = [];
+  for (const query of cleanQueries) {
+    const result = await searchAhlsellPublicCatalog({ market, query, fetchImpl, maxCandidates });
+    results.push(result);
+    for (const candidate of result.candidates) {
+      if (!byArticleNumber.has(candidate.articleNumber)) byArticleNumber.set(candidate.articleNumber, candidate);
+    }
+  }
+
+  const candidates = await enrichAhlsellVariants(
+    [...byArticleNumber.values()],
+    cleanQueries.join(" "),
+    market,
+    fetchImpl
+  );
+  const searchUrls = results.map((result) => result.searchUrl);
+  return {
+    query: cleanQueries[0],
+    queries: cleanQueries,
+    searchUrl: searchUrls[0],
+    searchUrls,
+    total: results.reduce((sum, result) => sum + result.total, 0),
+    candidates,
+    truncated: results.some((result) => result.truncated)
   };
 }
 
@@ -165,8 +224,153 @@ function parseAhlsellProductCard(value: unknown, origin: string): AhlsellPublicC
     description: description || undefined,
     imageUrl: image ? safeAhlsellUrl(image, origin) ?? undefined : undefined,
     specifications: manufacturer ? [`Tillverkare: ${manufacturer}`] : [],
-    source: "catalog_search"
+    source: "catalog_search",
+    familyCode: text(card.code) ?? undefined,
+    variantCount: finiteInteger(card.numberOfVariants) ?? undefined
   };
+}
+
+async function enrichAhlsellVariants(
+  candidates: AhlsellPublicCandidate[],
+  query: string,
+  market: AhlsellMarket,
+  fetchImpl: typeof fetch
+) {
+  const origin = MARKET_ORIGINS[market];
+  const enrichable = candidates
+    .filter((candidate) => candidate.familyCode && (candidate.variantCount ?? 0) > 1)
+    .slice(0, MAX_VARIANT_FAMILIES);
+  if (enrichable.length === 0) return candidates;
+
+  const replacements = new Map<string, AhlsellPublicCandidate>();
+  await Promise.all(enrichable.map(async (candidate) => {
+    const enriched = await fetchBestVariant(fetchImpl, origin, candidate, query).catch(() => null);
+    if (enriched) replacements.set(candidate.articleNumber, enriched);
+  }));
+  return candidates.map((candidate) => replacements.get(candidate.articleNumber) ?? candidate);
+}
+
+async function fetchBestVariant(
+  fetchImpl: typeof fetch,
+  origin: string,
+  candidate: AhlsellPublicCandidate,
+  query: string
+) {
+  if (!candidate.familyCode) return null;
+  const url = new URL("/api/search/variants", origin);
+  url.searchParams.set("productCode", candidate.familyCode);
+  url.searchParams.set("activeVariantNumber", candidate.articleNumber);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetchImpl(url, {
+      headers: {
+        Accept: "application/json",
+        "Accept-Language": origin.endsWith(".no") ? "no,en;q=0.8" : "sv,en;q=0.8",
+        "User-Agent": "Scipx-Ahlsell-Public-Catalog/1.1 (+https://www.scipx.ai)"
+      },
+      cache: "no-store",
+      signal: controller.signal
+    });
+    if (!response.ok || !(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) return null;
+    const payload = await response.json().catch(() => null) as AhlsellVariantPayload | null;
+    if (!payload || !isRecord(payload.settings) || !Array.isArray(payload.items)) return null;
+    const headers = isRecord(payload.settings.headers) ? payload.settings.headers : {};
+    const variants = payload.items
+      .map((item) => parseVariant(item, headers, origin))
+      .filter((item): item is ParsedVariant => item !== null);
+    if (variants.length === 0) return null;
+    const best = variants.sort((left, right) => variantMatchScore(right, query) - variantMatchScore(left, query))[0];
+    return {
+      ...candidate,
+      articleNumber: best.articleNumber,
+      productName: best.productName || candidate.productName,
+      productUrl: best.productUrl,
+      imageUrl: best.imageUrl ?? candidate.imageUrl,
+      specifications: [...new Set([...candidate.specifications, ...best.specifications])]
+    } satisfies AhlsellPublicCandidate;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+type ParsedVariant = {
+  articleNumber: string;
+  productName: string;
+  productUrl: string;
+  imageUrl?: string;
+  specifications: string[];
+  attributes: Map<string, string>;
+  active: boolean;
+  buyable: boolean;
+};
+
+function parseVariant(value: unknown, headers: Record<string, unknown>, origin: string): ParsedVariant | null {
+  if (!isRecord(value)) return null;
+  const articleNumber = text(value.code);
+  const relativeUrl = text(value.url);
+  if (!articleNumber || !relativeUrl) return null;
+  const productUrl = safeAhlsellUrl(relativeUrl, origin);
+  if (!productUrl) return null;
+  const rawAttributes = isRecord(value.attributes) ? value.attributes : {};
+  const attributes = new Map<string, string>();
+  const specifications: string[] = [];
+  for (const [key, rawAttribute] of Object.entries(rawAttributes)) {
+    if (!isRecord(rawAttribute)) continue;
+    const label = text(headers[key]);
+    const rawValue = text(rawAttribute.value);
+    if (!label || !rawValue) continue;
+    const unit = text(rawAttribute.unit);
+    const displayValue = `${rawValue}${unit ? ` ${unit}` : ""}`;
+    attributes.set(normalize(label), normalize(displayValue));
+    specifications.push(`${label}: ${displayValue}`);
+  }
+  const image = isRecord(value.image) ? text(value.image.url) : null;
+  return {
+    articleNumber,
+    productName: text(value.productName) ?? "",
+    productUrl,
+    imageUrl: image ? safeAhlsellUrl(image, origin) ?? undefined : undefined,
+    specifications,
+    attributes,
+    active: value.isActiveVariant === true,
+    buyable: value.buyable === true
+  };
+}
+
+function variantMatchScore(variant: ParsedVariant, query: string) {
+  const normalizedQuery = normalize(query);
+  let score = (variant.active ? 2 : 0) + (variant.buyable ? 1 : -20);
+  const kFactor = normalizedQuery.match(/\bk\s*-?\s*(\d+(?:[.,]\d+)?)\b/)?.[1];
+  const temperature = normalizedQuery.match(/\b(57|68|79|93|100|121|141|182|260)\b/)?.[1];
+  const response = /\b(?:sr|standard)\b/.test(normalizedQuery)
+    ? "standard"
+    : /\b(?:qr|quick|kvikk)\b/.test(normalizedQuery) ? "quick" : null;
+  const color = normalizedQuery.match(/\b(hvit|vit|white|messing|massing|brass|krom|chrome|sort|svart|black)\b/)?.[1] ?? null;
+  score += attributeScore(variant.attributes, "k faktor", kFactor, 30, -100);
+  score += attributeScore(variant.attributes, "responstemperatur", temperature, 25, -80);
+  score += attributeScore(variant.attributes, "responstid", response, 20, -60);
+  score += attributeScore(variant.attributes, "farge", color, 15, -25);
+  return score;
+}
+
+function attributeScore(
+  attributes: Map<string, string>,
+  label: string,
+  expected: string | null | undefined,
+  match: number,
+  mismatch: number
+) {
+  if (!expected) return 0;
+  const actual = [...attributes].find(([key]) => key.includes(label))?.[1];
+  if (!actual) return 0;
+  const normalizedExpected = normalize(expected);
+  const aliases = normalizedExpected === "quick" ? ["quick", "kvikk"]
+    : normalizedExpected === "standard" ? ["standard"]
+      : normalizedExpected === "white" || normalizedExpected === "vit" ? ["hvit", "vit", "white"]
+        : normalizedExpected === "brass" || normalizedExpected === "massing" ? ["messing", "massing", "brass"]
+          : [normalizedExpected];
+  return aliases.some((alias) => actual.includes(alias)) ? match : mismatch;
 }
 
 function safeAhlsellUrl(value: string, origin: string) {
@@ -188,6 +392,18 @@ function stripMarkup(value: string) {
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/\s+/g, " ")
     .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+}
+
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "o")
+    .replace(/å/g, "a")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9.,]+/g, " ")
     .trim();
 }
 

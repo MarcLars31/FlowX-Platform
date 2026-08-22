@@ -590,9 +590,19 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
       </div>
 
       <div className="mt-4 rounded-lg border border-cyan-200 bg-white px-4 py-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Förifylld sökning</p>
-        <p className="mt-1 break-words text-sm font-semibold text-ink-900">{guide.searchQuery}</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Sökningar som Scipx använder</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {(catalogResult?.queries ?? guide.searchQueries ?? [guide.searchQuery]).map((query) => (
+            <span key={query} className="rounded-full bg-cyan-100 px-3 py-1 text-sm font-bold text-cyan-950">{query}</span>
+          ))}
+        </div>
       </div>
+
+      {guide.recognitionNotes?.length > 0 && (
+        <ul className="mt-3 list-disc space-y-1 pl-6 text-sm font-medium leading-6 text-cyan-950">
+          {guide.recognitionNotes.map((note) => <li key={note}>{note}</li>)}
+        </ul>
+      )}
 
       {loadingCatalog && (
         <div className="mt-4 flex min-h-24 items-center justify-center gap-3 rounded-xl border border-cyan-200 bg-white text-base font-bold text-cyan-950" role="status">

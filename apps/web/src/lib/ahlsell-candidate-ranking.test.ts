@@ -61,6 +61,48 @@ test("does not recommend a dry valve for a wet alarm requirement", () => {
   assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("torrt system")));
 });
 
+test("recommends the exact K80 68C standard upright sprinkler variant", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      "k-faktor": "80",
+      utløsningstemperatur: "68 C",
+      følsomhetsgrad: "Standard-respons",
+      plassering: "Stående",
+      "gjengedimensjon (dn)": "15"
+    } }
+  }, [{
+    ...candidate("9254042", "Sprinklerhoder V2703 SR - Opp", "Standard sprinklerhode", "/sprinkler/9254042/"),
+    specifications: ["K-faktor: 80", "Responstemperatur: 68 °C", "Responstid: Standardrespons", "Farge: Messing"]
+  }]);
+
+  assert.equal(ranked.recommendation, "recommended");
+  assert.ok(ranked.matchReasons?.some((reason) => reason.includes("K80")));
+  assert.ok(ranked.matchReasons?.some((reason) => reason.includes("68")));
+});
+
+test("keeps a ductile flanged bend as possible when the PDF explicitly requires steel", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "fitting",
+    value_text: "Bend av stålrør med flens",
+    value_json: { attributes: { dimensjon: "DN100", trykk: "PN16", materiale: "Stål" } }
+  }, [candidate("2022849", "Flensebend 90° Duktilt DN100 PN10/16", "Duktilt støpejern", "/bend/2022849/")]);
+
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("gjutjärn")));
+});
+
+test("recognizes Ahlsell manometer terminology from a generic measuring-instrument post", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "control",
+    value_text: "MÅLEINSTRUMENT",
+    value_json: { attributes: { type: "Analog, absolutt trykk, direkte måling" } }
+  }, [candidate("9255634", "Manometer til sprinkler", "Manometer for sprinkleranlegg", "/manometer/9255634/")]);
+
+  assert.equal(ranked.recommendation, "recommended");
+});
+
 function candidate(articleNumber: string, productName: string, description: string, path: string): AhlsellPublicCandidate {
   return {
     articleNumber,

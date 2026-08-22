@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ahlsellMarketFromSearchUrl,
-  searchAhlsellPublicCatalog
+  searchAhlsellPublicCatalog,
+  searchAhlsellPublicCatalogQueries
 } from "./ahlsell-public-catalog";
 
 test("normalizes every public Ahlsell result and follows result pages", async () => {
@@ -60,6 +61,42 @@ test("selects only supported Ahlsell markets from the generated search URL", () 
   assert.equal(ahlsellMarketFromSearchUrl("https://example.com/search"), "no");
 });
 
+test("combines synonym searches and resolves the exact Ahlsell variant article", async () => {
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/api/search/variants") {
+      return Response.json({
+        settings: { headers: { "0": "K-faktor", "1": "Responstemperatur", "2": "Farge", "3": "Responstid" } },
+        items: [
+          variant("9254042", "Messing"),
+          variant("9254508", "Hvit")
+        ]
+      });
+    }
+    return Response.json({
+      productCount: 1,
+      productCards: [{
+        ...product("9254042", "Sprinklerhoder V2703 SR - Opp", "Victaulic"),
+        code: "P_27707783_33",
+        numberOfVariants: 13
+      }]
+    });
+  };
+
+  const result = await searchAhlsellPublicCatalogQueries({
+    market: "no",
+    queries: ["Sprinkler K80 SR Opp", "Sprinklerhode K80 SR 68", "Sprinklerhode K80 Hvit"],
+    fetchImpl
+  });
+
+  assert.deepEqual(result.queries, ["Sprinkler K80 SR Opp", "Sprinklerhode K80 SR 68", "Sprinklerhode K80 Hvit"]);
+  assert.equal(result.candidates.length, 1);
+  assert.equal(result.candidates[0].articleNumber, "9254508");
+  assert.match(result.candidates[0].productUrl, /9254508/);
+  assert.ok(result.candidates[0].specifications.includes("K-faktor: 80"));
+  assert.ok(result.candidates[0].specifications.includes("Farge: Hvit"));
+});
+
 function product(articleNumber: string, name: string, brand: string) {
   return {
     name,
@@ -68,5 +105,21 @@ function product(articleNumber: string, name: string, brand: string) {
     firstVariationPageUrl: `/products/${articleNumber}/`,
     mostRelevantVariantId: articleNumber,
     image: { url: `/images/${articleNumber}.jpg` }
+  };
+}
+
+function variant(articleNumber: string, color: string) {
+  return {
+    code: articleNumber,
+    buyable: true,
+    url: `/products/sprinkler/${articleNumber}/`,
+    productName: "Sprinklerhoder V2703 SR - Opp",
+    isActiveVariant: articleNumber === "9254042",
+    attributes: {
+      "0": { value: "80", unit: "" },
+      "1": { value: "68", unit: "°C" },
+      "2": { value: color, unit: "" },
+      "3": { value: "Standardrespons", unit: "" }
+    }
   };
 }

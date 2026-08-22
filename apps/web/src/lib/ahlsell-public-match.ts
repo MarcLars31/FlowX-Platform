@@ -12,13 +12,17 @@ export type AhlsellPublicCandidate = {
   matchReasons?: string[];
   matchWarnings?: string[];
   recommendation?: "recommended" | "possible" | "unlikely";
+  familyCode?: string;
+  variantCount?: number;
 };
 
 export type AhlsellRequirementGuide = {
   searchQuery: string;
+  searchQueries: string[];
   searchUrl: string;
   criteria: string[];
   warnings: string[];
+  recognitionNotes: string[];
   directCandidates: AhlsellPublicCandidate[];
 };
 
@@ -113,8 +117,25 @@ export function buildAhlsellRequirementGuide(
   const searchDescription = usefulDescription(description) && !isSprinklerAccessory
     ? description.replace(/\s+/g, " ").trim().slice(0, 110)
     : null;
-  const searchQuery = pdfReferenceCandidate?.articleNumber
-    ?? (isWetAlarmValve ? "Sprinklersentral" : conciseCatalogQuery(criteria, searchDescription));
+  const plannedQueries = pdfReferenceCandidate
+    ? [pdfReferenceCandidate.articleNumber]
+    : buildCatalogQueries({
+        category,
+        description,
+        combined,
+        criteria,
+        searchDescription,
+        kFactor,
+        dn,
+        temperatureC,
+        orientation: orientationResult.orientation,
+        response: responseResult.response,
+        finish,
+        isSprinklerAccessory,
+        isWetAlarmValve
+      });
+  const searchQueries = unique(plannedQueries).slice(0, 3);
+  const searchQuery = searchQueries[0] ?? description;
   const warnings = compact([
     orientationResult.mixed
       ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."
@@ -162,13 +183,98 @@ export function buildAhlsellRequirementGuide(
   const searchUrl = new URL(ahlsellSearchUrl);
   searchUrl.searchParams.set("parameters.SearchPhrase", searchQuery || description);
 
+  const recognitionNotes = compact([
+    searchQueries.length > 1
+      ? `Scipx provar ${searchQueries.length} Ahlsell-anpassade sökningar och slår ihop träffarna.`
+      : null,
+    category === "sprinkler_head" && !isSprinklerAccessory
+      ? "Scipx kontrollerar Ahlsells exakta variantvärden för K-faktor, temperatur, respons och färg."
+      : null,
+    /\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/.test(combined)
+      ? "Posten verkar vara specialtillverkad. En katalogprodukt får bara väljas efter manuell kontroll eller offert."
+      : null
+  ]);
+
   return {
     searchQuery: searchQuery || description,
+    searchQueries,
     searchUrl: searchUrl.toString(),
     criteria,
     warnings,
+    recognitionNotes,
     directCandidates
   };
+}
+
+function buildCatalogQueries({
+  category,
+  description,
+  combined,
+  criteria,
+  searchDescription,
+  kFactor,
+  dn,
+  temperatureC,
+  orientation,
+  response,
+  finish,
+  isSprinklerAccessory,
+  isWetAlarmValve
+}: {
+  category: string;
+  description: string;
+  combined: string;
+  criteria: string[];
+  searchDescription: string | null;
+  kFactor: number | null;
+  dn: number | null;
+  temperatureC: number | null;
+  orientation: Orientation | null;
+  response: Response | null;
+  finish: Finish | null;
+  isSprinklerAccessory: boolean;
+  isWetAlarmValve: boolean;
+}) {
+  if (isWetAlarmValve) return ["Sprinklersentral", dn ? `Sprinklersentral DN${dn}` : null];
+  if (isSprinklerAccessory) return ["Sprinklergitter", "Gitter sprinklerhode"];
+
+  if (/\b(maleinstrument|manometer|analog.*trykk|absolutt trykk.*direkte)\b/.test(combined)) {
+    return ["Manometer sprinkler", "Manometer 0-16 bar"];
+  }
+  if (/\b(trykkvakt|pressostat|pressure switch)\b/.test(combined)) {
+    return ["Pressostat vann", "PS10 pressostat"];
+  }
+  if (/\b(testarrangement|test og drener|testventil)\b/.test(combined)) {
+    return ["Test og dreneringsventil sprinkler", "Sprinkler testventil"];
+  }
+  if (/\b(kuleventil|ball valve)\b/.test(combined)) {
+    return [compact(["Kuleventil", dn ? `DN${dn}` : null, /\bpn\s*16\b/.test(combined) ? "PN16" : null]).join(" ")];
+  }
+  if (/\bbend\b/.test(combined) && /\b(flens|flanged)\b/.test(combined)) {
+    return [
+      compact(["Flensebend", dn ? `DN${dn}` : null, /\bpn\s*16\b/.test(combined) ? "PN16" : null]).join(" "),
+      compact(["Bend flens", dn ? `DN${dn}` : null]).join(" ")
+    ];
+  }
+  if (/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/.test(combined)) {
+    return ["Dreneringskar sprinkler"];
+  }
+
+  if (category === "sprinkler_head" && kFactor !== null) {
+    const responseCode = response === "standard" ? "SR" : response === "quick" ? "QR" : null;
+    const orientationCode = orientation === "upright" ? "Opp" : orientation === "pendent" ? "Ned" : orientation === "sidewall" ? "HSW" : null;
+    const dry = /\b(torrsprinkler|torrorssprinkler|dry sprinkler)\b/.test(combined) ? "Tørr" : null;
+    const exact = compact(["Sprinkler", `K${formatNumber(kFactor)}`, responseCode, orientationCode, dry]).join(" ");
+    const temperatureQuery = temperatureC === null
+      ? null
+      : compact(["Sprinklerhode", `K${formatNumber(kFactor)}`, responseCode, formatNumber(temperatureC)]).join(" ");
+    const finishQuery = finish
+      ? compact(["Sprinklerhode", `K${formatNumber(kFactor)}`, finishSearchLabel(finish)]).join(" ")
+      : null;
+    return [exact, temperatureQuery, finishQuery ?? `Sprinklerhode K${formatNumber(kFactor)}`];
+  }
+
+  return [conciseCatalogQuery(criteria, searchDescription ?? description)];
 }
 
 function candidate(
@@ -371,6 +477,10 @@ function finishSearchLabel(value: Finish) {
 
 function compact<T>(values: Array<T | null | undefined | false>): T[] {
   return values.filter((value): value is T => value !== null && value !== undefined && value !== false);
+}
+
+function unique(values: Array<string | null | undefined>) {
+  return [...new Set(values.map((value) => value?.replace(/\s+/g, " ").trim()).filter((value): value is string => Boolean(value)))];
 }
 
 function text(value: unknown) {
