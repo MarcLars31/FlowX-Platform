@@ -25,7 +25,7 @@ const requirements = [
     id: "requirement-2",
     category: "Sprinklerhuvud",
     requirement_key: "temperature",
-    value_text: "Reservpost utan produktval",
+    value_text: "Reservpost utan produktval med en längre teknisk beskrivning som ska radbrytas och vara läsbar i den exporterade materiallistan.",
     value_json: {
       postNumber: "33.335.2",
       operation: "install",
@@ -141,6 +141,7 @@ test("creates a valid xlsx workbook without an overlapping table filter", async 
   assert.equal(sheet?.getCell("K6").value, 12);
   assert.equal(sheet?.getCell("K7").value, 24);
   assert.equal(sheet?.getCell("B8").value, "33.335.2");
+  assert.ok((sheet?.getRow(8).height ?? 0) > 32);
   assert.equal(sheet?.getCell("B9").value, "33.335.3");
   assert.equal(sheet?.getCell("D9").value, "Demontering");
 });

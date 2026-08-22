@@ -321,8 +321,8 @@ function addMaterialListSheet(
   if (rows.length > 0) {
     for (let rowIndex = 6; rowIndex <= rows.length + 5; rowIndex += 1) {
       const row = sheet.getRow(rowIndex);
-      row.height = 32;
       const sourceRow = rows[rowIndex - 6];
+      row.height = sourceRow ? materialRowHeight(sourceRow) : 32;
       for (let columnIndex = 1; columnIndex <= 13; columnIndex += 1) {
         const cell = row.getCell(columnIndex);
         cell.alignment = { vertical: "top", wrapText: true };
@@ -378,6 +378,17 @@ function statusLabel(status: string) {
     active: "Aktivt"
   };
   return labels[status] ?? status;
+}
+
+function materialRowHeight(row: ProjectMaterialRow) {
+  const estimatedLines = Math.max(
+    Math.ceil(row.chapterPost.length / 28),
+    Math.ceil(row.requirementValue.length / 52),
+    Math.ceil(row.productName.length / 38),
+    Math.ceil(row.notes.length / 44),
+    1
+  );
+  return Math.min(96, Math.max(32, estimatedLines * 16));
 }
 
 function record(value: unknown): Record<string, unknown> {
