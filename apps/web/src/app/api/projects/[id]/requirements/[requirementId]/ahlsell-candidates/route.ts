@@ -66,6 +66,15 @@ export async function GET(request: Request, context: RouteContext) {
       candidates: rankAhlsellCandidates(requirement, result.candidates)
     };
 
+    if (classificationMode) {
+      const classification = rankedResult.candidates.some((candidate) => candidate.recommendation === "recommended")
+        ? "safe"
+        : rankedResult.candidates.length > 0 ? "found" : "none";
+      return NextResponse.json({ classification }, {
+        headers: { "Cache-Control": "private, max-age=60" }
+      });
+    }
+
     return NextResponse.json(rankedResult, {
       headers: { "Cache-Control": "private, no-store" }
     });

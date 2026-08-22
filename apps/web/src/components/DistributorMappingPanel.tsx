@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, History, ListChecks, Loader2, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -10,7 +10,7 @@ import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignme
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
-import { classifyAhlsellCatalogCandidates, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
+import { isAhlsellCatalogMatchStatus, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 
 type Row = Record<string, unknown> & { id: string };
@@ -36,26 +36,41 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { productRequirements, removalRequirements } = splitDistributorRequirementLines(requirements);
-  const approvedAssignments = assignments.filter(isUserApprovedProductAssignment);
-  const approvedRequirementIds = new Set(approvedAssignments.map((assignment) => String(assignment.requirement_id)));
-  const remainingRequirements = productRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id));
-  const memoryFingerprints = new Set(
+  const { productRequirements, removalRequirements } = useMemo(
+    () => splitDistributorRequirementLines(requirements),
+    [requirements]
+  );
+  const approvedAssignments = useMemo(
+    () => assignments.filter(isUserApprovedProductAssignment),
+    [assignments]
+  );
+  const approvedRequirementIds = useMemo(
+    () => new Set(approvedAssignments.map((assignment) => String(assignment.requirement_id))),
+    [approvedAssignments]
+  );
+  const remainingRequirements = useMemo(
+    () => productRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)),
+    [approvedRequirementIds, productRequirements]
+  );
+  const memoryFingerprints = useMemo(() => new Set(
     memories.flatMap((memory) => typeof memory.requirement_fingerprint === "string"
       ? [memory.requirement_fingerprint]
       : [])
-  );
-  const staticallySafeRequirementIds = new Set(productRequirements.flatMap((requirement) => {
+  ), [memories]);
+  const staticallySafeRequirementIds = useMemo(() => new Set(productRequirements.flatMap((requirement) => {
     const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
     const safe = approvedRequirementIds.has(requirement.id)
       || Boolean(fingerprint && memoryFingerprints.has(fingerprint))
       || buildAhlsellRequirementGuide(requirement).directCandidates.length > 0;
     return safe ? [requirement.id] : [];
-  }));
-  const catalogCheckRequirementIds = productRequirements
-    .filter((requirement) => !staticallySafeRequirementIds.has(requirement.id))
-    .map((requirement) => requirement.id);
-  const catalogCheckKey = catalogCheckRequirementIds.join(",");
+  })), [approvedRequirementIds, memoryFingerprints, productRequirements]);
+  const catalogCheckRequirementIds = useMemo(
+    () => productRequirements
+      .filter((requirement) => !staticallySafeRequirementIds.has(requirement.id))
+      .map((requirement) => requirement.id),
+    [productRequirements, staticallySafeRequirementIds]
+  );
+  const catalogCheckKey = useMemo(() => catalogCheckRequirementIds.join(","), [catalogCheckRequirementIds]);
   const [catalogStatuses, setCatalogStatuses] = useState<Record<string, AhlsellCatalogMatchStatus>>({});
 
   useEffect(() => {
@@ -64,20 +79,30 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     let nextIndex = 0;
 
     async function worker() {
+      let statusBatch: Record<string, AhlsellCatalogMatchStatus> = {};
+      const flush = () => {
+        if (Object.keys(statusBatch).length === 0 || controller.signal.aborted) return;
+        const completedBatch = statusBatch;
+        statusBatch = {};
+        setCatalogStatuses((current) => ({ ...current, ...completedBatch }));
+      };
       while (!controller.signal.aborted) {
         const requirementId = requirementIds[nextIndex];
         nextIndex += 1;
-        if (!requirementId) return;
+        if (!requirementId) {
+          flush();
+          return;
+        }
         try {
           const response = await fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates?classification=1`, {
             signal: controller.signal,
             headers: { Accept: "application/json" }
           });
           if (!response.ok) continue;
-          const payload = await response.json().catch(() => null) as AhlsellCatalogResult | null;
-          if (!payload || !Array.isArray(payload.candidates)) continue;
-          const status = classifyAhlsellCatalogCandidates(payload.candidates);
-          setCatalogStatuses((current) => ({ ...current, [requirementId]: status }));
+          const payload = await response.json().catch(() => null) as { classification?: unknown } | null;
+          if (!payload || !isAhlsellCatalogMatchStatus(payload.classification)) continue;
+          statusBatch[requirementId] = payload.classification;
+          if (Object.keys(statusBatch).length >= 4) flush();
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") return;
         }
@@ -88,20 +113,25 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     return () => controller.abort();
   }, [catalogCheckKey, projectId]);
 
-  const { greenRequirements, yellowRequirements, redRequirements } = splitAhlsellMatchGroups(
-    productRequirements,
-    { approvedRequirementIds, memoryFingerprints, catalogStatuses }
+  const { greenRequirements, yellowRequirements, redRequirements } = useMemo(
+    () => splitAhlsellMatchGroups(productRequirements, {
+      approvedRequirementIds,
+      memoryFingerprints,
+      catalogStatuses,
+      staticallySafeRequirementIds
+    }),
+    [approvedRequirementIds, catalogStatuses, memoryFingerprints, productRequirements, staticallySafeRequirementIds]
   );
   const initialGroup: AhlsellMatchGroup = greenRequirements.some(
     (requirement) => !approvedRequirementIds.has(requirement.id)
   ) || (yellowRequirements.length === 0 && redRequirements.length === 0)
     ? "green"
     : yellowRequirements.length > 0 ? "yellow" : "red";
-  const requirementsByGroup: Record<AhlsellMatchGroup, Row[]> = {
+  const requirementsByGroup = useMemo<Record<AhlsellMatchGroup, Row[]>>(() => ({
     green: greenRequirements,
     yellow: yellowRequirements,
     red: redRequirements
-  };
+  }), [greenRequirements, redRequirements, yellowRequirements]);
   const initialQueue = requirementsByGroup[initialGroup];
   const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup>(initialGroup);
   const totalPosts = productRequirements.length + removalRequirements.length;

@@ -44,6 +44,10 @@ const DEFAULT_MAX_CANDIDATES = 300;
 const REQUEST_TIMEOUT_MS = 8_000;
 const MAX_SEARCH_QUERIES = 3;
 const MAX_VARIANT_FAMILIES = 8;
+const PUBLIC_CACHE_TTL_MS = 2 * 60_000;
+const PUBLIC_CACHE_MAX_ENTRIES = 200;
+const pageCache = new Map<string, { expiresAt: number; promise: Promise<AhlsellSearchPayload> }>();
+const variantCache = new Map<string, { expiresAt: number; promise: Promise<AhlsellVariantPayload | null> }>();
 
 export class AhlsellCatalogError extends Error {
   constructor(message: string) {
@@ -170,6 +174,19 @@ async function fetchAhlsellPage(
   url.searchParams.set("parameters.SearchPhrase", query);
   if (page > 1) url.searchParams.set("parameters.page", String(page));
 
+  if (fetchImpl !== fetch) return fetchAhlsellPageUncached(fetchImpl, origin, url);
+  const cacheKey = url.toString();
+  const cached = pageCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+  if (cached) pageCache.delete(cacheKey);
+  const promise = fetchAhlsellPageUncached(fetchImpl, origin, url);
+  pageCache.set(cacheKey, { expiresAt: Date.now() + PUBLIC_CACHE_TTL_MS, promise });
+  trimCache(pageCache);
+  promise.catch(() => pageCache.delete(cacheKey));
+  return promise;
+}
+
+async function fetchAhlsellPageUncached(fetchImpl: typeof fetch, origin: string, url: URL) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -264,6 +281,38 @@ async function fetchBestVariant(
   const url = new URL("/api/search/variants", origin);
   url.searchParams.set("productCode", candidate.familyCode);
   url.searchParams.set("activeVariantNumber", candidate.articleNumber);
+  const payload = await fetchVariantPayload(fetchImpl, origin, url);
+  if (!payload || !isRecord(payload.settings) || !Array.isArray(payload.items)) return null;
+  const headers = isRecord(payload.settings.headers) ? payload.settings.headers : {};
+  const variants = payload.items
+    .map((item) => parseVariant(item, headers, origin))
+    .filter((item): item is ParsedVariant => item !== null);
+  if (variants.length === 0) return null;
+  const best = variants.sort((left, right) => variantMatchScore(right, query) - variantMatchScore(left, query))[0];
+  return {
+    ...candidate,
+    articleNumber: best.articleNumber,
+    productName: best.productName || candidate.productName,
+    productUrl: best.productUrl,
+    imageUrl: best.imageUrl ?? candidate.imageUrl,
+    specifications: [...new Set([...candidate.specifications, ...best.specifications])]
+  } satisfies AhlsellPublicCandidate;
+}
+
+async function fetchVariantPayload(fetchImpl: typeof fetch, origin: string, url: URL) {
+  if (fetchImpl !== fetch) return fetchVariantPayloadUncached(fetchImpl, origin, url);
+  const cacheKey = url.toString();
+  const cached = variantCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+  if (cached) variantCache.delete(cacheKey);
+  const promise = fetchVariantPayloadUncached(fetchImpl, origin, url);
+  variantCache.set(cacheKey, { expiresAt: Date.now() + PUBLIC_CACHE_TTL_MS, promise });
+  trimCache(variantCache);
+  promise.catch(() => variantCache.delete(cacheKey));
+  return promise;
+}
+
+async function fetchVariantPayloadUncached(fetchImpl: typeof fetch, origin: string, url: URL) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -277,24 +326,17 @@ async function fetchBestVariant(
       signal: controller.signal
     });
     if (!response.ok || !(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) return null;
-    const payload = await response.json().catch(() => null) as AhlsellVariantPayload | null;
-    if (!payload || !isRecord(payload.settings) || !Array.isArray(payload.items)) return null;
-    const headers = isRecord(payload.settings.headers) ? payload.settings.headers : {};
-    const variants = payload.items
-      .map((item) => parseVariant(item, headers, origin))
-      .filter((item): item is ParsedVariant => item !== null);
-    if (variants.length === 0) return null;
-    const best = variants.sort((left, right) => variantMatchScore(right, query) - variantMatchScore(left, query))[0];
-    return {
-      ...candidate,
-      articleNumber: best.articleNumber,
-      productName: best.productName || candidate.productName,
-      productUrl: best.productUrl,
-      imageUrl: best.imageUrl ?? candidate.imageUrl,
-      specifications: [...new Set([...candidate.specifications, ...best.specifications])]
-    } satisfies AhlsellPublicCandidate;
+    return await response.json().catch(() => null) as AhlsellVariantPayload | null;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+function trimCache<T>(cache: Map<string, T>) {
+  while (cache.size > PUBLIC_CACHE_MAX_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (typeof oldestKey !== "string") return;
+    cache.delete(oldestKey);
   }
 }
 
