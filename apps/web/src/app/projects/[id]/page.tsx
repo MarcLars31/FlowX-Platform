@@ -6,6 +6,7 @@ import { ProjectWorkspace, type ProjectModuleData } from "@/components/ProjectWo
 import { ProjectAccessEditor } from "@/components/ProjectAccessEditor";
 import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
 import { enrichProjectRequirements } from "@/lib/project-requirement-enrichment";
+import { sortProjectRequirementsBySource } from "@/lib/project-requirement-order";
 import {
   isGuidedProjectTab,
   type GuidedProjectTab
@@ -93,7 +94,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         {
           project_id: `eq.${id}`,
           organization_id: `eq.${organizationId}`,
-          order: "updated_at.desc"
+          order: "source_page.asc,created_at.asc"
         }
       )
     : [];
@@ -107,9 +108,11 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         }
       )
     : [];
-  const requirements = enrichProjectRequirements(
-    rawRequirements,
-    technicalDescriptions
+  const requirements = sortProjectRequirementsBySource(
+    enrichProjectRequirements(
+      rawRequirements,
+      technicalDescriptions
+    )
   );
   const productMemory = context.permissions.includes(
     "project.product_suggestion.view"
