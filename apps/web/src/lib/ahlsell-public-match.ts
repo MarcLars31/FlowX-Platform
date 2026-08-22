@@ -1,0 +1,318 @@
+export type AhlsellPublicCandidate = {
+  articleNumber: string;
+  productName: string;
+  manufacturer: string;
+  productUrl: string;
+  specifications: string[];
+  verifiedAt: string;
+};
+
+export type AhlsellRequirementGuide = {
+  searchQuery: string;
+  searchUrl: string;
+  criteria: string[];
+  warnings: string[];
+  directCandidates: AhlsellPublicCandidate[];
+};
+
+type Orientation = "pendent" | "upright" | "sidewall";
+type Response = "quick" | "standard";
+type Finish = "brass" | "white" | "black" | "chrome";
+
+type SprinklerCandidateDefinition = AhlsellPublicCandidate & {
+  kFactor: number;
+  dn: number;
+  temperatureC: number;
+  orientation: Orientation;
+  response: Response;
+  finish: Finish;
+};
+
+const AHLSELL_SEARCH_URL = "https://www.ahlsell.se/search";
+const VERIFIED_AT = "2026-08-22";
+
+// A deliberately small, manually verified set for the uploaded technical
+// descriptions. It is not a copy of Ahlsell's catalogue. Every other row gets
+// a prefilled public Ahlsell search and must be selected by the user.
+const sprinklerCandidates: SprinklerCandidateDefinition[] = [
+  candidate("19045185", "Reliable F1FR56 QR Pendent K80 DN15 68°C mässing", "quick-respons", 80, 15, 68, "pendent", "quick", "brass", "RA1414"),
+  candidate("19045187", "Reliable F1FR56 QR Pendent K80 DN15 68°C svart", "quick-respons", 80, 15, 68, "pendent", "quick", "black", "RA1414"),
+  candidate("19045188", "Reliable F1FR56 QR Pendent K80 DN15 68°C vit", "quick-respons", 80, 15, 68, "pendent", "quick", "white", "RA1414"),
+  candidate("19045195", "Reliable F1FR56 QR Pendent K80 DN15 141°C vit", "quick-respons", 80, 15, 141, "pendent", "quick", "white", "RA1414"),
+  candidate("19045199", "Reliable F1FR56 QR Upright K80 DN15 68°C vit", "quick-respons", 80, 15, 68, "upright", "quick", "white", "RA1425"),
+  candidate("19045160", "Reliable F156 SR Upright K80 DN15 68°C mässing", "standard-respons", 80, 15, 68, "upright", "standard", "brass", "RA1325"),
+  candidate("19045145", "Reliable F156 SR HSW K80 DN15 68°C krom", "standard-respons", 80, 15, 68, "sidewall", "standard", "chrome", "RA1335"),
+  candidate("19045146", "Reliable F156 SR HSW K80 DN15 68°C vit", "standard-respons", 80, 15, 68, "sidewall", "standard", "white", "RA1335")
+];
+
+export function buildAhlsellRequirementGuide(
+  requirement: Record<string, unknown>
+): AhlsellRequirementGuide {
+  const value = record(requirement.value_json);
+  const attributes = normalizedAttributeMap(record(value.attributes));
+  const category = text(requirement.category) ?? text(requirement.requirement_key) ?? "unknown";
+  const description = text(requirement.value_text) ?? text(requirement.display_name) ?? "Teknisk produkt";
+  const technicalSpecification = text(value.technicalSpecification) ?? text(requirement.source_excerpt) ?? "";
+  const combined = normalize(`${description} ${technicalSpecification} ${[...attributes.values()].join(" ")}`);
+  const isSprinklerAccessory = /beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg/i.test(description);
+
+  const rawKFactor = numberFromAttribute(attributes, ["k faktor", "k factor", "k verdi", "k value"])
+    ?? numberFromText(combined, /\bk\s*[-=]?\s*(\d+(?:[.,]\d+)?)/i);
+  // Norwegian descriptions frequently write K-80. The hyphen is a separator,
+  // not a negative hydraulic value.
+  const kFactor = rawKFactor === null ? null : Math.abs(rawKFactor);
+  const dn = numberFromAttribute(attributes, ["gjengedimensjon dn", "dimension", "dimensjon", "dn"])
+    ?? numberFromText(combined, /\bdn\s*(\d{1,3})\b/i);
+  const temperatureC = numberFromAttribute(attributes, ["utlosningstemperatur", "temperatur", "temperature"])
+    ?? numberFromText(combined, /(-?\d+(?:[.,]\d+)?)\s*(?:°\s*)?c\b/i);
+  const placement = firstAttribute(attributes, ["plassering", "placering", "orientation", "sprinklertype", "type"]);
+  const responseText = firstAttribute(attributes, ["folsomhetsgrad", "respons", "response"]);
+  const finishText = `${firstAttribute(attributes, ["overflatebehandling", "farge", "farg", "finish", "colour", "color"]) ?? ""} ${description}`;
+  const orientationResult = sprinklerOrientation(`${placement ?? ""} ${description}`);
+  const responseResult = sprinklerResponse(responseText, technicalSpecification);
+  const finish = sprinklerFinish(finishText);
+  const concealed = /\b(innfelt|inf[aä]llt|concealed|dold|flat cover|plate)\b/i.test(combined);
+  const specialApplication = /\b(torrsprinkler|torrorssprinkler|dry sprinkler)\b/i.test(combined)
+    || /\b(residential|boende|bolig(?:sprinkler)?)\b/i.test(combined)
+    || /\b(extended coverage|qrec|ec hsw|flat spray)\b/i.test(combined);
+
+  const criteria = compact([
+    categoryLabel(category, description),
+    kFactor === null ? null : `K${formatNumber(kFactor)}`,
+    dn === null ? null : `DN${formatNumber(dn)}`,
+    temperatureC === null ? null : `${formatNumber(temperatureC)}°C`,
+    responseResult.response === "quick" ? "Quick" : responseResult.response === "standard" ? "Standard" : null,
+    orientationResult.orientation === "pendent" ? "Pendent" : orientationResult.orientation === "upright" ? "Upright" : orientationResult.orientation === "sidewall" ? "HSW" : null,
+    concealed ? "Concealed" : null,
+    finish ? finishSearchLabel(finish) : null,
+    specialSearchTerm(combined)
+  ]);
+
+  const searchDescription = usefulDescription(description) && !isSprinklerAccessory
+    ? description.replace(/\s+/g, " ").trim().slice(0, 110)
+    : null;
+  const searchQuery = compact([...criteria, searchDescription]).join(" ").slice(0, 220);
+  const warnings = compact([
+    orientationResult.mixed
+      ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."
+      : null,
+    responseResult.conflict
+      ? "PDF-underlaget innehåller både standard- och quick-respons för samma post. Kontrollera originaltexten innan val."
+      : null,
+    category === "sprinkler_head" && kFactor !== null && dn !== null && dn === 15 && kFactor >= 115
+      ? `K${formatNumber(kFactor)} tillsammans med DN15 avviker från de offentliga Ahlsell-familjer som hittades. Ingen artikel föreslås automatiskt.`
+      : null,
+    category === "sprinkler_head" && /\b(torrsprinkler|dry sprinkler)\b/i.test(combined) && dn !== null && dn !== 25
+      ? "Ahlsells offentliga torrsprinklerfamiljer som hittades använder DN25. Kontrollera PDF-postens DN innan val."
+      : null,
+    category === "sprinkler_head" && !isSprinklerAccessory && [kFactor, dn, temperatureC].some((value) => value === null)
+      ? "Ett eller flera huvudvärden (K-faktor, DN eller temperatur) saknas. Använd sökningen men välj inte produkt utan manuell kontroll."
+      : null
+  ]);
+
+  const directCandidates = category === "sprinkler_head"
+    && !orientationResult.mixed
+    && !responseResult.conflict
+    && !concealed
+    && !specialApplication
+    && !isSprinklerAccessory
+    && kFactor !== null
+    && dn !== null
+    && temperatureC !== null
+    && orientationResult.orientation
+    && responseResult.response
+      ? sprinklerCandidates.filter((item) =>
+          closeEnough(item.kFactor, kFactor)
+          && item.dn === dn
+          && closeEnough(item.temperatureC, temperatureC)
+          && item.orientation === orientationResult.orientation
+          && item.response === responseResult.response
+          && (!finish || item.finish === finish)
+        )
+      : [];
+
+  const searchUrl = new URL(AHLSELL_SEARCH_URL);
+  searchUrl.searchParams.set("parameters.SearchPhrase", searchQuery || description);
+
+  return {
+    searchQuery: searchQuery || description,
+    searchUrl: searchUrl.toString(),
+    criteria,
+    warnings,
+    directCandidates
+  };
+}
+
+function candidate(
+  articleNumber: string,
+  productName: string,
+  route: "quick-respons" | "standard-respons",
+  kFactor: number,
+  dn: number,
+  temperatureC: number,
+  orientation: Orientation,
+  response: Response,
+  finish: Finish,
+  sin: string
+): SprinklerCandidateDefinition {
+  return {
+    articleNumber,
+    productName,
+    manufacturer: "Reliable",
+    productUrl: `https://www.ahlsell.se/products/varme--sanitet/sprinklersortiment-for-sprinklerkunder/sprinklerhuvud/${route}/${articleNumber}`,
+    specifications: [`K${kFactor}`, `DN${dn}`, `${temperatureC}°C`, orientationLabel(orientation), responseLabel(response), finishLabel(finish), `SIN ${sin}`],
+    verifiedAt: VERIFIED_AT,
+    kFactor,
+    dn,
+    temperatureC,
+    orientation,
+    response,
+    finish
+  };
+}
+
+function normalizedAttributeMap(attributes: Record<string, unknown>) {
+  const output = new Map<string, string>();
+  for (const [key, value] of Object.entries(attributes)) {
+    const cleanValue = text(value);
+    if (cleanValue) output.set(normalize(key), cleanValue);
+  }
+  return output;
+}
+
+function firstAttribute(attributes: Map<string, string>, aliases: string[]) {
+  for (const alias of aliases) {
+    const normalizedAlias = normalize(alias);
+    for (const [key, value] of attributes) {
+      if (key === normalizedAlias || key.includes(normalizedAlias)) return value;
+    }
+  }
+  return null;
+}
+
+function numberFromAttribute(attributes: Map<string, string>, aliases: string[]) {
+  const raw = firstAttribute(attributes, aliases);
+  return raw ? numberFromText(raw, /-?\d+(?:[.,]\d+)?/) : null;
+}
+
+function numberFromText(value: string, pattern: RegExp) {
+  const match = value.match(pattern);
+  const captured = match?.[1] ?? match?.[0];
+  if (!captured) return null;
+  const parsed = Number(captured.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sprinklerOrientation(value: string): { orientation: Orientation | null; mixed: boolean } {
+  const normalized = normalize(value);
+  const hasUpright = /\b(staende|upright|ssu|oppover)\b/.test(normalized);
+  const hasPendent = /\b(hengende|pendent|pendel|ssp|nedover)\b/.test(normalized);
+  const hasSidewall = /\b(vegg|sidewall|hsw|horisontal)\b/.test(normalized);
+  const orientations = compact<Orientation>([
+    hasUpright ? "upright" : null,
+    hasPendent ? "pendent" : null,
+    hasSidewall ? "sidewall" : null
+  ]);
+  return { orientation: orientations.length === 1 ? orientations[0] : null, mixed: orientations.length > 1 };
+}
+
+function sprinklerResponse(attributeValue: string | null, sourceText: string) {
+  const attribute = normalize(attributeValue ?? "");
+  const source = normalize(sourceText);
+  const attributeQuick = /\b(kvikk|quick|snabb)\b/.test(attribute);
+  const attributeStandard = /\bstandard\b/.test(attribute);
+  const sourceQuick = /\b(qr|kvikk|quick|snabb)\b/.test(source);
+  const sourceStandard = /\bstandard(?: respons|-respons)?\b/.test(source);
+  const conflict = (attributeQuick || sourceQuick) && (attributeStandard || sourceStandard);
+  if (conflict) return { response: null as Response | null, conflict: true };
+  if (attributeQuick || sourceQuick) return { response: "quick" as Response, conflict: false };
+  if (attributeStandard || sourceStandard) return { response: "standard" as Response, conflict: false };
+  return { response: null as Response | null, conflict: false };
+}
+
+function sprinklerFinish(value: string): Finish | null {
+  const normalized = normalize(value);
+  if (/\b(valgfritt|valfritt|optional)\b/.test(normalized)) return null;
+  if (/\b(hvit|vit|white)\b|hvitlakk|vitlack/.test(normalized)) return "white";
+  if (/\b(sort|svart|black)\b/.test(normalized)) return "black";
+  if (/\b(krom|chrome)\b/.test(normalized)) return "chrome";
+  if (/\b(messing|massing|brass)\b/.test(normalized)) return "brass";
+  return null;
+}
+
+function categoryLabel(category: string, description: string) {
+  if (/beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg/i.test(description)) return "Sprinkler skyddskorg";
+  return ({
+    sprinkler_head: "Sprinkler",
+    pipe: "Sprinklerrör",
+    fitting: "Sprinklerrördel",
+    valve: "Sprinklerventil",
+    support: "Rörupphängning sprinkler",
+    control: "Sprinkler övervakning"
+  } as Record<string, string>)[category] ?? "Sprinklerprodukt";
+}
+
+function specialSearchTerm(value: string) {
+  if (/\b(torrsprinkler|dry sprinkler)\b/i.test(value)) return "Torrörsprinkler";
+  if (/\b(residential|boende|bolig(?:sprinkler)?)\b/i.test(value)) return "Residential";
+  if (/\b(extended coverage|qrec|ec hsw)\b/i.test(value)) return "Extended Coverage";
+  if (/\bflat spray\b/i.test(value)) return "Flat Spray";
+  return null;
+}
+
+function usefulDescription(description: string) {
+  const normalized = normalize(description);
+  return normalized.length >= 8 && !/^(sprinkler|sprinklerhode|teknisk produkt)$/.test(normalized);
+}
+
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "o")
+    .replace(/å/g, "a")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9.,°]+/g, " ")
+    .trim();
+}
+
+function closeEnough(left: number, right: number) {
+  return Math.abs(left - right) < 0.05;
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
+}
+
+function orientationLabel(value: Orientation) {
+  return value === "pendent" ? "Pendent" : value === "upright" ? "Upright" : "HSW";
+}
+
+function responseLabel(value: Response) {
+  return value === "quick" ? "Quick respons" : "Standard respons";
+}
+
+function finishLabel(value: Finish) {
+  return ({ brass: "Mässing", white: "Vit", black: "Svart", chrome: "Krom" } as const)[value];
+}
+
+function finishSearchLabel(value: Finish) {
+  return finishLabel(value);
+}
+
+function compact<T>(values: Array<T | null | undefined | false>): T[] {
+  return values.filter((value): value is T => value !== null && value !== undefined && value !== false);
+}
+
+function text(value: unknown) {
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}

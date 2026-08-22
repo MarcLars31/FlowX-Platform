@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, History, ListChecks, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, History, ListChecks, Loader2, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
@@ -216,6 +217,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
+  const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
 
   function selectionFromMemory(memory: Row): ProductSelection {
     return {
@@ -240,6 +242,17 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
 
   function applyMemory(memory: Row) {
     showSelection(selectionFromMemory(memory));
+    onError("");
+  }
+
+  function applyAhlsellCandidate(candidate: AhlsellPublicCandidate) {
+    showSelection({
+      productName: candidate.productName,
+      productNumber: candidate.articleNumber,
+      manufacturerName: candidate.manufacturer,
+      notes: notes.trim() || `Offentlig Ahlsell-träff kontrollerad ${candidate.verifiedAt}. Aktuella godkännanden, pris och saldo måste verifieras före beställning.`,
+      accessories
+    });
     onError("");
   }
 
@@ -330,6 +343,12 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
           </div>
         )}
 
+        <AhlsellPublicMatchPanel
+          guide={ahlsellGuide}
+          disabled={saving}
+          onUseCandidate={applyAhlsellCandidate}
+        />
+
         <div><p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">2 · Välj produkt</p><h4 className="mt-1 text-xl font-bold text-ink-950">Fyll i den produkt du vill använda</h4><p className="mt-1 text-sm text-ink-600">Fälten med * måste fyllas i. Produkten sparas som godkänd först när du trycker på ”Godkänn produkt”.</p></div>
         <div className="grid gap-4 md:grid-cols-3">
           <Input className="h-12 text-base" id={`product-name-${requirement.id}`} label="Produktnamn *" value={productName} onChange={(event) => { setProductName(event.target.value); setHasUnapprovedChanges(true); }} required />
@@ -369,6 +388,75 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
         </div>
       </div>
     </article>
+  );
+}
+
+function AhlsellPublicMatchPanel({ guide, disabled, onUseCandidate }: {
+  guide: AhlsellRequirementGuide;
+  disabled: boolean;
+  onUseCandidate: (candidate: AhlsellPublicCandidate) => void;
+}) {
+  return (
+    <section className="rounded-xl border-2 border-cyan-200 bg-cyan-50 p-4 sm:p-5" aria-labelledby="ahlsell-match-heading">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-3xl">
+          <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-900">Ahlsell-matchning · inte godkänd</p>
+          <h4 id="ahlsell-match-heading" className="mt-1 text-xl font-bold text-ink-950">
+            {guide.directCandidates.length > 0
+              ? `${guide.directCandidates.length} verifierad ${guide.directCandidates.length === 1 ? "artikelträff" : "artikelträffar"}`
+              : "Sök med PDF-postens tekniska värden"}
+          </h4>
+          <p className="mt-1 text-sm leading-6 text-ink-700">
+            Scipx använder bara uppgifterna i den uppladdade PDF-posten. Öppna Ahlsell för att kontrollera aktuell produktdata, godkännanden, pris och saldo.
+          </p>
+        </div>
+        <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#06213d] px-5 py-3 text-base font-bold text-white transition hover:bg-[#0a3158] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700">
+          <Search className="h-5 w-5" aria-hidden="true" />Sök på Ahlsell<ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </a>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-cyan-200 bg-white px-4 py-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Förifylld sökning</p>
+        <p className="mt-1 break-words text-sm font-semibold text-ink-900">{guide.searchQuery}</p>
+      </div>
+
+      {guide.warnings.length > 0 && (
+        <div className="mt-4 rounded-lg border-2 border-amber-300 bg-amber-50 p-4 text-amber-950">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
+            <div>
+              <p className="font-bold">Manuell kontroll krävs</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-6">
+                {guide.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {guide.directCandidates.length > 0 && (
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {guide.directCandidates.map((candidate) => (
+            <article key={candidate.articleNumber} className="rounded-xl border-2 border-cyan-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-bold text-ink-950">{candidate.productName}</p>
+                  <p className="mt-1 text-sm font-bold text-cyan-900">Ahlsell art.nr {candidate.articleNumber}</p>
+                </div>
+                <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800">
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </a>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-ink-700">{candidate.specifications.join(" · ")}</p>
+              <Button type="button" variant="secondary" className="mt-4 min-h-12 w-full justify-center" disabled={disabled} onClick={() => onUseCandidate(candidate)}>
+                Fyll i som utkast
+              </Button>
+              <p className="mt-2 text-center text-xs font-semibold text-amber-800">Fyller bara i fälten – produkten är fortfarande inte godkänd.</p>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

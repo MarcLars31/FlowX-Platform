@@ -828,7 +828,7 @@ function inferCategory(text: string): TechnicalDescriptionCategory {
     return "pipe";
   }
   if (/oppheng|støtte|support/.test(text)) return "support";
-  if (/kontroll|alarm|sensor|detektor|sentral|signalapparat|strømningsvakt|trykkvakt|måleinstrument|manometer|måleblende|kompressor|melder/.test(text)) {
+  if (/kontroll|alarm|sensor|detektor|sentral|signalapparat|strømningsvakt|trykkvakt|måleinstrument|manometer|måleblende|kapasitetsmåler|kapasitetsmaaler|kompressor|melder/.test(text)) {
     return "control";
   }
   if (/\bsprinkler\b|sprinklerhode|sprinklerdyse|standard spray|utvidet dekning/.test(text)) {

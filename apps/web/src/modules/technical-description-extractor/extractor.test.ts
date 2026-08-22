@@ -74,6 +74,22 @@ test("extracts technical-description material lines and rule hints", () => {
   );
 });
 
+test("classifies a sprinkler capacity meter as control equipment, not a sprinkler head", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "120000.30.332.4.1",
+      "33_Kapasitetsmåler sprinkler DN80",
+      "stk 1 0,00 0,00"
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines.length, 1);
+  assert.equal(result.materialLines[0].category, "control");
+});
+
 test("extracts NS 3420 table quantities and pipe lengths", () => {
   const pages: TechnicalDescriptionPage[] = [
     {
