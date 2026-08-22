@@ -8,6 +8,10 @@ export type AhlsellPublicCandidate = {
   specifications: string[];
   source: "public_verified" | "pdf_reference" | "catalog_search";
   verifiedAt?: string;
+  matchScore?: number;
+  matchReasons?: string[];
+  matchWarnings?: string[];
+  recommendation?: "recommended" | "possible" | "unlikely";
 };
 
 export type AhlsellRequirementGuide = {
@@ -86,6 +90,7 @@ export function buildAhlsellRequirementGuide(
   const specialApplication = /\b(torrsprinkler|torrorssprinkler|dry sprinkler)\b/i.test(combined)
     || /\b(residential|boende|bolig(?:sprinkler)?)\b/i.test(combined)
     || /\b(extended coverage|qrec|ec hsw|flat spray)\b/i.test(combined);
+  const isWetAlarmValve = /\b(vat alarmventil|wet alarm valve|kontrollventilsett)\b/i.test(combined);
 
   const criteria = compact([
     categoryLabel(category, description),
@@ -109,7 +114,7 @@ export function buildAhlsellRequirementGuide(
     ? description.replace(/\s+/g, " ").trim().slice(0, 110)
     : null;
   const searchQuery = pdfReferenceCandidate?.articleNumber
-    ?? conciseCatalogQuery(criteria, searchDescription);
+    ?? (isWetAlarmValve ? "Sprinklersentral" : conciseCatalogQuery(criteria, searchDescription));
   const warnings = compact([
     orientationResult.mixed
       ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."

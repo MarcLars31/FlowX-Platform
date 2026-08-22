@@ -4,6 +4,7 @@ import {
   ahlsellMarketFromSearchUrl,
   searchAhlsellPublicCatalog
 } from "@/lib/ahlsell-public-catalog";
+import { rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
@@ -57,8 +58,12 @@ export async function GET(request: Request, context: RouteContext) {
       market: ahlsellMarketFromSearchUrl(guide.searchUrl),
       query: guide.searchQuery
     });
+    const rankedResult = {
+      ...result,
+      candidates: rankAhlsellCandidates(requirement, result.candidates)
+    };
 
-    return NextResponse.json(result, {
+    return NextResponse.json(rankedResult, {
       headers: { "Cache-Control": "private, no-store" }
     });
   } catch (error) {

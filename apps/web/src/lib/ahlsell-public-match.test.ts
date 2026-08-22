@@ -121,7 +121,7 @@ test("keeps valve searches concise so Ahlsell can return relevant candidates", (
     value_json: { attributes: { dimensjon: "DN100" } }
   });
 
-  assert.equal(guide.searchQuery, "Sprinklerventil DN100");
+  assert.equal(guide.searchQuery, "Sprinklersentral");
   assert.doesNotMatch(guide.searchQuery, /KONTROLLVENTILSETT/);
 });
 

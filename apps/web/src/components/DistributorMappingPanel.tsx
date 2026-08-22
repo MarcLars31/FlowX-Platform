@@ -343,7 +343,11 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
     const candidateNote = candidate.source === "pdf_reference"
       ? "Artikelnumret hämtades från den uppladdade PDF-posten. Kontrollera produkten hos Ahlsell före beställning."
       : candidate.source === "catalog_search"
-        ? "Produkten hittades i Ahlsells offentliga katalog. Kontrollera tekniska krav, godkännanden, pris och saldo före beställning."
+        ? compactText([
+            candidate.recommendation === "recommended" ? "Scipx rankade produkten högst mot de extraherade PDF-kraven." : null,
+            ...(candidate.matchReasons ?? []),
+            "Produkten hittades i Ahlsells offentliga katalog. Kontrollera tekniska krav, godkännanden, pris och saldo före beställning."
+          ])
         : `Offentlig Ahlsell-träff kontrollerad ${candidate.verifiedAt}. Aktuella godkännanden, pris och saldo måste verifieras före beställning.`;
     showSelection({
       productName: candidate.productName,
@@ -536,6 +540,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
   for (const candidate of guide.directCandidates) candidatesByArticle.set(candidate.articleNumber, candidate);
   for (const candidate of catalogResult?.candidates ?? []) candidatesByArticle.set(candidate.articleNumber, candidate);
   const candidates = [...candidatesByArticle.values()];
+  const recommendedCount = candidates.filter((candidate) => candidate.recommendation === "recommended").length;
   const pageCount = Math.max(1, Math.ceil(candidates.length / CANDIDATES_PER_PAGE));
   const visibleCandidates = candidates.slice(
     (candidatePage - 1) * CANDIDATES_PER_PAGE,
@@ -551,7 +556,9 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
             {loadingCatalog
               ? "Söker alla produkter hos Ahlsell…"
               : candidates.length > 0
-                ? `${candidates.length} ${candidates.length === 1 ? "produkt hittad" : "produkter hittade"}`
+                ? recommendedCount > 0
+                  ? `${recommendedCount} rekommenderad av ${candidates.length} produkter`
+                  : `${candidates.length} ${candidates.length === 1 ? "produkt hittad" : "produkter hittade"}`
                 : "Ingen produkt hittades med denna sökning"}
           </h4>
           <p className="mt-1 text-sm leading-6 text-ink-700">
@@ -604,7 +611,12 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
       {visibleCandidates.length > 0 && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {visibleCandidates.map((candidate) => (
-            <article key={candidate.articleNumber} className="rounded-xl border-2 border-cyan-200 bg-white p-4">
+            <article key={candidate.articleNumber} className={candidate.recommendation === "recommended" ? "rounded-xl border-4 border-emerald-500 bg-emerald-50 p-4 shadow-sm" : "rounded-xl border-2 border-cyan-200 bg-white p-4"}>
+              {candidate.recommendation === "recommended" && (
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-700 px-3 py-1.5 text-sm font-black text-white">
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Mest sannolik produkt
+                </div>
+              )}
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-base font-bold text-ink-950">{candidate.productName}</p>
@@ -617,8 +629,24 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
               </div>
               {candidate.description && <p className="mt-3 line-clamp-4 text-sm leading-6 text-ink-700">{candidate.description}</p>}
               {candidate.specifications.length > 0 && <p className="mt-3 text-sm font-semibold leading-6 text-ink-700">{candidate.specifications.join(" · ")}</p>}
+              {(candidate.matchReasons?.length ?? 0) > 0 && (
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
+                  <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Därför matchar den</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-6 text-ink-800">
+                    {candidate.matchReasons?.map((reason) => <li key={reason}>{reason}</li>)}
+                  </ul>
+                </div>
+              )}
+              {(candidate.matchWarnings?.length ?? 0) > 0 && (
+                <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                  <p className="text-xs font-black uppercase tracking-wide text-amber-900">Avvikelse</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-6 text-amber-950">
+                    {candidate.matchWarnings?.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                </div>
+              )}
               <Button type="button" variant="secondary" className="mt-4 min-h-12 w-full justify-center" disabled={disabled} onClick={() => onUseCandidate(candidate)}>
-                Fyll i som utkast
+                {candidate.recommendation === "recommended" ? "Använd rekommenderad produkt som utkast" : "Fyll i som utkast"}
               </Button>
               <p className="mt-2 text-center text-xs font-semibold text-amber-800">Fyller bara i fälten – produkten är fortfarande inte godkänd.</p>
             </article>
@@ -644,6 +672,10 @@ function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {
   if (source === "pdf_reference") return "Artikelnumret står i den uppladdade PDF-filen";
   if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog – kontroll krävs";
   return "Tidigare verifierad i Ahlsells offentliga katalog";
+}
+
+function compactText(values: Array<string | null | undefined>) {
+  return values.filter((value): value is string => Boolean(value)).join(" ");
 }
 
 function RemovalRequirementCard({ requirement, position, totalPosts }: { requirement: Row; position: number; totalPosts: number }) {
