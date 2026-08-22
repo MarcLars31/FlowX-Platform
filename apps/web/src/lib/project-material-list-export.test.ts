@@ -102,7 +102,7 @@ test("keeps every post number in products, accessories, unselected rows and remo
   assert.equal(rows[3]?.quantity, 18);
 });
 
-test("creates a valid xlsx workbook with project and material sheets", async () => {
+test("creates a valid xlsx workbook without an overlapping table filter", async () => {
   const rows = buildProjectMaterialRows({ requirements, assignments });
   const bytes = await createProjectMaterialListWorkbook({
     organizationName: "Ovasia AB",
@@ -131,6 +131,8 @@ test("creates a valid xlsx workbook with project and material sheets", async () 
     "Materiallista"
   ]);
   const sheet = workbook.getWorksheet("Materiallista");
+  assert.equal(sheet?.getTables().length, 0);
+  assert.ok(sheet?.autoFilter);
   assert.equal(sheet?.getCell("B5").value, "PDF-postnummer");
   assert.equal(sheet?.getCell("B6").value, "33.335.1");
   assert.equal(sheet?.getCell("C5").value, "Kapitelpost");

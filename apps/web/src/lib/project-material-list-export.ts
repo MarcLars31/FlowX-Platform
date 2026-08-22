@@ -285,28 +285,32 @@ function addMaterialListSheet(
     row.unit,
     valueOrNull(row.notes)
   ]);
-  sheet.addTable({
-    name: `ProjectMaterialList_${project.id.replaceAll("-", "").slice(0, 16)}`,
-    ref: "A5",
-    headerRow: true,
-    totalsRow: false,
-    style: { theme: "TableStyleMedium2", showRowStripes: true },
-    columns: [
-      { name: "Rad" },
-      { name: "PDF-postnummer" },
-      { name: "Kapitelpost" },
-      { name: "Åtgärd" },
-      { name: "Radtyp" },
-      { name: "Beskrivning från underlag" },
-      { name: "NS-kod" },
-      { name: "Vald produkt" },
-      { name: "Artikelnummer" },
-      { name: "Tillverkare" },
-      { name: "Antal" },
-      { name: "Enhet" },
-      { name: "Anteckning" }
-    ],
-    rows: tableRows
+  const headers = [
+    "Rad",
+    "PDF-postnummer",
+    "Kapitelpost",
+    "Åtgärd",
+    "Radtyp",
+    "Beskrivning från underlag",
+    "NS-kod",
+    "Vald produkt",
+    "Artikelnummer",
+    "Tillverkare",
+    "Antal",
+    "Enhet",
+    "Anteckning"
+  ];
+  const headerRow = sheet.getRow(5);
+  headerRow.values = headers;
+  headerRow.height = 30;
+  headerRow.eachCell({ includeEmpty: true }, (cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F81BD" } };
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.alignment = { vertical: "middle", wrapText: true };
+    cell.border = thinBorder("FF9CB9DC");
+  });
+  tableRows.forEach((values, index) => {
+    sheet.getRow(index + 6).values = values;
   });
 
   const widths = [7, 16, 20, 14, 17, 42, 17, 30, 19, 20, 11, 10, 34];
@@ -318,8 +322,20 @@ function addMaterialListSheet(
     for (let rowIndex = 6; rowIndex <= rows.length + 5; rowIndex += 1) {
       const row = sheet.getRow(rowIndex);
       row.height = 32;
+      const sourceRow = rows[rowIndex - 6];
       for (let columnIndex = 1; columnIndex <= 13; columnIndex += 1) {
-        row.getCell(columnIndex).alignment = { vertical: "top", wrapText: true };
+        const cell = row.getCell(columnIndex);
+        cell.alignment = { vertical: "top", wrapText: true };
+        cell.border = {
+          bottom: { style: "thin", color: { argb: "FFD7E3F1" } }
+        };
+        if (sourceRow?.type === "Ej produktvald") {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF7ED" } };
+        } else if (sourceRow?.type === "Demontering") {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+        } else if ((rowIndex - 6) % 2 === 0) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEAF2F8" } };
+        }
       }
       row.getCell(1).alignment = { horizontal: "center", vertical: "top" };
       row.getCell(11).alignment = { horizontal: "right", vertical: "top" };
