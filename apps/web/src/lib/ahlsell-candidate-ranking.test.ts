@@ -82,6 +82,26 @@ test("recommends the exact K80 68C standard upright sprinkler variant", () => {
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("68")));
 });
 
+test("does not confuse the phrase opp til with an upright sprinkler", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      "k-faktor": "80",
+      utløsningstemperatur: "68 C",
+      følsomhetsgrad: "Standard-respons",
+      plassering: "Stående",
+      "gjengedimensjon (dn)": "15"
+    } }
+  }, [{
+    ...candidate("9254067", "Sprinklerhoder V2727 SR - Ned", "Justeringsområde opp til 19 mm", "/sprinkler/9254067/"),
+    specifications: ["K-faktor: 80", "Responstemperatur: 68 °C", "Responstid: Standardrespons"]
+  }]);
+
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("monteringsriktning")));
+});
+
 test("keeps a ductile flanged bend as possible when the PDF explicitly requires steel", () => {
   const [ranked] = rankAhlsellCandidates({
     category: "fitting",

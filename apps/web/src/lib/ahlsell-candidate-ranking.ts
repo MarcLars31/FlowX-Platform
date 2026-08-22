@@ -61,6 +61,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
 }
 
 function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: TechnicalProfile): AhlsellPublicCandidate {
+  const candidateName = normalize(candidate.productName);
   const candidateText = normalize(flattenText({
     productName: candidate.productName,
     manufacturer: candidate.manufacturer,
@@ -128,7 +129,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
       score -= 70;
       warnings.push("Träffen är ett tillbehör och inte ett sprinklerhuvud.");
     }
-    score += scoreSprinklerAttributes(candidateText, requirement, reasons, warnings);
+    score += scoreSprinklerAttributes(candidateText, candidateName, requirement, reasons, warnings);
   } else if (requirement.intent === "custom_fabrication") {
     warnings.push("Posten verkar vara specialtillverkad och måste verifieras via offert eller manuellt produktval.");
   }
@@ -186,7 +187,7 @@ function scoreWetAlarmValve(candidateText: string, reasons: string[], warnings: 
   return score;
 }
 
-function scoreSprinklerAttributes(candidateText: string, requirement: TechnicalProfile, reasons: string[], warnings: string[]) {
+function scoreSprinklerAttributes(candidateText: string, candidateName: string, requirement: TechnicalProfile, reasons: string[], warnings: string[]) {
   let score = 0;
   const candidateK = extractKFactor(candidateText);
   if (requirement.kFactor !== null && candidateK !== null) {
@@ -221,11 +222,7 @@ function scoreSprinklerAttributes(candidateText: string, requirement: TechnicalP
     }
   }
   if (requirement.orientation) {
-    const orientation = /\b(opp|upright|staende)\b/.test(candidateText)
-      ? "upright"
-      : /\b(ned|pendent|hengende)\b/.test(candidateText)
-        ? "pendent"
-        : /\b(hsw|sidewall|horisontal)\b/.test(candidateText) ? "sidewall" : null;
+    const orientation = candidateOrientation(candidateName, candidateText);
     if (orientation === requirement.orientation) {
       score += 15;
       reasons.push("Monteringsriktningen stämmer med PDF-kravet.");
@@ -257,6 +254,21 @@ function scoreSprinklerAttributes(candidateText: string, requirement: TechnicalP
     }
   }
   return score;
+}
+
+function candidateOrientation(productName: string, candidateText: string): TechnicalProfile["orientation"] {
+  // Ahlsell descriptions often contain phrases such as "opp til 19 mm". Only
+  // interpret the short words Opp/Ned as orientation when they occur in the
+  // product name. Longer, unambiguous terms may safely come from all fields.
+  const nameHasUpright = /(?:^|\s|-)(opp)(?:\s|$|-)/.test(productName);
+  const nameHasPendent = /(?:^|\s|-)(ned)(?:\s|$|-)/.test(productName);
+  const hasSidewall = /\b(hsw|sidewall|horisontal)\b/.test(productName)
+    || /\b(hsw|sidewall|horisontal)\b/.test(candidateText);
+  if (hasSidewall) return "sidewall";
+  if (nameHasUpright !== nameHasPendent) return nameHasUpright ? "upright" : "pendent";
+  if (/\b(upright|staende)\b/.test(candidateText)) return "upright";
+  if (/\b(pendent|hengende)\b/.test(candidateText)) return "pendent";
+  return null;
 }
 
 function scoreDimension(candidateText: string, requirement: TechnicalProfile, reasons: string[], warnings: string[]) {
