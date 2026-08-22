@@ -291,6 +291,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   for (const page of pages) {
     const pageLines = normalizedPageLines(page.text);
     if (!isFireProtectionPage(page.text)) continue;
+    const chapterPost = extractChapterPost(pageLines);
 
     const starts: StructuredPostStart[] = [];
     for (let index = 0; index < pageLines.length; index += 1) {
@@ -327,6 +328,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         || (start.quantity ? start.description.trim() : "");
       const sourceText = pageLines.slice(start.lineIndex, blockEnd).join("\n");
       const ownAttributes = {
+        ...(chapterPost ? { kapittelpost: chapterPost } : {}),
         ...extractTableAttributes(blockLines),
         ...extractInlineAttributes(description)
       };
@@ -626,6 +628,17 @@ function normalizedPageLines(text: string) {
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
+}
+
+function extractChapterPost(lines: string[]) {
+  const chapterLine = lines.find((line) => /^Kapittel:/i.test(line));
+  if (!chapterLine) return undefined;
+  const chapterPath = chapterLine.replace(/^Kapittel:\s*/i, "");
+  const segments = [...chapterPath.matchAll(
+    /(?:^|\s+-\s+)(\d{2,6})\s+(.+?)(?=\s+-\s+\d{2,6}\s+|$)/g
+  )];
+  const last = segments.at(-1);
+  return last ? `${last[1]} ${last[2].trim()}` : undefined;
 }
 
 function isTableFooter(value: string) {

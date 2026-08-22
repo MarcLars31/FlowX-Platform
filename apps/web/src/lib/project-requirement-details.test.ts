@@ -20,12 +20,16 @@ test("returns every stored specification without the former eight-item limit", (
     Array.from({ length: 12 }, (_, index) => [`spec_${index + 1}`, `värde ${index + 1}`])
   );
   const details = projectRequirementDetails({
-    value_json: { postNumber: "1403.33.332.23.1", attributes },
+    value_json: {
+      postNumber: "1403.33.332.23.1",
+      attributes: { ...attributes, kapittelpost: "3325 Utstyr" }
+    },
     source_page: 32,
     source_excerpt: "original"
   });
 
   assert.equal(details.postNumber, "1403.33.332.23.1");
+  assert.equal(details.chapterPost, "3325 Utstyr");
   assert.equal(details.attributes.length, 12);
   assert.equal(details.sourcePage, 32);
 });

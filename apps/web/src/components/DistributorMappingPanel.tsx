@@ -114,7 +114,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                     </div>
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <label className="block min-w-64"><span className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-600">Hoppa till post</span><select value={requirement.id} onChange={(event) => showRequirement(event.target.value)} className="block h-12 w-full rounded-xl border-2 border-ink-200 bg-white px-3 text-base font-bold text-ink-900 focus:border-flow-500 focus:ring-flow-500">{productRequirements.map((item, index) => { const details = projectRequirementDetails(item); return <option key={item.id} value={item.id}>{approvedRequirementIds.has(item.id) ? "✓" : "○"} {details.postNumber ? `Post ${details.postNumber}` : `Produkt ${index + 1}`}</option>; })}</select></label>
+                    <label className="block min-w-64"><span className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-600">Hoppa till PDF-post</span><select value={requirement.id} onChange={(event) => showRequirement(event.target.value)} className="block h-12 w-full rounded-xl border-2 border-ink-200 bg-white px-3 text-base font-bold text-ink-900 focus:border-flow-500 focus:ring-flow-500">{productRequirements.map((item, index) => { const details = projectRequirementDetails(item); return <option key={item.id} value={item.id}>{approvedRequirementIds.has(item.id) ? "✓" : "○"} {details.postNumber ? `PDF-post ${details.postNumber}` : `Produkt ${index + 1}`}</option>; })}</select></label>
                     <div className="grid grid-cols-2 gap-2">
                       <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === 0} onClick={() => showRequirement(productRequirements[activeIndex - 1].id)}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Föregående</Button>
                       <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === productRequirements.length - 1} onClick={() => showRequirement(productRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
@@ -218,6 +218,9 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   const quantity = projectRequirementQuantity(requirement.value_json);
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
   const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
+  const pdfArticleNumber = ahlsellGuide.directCandidates.find(
+    (candidate) => candidate.source === "pdf_reference"
+  )?.articleNumber ?? null;
 
   function selectionFromMemory(memory: Row): ProductSelection {
     return {
@@ -293,7 +296,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
           <div>
             <p className={isApproved ? "text-sm font-bold text-emerald-800" : "text-sm font-bold text-amber-900"}>1 · KONTROLLERA PDF-KRAVET · POST {position} AV {totalPosts}</p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <h3 className="text-2xl font-bold text-ink-950 sm:text-3xl">Postnr {details.postNumber ?? "saknas"}</h3>
+              <h3 className="text-2xl font-bold text-ink-950 sm:text-3xl">PDF-post {details.postNumber ?? "saknas"}</h3>
               {isApproved ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Godkänd</span>
               ) : (
@@ -309,7 +312,9 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Fact label="Postnummer" value={details.postNumber ?? "Saknas"} strong />
+          <Fact label="PDF-postnummer" value={details.postNumber ?? "Saknas"} strong />
+          {details.chapterPost && <Fact label="Kapitelpost" value={details.chapterPost} />}
+          {pdfArticleNumber && <Fact label="Ahlsell artikelnummer i PDF" value={pdfArticleNumber} strong />}
           <Fact label="Antal" value={formatProjectQuantity(quantity)} />
           {details.nsCode && <Fact label="NS-kod" value={details.nsCode} />}
           {details.system && <Fact label="System" value={details.system} />}
@@ -474,13 +479,14 @@ function RemovalRequirementCard({ requirement, position, totalPosts }: { require
       <div className="p-5">
         <p className="text-sm font-bold text-amber-800">POST {position} AV {totalPosts} · DEMONTERING</p>
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div><h4 className="text-2xl font-bold text-ink-950">Postnr {details.postNumber ?? "saknas"}</h4><p className="mt-2 text-base font-semibold leading-7 text-ink-800">{String(requirement.value_text ?? "Demontering enligt teknisk beskrivning")}</p></div>
+          <div><h4 className="text-2xl font-bold text-ink-950">PDF-post {details.postNumber ?? "saknas"}</h4><p className="mt-2 text-base font-semibold leading-7 text-ink-800">{String(requirement.value_text ?? "Demontering enligt teknisk beskrivning")}</p></div>
           <span className="shrink-0 rounded-xl bg-amber-100 px-4 py-2 text-base font-bold text-amber-950">{formatProjectQuantity(quantity)}</span>
         </div>
         <details className="mt-4 rounded-lg border border-ink-200">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-base font-bold text-ink-800">Visa alla uppgifter<ChevronDown className="h-5 w-5" aria-hidden="true" /></summary>
           <dl className="grid border-t border-ink-100 sm:grid-cols-2 xl:grid-cols-3">
-            <SpecificationRow label="Postnummer" value={details.postNumber ?? "Saknas"} />
+            <SpecificationRow label="PDF-postnummer" value={details.postNumber ?? "Saknas"} />
+            {details.chapterPost && <SpecificationRow label="Kapitelpost" value={details.chapterPost} />}
             <SpecificationRow label="Åtgärd" value="Demontering" />
             <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
             {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}

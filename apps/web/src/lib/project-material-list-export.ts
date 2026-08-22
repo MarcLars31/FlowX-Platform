@@ -35,6 +35,7 @@ export type MaterialListAssignment = {
 export type ProjectMaterialRow = {
   type: "Huvudprodukt" | "Tillbehör" | "Ej produktvald" | "Demontering";
   postNumber: string;
+  chapterPost: string;
   operation: "Installation" | "Demontering";
   nsCode: string;
   requirementCategory: string;
@@ -79,6 +80,7 @@ export function buildProjectMaterialRows({
     const removal = distributorRequirementOperation(requirement) === "remove";
     const requirementFields = {
       postNumber: details.postNumber ?? "Saknas",
+      chapterPost: details.chapterPost ?? "",
       operation: removal ? "Demontering" as const : "Installation" as const,
       nsCode: details.nsCode ?? "",
       requirementCategory: requirement.category ?? "",
@@ -252,11 +254,11 @@ function addMaterialListSheet(
       margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }
     }
   });
-  sheet.mergeCells("A1:L1");
+  sheet.mergeCells("A1:M1");
   sheet.getCell("A1").value = `Materiallista · ${project.name}`;
   sheet.getCell("A1").style = titleStyle();
   sheet.getRow(1).height = 31;
-  sheet.mergeCells("A2:L2");
+  sheet.mergeCells("A2:M2");
   sheet.getCell("A2").value = [
     project.project_number ? `Projekt ${project.project_number}` : null,
     project.customer_name,
@@ -264,13 +266,14 @@ function addMaterialListSheet(
   ].filter(Boolean).join(" · ");
   sheet.getCell("A2").font = { color: { argb: "FF475569" }, size: 10 };
   sheet.getCell("A2").alignment = { vertical: "middle" };
-  sheet.mergeCells("A3:L3");
+  sheet.mergeCells("A3:M3");
   sheet.getCell("A3").value = "Kontrollera artikelnummer, antal, pris och tillgänglighet före beställning.";
   sheet.getCell("A3").font = { italic: true, color: { argb: "FF9A3412" }, size: 10 };
 
   const tableRows = rows.map((row, index) => [
     index + 1,
     row.postNumber,
+    valueOrNull(row.chapterPost),
     row.operation,
     row.type,
     valueOrNull(row.requirementValue),
@@ -290,7 +293,8 @@ function addMaterialListSheet(
     style: { theme: "TableStyleMedium2", showRowStripes: true },
     columns: [
       { name: "Rad" },
-      { name: "Postnummer" },
+      { name: "PDF-postnummer" },
+      { name: "Kapitelpost" },
       { name: "Åtgärd" },
       { name: "Radtyp" },
       { name: "Beskrivning från underlag" },
@@ -305,24 +309,24 @@ function addMaterialListSheet(
     rows: tableRows
   });
 
-  const widths = [7, 16, 14, 17, 42, 17, 30, 19, 20, 11, 10, 34];
+  const widths = [7, 16, 20, 14, 17, 42, 17, 30, 19, 20, 11, 10, 34];
   widths.forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
-  sheet.getColumn(10).numFmt = "0.00";
+  sheet.getColumn(11).numFmt = "0.00";
   if (rows.length > 0) {
     for (let rowIndex = 6; rowIndex <= rows.length + 5; rowIndex += 1) {
       const row = sheet.getRow(rowIndex);
       row.height = 32;
-      for (let columnIndex = 1; columnIndex <= 12; columnIndex += 1) {
+      for (let columnIndex = 1; columnIndex <= 13; columnIndex += 1) {
         row.getCell(columnIndex).alignment = { vertical: "top", wrapText: true };
       }
       row.getCell(1).alignment = { horizontal: "center", vertical: "top" };
-      row.getCell(10).alignment = { horizontal: "right", vertical: "top" };
       row.getCell(11).alignment = { horizontal: "right", vertical: "top" };
+      row.getCell(12).alignment = { horizontal: "right", vertical: "top" };
     }
   }
-  sheet.autoFilter = `A5:L${Math.max(5, rows.length + 5)}`;
+  sheet.autoFilter = `A5:M${Math.max(5, rows.length + 5)}`;
   sheet.headerFooter.oddFooter = "Scipx · Sida &P av &N";
 }
 

@@ -1,5 +1,6 @@
 export type ProjectRequirementDetail = {
   postNumber: string | null;
+  chapterPost: string | null;
   parentPostNumber: string | null;
   nsCode: string | null;
   system: string | null;
@@ -16,16 +17,19 @@ export function projectRequirementDetails(
   const sourceExcerpt =
     text(value.technicalSpecification) ?? text(requirement.source_excerpt);
   const requirementKey = text(requirement.requirement_key);
+  const attributes = normalizedAttributes(record(value.attributes));
 
   return {
     postNumber: text(value.postNumber) ?? postNumberFromSource(sourceExcerpt),
+    chapterPost: text(attributes.kapittelpost),
     parentPostNumber: text(value.parentPostNumber),
     nsCode:
       text(value.nsCode) ??
       (requirementKey && looksLikeNsCode(requirementKey) ? requirementKey : null),
     system: text(value.system),
     standardRefs: stringList(value.standardRefs),
-    attributes: Object.entries(normalizedAttributes(record(value.attributes))).flatMap(([key, rawValue]) => {
+    attributes: Object.entries(attributes).flatMap(([key, rawValue]) => {
+      if (key === "kapittelpost") return [];
       const valueText = displayValue(rawValue);
       return valueText ? [[key, valueText] as [string, string]] : [];
     }),

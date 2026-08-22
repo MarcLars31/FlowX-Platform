@@ -96,6 +96,7 @@ test("keeps visually aligned Ahlsell article numbers, posts and quantities toget
     method: "text",
     confidence: 0.98,
     text: [
+      "Kapittel: 30 VVS - 33 Brannslokking - 332 Installasjon med sprinkler - 3325 Utstyr",
       "K-30 Brannslokkingsanlegg",
       "Postnr. NS-kode/Firmakode/Spesifikasjon Enhet Mengde",
       "2 UC1.51124A",
@@ -119,6 +120,7 @@ test("keeps visually aligned Ahlsell article numbers, posts and quantities toget
     { postNumber: "2.3", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN150 VIC 705, overvåket åpen 9253502" }
   ]);
   assert.equal(result.materialLines[0].attributes.dimensjon, "DN65");
+  assert.equal(result.materialLines[0].attributes.kapittelpost, "3325 Utstyr");
 });
 
 test("extracts NS 3420 table quantities and pipe lengths", () => {

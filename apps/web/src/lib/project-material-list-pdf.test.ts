@@ -8,6 +8,7 @@ const rows: ProjectMaterialRow[] = [
   {
     type: "Huvudprodukt",
     postNumber: "33.335.1",
+    chapterPost: "3325 Utstyr",
     operation: "Installation",
     nsCode: "UE2.11111112A",
     requirementCategory: "Sprinklerhuvud",
@@ -24,6 +25,7 @@ const rows: ProjectMaterialRow[] = [
   {
     type: "Demontering",
     postNumber: "33.335.3",
+    chapterPost: "3325 Utstyr",
     operation: "Demontering",
     nsCode: "UE2.11111112A",
     requirementCategory: "Sprinklerhuvud",
@@ -62,4 +64,3 @@ test("creates a readable project PDF from the same traceable material rows", asy
   assert.ok(document.getPageCount() >= 1);
   assert.equal(document.getTitle(), "Projektsammanfattning - Testprojekt");
 });
-

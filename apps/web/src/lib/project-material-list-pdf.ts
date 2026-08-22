@@ -24,14 +24,15 @@ type PdfColumn = {
 };
 
 const columns: PdfColumn[] = [
-  { label: "Postnr", width: 68, value: (row) => row.postNumber },
-  { label: "Åtgärd", width: 66, value: (row) => joinValues(row.operation, row.type) },
-  { label: "Beskrivning från underlag", width: 205, value: (row) => joinValues(row.requirementCategory, row.nsCode || row.requirementKey, row.requirementValue) },
-  { label: "Vald produkt", width: 145, value: (row) => joinValues(row.productName, row.manufacturer) },
-  { label: "Artikelnummer", width: 88, value: (row) => row.productNumber },
-  { label: "Antal", width: 48, value: (row) => formatQuantity(row.quantity) },
-  { label: "Enhet", width: 38, value: (row) => row.unit },
-  { label: "Anteckning", width: 120, value: (row) => row.notes }
+  { label: "PDF-post", width: 54, value: (row) => row.postNumber },
+  { label: "Kapitelpost", width: 78, value: (row) => row.chapterPost },
+  { label: "Åtgärd", width: 60, value: (row) => joinValues(row.operation, row.type) },
+  { label: "Beskrivning från underlag", width: 185, value: (row) => joinValues(row.requirementCategory, row.nsCode || row.requirementKey, row.requirementValue) },
+  { label: "Vald produkt", width: 130, value: (row) => joinValues(row.productName, row.manufacturer) },
+  { label: "Artikelnummer", width: 78, value: (row) => row.productNumber },
+  { label: "Antal", width: 42, value: (row) => formatQuantity(row.quantity) },
+  { label: "Enhet", width: 34, value: (row) => row.unit },
+  { label: "Anteckning", width: 117, value: (row) => row.notes }
 ];
 
 export async function createProjectMaterialListPdf({

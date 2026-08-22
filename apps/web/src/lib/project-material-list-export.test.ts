@@ -17,7 +17,8 @@ const requirements = [
       nsCode: "UB1.111",
       operation: "install",
       quantity: 12,
-      unit: "st"
+      unit: "st",
+      attributes: { kapittelpost: "3325 Utstyr" }
     }
   },
   {
@@ -90,6 +91,7 @@ test("keeps every post number in products, accessories, unselected rows and remo
     "33.335.3"
   ]);
   assert.equal(rows[0]?.requirementValue, "K80");
+  assert.equal(rows[0]?.chapterPost, "3325 Utstyr");
   assert.equal(rows[0]?.productNumber, "AHL-1001");
   assert.equal(rows[0]?.quantity, 12);
   assert.equal(rows[0]?.unit, "st");
@@ -129,14 +131,16 @@ test("creates a valid xlsx workbook with project and material sheets", async () 
     "Materiallista"
   ]);
   const sheet = workbook.getWorksheet("Materiallista");
-  assert.equal(sheet?.getCell("B5").value, "Postnummer");
+  assert.equal(sheet?.getCell("B5").value, "PDF-postnummer");
   assert.equal(sheet?.getCell("B6").value, "33.335.1");
-  assert.equal(sheet?.getCell("H6").value, "AHL-1001");
-  assert.equal(sheet?.getCell("J6").value, 12);
-  assert.equal(sheet?.getCell("J7").value, 24);
+  assert.equal(sheet?.getCell("C5").value, "Kapitelpost");
+  assert.equal(sheet?.getCell("C6").value, "3325 Utstyr");
+  assert.equal(sheet?.getCell("I6").value, "AHL-1001");
+  assert.equal(sheet?.getCell("K6").value, 12);
+  assert.equal(sheet?.getCell("K7").value, 24);
   assert.equal(sheet?.getCell("B8").value, "33.335.2");
   assert.equal(sheet?.getCell("B9").value, "33.335.3");
-  assert.equal(sheet?.getCell("C9").value, "Demontering");
+  assert.equal(sheet?.getCell("D9").value, "Demontering");
 });
 
 test("does not export a suggested product before user approval", () => {
