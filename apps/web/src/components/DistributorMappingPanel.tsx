@@ -10,7 +10,7 @@ import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignme
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
-import { splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
+import { classifyAhlsellCatalogCandidates, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 
 type Row = Record<string, unknown> & { id: string };
@@ -69,16 +69,14 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
         nextIndex += 1;
         if (!requirementId) return;
         try {
-          const response = await fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates`, {
+          const response = await fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates?classification=1`, {
             signal: controller.signal,
             headers: { Accept: "application/json" }
           });
           if (!response.ok) continue;
           const payload = await response.json().catch(() => null) as AhlsellCatalogResult | null;
           if (!payload || !Array.isArray(payload.candidates)) continue;
-          const status: AhlsellCatalogMatchStatus = payload.candidates.some((candidate) => candidate.recommendation === "recommended")
-            ? "safe"
-            : payload.candidates.length > 0 ? "found" : "none";
+          const status = classifyAhlsellCatalogCandidates(payload.candidates);
           setCatalogStatuses((current) => ({ ...current, [requirementId]: status }));
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") return;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { splitAhlsellMatchGroups } from "./ahlsell-match-groups";
+import { classifyAhlsellCatalogCandidates, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
 
 test("separates Ahlsell matches from rows requiring manual work", () => {
   const result = splitAhlsellMatchGroups([
@@ -68,4 +68,10 @@ test("keeps unchecked catalog rows yellow until Ahlsell has answered", () => {
 
   assert.deepEqual(result.yellowRequirements.map((item) => item.id), ["checking"]);
   assert.equal(result.redRequirements.length, 0);
+});
+
+test("classifies safe, uncertain and empty Ahlsell responses", () => {
+  assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "recommended" }]), "safe");
+  assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible" }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([]), "none");
 });

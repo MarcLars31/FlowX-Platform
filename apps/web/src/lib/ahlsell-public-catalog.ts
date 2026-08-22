@@ -106,12 +106,14 @@ export async function searchAhlsellPublicCatalogQueries({
   market,
   queries,
   fetchImpl = fetch,
-  maxCandidates = 80
+  maxCandidates = 80,
+  maxVariantFamilies = MAX_VARIANT_FAMILIES
 }: {
   market: AhlsellMarket;
   queries: string[];
   fetchImpl?: typeof fetch;
   maxCandidates?: number;
+  maxVariantFamilies?: number;
 }): Promise<AhlsellCatalogResult> {
   const cleanQueries = [...new Set(
     queries
@@ -134,7 +136,8 @@ export async function searchAhlsellPublicCatalogQueries({
     [...byArticleNumber.values()],
     cleanQueries.join(" "),
     market,
-    fetchImpl
+    fetchImpl,
+    maxVariantFamilies
   );
   const searchUrls = results.map((result) => result.searchUrl);
   return {
@@ -234,12 +237,13 @@ async function enrichAhlsellVariants(
   candidates: AhlsellPublicCandidate[],
   query: string,
   market: AhlsellMarket,
-  fetchImpl: typeof fetch
+  fetchImpl: typeof fetch,
+  maxVariantFamilies: number
 ) {
   const origin = MARKET_ORIGINS[market];
   const enrichable = candidates
     .filter((candidate) => candidate.familyCode && (candidate.variantCount ?? 0) > 1)
-    .slice(0, MAX_VARIANT_FAMILIES);
+    .slice(0, Math.min(Math.max(Math.floor(maxVariantFamilies), 0), MAX_VARIANT_FAMILIES));
   if (enrichable.length === 0) return candidates;
 
   const replacements = new Map<string, AhlsellPublicCandidate>();

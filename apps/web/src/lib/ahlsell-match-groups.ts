@@ -3,6 +3,13 @@ import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 export type AhlsellMatchGroup = "green" | "yellow" | "red";
 export type AhlsellCatalogMatchStatus = "safe" | "found" | "none";
 
+export function classifyAhlsellCatalogCandidates(
+  candidates: ReadonlyArray<{ recommendation?: "recommended" | "possible" | "unlikely" }>
+): AhlsellCatalogMatchStatus {
+  if (candidates.some((candidate) => candidate.recommendation === "recommended")) return "safe";
+  return candidates.length > 0 ? "found" : "none";
+}
+
 type RequirementRow = Record<string, unknown> & { id: string };
 
 export function splitAhlsellMatchGroups<Row extends RequirementRow>(

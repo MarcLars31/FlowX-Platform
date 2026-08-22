@@ -27,9 +27,10 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Ogiltigt projekt- eller krav-id." }, { status: 400 });
     }
 
+    const classificationMode = new URL(request.url).searchParams.get("classification") === "1";
     const rateLimit = consumeRateLimit(
-      requestRateLimitKey(request, "ahlsell-catalog", authorization.user.id),
-      30,
+      requestRateLimitKey(request, classificationMode ? "ahlsell-classification" : "ahlsell-catalog", authorization.user.id),
+      classificationMode ? 120 : 30,
       60_000
     );
     if (!rateLimit.allowed) {
@@ -56,7 +57,9 @@ export async function GET(request: Request, context: RouteContext) {
     const guide = buildAhlsellRequirementGuide(requirement);
     const result = await searchAhlsellPublicCatalogQueries({
       market: ahlsellMarketFromSearchUrl(guide.searchUrl),
-      queries: guide.searchQueries
+      queries: classificationMode ? guide.searchQueries.slice(0, 1) : guide.searchQueries,
+      maxCandidates: classificationMode ? 30 : 80,
+      maxVariantFamilies: classificationMode ? 2 : 8
     });
     const rankedResult = {
       ...result,
