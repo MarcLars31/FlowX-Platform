@@ -9,6 +9,7 @@ import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignme
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
+import { splitAhlsellMatchGroups, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = { name: string; productNumber: string; quantity: number; unit: string; notes: string };
@@ -37,20 +38,67 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const approvedAssignments = assignments.filter(isUserApprovedProductAssignment);
   const approvedRequirementIds = new Set(approvedAssignments.map((assignment) => String(assignment.requirement_id)));
   const remainingRequirements = productRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id));
+  const memoryFingerprints = new Set(
+    memories.flatMap((memory) => typeof memory.requirement_fingerprint === "string"
+      ? [memory.requirement_fingerprint]
+      : [])
+  );
+  const { greenRequirements, yellowRequirements } = splitAhlsellMatchGroups(
+    productRequirements,
+    { approvedRequirementIds, memoryFingerprints }
+  );
+  const initialGroup: AhlsellMatchGroup = greenRequirements.some(
+    (requirement) => !approvedRequirementIds.has(requirement.id)
+  ) || yellowRequirements.length === 0
+    ? "green"
+    : "yellow";
+  const initialQueue = initialGroup === "green" ? greenRequirements : yellowRequirements;
+  const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup>(initialGroup);
   const totalPosts = productRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(
-    () => productRequirements.find((requirement) => !approvedRequirementIds.has(requirement.id))?.id ?? productRequirements[0]?.id ?? null
+    () => initialQueue.find((requirement) => !approvedRequirementIds.has(requirement.id))?.id ?? initialQueue[0]?.id ?? null
   );
-  const requestedActiveIndex = productRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
+  const effectiveQueueGroup: AhlsellMatchGroup = queueGroup === "green"
+    && greenRequirements.length === 0
+    && yellowRequirements.length > 0
+      ? "yellow"
+      : queueGroup === "yellow"
+        && yellowRequirements.length === 0
+        && greenRequirements.length > 0
+          ? "green"
+          : queueGroup;
+  const queueRequirements = effectiveQueueGroup === "green"
+    ? greenRequirements
+    : yellowRequirements;
+  const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex >= 0 ? requestedActiveIndex : 0;
-  const activeRequirement = productRequirements[activeIndex];
+  const activeRequirement = queueRequirements[activeIndex];
   const approvedCount = productRequirements.length - remainingRequirements.length;
-  const progressPercent = productRequirements.length > 0
-    ? Math.round((approvedCount / productRequirements.length) * 100)
+  const greenRemainingCount = greenRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
+  const yellowRemainingCount = yellowRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
+  const activeGroupRemainingCount = effectiveQueueGroup === "green"
+    ? greenRemainingCount
+    : yellowRemainingCount;
+  const activeGroupApprovedCount = queueRequirements.length - activeGroupRemainingCount;
+  const progressPercent = queueRequirements.length > 0
+    ? Math.round((activeGroupApprovedCount / queueRequirements.length) * 100)
     : 100;
 
   function showRequirement(requirementId: string) {
     setActiveRequirementId(requirementId);
+    setMessage(null);
+    setError(null);
+  }
+
+  function showQueue(group: AhlsellMatchGroup) {
+    const nextQueue = group === "green" ? greenRequirements : yellowRequirements;
+    if (nextQueue.length === 0) return;
+    setQueueGroup(group);
+    setActiveRequirementId(
+      nextQueue.find((requirement) => !approvedRequirementIds.has(requirement.id))?.id
+        ?? nextQueue[0]?.id
+        ?? null
+    );
     setMessage(null);
     setError(null);
   }
@@ -78,12 +126,41 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
           <p>Du bestämmer alltid själv. Tidigare produktval fyller bara i ett utkast. Produkten blir godkänd först när du trycker på ”Godkänn produkt”.</p>
         </div>
-        {remainingRequirements[0] && (
-          <button type="button" onClick={() => showRequirement(remainingRequirements[0].id)} className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-cyan-400 px-5 py-3 text-base font-black text-[#03162d] shadow-sm transition hover:bg-cyan-300 sm:w-auto">
-            Gå till första posten som återstår
-          </button>
-        )}
       </div>
+
+      {productRequirements.length > 0 && (
+        <section aria-labelledby="match-queues-heading" className="rounded-2xl border-2 border-ink-200 bg-white p-4 shadow-sm sm:p-5">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">Välj arbetskö</p>
+            <h3 id="match-queues-heading" className="mt-1 text-2xl font-bold text-ink-950">Arbeta med gröna och gula produkter var för sig</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Grön betyder att Scipx redan har en Ahlsellträff. Gul betyder att produkten behöver sökas och väljas manuellt.</p>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <QueueButton
+              group="green"
+              active={effectiveQueueGroup === "green"}
+              count={greenRequirements.length}
+              remaining={greenRemainingCount}
+              onClick={() => showQueue("green")}
+            />
+            <QueueButton
+              group="yellow"
+              active={effectiveQueueGroup === "yellow"}
+              count={yellowRequirements.length}
+              remaining={yellowRemainingCount}
+              onClick={() => showQueue("yellow")}
+            />
+          </div>
+          <div className={effectiveQueueGroup === "green"
+            ? "mt-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-950"
+            : "mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950"}
+          >
+            {effectiveQueueGroup === "green"
+              ? "Du arbetar nu med gröna produkter. Kontrollera träffen och godkänn varje produkt själv."
+              : "Du arbetar nu med gula produkter. Sök hos Ahlsell eller fyll i rätt artikel manuellt."}
+          </div>
+        </section>
+      )}
 
       {(message || error) && (
         <div role="status" aria-live="polite" className={error ? "rounded-xl border-2 border-rose-300 bg-rose-50 p-5 text-base font-semibold text-rose-900" : "rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 text-base font-semibold text-emerald-900"}>
@@ -104,20 +181,20 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             const assignment = approvedAssignments.find((item) => item.requirement_id === requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
             return <div id="product-work-queue" className="space-y-4 scroll-mt-5">
-              <nav aria-label="Navigera mellan produktposter" className="rounded-2xl border-2 border-flow-300 bg-white p-4 shadow-sm sm:p-5">
+              <nav aria-label="Navigera mellan produktposter" className={effectiveQueueGroup === "green" ? "rounded-2xl border-2 border-emerald-300 bg-white p-4 shadow-sm sm:p-5" : "rounded-2xl border-2 border-amber-300 bg-white p-4 shadow-sm sm:p-5"}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#06213d] text-white"><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
+                    <span className={effectiveQueueGroup === "green" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white" : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-amber-950"}><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
                     <div>
-                      <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">Produkt {activeIndex + 1} av {productRequirements.length}</p>
-                      <p className="mt-0.5 text-base font-bold text-ink-950">{approvedCount} godkända · {remainingRequirements.length} återstår</p>
+                      <p className={effectiveQueueGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : "text-sm font-bold uppercase tracking-[0.08em] text-amber-800"}>{effectiveQueueGroup === "green" ? "Grön kö · Ahlsellträff" : "Gul kö · Manuell matchning"}</p>
+                      <p className="mt-0.5 text-base font-bold text-ink-950">Produkt {activeIndex + 1} av {queueRequirements.length} · {activeGroupRemainingCount} kvar i denna kö</p>
                     </div>
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <label className="block min-w-64"><span className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-600">Hoppa till PDF-post</span><select value={requirement.id} onChange={(event) => showRequirement(event.target.value)} className="block h-12 w-full rounded-xl border-2 border-ink-200 bg-white px-3 text-base font-bold text-ink-900 focus:border-flow-500 focus:ring-flow-500">{productRequirements.map((item, index) => { const details = projectRequirementDetails(item); return <option key={item.id} value={item.id}>{approvedRequirementIds.has(item.id) ? "✓" : "○"} {details.postNumber ? `PDF-post ${details.postNumber}` : `Produkt ${index + 1}`}</option>; })}</select></label>
+                    <label className="block min-w-64"><span className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-600">Hoppa till PDF-post i denna kö</span><select value={requirement.id} onChange={(event) => showRequirement(event.target.value)} className="block h-12 w-full rounded-xl border-2 border-ink-200 bg-white px-3 text-base font-bold text-ink-900 focus:border-flow-500 focus:ring-flow-500">{queueRequirements.map((item, index) => { const details = projectRequirementDetails(item); return <option key={item.id} value={item.id}>{approvedRequirementIds.has(item.id) ? "✓" : "○"} {details.postNumber ? `PDF-post ${details.postNumber}` : `Produkt ${index + 1}`}</option>; })}</select></label>
                     <div className="grid grid-cols-2 gap-2">
-                      <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === 0} onClick={() => showRequirement(productRequirements[activeIndex - 1].id)}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Föregående</Button>
-                      <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === productRequirements.length - 1} onClick={() => showRequirement(productRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
+                      <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Föregående</Button>
+                      <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
                     </div>
                   </div>
                 </div>
@@ -129,19 +206,32 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 requirement={requirement}
                 assignment={assignment}
                 position={activeIndex + 1}
-                totalPosts={productRequirements.length}
+                totalPosts={queueRequirements.length}
                 memories={matchingMemories}
                 memoryAccessories={memoryAccessories}
                 onSaved={async (successMessage) => {
                   setError(null);
                   setMessage(successMessage);
-                  const remainingAfterApproval = productRequirements.filter(
+                  const remainingAfterApproval = queueRequirements.filter(
                     (item) => item.id !== requirement.id && !approvedRequirementIds.has(item.id)
                   );
                   const nextRequirement = remainingAfterApproval.find(
-                    (item) => productRequirements.findIndex((candidate) => candidate.id === item.id) > activeIndex
+                    (item) => queueRequirements.findIndex((candidate) => candidate.id === item.id) > activeIndex
                   ) ?? remainingAfterApproval[0];
-                  if (nextRequirement) setActiveRequirementId(nextRequirement.id);
+                  if (nextRequirement) {
+                    setActiveRequirementId(nextRequirement.id);
+                  } else {
+                    const otherQueue = effectiveQueueGroup === "green"
+                      ? yellowRequirements
+                      : greenRequirements;
+                    const nextInOtherQueue = otherQueue.find(
+                      (item) => !approvedRequirementIds.has(item.id)
+                    );
+                    if (nextInOtherQueue) {
+                      setQueueGroup(effectiveQueueGroup === "green" ? "yellow" : "green");
+                      setActiveRequirementId(nextInOtherQueue.id);
+                    }
+                  }
                   await onReload();
                   window.requestAnimationFrame(() => document.getElementById("product-work-queue")?.scrollIntoView({ behavior: "smooth", block: "start" }));
                 }}
@@ -186,7 +276,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           ) : (
             <div className="rounded-xl border-2 border-flow-300 bg-flow-50 p-4 text-center">
               <p className="text-lg font-bold text-flow-950">{remainingRequirements.length} produktval återstår</p>
-              <p className="mt-1 text-base text-flow-800">Godkänn produkten ovan. Därefter visas nästa produkt som inte är godkänd automatiskt.</p>
+              <p className="mt-1 text-base text-flow-800">Gröna kvar: {greenRemainingCount} · Gula kvar: {yellowRemainingCount}. Godkänn produkten ovan eller byt arbetskö.</p>
             </div>
           )}
         </div>
@@ -500,6 +590,40 @@ function RemovalRequirementCard({ requirement, position, totalPosts }: { require
         </details>
       </div>
     </article>
+  );
+}
+
+function QueueButton({ group, active, count, remaining, onClick }: {
+  group: AhlsellMatchGroup;
+  active: boolean;
+  count: number;
+  remaining: number;
+  onClick: () => void;
+}) {
+  const green = group === "green";
+  const title = green ? "Gröna · Ahlsellträff finns" : "Gula · manuell matchning";
+  const description = green
+    ? "Artikelnummer, tidigare produktval eller säker katalogträff finns."
+    : "Ingen säker artikelträff finns ännu. Sök eller fyll i produkten manuellt.";
+  const className = green
+    ? active
+      ? "min-h-36 rounded-2xl border-4 border-emerald-600 bg-emerald-50 p-5 text-left shadow-sm"
+      : "min-h-36 rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-5 text-left transition hover:border-emerald-500"
+    : active
+      ? "min-h-36 rounded-2xl border-4 border-amber-500 bg-amber-50 p-5 text-left shadow-sm"
+      : "min-h-36 rounded-2xl border-2 border-amber-300 bg-amber-50/60 p-5 text-left transition hover:border-amber-500";
+
+  return (
+    <button type="button" aria-pressed={active} disabled={count === 0} onClick={onClick} className={`${className} disabled:cursor-not-allowed disabled:opacity-45`}>
+      <span className="flex items-start justify-between gap-4">
+        <span>
+          <span className={green ? "block text-lg font-black text-emerald-950" : "block text-lg font-black text-amber-950"}>{title}</span>
+          <span className="mt-1 block text-sm leading-6 text-ink-700">{description}</span>
+        </span>
+        <span className={green ? "flex h-12 min-w-12 items-center justify-center rounded-full bg-emerald-600 px-3 text-xl font-black text-white" : "flex h-12 min-w-12 items-center justify-center rounded-full bg-amber-400 px-3 text-xl font-black text-amber-950"}>{count}</span>
+      </span>
+      <span className={green ? "mt-3 block text-sm font-bold text-emerald-800" : "mt-3 block text-sm font-bold text-amber-800"}>{remaining === 0 ? "Klar" : `${remaining} kvar att godkänna`}{active ? " · Öppen nu" : ""}</span>
+    </button>
   );
 }
 
