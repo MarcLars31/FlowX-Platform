@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { CheckCircle2, ChevronDown, History, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, History, ListChecks, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
@@ -39,6 +39,22 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const mappedRequirementIds = new Set(manualAssignments.map((assignment) => String(assignment.requirement_id)));
   const remainingRequirements = productRequirements.filter((requirement) => !mappedRequirementIds.has(requirement.id));
   const totalPosts = productRequirements.length + removalRequirements.length;
+  const [activeRequirementId, setActiveRequirementId] = useState<string | null>(
+    () => productRequirements.find((requirement) => !mappedRequirementIds.has(requirement.id))?.id ?? productRequirements[0]?.id ?? null
+  );
+  const requestedActiveIndex = productRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
+  const activeIndex = requestedActiveIndex >= 0 ? requestedActiveIndex : 0;
+  const activeRequirement = productRequirements[activeIndex];
+  const confirmedCount = productRequirements.length - remainingRequirements.length;
+  const progressPercent = productRequirements.length > 0
+    ? Math.round((confirmedCount / productRequirements.length) * 100)
+    : 100;
+
+  function showRequirement(requirementId: string) {
+    setActiveRequirementId(requirementId);
+    setMessage(null);
+    setError(null);
+  }
 
   return (
     <section className="space-y-6">
@@ -54,8 +70,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             </p>
           </div>
           <div className="grid min-w-[250px] grid-cols-3 overflow-hidden rounded-xl border border-flow-200 bg-white text-center shadow-sm">
-            <StatusNumber value={totalPosts} label="Poster" />
-            <StatusNumber value={mappedRequirementIds.size} label="Bekräftade" tone="success" />
+            <StatusNumber value={productRequirements.length} label="Produktval" />
+            <StatusNumber value={confirmedCount} label="Bekräftade" tone="success" />
             <StatusNumber value={remainingRequirements.length} label="Att bekräfta" tone="warning" />
           </div>
         </div>
@@ -64,9 +80,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           <p>Du bestämmer alltid själv. Tidigare produktval kan fylla i fälten som ett utkast, men varje rad måste bekräftas av dig.</p>
         </div>
         {remainingRequirements[0] && (
-          <a href={`#post-${remainingRequirements[0].id}`} className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-cyan-400 px-5 py-3 text-base font-black text-[#03162d] shadow-sm transition hover:bg-cyan-300 sm:w-auto">
+          <button type="button" onClick={() => showRequirement(remainingRequirements[0].id)} className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-cyan-400 px-5 py-3 text-base font-black text-[#03162d] shadow-sm transition hover:bg-cyan-300 sm:w-auto">
             Gå till första posten som återstår
-          </a>
+          </button>
         )}
       </div>
 
@@ -84,40 +100,73 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
         </div>
       ) : (
         <div className="space-y-6">
-          {productRequirements.map((requirement, index) => {
+          {activeRequirement && (() => {
+            const requirement = activeRequirement;
             const assignment = manualAssignments.find((item) => item.requirement_id === requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
-            return (
+            return <div id="product-work-queue" className="space-y-4 scroll-mt-5">
+              <nav aria-label="Navigera mellan produktposter" className="rounded-2xl border-2 border-flow-300 bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#06213d] text-white"><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
+                    <div>
+                      <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">Produkt {activeIndex + 1} av {productRequirements.length}</p>
+                      <p className="mt-0.5 text-base font-bold text-ink-950">{confirmedCount} bekräftade · {remainingRequirements.length} återstår</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    <label className="block min-w-64"><span className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-600">Hoppa till post</span><select value={requirement.id} onChange={(event) => showRequirement(event.target.value)} className="block h-12 w-full rounded-xl border-2 border-ink-200 bg-white px-3 text-base font-bold text-ink-900 focus:border-flow-500 focus:ring-flow-500">{productRequirements.map((item, index) => { const details = projectRequirementDetails(item); return <option key={item.id} value={item.id}>{mappedRequirementIds.has(item.id) ? "✓" : "○"} {details.postNumber ? `Post ${details.postNumber}` : `Produkt ${index + 1}`}</option>; })}</select></label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === 0} onClick={() => showRequirement(productRequirements[activeIndex - 1].id)}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Föregående</Button>
+                      <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === productRequirements.length - 1} onClick={() => showRequirement(productRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink-100" aria-label={`${progressPercent} procent av produktvalen bekräftade`}><div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} /></div>
+              </nav>
               <RequirementProductMappingCard
                 key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
                 projectId={projectId}
                 requirement={requirement}
                 assignment={assignment}
-                position={index + 1}
-                totalPosts={totalPosts}
+                position={activeIndex + 1}
+                totalPosts={productRequirements.length}
                 memories={matchingMemories}
                 memoryAccessories={memoryAccessories}
                 onSaved={async (successMessage) => {
                   setError(null);
                   setMessage(successMessage);
+                  const remainingAfterConfirmation = productRequirements.filter(
+                    (item) => item.id !== requirement.id && !mappedRequirementIds.has(item.id)
+                  );
+                  const nextRequirement = remainingAfterConfirmation.find(
+                    (item) => productRequirements.findIndex((candidate) => candidate.id === item.id) > activeIndex
+                  ) ?? remainingAfterConfirmation[0];
+                  if (nextRequirement) setActiveRequirementId(nextRequirement.id);
                   await onReload();
+                  window.requestAnimationFrame(() => document.getElementById("product-work-queue")?.scrollIntoView({ behavior: "smooth", block: "start" }));
                 }}
                 onError={(errorMessage) => { setMessage(null); setError(errorMessage || null); }}
               />
-            );
-          })}
+            </div>;
+          })()}
 
           {removalRequirements.length > 0 && (
-            <section className="space-y-4 rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 sm:p-6">
-              <div>
+            <details className="group rounded-2xl border-2 border-amber-300 bg-amber-50">
+              <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 p-5 sm:p-6">
+                <div>
                 <p className="text-sm font-bold uppercase tracking-[0.08em] text-amber-800">Demontering</p>
                 <h3 className="mt-1 text-xl font-bold text-amber-950">{removalRequirements.length} {removalRequirements.length === 1 ? "post" : "poster"} utan nytt produktval</h3>
-                <p className="mt-2 text-base leading-7 text-amber-900">Dessa poster följer med på sidan och i Excel. De behöver inget Ahlsell-artikelnummer.</p>
+                <p className="mt-1 text-sm text-amber-900">De följer med i Excel men behöver inget produktval.</p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold text-amber-900">Visa poster<ChevronDown className="h-5 w-5 transition group-open:rotate-180" aria-hidden="true" /></span>
+              </summary>
+              <div className="space-y-4 border-t border-amber-300 p-5 sm:p-6">
+                {removalRequirements.map((requirement, index) => (
+                  <RemovalRequirementCard key={requirement.id} requirement={requirement} position={productRequirements.length + index + 1} totalPosts={totalPosts} />
+                ))}
               </div>
-              {removalRequirements.map((requirement, index) => (
-                <RemovalRequirementCard key={requirement.id} requirement={requirement} position={productRequirements.length + index + 1} totalPosts={totalPosts} />
-              ))}
-            </section>
+            </details>
           )}
 
           {remainingRequirements.length === 0 ? (
@@ -136,9 +185,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border-2 border-flow-300 bg-flow-50 p-5 text-center">
+            <div className="rounded-xl border-2 border-flow-300 bg-flow-50 p-4 text-center">
               <p className="text-lg font-bold text-flow-950">{remainingRequirements.length} produktval återstår</p>
-              <p className="mt-1 text-base text-flow-800">Fortsätt med nästa post ovan.</p>
+              <p className="mt-1 text-base text-flow-800">Bekräfta posten ovan. Därefter visas nästa obekräftade produkt automatiskt.</p>
             </div>
           )}
         </div>
