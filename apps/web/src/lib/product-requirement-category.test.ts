@@ -48,3 +48,10 @@ test("recognizes product groups when an older row has category unknown", () => {
     value_text: "Kupling rillet"
   }), "fitting");
 });
+
+test("keeps explicitly extracted miscellaneous fire-protection products separate", () => {
+  assert.equal(productRequirementCategory({
+    category: "other",
+    value_text: "Håndslokker med skum"
+  }), "other");
+});

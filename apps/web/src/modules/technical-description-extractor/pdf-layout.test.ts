@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { layoutTextFromPdfItems, shouldPreferPdfLayoutText } from "./pdf-layout";
+import {
+  layoutTextFromOcrBlocks,
+  layoutTextFromPdfItems,
+  shouldPreferOcrLayoutText,
+  shouldPreferPdfLayoutText
+} from "./pdf-layout";
 
 test("rebuilds PDF table rows by visual coordinates", () => {
   const items = [
@@ -30,6 +35,36 @@ test("only prefers coordinate layout for recognizable technical tables", () => {
   assert.equal(shouldPreferPdfLayoutText("Vanlig brødtext", "En vanlig tekst utan tabell"), false);
 });
 
+test("joins OCR words from separate table columns into one material row", () => {
+  const blocks = [
+    ocrBlock([
+      ocrWord("33.332.11", 70, 700, 145, 720),
+      ocrWord("UC1.5119918A", 180, 700, 290, 720)
+    ]),
+    ocrBlock([
+      ocrWord("Antall", 180, 760, 235, 780),
+      ocrWord("stk", 630, 762, 655, 782),
+      ocrWord("1", 730, 762, 740, 782)
+    ])
+  ];
+
+  const result = layoutTextFromOcrBlocks(blocks);
+  assert.match(result, /^33\.332\.11\s+UC1\.5119918A/m);
+  assert.match(result, /^Antall\s+stk\s+1$/m);
+  assert.equal(
+    shouldPreferOcrLayoutText("UC1.5119918A\nAntall stk", result),
+    true
+  );
+});
+
 function item(str: string, x: number, y: number, width: number) {
   return { str, transform: [1, 0, 0, 1, x, y], width };
+}
+
+function ocrBlock(words: ReturnType<typeof ocrWord>[]) {
+  return { paragraphs: [{ lines: [{ words }] }] };
+}
+
+function ocrWord(text: string, x0: number, y0: number, x1: number, y1: number) {
+  return { text, bbox: { x0, y0, x1, y1 } };
 }

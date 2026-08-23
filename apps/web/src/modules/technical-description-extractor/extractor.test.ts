@@ -388,3 +388,180 @@ test("joins project-prefixed post numbers split across lines", () => {
   assert.equal(result.materialLines[0].unit, "m");
   assert.equal(result.warnings.length, 0);
 });
+
+test("reads project identity from an Ahlsell request cover sheet", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt prisforespørsel leverandører - Ahlsell Vest.",
+      "Anlegg : A113849 26052 Askøy kommune - ombygging omsorgsplasser",
+      "Anleggsadresse/sted: Kleppestø"
+    ].join("\n")
+  }]);
+
+  assert.equal(
+    result.project.name,
+    "A113849 26052 Askøy kommune - ombygging omsorgsplasser"
+  );
+  assert.equal(result.project.projectNumber, "A113849");
+  assert.equal(result.materialLines.length, 0);
+});
+
+test("extracts scanned NS 3420 pipe rows with delimiters and OCR lm units", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 2,
+    method: "ocr",
+    confidence: 0.93,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "33.332.2 | UB1.31114499934A",
+      "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+      "Materiale: Stål – varmforsinket",
+      "Trykk: PN16",
+      "33.332.2.1| Dimensjon: DN100",
+      "Lengde Im 45,00",
+      "33.332.2.2| Dimensjon: DN80",
+      "Lengde Im 35,00",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    description: line.description,
+    quantity: line.quantity,
+    unit: line.unit,
+    category: line.category,
+    dimension: line.attributes.dimensjon
+  })), [
+    {
+      postNumber: "33.332.2.1",
+      description: "Dimensjon: DN100",
+      quantity: 45,
+      unit: "m",
+      category: "pipe",
+      dimension: "DN100"
+    },
+    {
+      postNumber: "33.332.2.2",
+      description: "Dimensjon: DN80",
+      quantity: 35,
+      unit: "m",
+      category: "pipe",
+      dimension: "DN80"
+    }
+  ]);
+});
+
+test("recovers missing OCR post numbers from the next numbered row", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 4,
+      method: "ocr",
+      confidence: 0.9,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "UE2.11111312",
+        "SPRINKLER",
+        "Antall stk 5",
+        "K-faktor: 160",
+        "UE2.11111112",
+        "SPRINKLER",
+        "Antall stk 95",
+        "K-faktor: 80"
+      ].join("\n")
+    },
+    {
+      pageNumber: 5,
+      method: "ocr",
+      confidence: 0.9,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.332.4.3| UE2.11111512",
+        "SPRINKLER",
+        "Antall stk 3"
+      ].join("\n")
+    }
+  ]);
+
+  assert.deepEqual(
+    result.materialLines.map((line) => line.postNumber),
+    ["33.332.4.1", "33.332.4.2", "33.332.4.3"]
+  );
+  assert.equal(
+    result.materialLines.slice(0, 2).every((line) =>
+      line.reviewFlags.includes("inferred-post-number")
+    ),
+    true
+  );
+});
+
+test("joins specifications that continue on the immediately following page", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 10,
+      method: "ocr",
+      confidence: 0.92,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.332.11 | UC1.5119918A",
+        "INNENDØRS STENGEVENTIL",
+        "Antall stk 1",
+        "Ventiltype: Dreiespjeldventil"
+      ].join("\n")
+    },
+    {
+      pageNumber: 11,
+      method: "ocr",
+      confidence: 0.92,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "Trykk: PN16",
+        "Dimensjon, tilkoblinger: DN100",
+        "33.332.12 | UC4.77999951",
+        "INNENDØRS SPESIALVENTIL",
+        "Antall stk 5"
+      ].join("\n")
+    }
+  ]);
+
+  assert.equal(result.materialLines[0].attributes.trykk, "PN16");
+  assert.equal(result.materialLines[0].attributes["dimensjon, tilkoblinger"], "DN100");
+  assert.match(result.materialLines[0].technicalSpecification ?? "", /FORTSETTELSE SIDE 11/);
+});
+
+test("keeps embedded bend angles out of the quantity field", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 11,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "33.332.13 | UB1.31114423932A",
+      "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+      "RS",
+      "Sprinklerrør legges om med 4 stk 90 gr. bend og inntil 2 m rør."
+    ].join("\n")
+  }]);
+
+  assert.notEqual(result.materialLines[0]?.quantity, 90);
+});
+
+test("classifies a hand extinguisher separately from sprinkler heads", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 3,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "33.500.6 | UE6.1913",
+      "HANDSLOKKER",
+      "Antall stk 2",
+      "Slokkemiddel: Skum"
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines[0].category, "other");
+});

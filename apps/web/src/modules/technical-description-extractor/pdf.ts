@@ -1,9 +1,16 @@
 import { createWorker } from "tesseract.js";
 import { ensurePdfCanvasRuntime } from "@/lib/pdf-runtime";
 import type { TechnicalDescriptionPage } from "./types";
-import { layoutTextFromPdfItems, shouldPreferPdfLayoutText } from "./pdf-layout";
+import {
+  isBetterOcrText,
+  layoutTextFromOcrBlocks,
+  layoutTextFromPdfItems,
+  shouldPreferOcrLayoutText,
+  shouldPreferPdfLayoutText
+} from "./pdf-layout";
 
 const OCR_SCALE = 2;
+const OCR_RETRY_SCALE = 2.5;
 const MIN_TEXT_PAGE_LENGTH = 80;
 
 export async function extractTechnicalDescriptionPages(
@@ -90,6 +97,7 @@ export async function extractTechnicalDescriptionPages(
     let worker: Awaited<ReturnType<typeof createWorker>>;
     try {
       worker = await createWorker("nor+eng", 1);
+      await worker.setParameters({ preserve_interword_spaces: "1" });
     } catch (error) {
       return pageNumbers.map((pageNumber) => {
         const textPage = textByPage.get(pageNumber) ?? emptyTextPage(pageNumber);
@@ -117,8 +125,47 @@ export async function extractTechnicalDescriptionPages(
         }
 
         try {
-          const result = await worker.recognize(Buffer.from(screenshot.data));
-          const text = result.data.text.trim();
+          if (extractedPages.length > 0) {
+            // Reset Tesseract's adaptive classifier between unrelated pages.
+            // Dense table pages otherwise influence later pages and can make
+            // post numbers or isolated quantity cells disappear.
+            await worker.reinitialize("nor+eng", 1);
+            await worker.setParameters({ preserve_interword_spaces: "1" });
+          }
+          let result = await worker.recognize(
+            Buffer.from(screenshot.data),
+            {},
+            { text: true, blocks: true }
+          );
+          let text = preferredOcrText(result.data.text, result.data.blocks);
+          if (needsHigherResolutionOcr(text)) {
+            const retryScreenshots = await parser.getScreenshot({
+              scale: OCR_RETRY_SCALE,
+              imageBuffer: true,
+              imageDataUrl: false,
+              partial: [pageNumber]
+            });
+            const retryScreenshot = retryScreenshots.pages.find(
+              (candidate) => candidate.pageNumber === pageNumber
+            );
+            if (retryScreenshot) {
+              await worker.reinitialize("nor+eng", 1);
+              await worker.setParameters({ preserve_interword_spaces: "1" });
+              const retryResult = await worker.recognize(
+                Buffer.from(retryScreenshot.data),
+                {},
+                { text: true, blocks: true }
+              );
+              const retryText = preferredOcrText(
+                retryResult.data.text,
+                retryResult.data.blocks
+              );
+              if (isBetterOcrText(retryText, text)) {
+                result = retryResult;
+                text = retryText;
+              }
+            }
+          }
           extractedPages.push({
             pageNumber,
             text: text || textPage.text,
@@ -182,4 +229,20 @@ function safeErrorMessage(error: unknown) {
 function normalizeOcrConfidence(confidence: number | undefined) {
   const safeConfidence = typeof confidence === "number" ? confidence : 72;
   return Math.min(Math.max(safeConfidence / 100, 0.45), 0.96);
+}
+
+function preferredOcrText(plainValue: string, blocks: readonly unknown[] | null) {
+  const plainText = plainValue.trim();
+  const layoutText = layoutTextFromOcrBlocks(blocks).trim();
+  return shouldPreferOcrLayoutText(plainText, layoutText)
+    ? layoutText
+    : plainText;
+}
+
+function needsHigherResolutionOcr(text: string) {
+  const unit = String.raw`(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|l)`;
+  return new RegExp(
+    String.raw`^(?:Antall|Lengde)(?:\s+${unit}\.?)?\s*$`,
+    "im"
+  ).test(text);
 }

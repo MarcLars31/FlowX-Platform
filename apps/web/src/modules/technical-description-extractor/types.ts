@@ -15,6 +15,7 @@ export type TechnicalDescriptionCategory =
   | "valve"
   | "support"
   | "control"
+  | "other"
   | "unknown";
 
 export type TechnicalDescriptionMaterialLine = {

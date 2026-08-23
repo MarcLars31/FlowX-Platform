@@ -88,7 +88,8 @@ function isProductRequirementCategory(value: string): value is ProductRequiremen
     || value === "fitting"
     || value === "valve"
     || value === "control"
-    || value === "support";
+    || value === "support"
+    || value === "other";
 }
 
 function flattenText(value: unknown): string {
