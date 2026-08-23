@@ -146,7 +146,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     red: redRequirements
   }), [greenRequirements, redRequirements, yellowRequirements]);
   const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup | null>(null);
-  const [productCategoryFilter, setProductCategoryFilter] = useState<ProductRequirementCategory | "all">("all");
+  const [selectedProductCategories, setSelectedProductCategories] = useState<ProductRequirementCategory[] | null>(null);
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const allQueueRequirements = useMemo(
@@ -168,22 +168,22 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     [productCategoryCounts]
   );
   const queueRequirements = useMemo(
-    () => productCategoryFilter === "all"
+    () => selectedProductCategories === null
       ? allQueueRequirements
-      : allQueueRequirements.filter((requirement) => productRequirementCategory(requirement) === productCategoryFilter),
-    [allQueueRequirements, productCategoryFilter]
+      : allQueueRequirements.filter((requirement) => selectedProductCategories.includes(productRequirementCategory(requirement))),
+    [allQueueRequirements, selectedProductCategories]
   );
   const queueSections = useMemo(() => {
-    const categories = productCategoryFilter === "all"
+    const categories = selectedProductCategories === null
       ? availableProductCategories
-      : availableProductCategories.filter((category) => category.id === productCategoryFilter);
+      : availableProductCategories.filter((category) => selectedProductCategories.includes(category.id));
     return categories.map((category) => ({
       ...category,
       requirements: queueRequirements.filter(
         (requirement) => productRequirementCategory(requirement) === category.id
       )
     }));
-  }, [availableProductCategories, productCategoryFilter, queueRequirements]);
+  }, [availableProductCategories, queueRequirements, selectedProductCategories]);
   const queuePositionById = useMemo(
     () => new Map(queueRequirements.map((requirement, index) => [requirement.id, index + 1])),
     [queueRequirements]
@@ -220,15 +220,27 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     const nextQueue = requirementsByGroup[group];
     if (nextQueue.length === 0) return;
     setQueueGroup(group);
-    setProductCategoryFilter("all");
+    setSelectedProductCategories(null);
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
-  function showProductCategory(category: ProductRequirementCategory | "all") {
-    setProductCategoryFilter(category);
+  function toggleProductCategory(category: ProductRequirementCategory) {
+    setSelectedProductCategories((current) => current === null
+      ? [category]
+      : current.includes(category)
+        ? current.filter((item) => item !== category)
+        : [...current, category]
+    );
+    setActiveRequirementId(null);
+    setMessage(null);
+    setError(null);
+  }
+
+  function showAllProductCategories() {
+    setSelectedProductCategories(null);
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
@@ -318,25 +330,32 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           </div>
 
           <div className="mt-5 rounded-xl border-2 border-flow-200 bg-white p-4">
-            <p className="text-sm font-black uppercase tracking-[0.08em] text-flow-800">Sortera efter produktgrupp</p>
-            <p className="mt-1 text-sm leading-6 text-ink-700">Alla visar sprinklerhuvuden först, därefter rör, rördelar, ventiler och övriga produkter. Tryck på en grupp för att endast visa den.</p>
+            <p className="text-sm font-black uppercase tracking-[0.08em] text-flow-800">Välj vilka produktgrupper du vill se</p>
+            <p className="mt-1 text-sm leading-6 text-ink-700">Välj en eller flera grupper. Exempel: tryck på Sprinklerhuvuden och därefter Rör för att se båda. Alla produkter återställer hela listan i rekommenderad ordning.</p>
             <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filtrera produkter efter produktgrupp">
               <ProductCategoryButton
-                active={productCategoryFilter === "all"}
+                active={selectedProductCategories === null}
                 count={allQueueRequirements.length}
-                label="Alla"
-                onClick={() => showProductCategory("all")}
+                label="Alla produkter"
+                onClick={showAllProductCategories}
               />
               {availableProductCategories.map((category) => (
                 <ProductCategoryButton
                   key={category.id}
-                  active={productCategoryFilter === category.id}
+                  active={selectedProductCategories?.includes(category.id) ?? false}
                   count={productCategoryCounts.get(category.id) ?? 0}
                   label={category.shortLabel}
-                  onClick={() => showProductCategory(category.id)}
+                  onClick={() => toggleProductCategory(category.id)}
                 />
               ))}
             </div>
+            <p className="mt-3 text-sm font-bold text-flow-900" role="status">
+              {selectedProductCategories === null
+                ? `Visar alla ${allQueueRequirements.length} produkter.`
+                : selectedProductCategories.length === 0
+                  ? "Ingen produktgrupp är vald. Välj minst en grupp ovan."
+                  : `Visar ${queueRequirements.length} produkter från ${selectedProductCategories.length} valda ${selectedProductCategories.length === 1 ? "grupp" : "grupper"}.`}
+            </p>
           </div>
 
           {queueRequirements.length > 0 ? (
@@ -368,8 +387,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             </div>
           ) : (
             <div className="mt-5 rounded-xl border border-ink-200 bg-white p-6 text-center">
-              <p className="font-bold text-ink-950">Det finns inga produkter i den här gruppen längre.</p>
-              <p className="mt-1 text-sm text-ink-700">Välj en annan färg ovan.</p>
+              <p className="font-bold text-ink-950">{selectedProductCategories?.length === 0 ? "Ingen produktgrupp är vald." : "Det finns inga produkter i den här visningen."}</p>
+              <p className="mt-1 text-sm text-ink-700">Välj en produktgrupp ovan eller tryck på Alla produkter.</p>
             </div>
           )}
         </section>
