@@ -12,6 +12,13 @@ import { projectRequirementDetails, specificationLabel } from "@/lib/project-req
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 import { ahlsellCatalogStatusFromPayload, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import {
+  PRODUCT_REQUIREMENT_CATEGORIES,
+  productRequirementCategory,
+  productRequirementCategoryLabel,
+  sortProductRequirementsByCategory,
+  type ProductRequirementCategory
+} from "@/lib/product-requirement-category";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = { name: string; productNumber: string; quantity: number; unit: string; notes: string };
@@ -139,9 +146,48 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     red: redRequirements
   }), [greenRequirements, redRequirements, yellowRequirements]);
   const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup | null>(null);
+  const [productCategoryFilter, setProductCategoryFilter] = useState<ProductRequirementCategory | "all">("all");
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
-  const queueRequirements = queueGroup ? requirementsByGroup[queueGroup] : [];
+  const allQueueRequirements = useMemo(
+    () => queueGroup ? sortProductRequirementsByCategory(requirementsByGroup[queueGroup]) : [],
+    [queueGroup, requirementsByGroup]
+  );
+  const productCategoryCounts = useMemo(() => {
+    const counts = new Map<ProductRequirementCategory, number>();
+    for (const requirement of allQueueRequirements) {
+      const category = productRequirementCategory(requirement);
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+    }
+    return counts;
+  }, [allQueueRequirements]);
+  const availableProductCategories = useMemo(
+    () => PRODUCT_REQUIREMENT_CATEGORIES.filter(
+      (category) => (productCategoryCounts.get(category.id) ?? 0) > 0
+    ),
+    [productCategoryCounts]
+  );
+  const queueRequirements = useMemo(
+    () => productCategoryFilter === "all"
+      ? allQueueRequirements
+      : allQueueRequirements.filter((requirement) => productRequirementCategory(requirement) === productCategoryFilter),
+    [allQueueRequirements, productCategoryFilter]
+  );
+  const queueSections = useMemo(() => {
+    const categories = productCategoryFilter === "all"
+      ? availableProductCategories
+      : availableProductCategories.filter((category) => category.id === productCategoryFilter);
+    return categories.map((category) => ({
+      ...category,
+      requirements: queueRequirements.filter(
+        (requirement) => productRequirementCategory(requirement) === category.id
+      )
+    }));
+  }, [availableProductCategories, productCategoryFilter, queueRequirements]);
+  const queuePositionById = useMemo(
+    () => new Map(queueRequirements.map((requirement, index) => [requirement.id, index + 1])),
+    [queueRequirements]
+  );
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
   const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
@@ -149,19 +195,16 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const greenRemainingCount = greenRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
   const yellowRemainingCount = yellowRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
   const redRemainingCount = redRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
-  const remainingByGroup: Record<AhlsellMatchGroup, number> = {
-    green: greenRemainingCount,
-    yellow: yellowRemainingCount,
-    red: redRemainingCount
-  };
-  const activeGroupRemainingCount = queueGroup ? remainingByGroup[queueGroup] : 0;
+  const visibleQueueRemainingCount = queueRequirements.filter(
+    (requirement) => !approvedRequirementIds.has(requirement.id)
+  ).length;
   const checkedCatalogCount = catalogCheckRequirementIds.filter((requirementId) => catalogStatuses[requirementId]).length;
   const catalogChecksRemaining = Math.max(0, catalogCheckRequirementIds.length - checkedCatalogCount);
   const matchedRequirementCount = greenRequirements.length + yellowRequirements.length;
   const ahlsellCoveragePercent = productRequirements.length > 0
     ? Math.round((matchedRequirementCount / productRequirements.length) * 100)
     : 0;
-  const activeGroupApprovedCount = queueRequirements.length - activeGroupRemainingCount;
+  const activeGroupApprovedCount = queueRequirements.length - visibleQueueRemainingCount;
   const progressPercent = queueRequirements.length > 0
     ? Math.round((activeGroupApprovedCount / queueRequirements.length) * 100)
     : 100;
@@ -177,10 +220,18 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     const nextQueue = requirementsByGroup[group];
     if (nextQueue.length === 0) return;
     setQueueGroup(group);
+    setProductCategoryFilter("all");
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function showProductCategory(category: ProductRequirementCategory | "all") {
+    setProductCategoryFilter(category);
+    setActiveRequirementId(null);
+    setMessage(null);
+    setError(null);
   }
 
   function closeRequirement() {
@@ -263,24 +314,56 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
               <h3 id="product-group-cards-heading" className="mt-1 text-2xl font-bold text-ink-950">Välj en produkt att kontrollera</h3>
               <p className="mt-1 text-sm text-ink-700">{queueRequirements.length} {queueRequirements.length === 1 ? "produkt visas" : "produkter visas"}. Tryck på ett kort för att öppna produktvalet.</p>
             </div>
-            <p className="rounded-full bg-white px-4 py-2 text-sm font-bold text-ink-800 shadow-sm">{activeGroupRemainingCount} kvar att godkänna</p>
+            <p className="rounded-full bg-white px-4 py-2 text-sm font-bold text-ink-800 shadow-sm">{visibleQueueRemainingCount} kvar i visningen</p>
+          </div>
+
+          <div className="mt-5 rounded-xl border-2 border-flow-200 bg-white p-4">
+            <p className="text-sm font-black uppercase tracking-[0.08em] text-flow-800">Sortera efter produktgrupp</p>
+            <p className="mt-1 text-sm leading-6 text-ink-700">Alla visar sprinklerhuvuden först, därefter rör, rördelar, ventiler och övriga produkter. Tryck på en grupp för att endast visa den.</p>
+            <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filtrera produkter efter produktgrupp">
+              <ProductCategoryButton
+                active={productCategoryFilter === "all"}
+                count={allQueueRequirements.length}
+                label="Alla"
+                onClick={() => showProductCategory("all")}
+              />
+              {availableProductCategories.map((category) => (
+                <ProductCategoryButton
+                  key={category.id}
+                  active={productCategoryFilter === category.id}
+                  count={productCategoryCounts.get(category.id) ?? 0}
+                  label={category.shortLabel}
+                  onClick={() => showProductCategory(category.id)}
+                />
+              ))}
+            </div>
           </div>
 
           {queueRequirements.length > 0 ? (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {queueRequirements.map((requirement, index) => (
-                <RequirementQueueCard
-                  key={requirement.id}
-                  requirement={requirement}
-                  position={index + 1}
-                  approved={approvedRequirementIds.has(requirement.id)}
-                  group={queueGroup}
-                  assignment={approvedAssignments.find((item) => item.requirement_id === requirement.id)}
-                  memory={typeof requirement.mapping_fingerprint === "string"
-                    ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint)
-                    : undefined}
-                  onClick={() => showRequirement(requirement.id)}
-                />
+            <div className="mt-6 space-y-8">
+              {queueSections.map((section) => (
+                <section key={section.id} aria-labelledby={`product-category-${section.id}`}>
+                  <div className="mb-3 flex items-center gap-3">
+                    <h4 id={`product-category-${section.id}`} className="text-xl font-black text-ink-950">{section.label}</h4>
+                    <span className="rounded-full bg-flow-100 px-3 py-1 text-sm font-black text-flow-900">{section.requirements.length}</span>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {section.requirements.map((requirement) => (
+                      <RequirementQueueCard
+                        key={requirement.id}
+                        requirement={requirement}
+                        position={queuePositionById.get(requirement.id) ?? 1}
+                        approved={approvedRequirementIds.has(requirement.id)}
+                        group={queueGroup}
+                        assignment={approvedAssignments.find((item) => item.requirement_id === requirement.id)}
+                        memory={typeof requirement.mapping_fingerprint === "string"
+                          ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint)
+                          : undefined}
+                        onClick={() => showRequirement(requirement.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           ) : (
@@ -318,7 +401,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                     <span className={activeGroup === "green" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white" : activeGroup === "yellow" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-amber-950" : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white"}><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
                     <div>
                       <p className={activeGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : activeGroup === "yellow" ? "text-sm font-bold uppercase tracking-[0.08em] text-amber-800" : "text-sm font-bold uppercase tracking-[0.08em] text-rose-700"}>{activeGroup === "green" ? "Grön · Säker träff" : activeGroup === "yellow" ? "Gul · Ahlsellträff finns" : "Röd · Ingen Ahlsellträff"}</p>
-                      <p className="mt-0.5 text-base font-bold text-ink-950">Produkt {activeIndex + 1} av {queueRequirements.length} · {activeGroupRemainingCount} kvar i denna kö</p>
+                      <p className="mt-0.5 text-base font-bold text-ink-950">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount} kvar i visningen</p>
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -891,6 +974,7 @@ function RequirementQueueCard({ requirement, assignment, memory, position, appro
   const memoryProductName = String(memory?.product_name ?? "").trim();
   const memoryProductNumber = String(memory?.product_number ?? "").trim();
   const hasReusableMemory = !approved && Boolean(memoryProductName && memoryProductNumber);
+  const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
   const borderClass = group === "green"
     ? "border-emerald-300 hover:border-emerald-600 focus-visible:outline-emerald-600"
     : group === "yellow"
@@ -919,7 +1003,8 @@ function RequirementQueueCard({ requirement, assignment, memory, position, appro
           <span className="rounded-full bg-ink-100 px-2.5 py-1.5 text-xs font-bold text-ink-700">Inte godkänd</span>
         )}
       </span>
-      <span className="mt-4 block max-h-[4.5rem] overflow-hidden text-lg font-bold leading-6 text-ink-950">{String(requirement.value_text ?? "Tekniskt produktkrav")}</span>
+      <span className="mt-4 inline-flex w-fit rounded-full bg-flow-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-flow-800">{categoryLabel}</span>
+      <span className="mt-3 block max-h-[4.5rem] overflow-hidden text-lg font-bold leading-6 text-ink-950">{String(requirement.value_text ?? "Tekniskt produktkrav")}</span>
       <span className="mt-3 block text-sm font-semibold text-ink-700">Mängd: {formatProjectQuantity(quantity)}</span>
       {productName && (
         <span className="mt-3 block rounded-lg bg-emerald-50 p-3 text-sm text-emerald-950">
@@ -935,6 +1020,27 @@ function RequirementQueueCard({ requirement, assignment, memory, position, appro
         </span>
       )}
       <span className="mt-auto pt-5 text-base font-black text-flow-800 group-hover:text-flow-950">{hasReusableMemory ? "Öppna och använd tidigare val →" : "Öppna och kontrollera →"}</span>
+    </button>
+  );
+}
+
+function ProductCategoryButton({ active, count, label, onClick }: {
+  active: boolean;
+  count: number;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={active
+        ? "inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-flow-700 bg-flow-700 px-4 py-2 text-sm font-black text-white shadow-sm"
+        : "inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-ink-200 bg-white px-4 py-2 text-sm font-bold text-ink-800 transition hover:border-flow-500 hover:bg-flow-50"}
+    >
+      <span>{label}</span>
+      <span className={active ? "rounded-full bg-white/20 px-2 py-0.5 text-xs text-white" : "rounded-full bg-ink-100 px-2 py-0.5 text-xs text-ink-700"}>{count}</span>
     </button>
   );
 }
