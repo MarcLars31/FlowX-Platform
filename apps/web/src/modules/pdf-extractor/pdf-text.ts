@@ -1,21 +1,12 @@
-import { ensurePdfCanvasRuntime } from "@/lib/pdf-runtime";
+import { readPdfTextDocument } from "@/lib/pdf-text-document";
 import type { ExtractedPageText } from "./types";
 
 export async function extractPdfTextPages(
   data: Buffer | Uint8Array
 ): Promise<ExtractedPageText[]> {
-  await ensurePdfCanvasRuntime();
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data });
-
-  try {
-    const result = await parser.getText();
-
-    return result.pages.map((page) => ({
-      pageNumber: page.num,
-      text: page.text
-    }));
-  } finally {
-    await parser.destroy();
-  }
+  const pages = await readPdfTextDocument(data);
+  return pages.map((page) => ({
+    pageNumber: page.pageNumber,
+    text: page.text
+  }));
 }
