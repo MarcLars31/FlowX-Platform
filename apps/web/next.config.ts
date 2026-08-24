@@ -12,8 +12,7 @@ const nextConfig: NextConfig = {
         { key: "Cross-Origin-Opener-Policy", value: "same-origin" }
       ]
     }];
-  },
-  serverExternalPackages: ["exceljs"]
+  }
 };
 
 export default nextConfig;
