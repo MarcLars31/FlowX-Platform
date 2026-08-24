@@ -116,27 +116,69 @@ export function extractTechnicalDescriptionFromPages(
 }
 
 function extractProject(pages: TechnicalDescriptionPage[]) {
+  let fallbackChapter: {
+    chapter: string;
+    sourcePage: number;
+    confidence: number;
+  } | undefined;
+
   for (const page of pages) {
+    const tenderCoverMatch = page.text.match(
+      /\b(Sprinkelprosjekt|Sprinklerprosjekt)\s*[\r\n]+\s*([^\r\n]{3,120})/i
+    );
+    if (tenderCoverMatch) {
+      return {
+        name: `${tenderCoverMatch[1]} ${tenderCoverMatch[2]}`
+          .replace(/\s+/g, " ")
+          .trim(),
+        sourcePage: page.pageNumber,
+        confidence: page.method === "ocr" ? page.confidence : 0.98
+      };
+    }
+
     const projectMatch = page.text.match(
-      /Prosjekt:\s*([^\r\n\t]+?)(?=\s+Side\b|$)/i
+      /Prosjekt\s*:\s*([^\r\n\t]+?)(?=\s+Side\b|[\r\n\t]|$)/i
+    );
+    const projectNameMatch = page.text.match(
+      /^\s*Prosjektnavn\s*:?[ \t]+([^\r\n\t]+)/im
     );
     const requestMatch = page.text.match(/^\s*Anlegg\s*:\s*([^\r\n\t]+)/im);
     const pageHeadingMatch = page.text.match(/^\s*([^\r\n]{5,120}?)\s+Side\s+\d+\s*$/im);
+    const projectNumberMatch = page.text.match(
+      /(?:Prosjekt\s*nr\.?|Prosjektnr\.?|Project number)\s*:\s*([A-Z0-9][\w.-]*)/i
+    );
     const chapterMatch = page.text.match(/Kapittel:\s*([^\n]+)/i);
-    if (!projectMatch && !requestMatch && !pageHeadingMatch && !chapterMatch) continue;
+    if (chapterMatch && !fallbackChapter) {
+      fallbackChapter = {
+        chapter: chapterMatch[1].trim(),
+        sourcePage: page.pageNumber,
+        confidence: page.method === "ocr" ? page.confidence : 0.98
+      };
+    }
+    if (!projectMatch && !projectNameMatch && !requestMatch && !pageHeadingMatch) continue;
 
     const projectName = (
       projectMatch?.[1]
+      ?? projectNameMatch?.[1]
       ?? requestMatch?.[1]
       ?? pageHeadingMatch?.[1]
     )?.trim();
-    const projectNumber = projectName?.match(/^([A-Z]\d+|[A-Z]?\.?[\d.]+)/i)?.[1];
+    const projectNumber = projectNumberMatch?.[1]
+      ?? projectName?.match(/^([A-Z]\d+|[A-Z]?\.?[\d.]+)/i)?.[1];
     return {
       name: projectName,
       projectNumber,
-      chapter: chapterMatch?.[1]?.trim(),
+      chapter: chapterMatch?.[1]?.trim() ?? fallbackChapter?.chapter,
       sourcePage: page.pageNumber,
       confidence: page.method === "ocr" ? page.confidence : 0.98
+    };
+  }
+
+  if (fallbackChapter) {
+    return {
+      chapter: fallbackChapter.chapter,
+      sourcePage: fallbackChapter.sourcePage,
+      confidence: fallbackChapter.confidence
     };
   }
 
@@ -215,6 +257,7 @@ function extractLegacyMaterialLines(
   );
 
   for (const page of pages) {
+    if (isNonMaterialReferencePage(page.text)) continue;
     const pageLines = page.text
       .split(/\r?\n/)
       .map((line) => line.replace(/\s+/g, " ").trim())
@@ -322,6 +365,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
     const page = pages[pageIndex];
+    if (isNonMaterialReferencePage(page.text)) continue;
     const pageLines = prepared.pageLines[pageIndex];
     const pageText = pageLines.join("\n");
     const inFireProtectionSection = isFireProtectionPage(pageText)
@@ -383,8 +427,11 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         )
       );
       const parent = findTableParent(parentContexts, fullPostNumber);
-      const ownCategory = inferCategory(`${description}\n${sourceText}`.toLocaleLowerCase());
-      const category = resolveStructuredCategory(ownCategory, parent?.category, description);
+      const ownCategory = inferStructuredCategory(description, sourceText);
+      const inheritedCategory = parent?.category === "unknown"
+        ? inferCategory(parent.sourceText.toLocaleLowerCase())
+        : parent?.category;
+      const category = resolveStructuredCategory(ownCategory, inheritedCategory, description);
       const system = inferSystem(`${description}\n${sourceText}`.toLocaleLowerCase()) ?? parent?.system;
 
       if (
@@ -524,6 +571,9 @@ function parseStructuredPostStart(
   lineIndex: number
 ): StructuredPostStart | undefined {
   const line = lines[lineIndex];
+  const wrapped = parseWrappedVisualPostStart(lines, lineIndex);
+  if (wrapped) return wrapped;
+
   const trailingQuantity = line.match(TRAILING_QUANTITY_POST_PATTERN);
   if (trailingQuantity?.groups) {
     const quantityValue = parseLocalizedNumber(trailingQuantity.groups.quantity);
@@ -600,6 +650,53 @@ function parseStructuredPostStart(
     post: exactPost[1],
     description: ""
   });
+}
+
+/**
+ * Some GAB/NS 3420 PDFs wrap the narrow post-number column while the product
+ * description remains on the first visual row. PDF.js then emits for example
+ * `1403.33.332. Red pipe DN40` followed by `2.1 Antall m 0,81 0 0`.
+ * Reconnect those two visual fragments before normal block parsing so neither
+ * the description nor the quantity is assigned to the following product.
+ */
+function parseWrappedVisualPostStart(
+  lines: string[],
+  lineIndex: number
+): StructuredPostStart | undefined {
+  const baseMatch = lines[lineIndex].match(
+    /^(\d+(?:\.\d+){2,7}\.?)\s+(.+)$/
+  );
+  const continuationMatch = lines[lineIndex + 1]?.match(
+    /^(\.?\d+(?:\.\d+)*)(?:\s+(.+))?$/
+  );
+  if (!baseMatch || !continuationMatch) return undefined;
+
+  const base = baseMatch[1];
+  const continuation = continuationMatch[1];
+  const baseParts = base.replace(/\.$/, "").split(".");
+  const continuationWithoutDot = continuation.replace(/^\./, "");
+  if (
+    (baseParts.length < 4 && !base.endsWith("."))
+    || (!continuation.includes(".") && !base.endsWith("."))
+    || continuationWithoutDot.startsWith(`${base.replace(/\.$/, "")}.`)
+    || !isLikelyWrappedPostDescription(baseMatch[2])
+  ) {
+    return undefined;
+  }
+
+  return {
+    lineIndex,
+    consumedLineCount: 2,
+    postNumber: composeWrappedPostNumber(base, continuation),
+    description: [baseMatch[2], continuationMatch[2]]
+      .filter(Boolean)
+      .join(" ")
+      .trim()
+  };
+}
+
+function isLikelyWrappedPostDescription(value: string) {
+  return /(?:\bDN\s*\d|\b(?:Antall|Lengde)\b|\b(?:stk|st|m|lm)\s+\d|%?[A-ZÆØÅ]{1,10}\d[\w.%-]*|sprinkler|r[øo]r|ventil|bend|kupling|kobling|overgang|fitting)/i.test(value);
 }
 
 function completeStructuredStart({
@@ -811,6 +908,14 @@ function isFireProtectionPage(text: string) {
   return /sprinkler|brann(?:slokk|vann|vern)|slokke(?:anlegg|gass|vann)|inergen|håndsl[ou]kker|\b\d+(?:\.\d+)*\.332(?:\.|\b)/i.test(text);
 }
 
+function isNonMaterialReferencePage(text: string) {
+  const hydraulicReport = /(?:^|\n)Sprinkler report\b/i.test(text)
+    && /\b(?:Calculation date|Property Value Unit|General results)\b/i.test(text);
+  const technicalDrawing = /\b(?:Tegningstittel|Tegningsnummer|Tegningsstatus|Arbeidstegning)\b/i.test(text)
+    && /\b(?:Målestokk|Format|Disiplin)\b/i.test(text);
+  return hydraulicReport || technicalDrawing;
+}
+
 type TableParentContext = {
   postNumber: string;
   sourcePage: number;
@@ -856,21 +961,38 @@ function findTableQuantity(lines: string[]) {
     const line = lines[lineIndex];
     const anchoredMatch = line.match(TABLE_QUANTITY_PATTERN);
     const inlineMatch = anchoredMatch ? undefined : line.match(INLINE_TABLE_QUANTITY_PATTERN);
-    const match = anchoredMatch ?? inlineMatch;
+    const wrappedDescriptionMatch = anchoredMatch || inlineMatch
+      ? undefined
+      : line.match(new RegExp(
+        String.raw`^(.+?)\s+(?:Antall|Lengde)\s+(${QUANTITY_UNIT_SOURCE})\.?\s+(${QUANTITY_NUMBER_SOURCE})$`,
+        "i"
+      ));
+    const descriptiveMatch = anchoredMatch || inlineMatch || wrappedDescriptionMatch
+      ? undefined
+      : line.match(new RegExp(
+        String.raw`^((?:Antall|Lengde|Løpemeter|Areal|Vekt|Volum|Masse)\b.*?)\s+(${QUANTITY_UNIT_SOURCE})\.?\s+(${QUANTITY_NUMBER_SOURCE})$`,
+        "i"
+      ));
+    const match = anchoredMatch ?? inlineMatch ?? wrappedDescriptionMatch ?? descriptiveMatch;
     if (!match) continue;
 
-    const quantity = parseLocalizedNumber(inlineMatch ? match[3] : match[2]);
+    const hasDescriptionPrefix = Boolean(
+      inlineMatch || wrappedDescriptionMatch || descriptiveMatch
+    );
+    const quantity = parseLocalizedNumber(
+      hasDescriptionPrefix ? match[3] : match[2]
+    );
     if (quantity === undefined) continue;
 
     return {
       quantity,
-      unit: normalizeUnit(inlineMatch ? match[2] : match[1]),
-      text: inlineMatch
+      unit: normalizeUnit(hasDescriptionPrefix ? match[2] : match[1]),
+      text: hasDescriptionPrefix
         ? `${match[3]} ${match[2]}`
         : match[0].trim(),
       lineIndex,
-      descriptionPrefix: inlineMatch
-        ? match[1].trim()
+      descriptionPrefix: hasDescriptionPrefix
+        ? match[1].trim().replace(/\b(?:Antall|Lengde)\s*$/i, "").trim()
         : line.slice(0, match.index).trim()
     };
   }
@@ -965,6 +1087,12 @@ function extractInlineAttributes(description: string) {
 }
 
 function inferSystem(text: string) {
+  if (/h[åa]ndsl[ou]kker|h[åa]ndslukkeapparat|brannsl[ou]kker/.test(text)) {
+    if (/slokkemiddel\s*:\s*skum|skumsl[ou]kker|foam/.test(text)) {
+      return "foam-extinguisher";
+    }
+    return "portable-fire-extinguisher";
+  }
   if (/sprinkler/.test(text)) return "sprinkler";
   if (/slokkegass|gasslokke|ig541/.test(text)) return "inert-gas";
   if (/tørr(?:opplegg|anlegg)/.test(text)) return "dry-fire-main";
@@ -1096,27 +1224,34 @@ function extractRuleHints(pages: TechnicalDescriptionPage[]) {
 }
 
 function inferCategory(text: string): TechnicalDescriptionCategory {
-  if (/h[åa]ndsl[ou]kker|brannsl[ou]kker|reserveutstyr|veggskap|metallkurv|l[åa]sereim/.test(text)) {
+  if (/h[åa]ndsl[ou]kker|h[åa]ndslukkeapparat|brannsl[ou]kker|gassslokke?flaske|reserveutstyr|veggskap|metallkurv|l[åa]sereim/.test(text)) {
     return "other";
   }
+  if (/kontrollventilsett/.test(text)) return "valve";
+  if (/kontroll|alarm|sensor|detektor|sentral|signalapparat|strømningsvakt|trykkvakt|pressostat|måleinstrument|manometer|måleblende|kapasitetsmåler|kapasitetsmaaler|kompressor|pumpe|melder/.test(text)) {
+    return "control";
+  }
   if (/ventil|valve/.test(text)) return "valve";
+  if (/fitting|bend|muffe|kobling|kupling|t-r[øo]r|t-klave|r[øo]rdel|overgang|endebunn|anborring|blindflens|filter|partikkelutskiller/.test(text)) {
+    return "fitting";
+  }
   if (/innendørs r[øo]rledning|r[øo]rledningsanlegg|r[øo]rledning\s*[—-]\s*brannslokking/.test(text)) {
     return "pipe";
-  }
-  if (/fitting|bend|muffe|kobling|kupling|t-r[øo]r|t-klave|r[øo]rdel|overgang|endebunn|anborring|blindflens/.test(text)) {
-    return "fitting";
   }
   if (/r[øo]r\b|r[øo]rledning|vannledning|st[åa]lr[øo]r|riller[øo]r|rillede r[øo]r|sprinklerslange|\bpipe\b|red pipe/.test(text)) {
     return "pipe";
   }
   if (/oppheng|støtte|support/.test(text)) return "support";
-  if (/kontroll|alarm|sensor|detektor|sentral|signalapparat|strømningsvakt|trykkvakt|måleinstrument|manometer|måleblende|kapasitetsmåler|kapasitetsmaaler|kompressor|melder/.test(text)) {
-    return "control";
-  }
   if (/\bsprinkler\b|sprinklerhode|sprinklerdyse|standard spray|utvidet dekning/.test(text)) {
     return "sprinkler_head";
   }
   return "unknown";
+}
+
+function inferStructuredCategory(description: string, sourceText: string) {
+  const descriptionCategory = inferCategory(description.toLocaleLowerCase());
+  if (descriptionCategory !== "unknown") return descriptionCategory;
+  return inferCategory(sourceText.toLocaleLowerCase());
 }
 
 function resolveStructuredCategory(
@@ -1234,7 +1369,12 @@ function normalizeAttributeValue(key: string, value: string) {
     const dimension = normalized.match(/\bDN\s*\d+(?:\s*\/\s*\d+\s*\/\s*\d+\"?)?/i)?.[0];
     if (dimension) normalized = dimension.replace(/DN\s+/i, "DN");
   }
-  if (key === "k-faktor") normalized = normalized.replace(/(\d),(\d)/g, "$1.$2");
+  if (key === "k-faktor") {
+    normalized = normalized.replace(/(\d),(\d)/g, "$1.$2");
+    if (/^\d{4}$/.test(normalized) && normalized.endsWith("5")) {
+      normalized = `${normalized.slice(0, -1)}.${normalized.slice(-1)}`;
+    }
+  }
   if (key === "utløsningstemperatur") {
     normalized = normalized
       .replace(/\s*[°*]\s*C\b/gi, " °C")
@@ -1244,7 +1384,13 @@ function normalizeAttributeValue(key: string, value: string) {
 }
 
 function normalizeStandard(value: string) {
-  return value.replace(/\s+/g, "-").replace(/--+/g, "-").toUpperCase();
+  return value
+    .replace(/\s+/g, "-")
+    .replace(/--+/g, "-")
+    .toUpperCase()
+    .replace(/^NS(?=\d)/, "NS-")
+    .replace(/^NS-?EN(?=\d)/, "NS-EN-")
+    .replace(/^NFPA(?=\d)/, "NFPA-");
 }
 
 function inferNextPostNumber(previous: string | undefined) {

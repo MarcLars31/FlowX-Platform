@@ -564,4 +564,285 @@ test("classifies a hand extinguisher separately from sprinkler heads", () => {
   }]);
 
   assert.equal(result.materialLines[0].category, "other");
+  assert.equal(result.materialLines[0].system, "foam-extinguisher");
+});
+
+test("reconnects visually wrapped post columns without shifting descriptions", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 13,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt: 100870 Vedlikeholdsbygg Side 1403-13",
+      "Kapittel: 33 Brannslokking",
+      "1403.33.332. UB1.31113324334",
+      "2 INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+      "Materiale: PP-R",
+      "Dimensjon: Iht. underposter",
+      "1403.33.332. Red pipe sprinkler(Gjennomføring) DN40",
+      "2.1 Antall m 0,81 0,00 0,00",
+      "1403.33.332. Red pipe sprinkler(Gjennomføring) DN32",
+      "2.2 Antall m 1,70 0,00 0,00",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    parentPostNumber: line.parentPostNumber,
+    description: line.description,
+    quantity: line.quantity,
+    unit: line.unit,
+    category: line.category
+  })), [
+    {
+      postNumber: "1403.33.332.2.1",
+      parentPostNumber: "1403.33.332.2",
+      description: "Red pipe sprinkler(Gjennomføring) DN40",
+      quantity: 0.81,
+      unit: "m",
+      category: "pipe"
+    },
+    {
+      postNumber: "1403.33.332.2.2",
+      parentPostNumber: "1403.33.332.2",
+      description: "Red pipe sprinkler(Gjennomføring) DN32",
+      quantity: 1.7,
+      unit: "m",
+      category: "pipe"
+    }
+  ]);
+});
+
+test("reconnects wrapped GAB post suffixes printed below quantified rows", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 4,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt: Bybanen Haukeland Side 30-4",
+      "Kapittel: 30 VVS - 33 Brannslokking - 332 Installasjon med sprinkler",
+      "0.33.332.3 UB1.1294300934A",
+      "322.1 INNENDØRS VANNLEDNING - RØR",
+      "Materiale: Stål",
+      "0.33.332.3 DN25 m 274 0 0",
+      "322.1.1",
+      "0.33.332.3 DN32 m 65 0 0",
+      "322.1.2",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    parentPostNumber: line.parentPostNumber,
+    description: line.description,
+    quantity: line.quantity,
+    category: line.category
+  })), [
+    {
+      postNumber: "0.33.332.3 322.1.1",
+      parentPostNumber: "0.33.332.3 322.1",
+      description: "DN25",
+      quantity: 274,
+      category: "pipe"
+    },
+    {
+      postNumber: "0.33.332.3 322.1.2",
+      parentPostNumber: "0.33.332.3 322.1",
+      description: "DN32",
+      quantity: 65,
+      category: "pipe"
+    }
+  ]);
+});
+
+test("inherits pipe context for dimension-only rows and reads a descriptive length", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 21,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt: Sprinkleranlegg Side 00033-5",
+      "Kapittel: 00033 Brannslokking",
+      "00033.331",
+      ".1",
+      "UB1.113613100A",
+      "VANNLEDNING - KOMPLETT",
+      "Materiale: Stål",
+      "00033.331",
+      ".1.1",
+      "DN 25",
+      "Lengde lm 240,00",
+      "00033.331",
+      ".3.1",
+      "Løpemeter rør som skal demonteres lm 35,00",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    description: line.description,
+    quantity: line.quantity,
+    unit: line.unit,
+    category: line.category,
+    operation: line.operation
+  })), [
+    {
+      postNumber: "00033.331.1.1",
+      description: "DN 25",
+      quantity: 240,
+      unit: "m",
+      category: "pipe",
+      operation: "install"
+    },
+    {
+      postNumber: "00033.331.3.1",
+      description: "Løpemeter rør som skal demonteres",
+      quantity: 35,
+      unit: "m",
+      category: "pipe",
+      operation: "remove"
+    }
+  ]);
+});
+
+test("continues past chapter-only cover pages to find the project identity", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 1,
+      method: "text",
+      confidence: 0.98,
+      text: "Kapittel: 300 Generell del"
+    },
+    {
+      pageNumber: 13,
+      method: "text",
+      confidence: 0.98,
+      text: "Prosjekt: 000670 Protonseter, Helse Bergen. Entreprise K 301 Røranlegg Side 03-153"
+    }
+  ]);
+
+  assert.equal(
+    result.project.name,
+    "000670 Protonseter, Helse Bergen. Entreprise K 301 Røranlegg"
+  );
+  assert.equal(result.project.projectNumber, "000670");
+  assert.equal(result.project.chapter, "300 Generell del");
+  assert.equal(result.project.sourcePage, 13);
+});
+
+test("classifies the product title before incidental component references", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 5,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "3.3 XQ1.12123A",
+      "MÅLEINSTRUMENT",
+      "Antall stk 5",
+      "Manometer med stengeventil monteres på rørledningsnett."
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines[0].category, "control");
+});
+
+test("uses the main tender cover instead of project identities in appended reports", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 1,
+      method: "ocr",
+      confidence: 0.91,
+      text: "Sprinkelprosjekt\nInnspurten 15"
+    },
+    {
+      pageNumber: 22,
+      method: "text",
+      confidence: 0.98,
+      text: "SYSTEMBESKRIVELSE SPRINKLERANLEGG\nProsjekt: Helsfyr Atrium parkeringsanlegg.\nProsjekt nr: 80119"
+    }
+  ]);
+
+  assert.deepEqual(result.project, {
+    name: "Sprinkelprosjekt Innspurten 15",
+    sourcePage: 1,
+    confidence: 0.91
+  });
+});
+
+test("reads standalone project and project-number fields from system descriptions", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: "SYSTEMBESKRIVELSE SPRINKLERANLEGG\nProsjekt: Helsfyr Atrium parkeringsanlegg.\nProsjekt nr: 80119"
+  }]);
+
+  assert.equal(result.project.name, "Helsfyr Atrium parkeringsanlegg.");
+  assert.equal(result.project.projectNumber, "80119");
+});
+
+test("does not turn sprinkler drawings and hydraulic reports into material rows", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 24,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "DN100 opp/ned for sammenkobling",
+        "Tegningstittel: Plan 0",
+        "Tegningsnummer: 33-1-00",
+        "Tegningsstatus: Arbeidstegning",
+        "Målestokk As indicated",
+        "Format A0",
+        "Disiplin RIRs"
+      ].join("\n")
+    },
+    {
+      pageNumber: 27,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Sprinkler report",
+        "Calculation date: 10.06.2026",
+        "Property Value Unit",
+        "KR016T: Langsømsveiset EN 10217-1 120"
+      ].join("\n")
+    }
+  ]);
+
+  assert.deepEqual(result.materialLines, []);
+});
+
+test("repairs OCR decimal loss in dry-sprinkler K-factors", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 3,
+    method: "ocr",
+    confidence: 0.9,
+    text: [
+      "Prosjekt: FB VEST DK JWC Kantine Side 33-6",
+      "Kapittel: 33 Brannslokking",
+      "33.500.5 UE2.11121532",
+      "SPRINKLER",
+      "Antall stk 17",
+      "Type sprinkler: Tørrsprinkler",
+      "K-faktor: 1145"
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines[0].attributes["k-faktor"], "114.5");
+});
+
+test("canonicalizes compact and spaced NS standard references", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: "Kontrakt etter NS8407 og NS 8407."
+  }]);
+
+  assert.deepEqual(result.standards, ["NS-8407"]);
 });

@@ -26,7 +26,7 @@ export function projectRequirementDetails(
     nsCode:
       text(value.nsCode) ??
       (requirementKey && looksLikeNsCode(requirementKey) ? requirementKey : null),
-    system: text(value.system),
+    system: effectiveRequirementSystem(value, attributes, sourceExcerpt),
     standardRefs: stringList(value.standardRefs),
     attributes: Object.entries(attributes).flatMap(([key, rawValue]) => {
       if (key === "kapittelpost") return [];
@@ -36,6 +36,25 @@ export function projectRequirementDetails(
     sourcePage: positiveInteger(requirement.source_page),
     sourceExcerpt
   };
+}
+
+function effectiveRequirementSystem(
+  value: Record<string, unknown>,
+  attributes: Record<string, unknown>,
+  sourceExcerpt: string | null
+) {
+  const materialText = [
+    text(value.description),
+    text(value.category),
+    text(attributes.slokkemiddel),
+    sourceExcerpt
+  ].filter(Boolean).join("\n").toLocaleLowerCase();
+  if (/h[åa]ndsl[ou]kker|h[åa]ndslukkeapparat|brannsl[ou]kker/.test(materialText)) {
+    return /\bskum\b|\bfoam\b/.test(materialText)
+      ? "foam-extinguisher"
+      : "portable-fire-extinguisher";
+  }
+  return text(value.system);
 }
 
 export function postNumberFromSource(sourceExcerpt: string | null) {
@@ -54,6 +73,16 @@ export function specificationLabel(value: string) {
     .replace(/\bdn\b/gi, "DN")
     .replace(/\bnfpa\b/gi, "NFPA")
     .replace(/^./, (letter) => letter.toLocaleUpperCase("sv-SE"));
+}
+
+export function projectRequirementSystemLabel(value: string) {
+  return {
+    "foam-extinguisher": "Skumsläckare",
+    "portable-fire-extinguisher": "Handbrandsläckare",
+    "inert-gas": "Inertgassläcksystem",
+    "dry-fire-main": "Torrt brandvattensystem",
+    sprinkler: "Sprinkler"
+  }[value] ?? specificationLabel(value);
 }
 
 function looksLikeNsCode(value: string) {

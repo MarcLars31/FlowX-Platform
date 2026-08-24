@@ -65,12 +65,17 @@ export async function extractTechnicalDescriptionPages(
       return textPages;
     }
 
+    const ocrPageNumbers = pagesRequiringOcr(textPages);
     let screenshots: Awaited<ReturnType<typeof parser.getScreenshot>>;
     try {
       screenshots = await parser.getScreenshot({
         scale: OCR_SCALE,
         imageBuffer: true,
-        imageDataUrl: false
+        imageDataUrl: false,
+        // When text extraction succeeded, render only the pages that actually
+        // need OCR. Rendering every page makes mixed PDFs with large drawings
+        // needlessly expensive and can exhaust a serverless request.
+        ...(textPages.length > 0 ? { partial: ocrPageNumbers } : {})
       });
     } catch (screenshotError) {
       if (textPages.length > 0) {
@@ -187,6 +192,12 @@ export async function extractTechnicalDescriptionPages(
   } finally {
     await parser.destroy();
   }
+}
+
+export function pagesRequiringOcr(pages: readonly TechnicalDescriptionPage[]) {
+  return pages
+    .filter((page) => page.text.length < MIN_TEXT_PAGE_LENGTH)
+    .map((page) => page.pageNumber);
 }
 
 function emptyTextPage(pageNumber: number): TechnicalDescriptionPage {

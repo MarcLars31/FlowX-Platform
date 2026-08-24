@@ -8,7 +8,13 @@ import {
   selectSupabaseRows,
   updateSupabaseRowsReturning
 } from "@/lib/supabase-rest";
-import { callUserRpc, UserSupabaseError } from "@/lib/supabase-user-rest";
+import { withProductRequirementResolution } from "@/lib/product-requirement-resolution";
+import {
+  callUserRpc,
+  selectUserRows,
+  updateUserRowsReturning,
+  UserSupabaseError
+} from "@/lib/supabase-user-rest";
 
 export const runtime = "nodejs";
 
@@ -45,6 +51,12 @@ export async function POST(request: Request, context: RouteContext) {
       authorization.user.id,
       input
     );
+    await clearRequirementResolution(
+      id,
+      input.requirementId,
+      authorization.context.organization.id,
+      authorization.user.id
+    );
 
     return NextResponse.json({
       mapping: result,
@@ -69,6 +81,42 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 500 }
     );
   }
+}
+
+async function clearRequirementResolution(
+  projectId: string,
+  requirementId: string,
+  organizationId: string,
+  actorId: string
+) {
+  const [requirement] = await selectUserRows<{ value_json: unknown }>(
+    "project_requirements",
+    {
+      select: "value_json",
+      id: `eq.${requirementId}`,
+      project_id: `eq.${projectId}`,
+      organization_id: `eq.${organizationId}`,
+      deleted_at: "is.null",
+      limit: "1"
+    }
+  );
+  if (!requirement) return;
+  const valueJson = record(requirement.value_json);
+  if (!("productResolution" in valueJson)) return;
+  await updateUserRowsReturning(
+    "project_requirements",
+    {
+      id: `eq.${requirementId}`,
+      project_id: `eq.${projectId}`,
+      organization_id: `eq.${organizationId}`
+    },
+    {
+      value_json: withProductRequirementResolution(valueJson, null, {
+        resolvedAt: new Date().toISOString(),
+        resolvedBy: actorId
+      })
+    }
+  );
 }
 
 async function saveExplicitlyApprovedMapping(

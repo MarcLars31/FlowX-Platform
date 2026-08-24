@@ -116,6 +116,25 @@ test("creates an Ahlsell search for non-sprinkler-head material rows", () => {
   assert.match(decodeURIComponent(guide.searchUrl), /114.3mm/);
 });
 
+test("searches a foam hand extinguisher as fire equipment instead of a sprinkler product", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "other",
+    value_text: "HANDSLOKKER",
+    value_json: {
+      system: "sprinkler",
+      attributes: {
+        slokkemiddel: "Skum",
+        "mengde slokkemedium": "6 liter"
+      }
+    }
+  });
+
+  assert.equal(guide.criteria[0], "Skumsläckare");
+  assert.equal(guide.searchQuery, "Skumslukker 6 liter");
+  assert.ok(guide.searchQueries.includes("Brannslukker skum"));
+  assert.doesNotMatch(guide.searchQuery, /sprinkler/i);
+});
+
 test("keeps valve searches concise so Ahlsell can return relevant candidates", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "valve",

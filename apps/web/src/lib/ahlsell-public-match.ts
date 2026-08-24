@@ -30,6 +30,8 @@ type Orientation = "pendent" | "upright" | "sidewall";
 type Response = "quick" | "standard";
 type Finish = "brass" | "white" | "black" | "chrome";
 type AhlsellProductIntent =
+  | "foam_extinguisher"
+  | "portable_fire_extinguisher"
   | "sprinkler_head"
   | "sprinkler_guard"
   | "pipe"
@@ -319,6 +321,11 @@ function buildCatalogQueries({
 
   if (intent === "wet_alarm_valve") return ["Sprinklersentral", compact(["Sprinklersentral våt", dnTerm]).join(" ")];
   if (intent === "dry_alarm_valve") return ["Sprinklersentral", compact(["Sprinklersentral tørr", dnTerm]).join(" ")];
+  if (intent === "foam_extinguisher") {
+    const liters = combined.match(/\b(\d+(?:[.,]\d+)?)\s*liter\b/)?.[1];
+    return [compact(["Skumslukker", liters ? `${liters} liter` : null]).join(" "), "Brannslukker skum"];
+  }
+  if (intent === "portable_fire_extinguisher") return ["Brannslukker", "Håndslukker"];
   if (isSprinklerAccessory) return ["Sprinklergitter", "Gitter sprinklerhode"];
 
   if (intent === "pressure_switch") {
@@ -571,6 +578,9 @@ function sprinklerFinish(value: string): Finish | null {
 }
 
 function categoryLabel(category: string, description: string) {
+  if (/h[åa]ndsl[ou]kker|brannsl[ou]kker|slokkemiddel\s*:\s*skum/i.test(description)) {
+    return /skum/i.test(description) ? "Skumsläckare" : "Handbrandsläckare";
+  }
   if (/beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg/i.test(description)) return "Sprinkler skyddskorg";
   return ({
     sprinkler_head: "Sprinkler",
@@ -584,6 +594,8 @@ function categoryLabel(category: string, description: string) {
 
 function intentLabel(intent: AhlsellProductIntent, category: string, description: string) {
   const label = ({
+    foam_extinguisher: "Skumsläckare",
+    portable_fire_extinguisher: "Handbrandsläckare",
     sprinkler_head: "Sprinkler",
     sprinkler_guard: "Sprinkler skyddskorg",
     pipe: "Sprinklerrör",
@@ -625,6 +637,9 @@ function detectAhlsellProductIntent(
   // pipe row into, for example, a valve or an end cap.
   const has = (pattern: RegExp) => pattern.test(source);
 
+  if (has(/\b(handslokker|handslukker|handslokkeapparat|brannslokker|brannslukker)\b/)) {
+    return has(/\bskum\b|\bfoam\b/) ? "foam_extinguisher" : "portable_fire_extinguisher";
+  }
   if (has(/\b(beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg)\b/)) return "sprinkler_guard";
   if (has(/\b(pumpe innendors|sprinklerpumpe|lensepumpe|type pumpe|pumpedrift)\b/)) return "pump";
   if (has(/\b(partikkelutskiller|grovfilter|y filter|sil netting|type partikkelutskiller)\b/)) return "strainer";

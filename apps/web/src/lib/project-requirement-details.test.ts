@@ -3,6 +3,7 @@ import test from "node:test";
 import { enrichProjectRequirements } from "./project-requirement-enrichment";
 import {
   postNumberFromSource,
+  projectRequirementSystemLabel,
   projectRequirementDetails
 } from "./project-requirement-details";
 
@@ -13,6 +14,30 @@ test("reads a split NS 3420 post number from an existing source excerpt", () => 
     ),
     "1403.33.332.1.12"
   );
+});
+
+test("shows portable foam extinguishers as foam extinguishers", () => {
+  assert.equal(projectRequirementSystemLabel("foam-extinguisher"), "Skumsläckare");
+  assert.equal(projectRequirementSystemLabel("sprinkler"), "Sprinkler");
+});
+
+test("repairs the inherited sprinkler system in already saved foam-extinguisher rows", () => {
+  const details = projectRequirementDetails({
+    id: "requirement-1",
+    value_text: "HANDSLOKKER",
+    value_json: {
+      description: "HANDSLOKKER",
+      category: "other",
+      system: "sprinkler",
+      attributes: {
+        slokkemiddel: "Skum",
+        "mengde slokkemedium": "6 liter"
+      }
+    }
+  });
+
+  assert.equal(details.system, "foam-extinguisher");
+  assert.equal(projectRequirementSystemLabel(details.system!), "Skumsläckare");
 });
 
 test("returns every stored specification without the former eight-item limit", () => {

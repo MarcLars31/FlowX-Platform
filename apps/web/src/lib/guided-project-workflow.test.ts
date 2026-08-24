@@ -116,6 +116,41 @@ test("does not complete the product step for an unapproved suggestion", () => {
   assert.equal(workflow.remainingProductCount, 1);
 });
 
+test("allows project completion when an unavailable product is tagged as not in assortment", () => {
+  const workflow = guidedProjectWorkflow({
+    documentCount: 1,
+    requirements: [
+      { id: "mapped", status: "user_confirmed" },
+      {
+        id: "unavailable",
+        status: "user_confirmed",
+        value_json: {
+          productResolution: {
+            status: "not_in_assortment",
+            tag: "Inte i sortiment"
+          }
+        }
+      }
+    ],
+    assignments: [
+      {
+        id: "a1",
+        requirement_id: "mapped",
+        status: "selected",
+        product_snapshot: {
+          source: "distributor_manual",
+          approvedByUser: true,
+          approvalStatus: "user_approved"
+        }
+      }
+    ]
+  });
+
+  assert.equal(workflow.mappedRequirementCount, 2);
+  assert.equal(workflow.remainingProductCount, 0);
+  assert.equal(workflow.isComplete, true);
+});
+
 test("recognizes only supported workspace tabs", () => {
   assert.equal(isGuidedProjectTab("requirements"), false);
   assert.equal(isGuidedProjectTab("products"), true);

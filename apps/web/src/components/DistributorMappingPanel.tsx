@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, History, ListChecks, Loader2, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, History, ListChecks, Loader2, Plus, Search, ShieldCheck, Tag, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
+import {
+  isProductRequirementResolvedWithoutProduct,
+  productRequirementResolution,
+  type ProductRequirementResolutionStatus
+} from "@/lib/product-requirement-resolution";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
-import { projectRequirementDetails, specificationLabel } from "@/lib/project-requirement-details";
+import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 import { ahlsellCatalogStatusFromPayload, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
@@ -55,9 +60,19 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     () => new Set(approvedAssignments.map((assignment) => String(assignment.requirement_id))),
     [approvedAssignments]
   );
+  const resolvedRequirementIds = useMemo(
+    () => new Set(productRequirements
+      .filter(isProductRequirementResolvedWithoutProduct)
+      .map((requirement) => requirement.id)),
+    [productRequirements]
+  );
+  const handledRequirementIds = useMemo(
+    () => new Set([...approvedRequirementIds, ...resolvedRequirementIds]),
+    [approvedRequirementIds, resolvedRequirementIds]
+  );
   const remainingRequirements = useMemo(
-    () => productRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)),
-    [approvedRequirementIds, productRequirements]
+    () => productRequirements.filter((requirement) => !handledRequirementIds.has(requirement.id)),
+    [handledRequirementIds, productRequirements]
   );
   const memoryFingerprints = useMemo(() => new Set(
     memories.flatMap((memory) => typeof memory.requirement_fingerprint === "string"
@@ -76,11 +91,11 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   }, [memories]);
   const staticallySafeRequirementIds = useMemo(() => new Set(productRequirements.flatMap((requirement) => {
     const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
-    const safe = approvedRequirementIds.has(requirement.id)
+    const safe = handledRequirementIds.has(requirement.id)
       || Boolean(fingerprint && memoryFingerprints.has(fingerprint))
       || buildAhlsellRequirementGuide(requirement).directCandidates.length > 0;
     return safe ? [requirement.id] : [];
-  })), [approvedRequirementIds, memoryFingerprints, productRequirements]);
+  })), [handledRequirementIds, memoryFingerprints, productRequirements]);
   const catalogCheckRequirementIds = useMemo(
     () => productRequirements
       .filter((requirement) => !staticallySafeRequirementIds.has(requirement.id))
@@ -133,12 +148,12 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
 
   const { greenRequirements, yellowRequirements, redRequirements } = useMemo(
     () => splitAhlsellMatchGroups(productRequirements, {
-      approvedRequirementIds,
+      approvedRequirementIds: handledRequirementIds,
       memoryFingerprints,
       catalogStatuses,
       staticallySafeRequirementIds
     }),
-    [approvedRequirementIds, catalogStatuses, memoryFingerprints, productRequirements, staticallySafeRequirementIds]
+    [catalogStatuses, handledRequirementIds, memoryFingerprints, productRequirements, staticallySafeRequirementIds]
   );
   const requirementsByGroup = useMemo<Record<AhlsellMatchGroup, Row[]>>(() => ({
     green: greenRequirements,
@@ -191,12 +206,12 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
   const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
-  const approvedCount = productRequirements.length - remainingRequirements.length;
-  const greenRemainingCount = greenRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
-  const yellowRemainingCount = yellowRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
-  const redRemainingCount = redRequirements.filter((requirement) => !approvedRequirementIds.has(requirement.id)).length;
+  const handledCount = productRequirements.length - remainingRequirements.length;
+  const greenRemainingCount = greenRequirements.filter((requirement) => !handledRequirementIds.has(requirement.id)).length;
+  const yellowRemainingCount = yellowRequirements.filter((requirement) => !handledRequirementIds.has(requirement.id)).length;
+  const redRemainingCount = redRequirements.filter((requirement) => !handledRequirementIds.has(requirement.id)).length;
   const visibleQueueRemainingCount = queueRequirements.filter(
-    (requirement) => !approvedRequirementIds.has(requirement.id)
+    (requirement) => !handledRequirementIds.has(requirement.id)
   ).length;
   const checkedCatalogCount = catalogCheckRequirementIds.filter((requirementId) => catalogStatuses[requirementId]).length;
   const catalogChecksRemaining = Math.max(0, catalogCheckRequirementIds.length - checkedCatalogCount);
@@ -204,9 +219,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const ahlsellCoveragePercent = productRequirements.length > 0
     ? Math.round((matchedRequirementCount / productRequirements.length) * 100)
     : 0;
-  const activeGroupApprovedCount = queueRequirements.length - visibleQueueRemainingCount;
+  const activeGroupHandledCount = queueRequirements.length - visibleQueueRemainingCount;
   const progressPercent = queueRequirements.length > 0
-    ? Math.round((activeGroupApprovedCount / queueRequirements.length) * 100)
+    ? Math.round((activeGroupHandledCount / queueRequirements.length) * 100)
     : 100;
 
   function showRequirement(requirementId: string) {
@@ -260,21 +275,21 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           <div className="max-w-3xl">
             <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-300">Steg 2 av 3 · Välj produkter</p>
             <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-              {remainingRequirements.length === 0 ? "Alla produkter är godkända" : `Godkänn ${remainingRequirements.length} ${remainingRequirements.length === 1 ? "produkt" : "produkter"}`}
+              {remainingRequirements.length === 0 ? "Alla produktposter är hanterade" : `Hantera ${remainingRequirements.length} ${remainingRequirements.length === 1 ? "produktpost" : "produktposter"}`}
             </h2>
             <p className="mt-3 text-base leading-7 text-slate-300">
-              Börja uppifrån. Kontrollera PDF-kravet, välj rätt artikel och godkänn varje produkt med den stora knappen. Inget förslag godkänns eller sparas automatiskt.
+              Kontrollera PDF-kravet och godkänn rätt artikel. Om Ahlsell saknar varan kan du märka posten som ”Inte i sortiment”.
             </p>
           </div>
           <div className="grid min-w-[250px] grid-cols-3 overflow-hidden rounded-xl border border-flow-200 bg-white text-center shadow-sm">
             <StatusNumber value={productRequirements.length} label="Produktval" />
-            <StatusNumber value={approvedCount} label="Godkända" tone="success" />
-            <StatusNumber value={remainingRequirements.length} label="Att godkänna" tone="warning" />
+            <StatusNumber value={handledCount} label="Hanterade" tone="success" />
+            <StatusNumber value={remainingRequirements.length} label="Att hantera" tone="warning" />
           </div>
         </div>
         <div className="mt-5 flex max-w-3xl items-start gap-3 rounded-xl border border-cyan-300/30 bg-white/10 p-4 text-sm font-semibold leading-6 text-cyan-50">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
-          <p>Du bestämmer alltid själv. Tidigare produktval fyller bara i ett utkast. Produkten blir godkänd först när du trycker på ”Godkänn produkt”.</p>
+          <p>Du bestämmer alltid själv. Godkänn en verifierad produkt eller märk raden som Inte i sortiment när Ahlsell saknar varan.</p>
         </div>
       </div>
 
@@ -429,7 +444,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                     <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
                   </div>
                 </div>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink-100" aria-label={`${progressPercent} procent av produkterna godkända`}><div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} /></div>
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink-100" aria-label={`${progressPercent} procent av produktposterna hanterade`}><div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} /></div>
               </nav>
               <RequirementProductMappingCard
                 key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
@@ -494,7 +509,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 <CheckCircle2 className="mt-0.5 h-8 w-8 shrink-0 text-emerald-700" aria-hidden="true" />
                 <div>
                   <h3 className="text-2xl font-bold text-emerald-950">Bra – steg 2 är färdigt</h3>
-                  <p className="mt-2 text-base leading-7 text-emerald-900">Du har själv godkänt alla inköpsposter. Tryck på knappen nedan för att gå till sammanfattningen och ladda ner Excel eller PDF.</p>
+                  <p className="mt-2 text-base leading-7 text-emerald-900">Alla inköpsposter är antingen godkända med en produkt eller märkta som Inte i sortiment. Projektet kan nu slutföras.</p>
                 </div>
               </div>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -505,8 +520,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             </div>
           ) : (
             <div className="rounded-xl border-2 border-flow-300 bg-flow-50 p-4 text-center">
-              <p className="text-lg font-bold text-flow-950">{remainingRequirements.length} produktval återstår</p>
-              <p className="mt-1 text-base text-flow-800">Gröna kvar: {greenRemainingCount} · Gula kvar: {yellowRemainingCount} · Röda kvar: {redRemainingCount}. Godkänn produkten ovan eller byt arbetskö.</p>
+              <p className="text-lg font-bold text-flow-950">{remainingRequirements.length} {remainingRequirements.length === 1 ? "produktpost återstår" : "produktposter återstår"}</p>
+              <p className="mt-1 text-base text-flow-800">Gröna kvar: {greenRemainingCount} · Gula kvar: {yellowRemainingCount} · Röda kvar: {redRemainingCount}. Godkänn en produkt eller märk posten som Inte i sortiment.</p>
             </div>
           )}
         </div>
@@ -537,7 +552,9 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
+  const resolution = productRequirementResolution(requirement);
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
+  const isHandled = isApproved || Boolean(resolution);
   const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
   const pdfArticleNumber = ahlsellGuide.directCandidates.find(
     (candidate) => candidate.source === "pdf_reference"
@@ -626,15 +643,38 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
     }
   }
 
+  async function saveResolution(nextResolution: ProductRequirementResolutionStatus | null) {
+    setSaving(true);
+    onError("");
+    try {
+      const response = await fetch(`/api/projects/${projectId}/product-resolutions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requirementId: requirement.id, resolution: nextResolution })
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Märkningen kunde inte sparas.");
+      await onSaved(payload?.message ?? (nextResolution
+        ? `Post ${details.postNumber ?? position} är märkt som Inte i sortiment.`
+        : `Märkningen för post ${details.postNumber ?? position} har tagits bort.`));
+    } catch (resolutionError) {
+      onError(resolutionError instanceof Error ? resolutionError.message : "Märkningen kunde inte sparas.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <article id={`post-${requirement.id}`} className={isApproved ? "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-emerald-300 bg-white shadow-sm" : "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-amber-300 bg-white shadow-[0_12px_30px_rgba(120,53,15,0.08)]"}>
-      <div className={isApproved ? "bg-emerald-50 p-5 sm:p-6" : "bg-amber-50 p-5 sm:p-6"}>
+    <article id={`post-${requirement.id}`} className={isHandled ? "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-emerald-300 bg-white shadow-sm" : "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-amber-300 bg-white shadow-[0_12px_30px_rgba(120,53,15,0.08)]"}>
+      <div className={isHandled ? "bg-emerald-50 p-5 sm:p-6" : "bg-amber-50 p-5 sm:p-6"}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className={isApproved ? "text-sm font-bold text-emerald-800" : "text-sm font-bold text-amber-900"}>1 · KONTROLLERA PDF-KRAVET · POST {position} AV {totalPosts}</p>
+            <p className={isHandled ? "text-sm font-bold text-emerald-800" : "text-sm font-bold text-amber-900"}>1 · KONTROLLERA PDF-KRAVET · POST {position} AV {totalPosts}</p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <h3 className="text-2xl font-bold text-ink-950 sm:text-3xl">PDF-post {details.postNumber ?? "saknas"}</h3>
-              {isApproved ? (
+              {resolution ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-700 px-3 py-1.5 text-sm font-bold text-white"><Tag className="h-4 w-4" aria-hidden="true" /> {resolution.label}</span>
+              ) : isApproved ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Godkänd</span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 px-3 py-1.5 text-sm font-bold text-white">Inte godkänd</span>
@@ -654,7 +694,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
           {pdfArticleNumber && <Fact label="Ahlsell artikelnummer i PDF" value={pdfArticleNumber} strong />}
           <Fact label="Antal" value={formatProjectQuantity(quantity)} />
           {details.nsCode && <Fact label="NS-kod" value={details.nsCode} />}
-          {details.system && <Fact label="System" value={details.system} />}
+          {details.system && <Fact label="System" value={projectRequirementSystemLabel(details.system)} />}
         </div>
 
         <details className="mt-4 rounded-xl border border-ink-200 bg-white">
@@ -672,6 +712,26 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       </div>
 
       <div className="space-y-5 p-5 sm:p-6">
+        <div className={resolution ? "rounded-xl border-2 border-slate-400 bg-slate-50 p-4" : "rounded-xl border-2 border-dashed border-ink-300 bg-ink-50 p-4"}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="flex items-center gap-2 text-base font-black text-ink-950"><Tag className="h-5 w-5" aria-hidden="true" /> Ahlsell saknar varan?</p>
+              <p className="mt-1 text-sm leading-6 text-ink-700">Märk posten som Inte i sortiment. Den räknas då som hanterad och blockerar inte godkännande av hela projektet.</p>
+            </div>
+            {resolution ? (
+              <Button type="button" variant="secondary" disabled={saving} onClick={() => void saveResolution(null)}>
+                {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                Ångra Inte i sortiment
+              </Button>
+            ) : (
+              <Button type="button" variant="secondary" disabled={saving} onClick={() => void saveResolution("not_in_assortment")}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Tag className="h-4 w-4" aria-hidden="true" />}
+                Märk som Inte i sortiment
+              </Button>
+            )}
+          </div>
+        </div>
+
         {memories.length > 0 && (
           <div className="rounded-xl border-2 border-sky-200 bg-sky-50 p-4">
             <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Tidigare bekräftad produkt – måste godkännas i detta projekt</div>
@@ -964,7 +1024,7 @@ function NonProductRequirementCard({ requirement, position, totalPosts, kind }: 
             <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
             {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
             {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
-            {details.system && <SpecificationRow label="System" value={details.system} />}
+            {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
             {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
             {details.sourcePage && <SpecificationRow label="Källsida" value={String(details.sourcePage)} />}
             {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
@@ -988,6 +1048,7 @@ function RequirementQueueCard({ requirement, assignment, memory, position, appro
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const productSnapshot = record(assignment?.product_snapshot);
+  const resolution = productRequirementResolution(requirement);
   const productName = String(productSnapshot.name ?? "").trim();
   const productNumber = String(productSnapshot.productNumber ?? "").trim();
   const memoryProductName = String(memory?.product_name ?? "").trim();
@@ -1014,7 +1075,9 @@ function RequirementQueueCard({ requirement, assignment, memory, position, appro
     >
       <span className="flex items-start justify-between gap-3">
         <span className={`rounded-full px-3 py-1.5 text-sm font-black ${numberClass}`}>PDF-post {details.postNumber ?? position}</span>
-        {approved ? (
+        {resolution ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-700 px-2.5 py-1.5 text-xs font-bold text-white"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
+        ) : approved ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
         ) : hasReusableMemory ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white"><History className="h-3.5 w-3.5" aria-hidden="true" />Tidigare bekräftad</span>
@@ -1038,7 +1101,7 @@ function RequirementQueueCard({ requirement, assignment, memory, position, appro
           <span className="mt-0.5 block">Art.nr {memoryProductNumber}</span>
         </span>
       )}
-      <span className="mt-auto pt-5 text-base font-black text-flow-800 group-hover:text-flow-950">{hasReusableMemory ? "Öppna och använd tidigare val →" : "Öppna och kontrollera →"}</span>
+      <span className="mt-auto pt-5 text-base font-black text-flow-800 group-hover:text-flow-950">{resolution ? "Öppna eller ändra märkning →" : hasReusableMemory ? "Öppna och använd tidigare val →" : "Öppna och kontrollera →"}</span>
     </button>
   );
 }
@@ -1103,7 +1166,7 @@ function QueueButton({ group, active, count, remaining, onClick }: {
         </span>
         <span className={`flex h-12 min-w-12 items-center justify-center rounded-full px-3 text-xl font-black ${countClass}`}>{count}</span>
       </span>
-      <span className={`mt-3 block text-sm font-bold ${remainingClass}`}>{remaining === 0 ? "Klar" : `${remaining} kvar att godkänna`}{active ? " · Öppen nu" : ""}</span>
+      <span className={`mt-3 block text-sm font-bold ${remainingClass}`}>{remaining === 0 ? "Klar" : `${remaining} kvar att hantera`}{active ? " · Öppen nu" : ""}</span>
     </button>
   );
 }

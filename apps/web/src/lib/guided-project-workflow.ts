@@ -1,4 +1,5 @@
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
+import { isProductRequirementResolvedWithoutProduct } from "@/lib/product-requirement-resolution";
 
 export const GUIDED_PROJECT_STEPS = [
   { id: "documents", label: "Ladda upp", tab: "documents" },
@@ -64,7 +65,8 @@ export function guidedProjectWorkflow(input: {
     })
   );
   const mappedRequirementCount = eligibleRequirements.filter((requirement) =>
-    mappedRequirementIds.has(requirement.id)
+    mappedRequirementIds.has(requirement.id) ||
+    isProductRequirementResolvedWithoutProduct(requirement)
   ).length;
   const productsComplete =
     visibleRequirements.length > 0 &&
