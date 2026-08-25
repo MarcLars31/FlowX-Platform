@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, History, Loader2, Plus, Search, ShieldCheck, Tag, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, History, Loader2, Plus, Search, ShieldCheck, Tag, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
@@ -34,6 +34,10 @@ type ProductSelection = {
   notes: string;
   accessories: AccessoryDraft[];
 };
+type ProductTableSortKey = "control" | "post" | "requirement" | "category" | "quantity" | "product";
+type ProductTableSort = { key: ProductTableSortKey; direction: "asc" | "desc" };
+
+const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
 export function DistributorMappingPanel({ projectId, requirements, assignments, memories, memoryAccessories, onReload, onGoToDocuments, onFinish, finishing = false }: {
   projectId: string;
@@ -55,6 +59,17 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const approvedAssignments = useMemo(
     () => assignments.filter(isUserApprovedProductAssignment),
     [assignments]
+  );
+  const approvedAssignmentByRequirementId = useMemo(
+    () => {
+      const assignmentsByRequirement = new Map<string, Row>();
+      for (const assignment of approvedAssignments) {
+        const requirementId = String(assignment.requirement_id);
+        if (!assignmentsByRequirement.has(requirementId)) assignmentsByRequirement.set(requirementId, assignment);
+      }
+      return assignmentsByRequirement;
+    },
+    [approvedAssignments]
   );
   const approvedRequirementIds = useMemo(
     () => new Set(approvedAssignments.map((assignment) => String(assignment.requirement_id))),
@@ -161,6 +176,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     ...redRequirements.map((requirement) => [requirement.id, "red"] as const)
   ]), [greenRequirements, redRequirements, yellowRequirements]);
   const [selectedProductCategories, setSelectedProductCategories] = useState<ProductRequirementCategory[] | null>(null);
+  const [productTableSort, setProductTableSort] = useState<ProductTableSort | null>(null);
   const [selectedRequirementIds, setSelectedRequirementIds] = useState<Set<string>>(() => new Set());
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
@@ -182,12 +198,40 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     ),
     [productCategoryCounts]
   );
-  const queueRequirements = useMemo(
-    () => selectedProductCategories === null
+  const queueRequirements = useMemo(() => {
+    const filteredRequirements = selectedProductCategories === null
       ? allQueueRequirements
-      : allQueueRequirements.filter((requirement) => selectedProductCategories.includes(productRequirementCategory(requirement))),
-    [allQueueRequirements, selectedProductCategories]
-  );
+      : allQueueRequirements.filter((requirement) => selectedProductCategories.includes(productRequirementCategory(requirement)));
+    if (!productTableSort) return filteredRequirements;
+
+    const direction = productTableSort.direction === "asc" ? 1 : -1;
+    return filteredRequirements
+      .map((requirement, originalIndex) => ({
+        requirement,
+        originalIndex,
+        value: productTableSortValue(
+          requirement,
+          productTableSort.key,
+          approvedRequirementIds.has(requirement.id),
+          groupByRequirementId.get(requirement.id) ?? "yellow",
+          approvedAssignmentByRequirementId.get(requirement.id),
+          typeof requirement.mapping_fingerprint === "string"
+            ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint)
+            : undefined
+        )
+      }))
+      .sort((left, right) => {
+        if (left.value === null || right.value === null) {
+          if (left.value === right.value) return left.originalIndex - right.originalIndex;
+          return left.value === null ? 1 : -1;
+        }
+        const compared = typeof left.value === "number" && typeof right.value === "number"
+          ? left.value - right.value
+          : productTableCollator.compare(String(left.value), String(right.value));
+        return compared === 0 ? left.originalIndex - right.originalIndex : compared * direction;
+      })
+      .map(({ requirement }) => requirement);
+  }, [allQueueRequirements, approvedAssignmentByRequirementId, approvedRequirementIds, groupByRequirementId, preferredMemoryByFingerprint, productTableSort, selectedProductCategories]);
   const queuePositionById = useMemo(
     () => new Map(allQueueRequirements.map((requirement, index) => [requirement.id, index + 1])),
     [allQueueRequirements]
@@ -263,6 +307,13 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
       : new Set());
   }
 
+  function toggleProductTableSort(key: ProductTableSortKey) {
+    setProductTableSort((current) => current?.key === key
+      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key, direction: "asc" }
+    );
+  }
+
   return (
     <section className="space-y-6">
       <div className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-[0_16px_35px_rgba(2,17,38,0.12)] sm:p-7">
@@ -321,12 +372,12 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
                     <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label="Välj alla synliga produktposter" checked={allVisibleRequirementsSelected} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" /></th>
-                    <th className="w-16 border-b border-ink-200 px-2 py-2 text-center">Kontroll</th>
-                    <th className="w-28 border-b border-ink-200 px-3 py-2">PDF-post</th>
-                    <th className="min-w-64 border-b border-ink-200 px-3 py-2">Produktkrav</th>
-                    <th className="w-36 border-b border-ink-200 px-3 py-2">Produktgrupp</th>
-                    <th className="w-24 border-b border-ink-200 px-3 py-2">Mängd</th>
-                    <th className="w-48 border-b border-ink-200 px-3 py-2">Vald produkt</th>
+                    <ProductSortHeader className="w-16 text-center" align="center" label="Kontroll" sortKey="control" sort={productTableSort} onSort={toggleProductTableSort} />
+                    <ProductSortHeader className="w-28" label="PDF-post" sortKey="post" sort={productTableSort} onSort={toggleProductTableSort} />
+                    <ProductSortHeader className="min-w-64" label="Produktkrav" sortKey="requirement" sort={productTableSort} onSort={toggleProductTableSort} />
+                    <ProductSortHeader className="w-36" label="Produktgrupp" sortKey="category" sort={productTableSort} onSort={toggleProductTableSort} />
+                    <ProductSortHeader className="w-24" label="Mängd" sortKey="quantity" sort={productTableSort} onSort={toggleProductTableSort} />
+                    <ProductSortHeader className="w-48" label="Vald produkt" sortKey="product" sort={productTableSort} onSort={toggleProductTableSort} />
                     <th className="w-14 border-b border-ink-200 px-2 py-2 text-center">Öppna</th>
                   </tr>
                 </thead>
@@ -338,7 +389,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                       position={queuePositionById.get(requirement.id) ?? 1}
                       approved={approvedRequirementIds.has(requirement.id)}
                       group={groupByRequirementId.get(requirement.id) ?? "yellow"}
-                      assignment={approvedAssignments.find((item) => item.requirement_id === requirement.id)}
+                      assignment={approvedAssignmentByRequirementId.get(requirement.id)}
                       memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
                       selected={selectedRequirementIds.has(requirement.id)}
                       onSelectedChange={(selected) => toggleRequirementSelection(requirement.id, selected)}
@@ -371,7 +422,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           {activeRequirement && (() => {
             const requirement = activeRequirement;
             const activeGroup = groupByRequirementId.get(requirement.id) ?? "yellow";
-            const assignment = approvedAssignments.find((item) => item.requirement_id === requirement.id);
+            const assignment = approvedAssignmentByRequirementId.get(requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
             return <div id="product-work-queue" className="space-y-4 scroll-mt-5">
               <nav aria-label="Navigera mellan produktposter" className="rounded-2xl border-2 border-ink-200 bg-white p-4 shadow-sm sm:p-5">
@@ -1046,6 +1097,65 @@ function RequirementQueueRow({ requirement, assignment, memory, position, approv
         </button>
       </td>
     </tr>
+  );
+}
+
+function productTableSortValue(
+  requirement: Row,
+  key: ProductTableSortKey,
+  approved: boolean,
+  group: AhlsellMatchGroup,
+  assignment?: Row,
+  memory?: Row
+): string | number | null {
+  if (key === "control") {
+    if (productRequirementResolution(requirement)) return 3;
+    if (approved) return 2;
+    return group === "red" ? 0 : 1;
+  }
+  if (key === "post") return projectRequirementDetails(requirement).postNumber;
+  if (key === "requirement") return String(requirement.value_text ?? "Tekniskt produktkrav");
+  if (key === "category") return productRequirementCategoryLabel(productRequirementCategory(requirement));
+  if (key === "quantity") return projectRequirementQuantity(requirement.value_json).quantity;
+
+  const productSnapshot = record(assignment?.product_snapshot);
+  const productName = String(productSnapshot.name ?? "").trim();
+  if (productName) return productName;
+  const memoryProductName = String(memory?.product_name ?? "").trim();
+  const memoryProductNumber = String(memory?.product_number ?? "").trim();
+  return !approved && memoryProductName && memoryProductNumber ? memoryProductName : null;
+}
+
+function ProductSortHeader({ label, sortKey, sort, onSort, align = "left", className = "" }: {
+  label: string;
+  sortKey: ProductTableSortKey;
+  sort: ProductTableSort | null;
+  onSort: (key: ProductTableSortKey) => void;
+  align?: "left" | "center";
+  className?: string;
+}) {
+  const active = sort?.key === sortKey;
+  const nextDirectionLabel = active && sort.direction === "asc" ? "fallande" : "stigande";
+  const ariaSort = active ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
+
+  return (
+    <th scope="col" aria-sort={ariaSort} className={`border-b border-ink-200 px-3 py-2 ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`Sortera ${label} ${nextDirectionLabel}`}
+        className={`inline-flex w-full items-center gap-1.5 rounded-sm transition hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 ${align === "center" ? "justify-center" : "justify-start"}`}
+      >
+        <span>{label}</span>
+        {active && sort.direction === "asc" ? (
+          <ArrowUp className="h-3.5 w-3.5 text-flow-700" aria-hidden="true" />
+        ) : active ? (
+          <ArrowDown className="h-3.5 w-3.5 text-flow-700" aria-hidden="true" />
+        ) : (
+          <ArrowUpDown className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" />
+        )}
+      </button>
+    </th>
   );
 }
 
