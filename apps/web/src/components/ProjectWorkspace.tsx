@@ -34,6 +34,7 @@ import {
   guidedProjectWorkflow,
   type GuidedProjectTab
 } from "@/lib/guided-project-workflow";
+import { buildProjectSourcePdfLookup } from "@/lib/project-source-pdf";
 
 export type ProjectModuleData = {
   project: OrganizationProject;
@@ -343,6 +344,10 @@ export function ProjectWorkspace({
   const uniqueTechnicalDescriptions = displayedDocuments.technicalDescriptions;
   const distinctProjectDocuments = displayedDocuments.projectDocuments;
   const primaryDocument = uniqueTechnicalDescriptions[0] ?? distinctProjectDocuments[0];
+  const sourcePdfLookup = buildProjectSourcePdfLookup(
+    data.documents,
+    data.technicalDescriptions
+  );
   const counts = {
     documents: displayedDocuments.count,
     requirements: data.requirements.length,
@@ -661,6 +666,7 @@ export function ProjectWorkspace({
             assignments={data.suggestions}
             memories={data.mappingMemories}
             memoryAccessories={data.mappingAccessories}
+            sourcePdfLookup={sourcePdfLookup}
             onReload={reload}
             onGoToDocuments={() => selectTab("documents")}
             onFinish={() => finishProject()}

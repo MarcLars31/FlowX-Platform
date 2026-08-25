@@ -662,6 +662,7 @@ export async function POST(request: Request) {
           status: line.reviewFlags.length
             ? "inferred_unreviewed"
             : "extracted_unreviewed",
+          source_document_id: projectDocument?.id ?? null,
           source_technical_description_document_id: document.id,
           source_page: line.sourcePage,
           source_excerpt: line.sourceText,

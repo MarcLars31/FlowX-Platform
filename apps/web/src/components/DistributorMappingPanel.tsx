@@ -24,6 +24,10 @@ import {
   sortProductRequirementsByCategory,
   type ProductRequirementCategory
 } from "@/lib/product-requirement-category";
+import {
+  projectRequirementSourcePdfHref,
+  type ProjectSourcePdfLookup
+} from "@/lib/project-source-pdf";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = { name: string; productNumber: string; quantity: number; unit: string; notes: string };
@@ -39,12 +43,13 @@ type ProductTableSort = { key: ProductTableSortKey; direction: "asc" | "desc" };
 
 const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
-export function DistributorMappingPanel({ projectId, requirements, assignments, memories, memoryAccessories, onReload, onGoToDocuments, onFinish, finishing = false }: {
+export function DistributorMappingPanel({ projectId, requirements, assignments, memories, memoryAccessories, sourcePdfLookup, onReload, onGoToDocuments, onFinish, finishing = false }: {
   projectId: string;
   requirements: Row[];
   assignments: Row[];
   memories: Row[];
   memoryAccessories: Row[];
+  sourcePdfLookup: ProjectSourcePdfLookup;
   onReload: () => Promise<unknown>;
   onGoToDocuments: () => void;
   onFinish: () => Promise<void>;
@@ -391,6 +396,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                       group={groupByRequirementId.get(requirement.id) ?? "yellow"}
                       assignment={approvedAssignmentByRequirementId.get(requirement.id)}
                       memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
+                      sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
                       selected={selectedRequirementIds.has(requirement.id)}
                       onSelectedChange={(selected) => toggleRequirementSelection(requirement.id, selected)}
                       onOpen={() => showRequirement(requirement.id)}
@@ -1034,10 +1040,11 @@ function NonProductRequirementCard({ requirement, position, totalPosts, kind }: 
   );
 }
 
-function RequirementQueueRow({ requirement, assignment, memory, position, approved, group, selected, onSelectedChange, onOpen }: {
+function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, position, approved, group, selected, onSelectedChange, onOpen }: {
   requirement: Row;
   assignment?: Row;
   memory?: Row;
+  sourcePdfHref: string | null;
   position: number;
   approved: boolean;
   group: AhlsellMatchGroup;
@@ -1074,7 +1081,21 @@ function RequirementQueueRow({ requirement, assignment, memory, position, approv
         )}
       </td>
       <td className="px-3 py-2.5 align-middle">
-        <button type="button" onClick={onOpen} className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline">{details.postNumber ?? position}</button>
+        {sourcePdfHref ? (
+          <a
+            href={sourcePdfHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Öppna PDF-post ${details.postNumber ?? position}${details.sourcePage ? ` på sida ${details.sourcePage}` : ""}`}
+            title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
+            className="inline-flex items-center gap-1 text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
+          >
+            {details.postNumber ?? position}
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        ) : (
+          <button type="button" onClick={onOpen} className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline">{details.postNumber ?? position}</button>
+        )}
         {details.nsCode && <span className="block text-[10px] text-ink-500">{details.nsCode}</span>}
       </td>
       <td className="px-3 py-2.5 align-middle">
