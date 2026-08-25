@@ -162,6 +162,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   }), [greenRequirements, redRequirements, yellowRequirements]);
   const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup | null>(null);
   const [selectedProductCategories, setSelectedProductCategories] = useState<ProductRequirementCategory[] | null>(null);
+  const [selectedRequirementIds, setSelectedRequirementIds] = useState<Set<string>>(() => new Set());
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const allQueueRequirements = useMemo(
@@ -188,21 +189,13 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
       : allQueueRequirements.filter((requirement) => selectedProductCategories.includes(productRequirementCategory(requirement))),
     [allQueueRequirements, selectedProductCategories]
   );
-  const queueSections = useMemo(() => {
-    const categories = selectedProductCategories === null
-      ? availableProductCategories
-      : availableProductCategories.filter((category) => selectedProductCategories.includes(category.id));
-    return categories.map((category) => ({
-      ...category,
-      requirements: queueRequirements.filter(
-        (requirement) => productRequirementCategory(requirement) === category.id
-      )
-    }));
-  }, [availableProductCategories, queueRequirements, selectedProductCategories]);
   const queuePositionById = useMemo(
     () => new Map(queueRequirements.map((requirement, index) => [requirement.id, index + 1])),
     [queueRequirements]
   );
+  const selectedVisibleRequirements = queueRequirements.filter((requirement) => selectedRequirementIds.has(requirement.id));
+  const allVisibleRequirementsSelected = queueRequirements.length > 0
+    && selectedVisibleRequirements.length === queueRequirements.length;
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
   const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
@@ -236,6 +229,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     if (nextQueue.length === 0) return;
     setQueueGroup(group);
     setSelectedProductCategories(null);
+    setSelectedRequirementIds(new Set());
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
@@ -250,6 +244,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
         : [...current, category]
     );
     setActiveRequirementId(null);
+    setSelectedRequirementIds(new Set());
     setMessage(null);
     setError(null);
   }
@@ -257,6 +252,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   function showAllProductCategories() {
     setSelectedProductCategories(null);
     setActiveRequirementId(null);
+    setSelectedRequirementIds(new Set());
     setMessage(null);
     setError(null);
   }
@@ -266,6 +262,21 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function toggleRequirementSelection(requirementId: string, selected: boolean) {
+    setSelectedRequirementIds((current) => {
+      const next = new Set(current);
+      if (selected) next.add(requirementId);
+      else next.delete(requirementId);
+      return next;
+    });
+  }
+
+  function toggleAllVisibleRequirements(selected: boolean) {
+    setSelectedRequirementIds(selected
+      ? new Set(queueRequirements.map((requirement) => requirement.id))
+      : new Set());
   }
 
   return (
@@ -298,7 +309,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">Välj färg</p>
             <h3 id="match-queues-heading" className="mt-1 text-2xl font-bold text-ink-950">Vilka produkter vill du arbeta med?</h3>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Tryck först på grön, gul eller röd. Då visas alla produkter i den gruppen som tydliga kort.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Tryck först på grön, gul eller röd. Då visas alla produkter i gruppen i en tydlig tabell.</p>
             {catalogChecksRemaining > 0 && <p className="mt-2 text-sm font-bold text-flow-700" role="status">Scipx kontrollerar Ahlsell för {catalogChecksRemaining} {catalogChecksRemaining === 1 ? "post" : "poster"}… Grupperna uppdateras automatiskt.</p>}
             {catalogChecksRemaining === 0 && productRequirements.length > 0 && (
               <p className="mt-2 text-sm font-bold text-flow-800" role="status">Ahlsell-täckning: {matchedRequirementCount} av {productRequirements.length} produktposter ({ahlsellCoveragePercent} %). Arbetsmoment och demontering räknas inte som produktmissar.</p>
@@ -328,7 +339,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             />
           </div>
           {!queueGroup && (
-            <p className="mt-4 rounded-xl border border-flow-200 bg-flow-50 px-4 py-3 text-center text-sm font-bold text-flow-900">Välj en färg ovan för att visa produktkorten.</p>
+            <p className="mt-4 rounded-xl border border-flow-200 bg-flow-50 px-4 py-3 text-center text-sm font-bold text-flow-900">Välj en färg ovan för att visa produktposterna.</p>
           )}
         </section>
       )}
@@ -338,8 +349,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className={queueGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : queueGroup === "yellow" ? "text-sm font-bold uppercase tracking-[0.08em] text-amber-800" : "text-sm font-bold uppercase tracking-[0.08em] text-rose-700"}>{queueGroup === "green" ? "Gröna produkter" : queueGroup === "yellow" ? "Gula produkter" : "Röda produkter"}</p>
-              <h3 id="product-group-cards-heading" className="mt-1 text-2xl font-bold text-ink-950">Välj en produkt att kontrollera</h3>
-              <p className="mt-1 text-sm text-ink-700">{queueRequirements.length} {queueRequirements.length === 1 ? "produkt visas" : "produkter visas"}. Tryck på ett kort för att öppna produktvalet.</p>
+              <h3 id="product-group-cards-heading" className="mt-1 text-2xl font-bold text-ink-950">Välj och godkänn produkter</h3>
+              <p className="mt-1 text-sm text-ink-700">{queueRequirements.length} {queueRequirements.length === 1 ? "produktpost visas" : "produktposter visas"}. Tabellen ger en snabb överblick innan du öppnar en post.</p>
             </div>
             <p className="rounded-full bg-white px-4 py-2 text-sm font-bold text-ink-800 shadow-sm">{visibleQueueRemainingCount} kvar i visningen</p>
           </div>
@@ -374,31 +385,56 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           </div>
 
           {queueRequirements.length > 0 ? (
-            <div className="mt-6 space-y-8">
-              {queueSections.map((section) => (
-                <section key={section.id} aria-labelledby={`product-category-${section.id}`}>
-                  <div className="mb-3 flex items-center gap-3">
-                    <h4 id={`product-category-${section.id}`} className="text-xl font-black text-ink-950">{section.label}</h4>
-                    <span className="rounded-full bg-flow-100 px-3 py-1 text-sm font-black text-flow-900">{section.requirements.length}</span>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {section.requirements.map((requirement) => (
-                      <RequirementQueueCard
+            <div className="mt-6 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-ink-200 bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-3">
+                  <p className="text-lg font-black text-ink-950">Produktposter ({queueRequirements.length})</p>
+                  {selectedVisibleRequirements.length > 0 && (
+                    <span className="rounded-full bg-flow-100 px-3 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length} valda</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="secondary" disabled={selectedVisibleRequirements.length !== 1} onClick={() => showRequirement(selectedVisibleRequirements[0].id)}>
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />Öppna vald post
+                  </Button>
+                  <button type="button" disabled={selectedVisibleRequirements.length === 0} onClick={() => setSelectedRequirementIds(new Set())} className="min-h-11 rounded-lg px-3 text-sm font-bold text-flow-800 transition hover:bg-flow-50 disabled:cursor-not-allowed disabled:text-ink-300">
+                    Rensa val
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1120px] border-collapse text-left">
+                  <thead className="bg-ink-50 text-xs font-black uppercase tracking-[0.05em] text-ink-600">
+                    <tr>
+                      <th className="w-14 border-b border-r border-ink-200 px-4 py-3 text-center"><input type="checkbox" aria-label="Välj alla synliga produktposter" checked={allVisibleRequirementsSelected} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-5 w-5 rounded border-ink-300 text-flow-700 focus:ring-flow-500" /></th>
+                      <th className="w-28 border-b border-ink-200 px-4 py-3">Status</th>
+                      <th className="w-36 border-b border-ink-200 px-4 py-3">PDF-post</th>
+                      <th className="min-w-72 border-b border-ink-200 px-4 py-3">Produktkrav</th>
+                      <th className="w-44 border-b border-ink-200 px-4 py-3">Produktgrupp</th>
+                      <th className="w-36 border-b border-ink-200 px-4 py-3">Ahlsellträff</th>
+                      <th className="w-28 border-b border-ink-200 px-4 py-3">Mängd</th>
+                      <th className="w-56 border-b border-ink-200 px-4 py-3">Vald produkt</th>
+                      <th className="w-20 border-b border-ink-200 px-4 py-3 text-center">Åtgärd</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {queueRequirements.map((requirement) => (
+                      <RequirementQueueRow
                         key={requirement.id}
                         requirement={requirement}
                         position={queuePositionById.get(requirement.id) ?? 1}
                         approved={approvedRequirementIds.has(requirement.id)}
                         group={queueGroup}
                         assignment={approvedAssignments.find((item) => item.requirement_id === requirement.id)}
-                        memory={typeof requirement.mapping_fingerprint === "string"
-                          ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint)
-                          : undefined}
-                        onClick={() => showRequirement(requirement.id)}
+                        memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
+                        selected={selectedRequirementIds.has(requirement.id)}
+                        onSelectedChange={(selected) => toggleRequirementSelection(requirement.id, selected)}
+                        onOpen={() => showRequirement(requirement.id)}
                       />
                     ))}
-                  </div>
-                </section>
-              ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
             <div className="mt-5 rounded-xl border border-ink-200 bg-white p-6 text-center">
@@ -439,7 +475,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button variant="secondary" className="min-h-12 justify-center" onClick={closeRequirement}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Tillbaka till alla kort</Button>
+                    <Button variant="secondary" className="min-h-12 justify-center" onClick={closeRequirement}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Tillbaka till produktlistan</Button>
                     <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Föregående</Button>
                     <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
                   </div>
@@ -1036,14 +1072,16 @@ function NonProductRequirementCard({ requirement, position, totalPosts, kind }: 
   );
 }
 
-function RequirementQueueCard({ requirement, assignment, memory, position, approved, group, onClick }: {
+function RequirementQueueRow({ requirement, assignment, memory, position, approved, group, selected, onSelectedChange, onOpen }: {
   requirement: Row;
   assignment?: Row;
   memory?: Row;
   position: number;
   approved: boolean;
   group: AhlsellMatchGroup;
-  onClick: () => void;
+  selected: boolean;
+  onSelectedChange: (selected: boolean) => void;
+  onOpen: () => void;
 }) {
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
@@ -1055,54 +1093,55 @@ function RequirementQueueCard({ requirement, assignment, memory, position, appro
   const memoryProductNumber = String(memory?.product_number ?? "").trim();
   const hasReusableMemory = !approved && Boolean(memoryProductName && memoryProductNumber);
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
-  const borderClass = group === "green"
-    ? "border-emerald-300 hover:border-emerald-600 focus-visible:outline-emerald-600"
-    : group === "yellow"
-      ? "border-amber-300 hover:border-amber-600 focus-visible:outline-amber-600"
-      : "border-rose-300 hover:border-rose-600 focus-visible:outline-rose-600";
-  const numberClass = group === "green"
-    ? "bg-emerald-100 text-emerald-950"
+  const matchLabel = group === "green" ? "Säker träff" : group === "yellow" ? "Kontrollera" : "Ingen träff";
+  const matchClass = group === "green"
+    ? "bg-emerald-100 text-emerald-900"
     : group === "yellow"
       ? "bg-amber-100 text-amber-950"
-      : "bg-rose-100 text-rose-950";
+      : "bg-rose-100 text-rose-900";
+  const rowClass = selected ? "bg-cyan-50 ring-1 ring-inset ring-flow-500" : "bg-white hover:bg-ink-50/80";
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`Öppna PDF-post ${details.postNumber ?? position}`}
-      className={`group flex min-h-64 flex-col rounded-2xl border-2 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 ${borderClass}`}
-    >
-      <span className="flex items-start justify-between gap-3">
-        <span className={`rounded-full px-3 py-1.5 text-sm font-black ${numberClass}`}>PDF-post {details.postNumber ?? position}</span>
+    <tr className={`border-b border-ink-100 transition last:border-b-0 ${rowClass}`}>
+      <td className="border-r border-ink-100 px-4 py-4 text-center">
+        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} className="h-5 w-5 rounded border-ink-300 text-flow-700 focus:ring-flow-500" />
+      </td>
+      <td className="px-4 py-4 align-top">
         {resolution ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-700 px-2.5 py-1.5 text-xs font-bold text-white"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700"><Tag className="h-4 w-4" aria-hidden="true" />{resolution.label}</span>
         ) : approved ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Godkänd</span>
         ) : hasReusableMemory ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white"><History className="h-3.5 w-3.5" aria-hidden="true" />Tidigare bekräftad</span>
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700"><History className="h-4 w-4" aria-hidden="true" />Tidigare val</span>
         ) : (
-          <span className="rounded-full bg-ink-100 px-2.5 py-1.5 text-xs font-bold text-ink-700">Inte godkänd</span>
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700"><AlertTriangle className="h-4 w-4" aria-hidden="true" />Att hantera</span>
         )}
-      </span>
-      <span className="mt-4 inline-flex w-fit rounded-full bg-flow-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-flow-800">{categoryLabel}</span>
-      <span className="mt-3 block max-h-[4.5rem] overflow-hidden text-lg font-bold leading-6 text-ink-950">{String(requirement.value_text ?? "Tekniskt produktkrav")}</span>
-      <span className="mt-3 block text-sm font-semibold text-ink-700">Mängd: {formatProjectQuantity(quantity)}</span>
-      {productName && (
-        <span className="mt-3 block rounded-lg bg-emerald-50 p-3 text-sm text-emerald-950">
-          <span className="block font-bold">{productName}</span>
-          {productNumber && <span className="mt-0.5 block">Art.nr {productNumber}</span>}
-        </span>
-      )}
-      {hasReusableMemory && (
-        <span className="mt-3 block rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
-          <span className="block text-xs font-black uppercase tracking-wide text-sky-700">Sparad från tidigare projekt</span>
-          <span className="mt-1 block font-bold">{memoryProductName}</span>
-          <span className="mt-0.5 block">Art.nr {memoryProductNumber}</span>
-        </span>
-      )}
-      <span className="mt-auto pt-5 text-base font-black text-flow-800 group-hover:text-flow-950">{resolution ? "Öppna eller ändra märkning →" : hasReusableMemory ? "Öppna och använd tidigare val →" : "Öppna och kontrollera →"}</span>
-    </button>
+      </td>
+      <td className="px-4 py-4 align-top">
+        <button type="button" onClick={onOpen} className="font-black text-flow-800 hover:text-flow-950 hover:underline">{details.postNumber ?? position}</button>
+        {details.nsCode && <span className="mt-1 block text-xs text-ink-500">{details.nsCode}</span>}
+      </td>
+      <td className="px-4 py-4 align-top">
+        <button type="button" onClick={onOpen} className="line-clamp-2 max-w-xl text-left text-sm font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
+      </td>
+      <td className="px-4 py-4 align-top text-sm font-semibold text-ink-800">{categoryLabel}</td>
+      <td className="px-4 py-4 align-top"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${matchClass}`}>{matchLabel}</span></td>
+      <td className="whitespace-nowrap px-4 py-4 align-top text-sm font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>
+      <td className="px-4 py-4 align-top text-sm">
+        {productName ? (
+          <><span className="block font-bold text-ink-950">{productName}</span>{productNumber && <span className="mt-1 block text-xs text-ink-600">Art.nr {productNumber}</span>}</>
+        ) : hasReusableMemory ? (
+          <><span className="block font-bold text-sky-900">{memoryProductName}</span><span className="mt-1 block text-xs text-sky-700">Tidigare · {memoryProductNumber}</span></>
+        ) : (
+          <span className="italic text-ink-500">Ingen produkt vald</span>
+        )}
+      </td>
+      <td className="px-4 py-4 text-center align-top">
+        <button type="button" onClick={onOpen} aria-label={`Öppna PDF-post ${details.postNumber ?? position}`} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-flow-800 transition hover:bg-flow-100 hover:text-flow-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </td>
+    </tr>
   );
 }
 
