@@ -511,10 +511,6 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                 Anpassa tabell
               </Button>
-              <Button type="button" variant="secondary" aria-haspopup="dialog" className="min-h-9 px-3 py-1.5 text-sm" disabled={selectedVisibleRequirements.length !== 1} onClick={() => showRequirement(selectedVisibleRequirements[0].id)}>
-                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Öppna vald
-              </Button>
-              <button type="button" disabled={selectedVisibleRequirements.length === 0} onClick={() => setSelectedRequirementIds(new Set())} className="min-h-9 rounded-lg px-2.5 text-xs font-bold text-flow-800 transition hover:bg-flow-50 disabled:cursor-not-allowed disabled:text-ink-300">Rensa</button>
             </div>
           </div>
 
