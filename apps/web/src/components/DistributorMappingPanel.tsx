@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, History, Loader2, Plus, Search, ShieldCheck, Tag, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent as ReactDragEvent, type SetStateAction } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, GripVertical, History, Loader2, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
@@ -28,6 +28,19 @@ import {
   projectRequirementSourcePdfHref,
   type ProjectSourcePdfLookup
 } from "@/lib/project-source-pdf";
+import {
+  DEFAULT_PRODUCT_TABLE_LAYOUT,
+  isProductTableColumnLocked,
+  moveProductTableColumn,
+  moveProductTableColumnByOffset,
+  normalizeProductTableLayout,
+  parseProductTableLayout,
+  PRODUCT_TABLE_COLUMN_IDS,
+  PRODUCT_TABLE_LAYOUT_STORAGE_KEY,
+  setProductTableColumnVisible,
+  type ProductTableColumnId,
+  type ProductTableLayout
+} from "@/lib/product-table-layout";
 
 type Row = Record<string, unknown> & { id: string };
 type AccessoryDraft = { name: string; productNumber: string; quantity: number; unit: string; notes: string };
@@ -38,8 +51,24 @@ type ProductSelection = {
   notes: string;
   accessories: AccessoryDraft[];
 };
-type ProductTableSortKey = "control" | "post" | "requirement" | "category" | "quantity" | "product";
+type ProductTableSortKey = ProductTableColumnId;
 type ProductTableSort = { key: ProductTableSortKey; direction: "asc" | "desc" };
+
+type ProductTableColumnDefinition = {
+  label: string;
+  className: string;
+  align?: "left" | "center";
+  minimumWidth: number;
+};
+
+const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefinition> = {
+  control: { label: "Kontroll", className: "w-16 text-center", align: "center", minimumWidth: 72 },
+  post: { label: "PDF-post", className: "w-28", minimumWidth: 120 },
+  requirement: { label: "Produktkrav", className: "min-w-64", minimumWidth: 320 },
+  category: { label: "Produktgrupp", className: "w-36", minimumWidth: 160 },
+  quantity: { label: "Mängd", className: "w-24", minimumWidth: 104 },
+  product: { label: "Vald produkt", className: "w-48", minimumWidth: 208 }
+};
 
 const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
@@ -182,11 +211,48 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   ]), [greenRequirements, redRequirements, yellowRequirements]);
   const [selectedProductCategories, setSelectedProductCategories] = useState<ProductRequirementCategory[] | null>(null);
   const [productTableSort, setProductTableSort] = useState<ProductTableSort | null>(null);
+  const [productTableLayout, setProductTableLayout] = useState<ProductTableLayout>(() => normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
+  const [productTableLayoutLoaded, setProductTableLayoutLoaded] = useState(false);
+  const [productTableLayoutEditorOpen, setProductTableLayoutEditorOpen] = useState(false);
+  const [draggedProductTableColumn, setDraggedProductTableColumn] = useState<ProductTableColumnId | null>(null);
+  const [productTableLayoutAnnouncement, setProductTableLayoutAnnouncement] = useState("");
   const [selectedRequirementIds, setSelectedRequirementIds] = useState<Set<string>>(() => new Set());
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const [productCardSaving, setProductCardSaving] = useState(false);
   const productDialogRef = useRef<HTMLDialogElement>(null);
+  const visibleProductTableColumns = productTableLayout.order.filter(
+    (columnId) => !productTableLayout.hidden.includes(columnId)
+  );
+  const productTableMinimumWidth = Math.max(
+    640,
+    112 + visibleProductTableColumns.reduce(
+      (total, columnId) => total + PRODUCT_TABLE_COLUMNS[columnId].minimumWidth,
+      0
+    )
+  );
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        setProductTableLayout(parseProductTableLayout(window.localStorage.getItem(PRODUCT_TABLE_LAYOUT_STORAGE_KEY)));
+      } catch {
+        setProductTableLayout(normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
+      } finally {
+        setProductTableLayoutLoaded(true);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!productTableLayoutLoaded) return;
+    try {
+      window.localStorage.setItem(PRODUCT_TABLE_LAYOUT_STORAGE_KEY, JSON.stringify(productTableLayout));
+    } catch {
+      // The customized table still works for this session when browser storage is unavailable.
+    }
+  }, [productTableLayout, productTableLayoutLoaded]);
   const allQueueRequirements = useMemo(
     () => sortProductRequirementsByCategory(productRequirements),
     [productRequirements]
@@ -342,6 +408,58 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     );
   }
 
+  function announceProductTableColumnPosition(columnId: ProductTableColumnId, layout: ProductTableLayout) {
+    const position = layout.order.indexOf(columnId) + 1;
+    setProductTableLayoutAnnouncement(
+      `${PRODUCT_TABLE_COLUMNS[columnId].label} flyttad till plats ${position} av ${layout.order.length}.`
+    );
+  }
+
+  function moveProductTableColumnTo(columnId: ProductTableColumnId, targetColumnId: ProductTableColumnId, placement: "before" | "after") {
+    const nextLayout = moveProductTableColumn(productTableLayout, columnId, targetColumnId, placement);
+    setProductTableLayout(nextLayout);
+    announceProductTableColumnPosition(columnId, nextLayout);
+  }
+
+  function moveProductTableColumnOneStep(columnId: ProductTableColumnId, offset: -1 | 1) {
+    const nextLayout = moveProductTableColumnByOffset(productTableLayout, columnId, offset);
+    setProductTableLayout(nextLayout);
+    announceProductTableColumnPosition(columnId, nextLayout);
+  }
+
+  function setProductTableColumnVisibility(columnId: ProductTableColumnId, visible: boolean) {
+    const nextLayout = setProductTableColumnVisible(productTableLayout, columnId, visible);
+    setProductTableLayout(nextLayout);
+    if (!visible && productTableSort?.key === columnId) setProductTableSort(null);
+    setProductTableLayoutAnnouncement(
+      `${PRODUCT_TABLE_COLUMNS[columnId].label} ${visible ? "visas" : "är dold"}.`
+    );
+  }
+
+  function resetProductTableLayout() {
+    setProductTableLayout(normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
+    setProductTableSort(null);
+    setProductTableLayoutAnnouncement("Standardvyn är återställd.");
+  }
+
+  function startProductTableColumnDrag(event: ReactDragEvent, columnId: ProductTableColumnId) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", columnId);
+    setDraggedProductTableColumn(columnId);
+  }
+
+  function dropProductTableColumn(event: ReactDragEvent, targetColumnId: ProductTableColumnId) {
+    event.preventDefault();
+    const transferredColumnId = event.dataTransfer.getData("text/plain");
+    const sourceColumnId = PRODUCT_TABLE_COLUMN_IDS.find(
+      (columnId) => columnId === (draggedProductTableColumn ?? transferredColumnId)
+    );
+    const targetBounds = event.currentTarget.getBoundingClientRect();
+    const placement = event.clientX >= targetBounds.left + targetBounds.width / 2 ? "after" : "before";
+    if (sourceColumnId) moveProductTableColumnTo(sourceColumnId, targetColumnId, placement);
+    setDraggedProductTableColumn(null);
+  }
+
   return (
     <section className="space-y-6">
       <div className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-[0_16px_35px_rgba(2,17,38,0.12)] sm:p-7">
@@ -380,6 +498,18 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {selectedVisibleRequirements.length > 0 && <span className="rounded-full bg-flow-100 px-2.5 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length} valda</span>}
+              <Button
+                type="button"
+                variant="secondary"
+                aria-expanded={productTableLayoutEditorOpen}
+                aria-controls="product-table-layout-editor"
+                className="min-h-9 px-3 py-1.5 text-sm"
+                disabled={!productTableLayoutLoaded}
+                onClick={() => setProductTableLayoutEditorOpen((open) => !open)}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                Anpassa tabell
+              </Button>
               <Button type="button" variant="secondary" aria-haspopup="dialog" className="min-h-9 px-3 py-1.5 text-sm" disabled={selectedVisibleRequirements.length !== 1} onClick={() => showRequirement(selectedVisibleRequirements[0].id)}>
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Öppna vald
               </Button>
@@ -394,18 +524,95 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             ))}
           </div>
 
+          {productTableLayoutLoaded && productTableLayoutEditorOpen && (
+            <section id="product-table-layout-editor" aria-labelledby="product-table-layout-heading" className="border-b border-ink-200 bg-white px-4 py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h4 id="product-table-layout-heading" className="text-sm font-black text-ink-950">Anpassa tabellvyn</h4>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">Dra i handtaget eller använd pilarna för att flytta kolumner. Dina val sparas i den här webbläsaren.</p>
+                </div>
+                <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-sm" onClick={resetProductTableLayout}>
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Återställ standardvy
+                </Button>
+              </div>
+              <ol className="mt-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
+                {productTableLayout.order.map((columnId, index) => {
+                  const column = PRODUCT_TABLE_COLUMNS[columnId];
+                  const locked = isProductTableColumnLocked(columnId);
+                  const visible = !productTableLayout.hidden.includes(columnId);
+                  return (
+                    <li
+                      key={columnId}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                      }}
+                      onDrop={(event) => dropProductTableColumn(event, columnId)}
+                      className={draggedProductTableColumn === columnId
+                        ? "flex min-h-12 items-center gap-2 rounded-lg border-2 border-flow-500 bg-flow-50 px-2 py-1.5 opacity-70"
+                        : "flex min-h-12 items-center gap-2 rounded-lg border border-ink-200 bg-ink-50 px-2 py-1.5"}
+                    >
+                      <span
+                        draggable
+                        aria-hidden="true"
+                        title={`Dra för att flytta ${column.label}`}
+                        onDragStart={(event) => startProductTableColumnDrag(event, columnId)}
+                        onDragEnd={() => setDraggedProductTableColumn(null)}
+                        className="inline-flex h-9 w-8 shrink-0 cursor-grab items-center justify-center rounded-md text-ink-500 active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-5 w-5" />
+                      </span>
+                      <label className="flex min-w-0 flex-1 items-center gap-2 text-sm font-bold text-ink-900">
+                        <input
+                          type="checkbox"
+                          checked={visible}
+                          disabled={locked}
+                          onChange={(event) => setProductTableColumnVisibility(columnId, event.target.checked)}
+                          className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:opacity-50"
+                        />
+                        <span className="truncate">{column.label}</span>
+                        {locked && <span className="sr-only">Alltid synlig</span>}
+                      </label>
+                      <button type="button" disabled={index === 0} onClick={() => moveProductTableColumnOneStep(columnId, -1)} aria-label={`Flytta ${column.label} åt vänster`} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-700 transition hover:bg-white hover:text-flow-800 disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>
+                      <button type="button" disabled={index === productTableLayout.order.length - 1} onClick={() => moveProductTableColumnOneStep(columnId, 1)} aria-label={`Flytta ${column.label} åt höger`} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-700 transition hover:bg-white hover:text-flow-800 disabled:cursor-not-allowed disabled:opacity-30"><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
+                    </li>
+                  );
+                })}
+              </ol>
+              <p role="status" aria-live="polite" className="sr-only">{productTableLayoutAnnouncement}</p>
+            </section>
+          )}
+
           {queueRequirements.length > 0 ? (
+            productTableLayoutLoaded ? (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1020px] border-collapse text-left">
+              <table className="w-full border-collapse text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
                     <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label="Välj alla synliga produktposter" checked={allVisibleRequirementsSelected} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" /></th>
-                    <ProductSortHeader className="w-16 text-center" align="center" label="Kontroll" sortKey="control" sort={productTableSort} onSort={toggleProductTableSort} />
-                    <ProductSortHeader className="w-28" label="PDF-post" sortKey="post" sort={productTableSort} onSort={toggleProductTableSort} />
-                    <ProductSortHeader className="min-w-64" label="Produktkrav" sortKey="requirement" sort={productTableSort} onSort={toggleProductTableSort} />
-                    <ProductSortHeader className="w-36" label="Produktgrupp" sortKey="category" sort={productTableSort} onSort={toggleProductTableSort} />
-                    <ProductSortHeader className="w-24" label="Mängd" sortKey="quantity" sort={productTableSort} onSort={toggleProductTableSort} />
-                    <ProductSortHeader className="w-48" label="Vald produkt" sortKey="product" sort={productTableSort} onSort={toggleProductTableSort} />
+                    {visibleProductTableColumns.map((columnId) => {
+                      const column = PRODUCT_TABLE_COLUMNS[columnId];
+                      return (
+                        <ProductSortHeader
+                          key={columnId}
+                          className={column.className}
+                          align={column.align}
+                          label={column.label}
+                          sortKey={columnId}
+                          sort={productTableSort}
+                          dragging={draggedProductTableColumn === columnId}
+                          onSort={toggleProductTableSort}
+                          onDragStart={startProductTableColumnDrag}
+                          onDragEnd={() => setDraggedProductTableColumn(null)}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                          }}
+                          onDrop={(event) => dropProductTableColumn(event, columnId)}
+                        />
+                      );
+                    })}
                     <th className="w-14 border-b border-ink-200 px-2 py-2 text-center">Öppna</th>
                   </tr>
                 </thead>
@@ -420,6 +627,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                       assignment={approvedAssignmentByRequirementId.get(requirement.id)}
                       memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
                       sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
+                      columns={visibleProductTableColumns}
                       selected={selectedRequirementIds.has(requirement.id)}
                       onSelectedChange={(selected) => toggleRequirementSelection(requirement.id, selected)}
                       onOpen={() => showRequirement(requirement.id)}
@@ -428,6 +636,12 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 </tbody>
               </table>
             </div>
+            ) : (
+              <div className="flex min-h-28 items-center justify-center gap-2 p-5 text-sm font-bold text-ink-700" role="status">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Laddar din tabellvy…
+              </div>
+            )
           ) : (
             <div className="p-5 text-center"><p className="font-bold text-ink-950">Ingen produktgrupp är vald.</p><p className="mt-1 text-sm text-ink-700">Välj en grupp ovan eller tryck på Alla.</p></div>
           )}
@@ -1109,11 +1323,12 @@ function NonProductRequirementCard({ requirement, position, totalPosts, kind }: 
   );
 }
 
-function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, position, approved, group, selected, onSelectedChange, onOpen }: {
+function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, columns, position, approved, group, selected, onSelectedChange, onOpen }: {
   requirement: Row;
   assignment?: Row;
   memory?: Row;
   sourcePdfHref: string | null;
+  columns: ProductTableColumnId[];
   position: number;
   approved: boolean;
   group: AhlsellMatchGroup;
@@ -1133,54 +1348,63 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, p
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
   const rowClass = selected ? "bg-cyan-50 ring-1 ring-inset ring-flow-500" : "bg-white hover:bg-ink-50/80";
 
-  return (
-    <tr className={`border-b border-ink-100 transition last:border-b-0 ${rowClass}`}>
-      <td className="border-r border-ink-100 px-3 py-2.5 text-center">
-        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" />
-      </td>
-      <td className="px-2 py-2.5 text-center align-middle">
-        {resolution ? (
-          <span title={resolution.label} className="inline-flex text-slate-700"><Tag className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{resolution.label}</span></span>
-        ) : approved ? (
-          <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
-        ) : group === "red" ? (
-          <span title="Produkten hittas inte hos Ahlsell" className="inline-flex text-rose-600"><CircleX className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten hittas inte hos Ahlsell</span></span>
-        ) : (
-          <span title="Produkten måste ses över" className="inline-flex text-amber-600"><AlertTriangle className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten måste ses över</span></span>
-        )}
-      </td>
-      <td className="px-3 py-2.5 align-middle">
-        {sourcePdfHref ? (
-          <a
-            href={sourcePdfHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Öppna PDF-post ${details.postNumber ?? position}${details.sourcePage ? ` på sida ${details.sourcePage}` : ""}`}
-            title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
-            className="inline-flex items-center gap-1 text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
-          >
-            {details.postNumber ?? position}
-            <ExternalLink className="h-3 w-3" aria-hidden="true" />
-          </a>
-        ) : (
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`}
-            onClick={onOpen}
-            className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline"
-          >
-            {details.postNumber ?? position}
-          </button>
-        )}
-        {details.nsCode && <span className="block text-[10px] text-ink-500">{details.nsCode}</span>}
-      </td>
-      <td className="px-3 py-2.5 align-middle">
-        <button type="button" aria-haspopup="dialog" onClick={onOpen} className="line-clamp-1 max-w-xl text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
-      </td>
-      <td className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">{categoryLabel}</td>
-      <td className="whitespace-nowrap px-3 py-2.5 align-middle text-xs font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>
-      <td className="px-3 py-2.5 align-middle text-xs">
+  function renderProductTableCell(columnId: ProductTableColumnId) {
+    if (columnId === "control") {
+      return (
+        <td key={columnId} className="px-2 py-2.5 text-center align-middle">
+          {resolution ? (
+            <span title={resolution.label} className="inline-flex text-slate-700"><Tag className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{resolution.label}</span></span>
+          ) : approved ? (
+            <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
+          ) : group === "red" ? (
+            <span title="Produkten hittas inte hos Ahlsell" className="inline-flex text-rose-600"><CircleX className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten hittas inte hos Ahlsell</span></span>
+          ) : (
+            <span title="Produkten måste ses över" className="inline-flex text-amber-600"><AlertTriangle className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten måste ses över</span></span>
+          )}
+        </td>
+      );
+    }
+    if (columnId === "post") {
+      return (
+        <td key={columnId} className="px-3 py-2.5 align-middle">
+          {sourcePdfHref ? (
+            <a
+              href={sourcePdfHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Öppna PDF-post ${details.postNumber ?? position}${details.sourcePage ? ` på sida ${details.sourcePage}` : ""}`}
+              title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
+              className="inline-flex items-center gap-1 text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
+            >
+              {details.postNumber ?? position}
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+            </a>
+          ) : (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`}
+              onClick={onOpen}
+              className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline"
+            >
+              {details.postNumber ?? position}
+            </button>
+          )}
+          {details.nsCode && <span className="block text-[10px] text-ink-500">{details.nsCode}</span>}
+        </td>
+      );
+    }
+    if (columnId === "requirement") {
+      return (
+        <td key={columnId} className="px-3 py-2.5 align-middle">
+          <button type="button" aria-haspopup="dialog" onClick={onOpen} className="line-clamp-1 max-w-xl text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
+        </td>
+      );
+    }
+    if (columnId === "category") return <td key={columnId} className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">{categoryLabel}</td>;
+    if (columnId === "quantity") return <td key={columnId} className="whitespace-nowrap px-3 py-2.5 align-middle text-xs font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>;
+    return (
+      <td key={columnId} className="px-3 py-2.5 align-middle text-xs">
         {productName ? (
           <><span className="line-clamp-1 block font-bold text-ink-950">{productName}</span>{productNumber && <span className="block text-[10px] text-ink-600">Art.nr {productNumber}</span>}</>
         ) : hasReusableMemory ? (
@@ -1189,6 +1413,15 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, p
           <span className="italic text-ink-500">Ingen produkt vald</span>
         )}
       </td>
+    );
+  }
+
+  return (
+    <tr className={`border-b border-ink-100 transition last:border-b-0 ${rowClass}`}>
+      <td className="border-r border-ink-100 px-3 py-2.5 text-center">
+        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" />
+      </td>
+      {columns.map(renderProductTableCell)}
       <td className="px-2 py-2 text-center align-middle">
         <button type="button" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`} title="Öppna produktkort" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-flow-800 transition hover:bg-flow-100 hover:text-flow-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
           <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1224,11 +1457,16 @@ function productTableSortValue(
   return !approved && memoryProductName && memoryProductNumber ? memoryProductName : null;
 }
 
-function ProductSortHeader({ label, sortKey, sort, onSort, align = "left", className = "" }: {
+function ProductSortHeader({ label, sortKey, sort, dragging, onSort, onDragStart, onDragEnd, onDragOver, onDrop, align = "left", className = "" }: {
   label: string;
   sortKey: ProductTableSortKey;
   sort: ProductTableSort | null;
+  dragging: boolean;
   onSort: (key: ProductTableSortKey) => void;
+  onDragStart: (event: ReactDragEvent, columnId: ProductTableColumnId) => void;
+  onDragEnd: () => void;
+  onDragOver: (event: ReactDragEvent) => void;
+  onDrop: (event: ReactDragEvent) => void;
   align?: "left" | "center";
   className?: string;
 }) {
@@ -1237,22 +1475,34 @@ function ProductSortHeader({ label, sortKey, sort, onSort, align = "left", class
   const ariaSort = active ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
 
   return (
-    <th scope="col" aria-sort={ariaSort} className={`border-b border-ink-200 px-3 py-2 ${className}`}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        aria-label={`Sortera ${label} ${nextDirectionLabel}`}
-        className={`inline-flex w-full items-center gap-1.5 rounded-sm transition hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 ${align === "center" ? "justify-center" : "justify-start"}`}
-      >
-        <span>{label}</span>
-        {active && sort.direction === "asc" ? (
-          <ArrowUp className="h-3.5 w-3.5 text-flow-700" aria-hidden="true" />
-        ) : active ? (
-          <ArrowDown className="h-3.5 w-3.5 text-flow-700" aria-hidden="true" />
-        ) : (
-          <ArrowUpDown className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" />
-        )}
-      </button>
+    <th scope="col" aria-sort={ariaSort} onDragOver={onDragOver} onDrop={onDrop} className={`border-b border-ink-200 px-1 py-2 ${dragging ? "bg-flow-50 opacity-60" : ""} ${className}`}>
+      <div className={`flex items-center gap-0.5 ${align === "center" ? "justify-center" : "justify-start"}`}>
+        <span
+          draggable
+          aria-hidden="true"
+          title={`Dra för att flytta ${label}`}
+          onDragStart={(event) => onDragStart(event, sortKey)}
+          onDragEnd={onDragEnd}
+          className="inline-flex h-7 w-6 shrink-0 cursor-grab items-center justify-center rounded text-ink-400 transition hover:bg-white hover:text-flow-700 active:cursor-grabbing"
+        >
+          <GripVertical className="h-4 w-4" />
+        </span>
+        <button
+          type="button"
+          onClick={() => onSort(sortKey)}
+          aria-label={`Sortera ${label} ${nextDirectionLabel}`}
+          className={`inline-flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 transition hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 ${align === "center" ? "justify-center" : "justify-start"}`}
+        >
+          <span>{label}</span>
+          {active && sort.direction === "asc" ? (
+            <ArrowUp className="h-3.5 w-3.5 shrink-0 text-flow-700" aria-hidden="true" />
+          ) : active ? (
+            <ArrowDown className="h-3.5 w-3.5 shrink-0 text-flow-700" aria-hidden="true" />
+          ) : (
+            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />
+          )}
+        </button>
+      </div>
     </th>
   );
 }
