@@ -7,6 +7,7 @@ import { Input } from "@/components/Input";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
+import { resolveDistributorProductName } from "@/lib/distributor-product-mapping";
 import {
   isProductRequirementResolvedWithoutProduct,
   productRequirementResolution,
@@ -864,14 +865,14 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   function applyMemory(memory: Row) {
     showSelection(
       selectionFromMemory(memory),
-      `Tidigare godkänd produkt har valts för kontroll: ${String(memory.product_name)} · art.nr ${String(memory.product_number)}.`
+      `Tidigare godkänd produkt har valts för kontroll: ${String(memory.product_name)} · NRF-nummer ${String(memory.product_number)}.`
     );
     onError("");
   }
 
   function applyAhlsellCandidate(candidate: AhlsellPublicCandidate) {
     const candidateNote = candidate.source === "pdf_reference"
-      ? "Artikelnumret hämtades från den uppladdade PDF-posten. Kontrollera produkten hos Ahlsell före beställning."
+      ? "NRF-numret hämtades från den uppladdade PDF-posten. Kontrollera produkten hos Ahlsell före beställning."
       : candidate.source === "catalog_search"
         ? compactText([
             candidate.recommendation === "recommended" ? "Scipx rankade produkten högst mot de extraherade PDF-kraven." : null,
@@ -885,13 +886,17 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       manufacturerName: candidate.manufacturer,
       notes: notes.trim() || candidateNote,
       accessories
-    }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · art.nr ${candidate.articleNumber}.`);
+    }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`);
     onError("");
   }
 
   async function save() {
     const chosen = {
-      productName,
+      productName: resolveDistributorProductName({
+        productName,
+        requirementName: requirement.value_text,
+        productNumber
+      }),
       productNumber,
       manufacturerName,
       notes,
@@ -976,7 +981,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Fact label="PDF-postnummer" value={details.postNumber ?? "Saknas"} strong />
           {details.chapterPost && <Fact label="Kapitelpost" value={details.chapterPost} />}
-          {pdfArticleNumber && <Fact label="Ahlsell artikelnummer i PDF" value={pdfArticleNumber} strong />}
+          {pdfArticleNumber && <Fact label="NRF-nummer i PDF" value={pdfArticleNumber} strong />}
           <Fact label="Antal" value={formatProjectQuantity(quantity)} />
           {details.nsCode && <Fact label="NS-kod" value={details.nsCode} />}
           {details.system && <Fact label="System" value={projectRequirementSystemLabel(details.system)} />}
@@ -1026,7 +1031,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               {memories.map((memory) => (
                 <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="min-h-24 rounded-xl border-2 border-sky-200 bg-white p-4 text-left transition hover:border-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-wait disabled:opacity-60">
                   <p className="text-base font-bold text-ink-950">{String(memory.product_name)}</p>
-                  <p className="mt-1 text-sm text-ink-700">Art.nr {String(memory.product_number)}</p>
+                  <p className="mt-1 text-sm text-ink-700">NRF-nummer {String(memory.product_number)}</p>
                   <p className="mt-3 text-sm font-bold text-sky-800">Använd tidigare bekräftad produkt</p>
                 </button>
               ))}
@@ -1042,18 +1047,17 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
           onUseCandidate={applyAhlsellCandidate}
         />
 
-        <div id={`product-selection-${requirement.id}`} className="scroll-mt-6"><p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">2 · Välj produkt</p><h4 className="mt-1 text-xl font-bold text-ink-950">Kontrollera den valda produkten</h4><p className="mt-1 text-sm text-ink-600">Fälten med * måste fyllas i. Produkten sparas som godkänd först när du trycker på ”Godkänn produkt”.</p></div>
+        <div id={`product-selection-${requirement.id}`} className="scroll-mt-6"><p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">2 · Välj produkt</p><h4 className="mt-1 text-xl font-bold text-ink-950">Kontrollera den valda produkten</h4><p className="mt-1 text-sm text-ink-600">NRF-numret måste fyllas i. Produktnamnet hämtas automatiskt från produktvalet eller PDF-posten.</p></div>
         {draftNotice && hasUnapprovedChanges && (
           <div className="rounded-xl border-4 border-emerald-500 bg-emerald-50 p-4" role="status" aria-live="polite">
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700" aria-hidden="true" />
-              <div><p className="text-lg font-black text-emerald-950">Produkten är vald – ett steg återstår</p><p className="mt-1 text-sm font-semibold leading-6 text-emerald-900">{draftNotice} Kontrollera fälten och tryck därefter på den stora knappen ”Godkänn produkt”.</p></div>
+              <div><p className="text-lg font-black text-emerald-950">Produkten är vald – ett steg återstår</p><p className="mt-1 text-sm font-semibold leading-6 text-emerald-900">{draftNotice} Kontrollera NRF-numret och tryck därefter på den stora knappen ”Godkänn produkt”.</p></div>
             </div>
           </div>
         )}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Input className="h-12 text-base" id={`product-name-${requirement.id}`} label="Produktnamn *" value={productName} onChange={(event) => { setProductName(event.target.value); setHasUnapprovedChanges(true); }} required />
-          <Input className="h-12 text-base" id={`product-number-${requirement.id}`} label="Ahlsells artikelnummer *" value={productNumber} onChange={(event) => { setProductNumber(event.target.value); setHasUnapprovedChanges(true); }} required />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input className="h-12 text-base" id={`product-number-${requirement.id}`} label="NRF-nummer *" value={productNumber} onChange={(event) => { setProductNumber(event.target.value); setProductName(""); setHasUnapprovedChanges(true); }} required />
           <Input className="h-12 text-base" id={`manufacturer-${requirement.id}`} label="Tillverkare (valfritt)" value={manufacturerName} onChange={(event) => { setManufacturerName(event.target.value); setHasUnapprovedChanges(true); }} />
         </div>
 
@@ -1067,7 +1071,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
             {accessories.map((accessory, index) => (
               <div key={index} className="grid gap-3 rounded-xl border border-ink-200 bg-white p-4 md:grid-cols-[2fr_1.3fr_0.8fr_0.7fr_auto]">
                 <CompactInput label="Tillbehör" value={accessory.name} onChange={(value) => { updateAccessory(setAccessories, index, "name", value); setHasUnapprovedChanges(true); }} />
-                <CompactInput label="Artikelnummer" value={accessory.productNumber} onChange={(value) => { updateAccessory(setAccessories, index, "productNumber", value); setHasUnapprovedChanges(true); }} />
+                <CompactInput label="NRF-nummer" value={accessory.productNumber} onChange={(value) => { updateAccessory(setAccessories, index, "productNumber", value); setHasUnapprovedChanges(true); }} />
                 <CompactInput label="Antal per produkt" type="number" min="0.001" step="0.001" value={String(accessory.quantity)} onChange={(value) => { updateAccessory(setAccessories, index, "quantity", Number(value)); setHasUnapprovedChanges(true); }} />
                 <CompactInput label="Enhet" value={accessory.unit} onChange={(value) => { updateAccessory(setAccessories, index, "unit", value); setHasUnapprovedChanges(true); }} />
                 <button type="button" aria-label="Ta bort tillbehör" onClick={() => { setAccessories((current) => current.filter((_, itemIndex) => itemIndex !== index)); setHasUnapprovedChanges(true); }} className="mt-7 flex h-11 w-11 items-center justify-center rounded-lg text-ink-500 transition hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></button>
@@ -1082,7 +1086,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
             <p className={isApproved ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-800" : "text-sm font-bold uppercase tracking-[0.08em] text-amber-900"}>3 · Godkänn produkten</p>
             <p className={isApproved ? "mt-1 text-sm font-medium text-emerald-900" : "mt-1 text-sm font-medium text-amber-950"}>{isApproved ? "Produkten är godkänd. Alla ändringar måste godkännas på nytt." : "Produkten är inte godkänd ännu. Kontrollera uppgifterna och tryck sedan på knappen."}</p>
           </div>
-          <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="button" onClick={() => void save()} disabled={saving || !productName.trim() || !productNumber.trim()}>
+          <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="button" onClick={() => void save()} disabled={saving || !productNumber.trim()}>
             {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-5 w-5" aria-hidden="true" />}
             {saving ? "Godkänner…" : assignment ? `Godkänn ändringar för post ${details.postNumber ?? position}` : `Godkänn produkt för post ${details.postNumber ?? position}`}
           </Button>
@@ -1232,7 +1236,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-base font-bold text-ink-950">{candidate.productName}</p>
-                  <p className="mt-1 text-sm font-bold text-cyan-900">Ahlsell art.nr {candidate.articleNumber}</p>
+                  <p className="mt-1 text-sm font-bold text-cyan-900">NRF-nummer {candidate.articleNumber}</p>
                   <p className="mt-1 text-xs font-semibold text-ink-600">{candidateSourceLabel(candidate.source)}</p>
                 </div>
                 <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800">
@@ -1281,7 +1285,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
 }
 
 function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {
-  if (source === "pdf_reference") return "Artikelnumret står i den uppladdade PDF-filen";
+  if (source === "pdf_reference") return "NRF-numret står i den uppladdade PDF-filen";
   if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog – kontroll krävs";
   return "Tidigare verifierad i Ahlsells offentliga katalog";
 }
@@ -1406,9 +1410,9 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, c
     return (
       <td key={columnId} className="px-3 py-2.5 align-middle text-xs">
         {productName ? (
-          <><span className="line-clamp-1 block font-bold text-ink-950">{productName}</span>{productNumber && <span className="block text-[10px] text-ink-600">Art.nr {productNumber}</span>}</>
+          <><span className="line-clamp-1 block font-bold text-ink-950">{productName}</span>{productNumber && <span className="block text-[10px] text-ink-600">NRF-nummer {productNumber}</span>}</>
         ) : hasReusableMemory ? (
-          <><span className="line-clamp-1 block font-bold text-sky-900">{memoryProductName}</span><span className="block text-[10px] text-sky-700">Tidigare · {memoryProductNumber}</span></>
+          <><span className="line-clamp-1 block font-bold text-sky-900">{memoryProductName}</span><span className="block text-[10px] text-sky-700">Tidigare · NRF-nummer {memoryProductNumber}</span></>
         ) : (
           <span className="italic text-ink-500">Ingen produkt vald</span>
         )}

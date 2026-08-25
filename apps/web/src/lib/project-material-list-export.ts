@@ -232,7 +232,7 @@ function addProjectSheet(
   sheet.getCell("B17").numFmt = "yyyy-mm-dd hh:mm";
   sheet.mergeCells("A19:B20");
   const note = sheet.getCell("A19");
-  note.value = "Kontrollera alltid artikelnummer, antal, pris och tillgänglighet före beställning. Exporten innehåller endast produkter som en användare uttryckligen har godkänt.";
+  note.value = "Kontrollera alltid NRF-nummer, antal, pris och tillgänglighet före beställning. Exporten innehåller endast produkter som en användare uttryckligen har godkänt.";
   note.alignment = { vertical: "middle", wrapText: true };
   note.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF7ED" } };
   note.font = { italic: true, color: { argb: "FF9A3412" } };
@@ -267,7 +267,7 @@ function addMaterialListSheet(
   sheet.getCell("A2").font = { color: { argb: "FF475569" }, size: 10 };
   sheet.getCell("A2").alignment = { vertical: "middle" };
   sheet.mergeCells("A3:M3");
-  sheet.getCell("A3").value = "Kontrollera artikelnummer, antal, pris och tillgänglighet före beställning.";
+  sheet.getCell("A3").value = "Kontrollera NRF-nummer, antal, pris och tillgänglighet före beställning.";
   sheet.getCell("A3").font = { italic: true, color: { argb: "FF9A3412" }, size: 10 };
 
   const tableRows = rows.map((row, index) => [
@@ -294,7 +294,7 @@ function addMaterialListSheet(
     "Beskrivning från underlag",
     "NS-kod",
     "Vald produkt",
-    "Artikelnummer",
+    "NRF-nummer",
     "Tillverkare",
     "Antal",
     "Enhet",

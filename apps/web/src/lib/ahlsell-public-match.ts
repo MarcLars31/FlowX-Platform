@@ -499,7 +499,7 @@ function candidateFromPdfReference(
     productName: productName || `Produkt ${articleNumber}`,
     manufacturer: /\b(?:vic|victaulic)\b/i.test(description) ? "Victaulic" : "",
     productUrl: searchUrl.toString(),
-    specifications: compact(["Artikelnummer angivet i PDF", ...criteria]),
+    specifications: compact(["NRF-nummer angivet i PDF", ...criteria]),
     source: "pdf_reference"
   };
 }

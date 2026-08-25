@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isUuid,
+  resolveDistributorProductName,
   validateDistributorProductMapping
 } from "./distributor-product-mapping";
 
@@ -26,19 +27,37 @@ test("accepts a distributor product with normalized accessories", () => {
 
   assert.ok("data" in result);
   if (!("data" in result)) return;
+  assert.equal(result.data.productName, "Quick response sprinkler");
   assert.equal(result.data.productNumber, "1234567");
   assert.equal(result.data.accessories.length, 1);
   assert.equal(result.data.accessories[0].quantity, 2);
 });
 
-test("requires an Ahlsell article number and positive accessory quantity", () => {
+test("accepts only an NRF number and supplies the database product name", () => {
+  const onlyNrf = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
+    productNumber: " 1234567 "
+  });
+  assert.ok("data" in onlyNrf);
+  if (!("data" in onlyNrf)) return;
+  assert.equal(onlyNrf.data.productName, "NRF 1234567");
+  assert.equal(onlyNrf.data.productNumber, "1234567");
+  assert.equal(resolveDistributorProductName({
+    productName: "",
+    requirementName: "SPRINKLER",
+    productNumber: "1234567"
+  }), "SPRINKLER");
+});
+
+test("requires an NRF number and positive accessory quantity", () => {
   const missingNumber = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: true,
     productName: "Sprinkler",
     productNumber: ""
   });
-  assert.deepEqual(missingNumber, { error: "Ahlsells artikelnummer krävs." });
+  assert.deepEqual(missingNumber, { error: "NRF-nummer krävs." });
 
   const invalidQuantity = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",

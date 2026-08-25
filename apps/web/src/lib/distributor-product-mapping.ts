@@ -27,16 +27,18 @@ export function validateDistributorProductMapping(
 ): { data: DistributorProductMappingInput } | { error: string } {
   if (!isRecord(value)) return { error: "Produktvalet saknas." };
   const requirementId = text(value.requirementId, 36);
-  const productName = text(value.productName, 240);
   const productNumber = text(value.productNumber, 120);
+  const productName = resolveDistributorProductName({
+    productName: value.productName,
+    productNumber
+  });
   const manufacturerName = text(value.manufacturerName, 200);
   const notes = text(value.notes, 2000);
   if (!isUuid(requirementId)) return { error: "Ogiltigt krav-id." };
   if (value.userApproved !== true) {
     return { error: "Produkten måste godkännas uttryckligen av användaren." };
   }
-  if (!productName) return { error: "Produktnamn krävs." };
-  if (!productNumber) return { error: "Ahlsells artikelnummer krävs." };
+  if (!productNumber) return { error: "NRF-nummer krävs." };
   if (value.accessories != null && !Array.isArray(value.accessories)) {
     return { error: "Tillbehör måste vara en lista." };
   }
@@ -75,6 +77,19 @@ export function validateDistributorProductMapping(
       accessories
     }
   };
+}
+
+export function resolveDistributorProductName({ productName, requirementName, productNumber }: {
+  productName?: unknown;
+  requirementName?: unknown;
+  productNumber: unknown;
+}) {
+  const selectedName = text(productName, 240);
+  if (selectedName) return selectedName;
+  const pdfRequirementName = text(requirementName, 240);
+  if (pdfRequirementName) return pdfRequirementName;
+  const nrfNumber = text(productNumber, 120);
+  return nrfNumber ? `NRF ${nrfNumber}` : "";
 }
 
 function text(value: unknown, maxLength: number) {

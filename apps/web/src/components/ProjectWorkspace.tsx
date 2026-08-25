@@ -386,7 +386,7 @@ export function ProjectWorkspace({
         : {
             eyebrow: "Gör detta nu",
             title: `Välj produkt för ${workflow.remainingProductCount} ${workflow.remainingProductCount === 1 ? "post" : "poster"}`,
-            description: "Fyll i Ahlsells produktnamn och artikelnummer för varje post. Scipx visar tydligt hur många som återstår."
+            description: "Fyll i NRF-numret för varje post. Produktnamnet hämtas automatiskt och Scipx visar tydligt hur många som återstår."
           };
 
   return (
@@ -557,7 +557,7 @@ export function ProjectWorkspace({
                     <div key={product.key} className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-ink-950">{product.name}</p>
-                        <p className="mt-0.5 text-xs text-ink-500">Art.nr {product.productNumber}</p>
+                        <p className="mt-0.5 text-xs text-ink-500">NRF-nummer {product.productNumber}</p>
                       </div>
                       <span className={product.quantityMissing
                         ? "shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800"

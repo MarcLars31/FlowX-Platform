@@ -20,13 +20,13 @@ production partnership must use approved brand assets and written permission.
 4. For the seven verified test descriptions, a deliberately small set of
    exact public article matches can also be shown. A match only fills a draft;
    it never approves the product.
-5. An authorized distributor user enters, or explicitly applies a verified
-   draft containing:
-   - product name;
-   - Ahlsell article number;
+5. An authorized distributor user enters an NRF number, or explicitly applies
+   a verified draft containing:
+   - an automatically supplied product name;
+   - NRF number;
    - optional manufacturer;
    - internal reasoning;
-   - zero or more accessory names, article numbers and quantities.
+   - zero or more accessory names, NRF numbers and quantities.
 6. The user checks the values and presses **Godkänn produkt**.
 7. The project receives a selected product snapshot.
 8. The same decision is stored in organization-scoped product memory.

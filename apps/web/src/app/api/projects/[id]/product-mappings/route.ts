@@ -234,7 +234,7 @@ function readableDatabaseError(message: string) {
     return "En demonteringsrad ska inte kopplas till en ny produkt.";
   }
   if (message.includes("Product name and product number")) {
-    return "Produktnamn och Ahlsells artikelnummer krävs.";
+    return "NRF-nummer krävs.";
   }
   return "Produktvalet kunde inte sparas. Kontrollera uppgifterna och försök igen.";
 }

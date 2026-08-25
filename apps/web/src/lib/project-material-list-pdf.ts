@@ -29,7 +29,7 @@ const columns: PdfColumn[] = [
   { label: "Åtgärd", width: 60, value: (row) => joinValues(row.operation, row.type) },
   { label: "Beskrivning från underlag", width: 185, value: (row) => joinValues(row.requirementCategory, row.nsCode || row.requirementKey, row.requirementValue) },
   { label: "Vald produkt", width: 130, value: (row) => joinValues(row.productName, row.manufacturer) },
-  { label: "Artikelnummer", width: 78, value: (row) => row.productNumber },
+  { label: "NRF-nummer", width: 78, value: (row) => row.productNumber },
   { label: "Antal", width: 42, value: (row) => formatQuantity(row.quantity) },
   { label: "Enhet", width: 34, value: (row) => row.unit },
   { label: "Anteckning", width: 117, value: (row) => row.notes }
@@ -134,7 +134,7 @@ function addPage(
       font: bold,
       color: rgb(0.08, 0.15, 0.24)
     });
-    page.drawText("Kontrollera artikelnummer, antal, pris och tillgänglighet före beställning.", {
+    page.drawText("Kontrollera NRF-nummer, antal, pris och tillgänglighet före beställning.", {
       x: MARGIN,
       y: PAGE_HEIGHT - 94,
       size: 8.5,
