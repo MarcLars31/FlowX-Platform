@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, History, ListChecks, Loader2, Plus, Search, ShieldCheck, Tag, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, History, Loader2, Plus, Search, ShieldCheck, Tag, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
@@ -199,9 +199,6 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const activeIndex = requestedActiveIndex;
   const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
   const handledCount = productRequirements.length - remainingRequirements.length;
-  const greenRemainingCount = greenRequirements.filter((requirement) => !handledRequirementIds.has(requirement.id)).length;
-  const yellowRemainingCount = yellowRequirements.filter((requirement) => !handledRequirementIds.has(requirement.id)).length;
-  const redRemainingCount = redRequirements.filter((requirement) => !handledRequirementIds.has(requirement.id)).length;
   const visibleQueueRemainingCount = queueRequirements.filter(
     (requirement) => !handledRequirementIds.has(requirement.id)
   ).length;
@@ -324,11 +321,10 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
                     <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label="Välj alla synliga produktposter" checked={allVisibleRequirementsSelected} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" /></th>
-                    <th className="w-24 border-b border-ink-200 px-3 py-2">Status</th>
+                    <th className="w-16 border-b border-ink-200 px-2 py-2 text-center">Kontroll</th>
                     <th className="w-28 border-b border-ink-200 px-3 py-2">PDF-post</th>
                     <th className="min-w-64 border-b border-ink-200 px-3 py-2">Produktkrav</th>
                     <th className="w-36 border-b border-ink-200 px-3 py-2">Produktgrupp</th>
-                    <th className="w-28 border-b border-ink-200 px-3 py-2">Träff</th>
                     <th className="w-24 border-b border-ink-200 px-3 py-2">Mängd</th>
                     <th className="w-48 border-b border-ink-200 px-3 py-2">Vald produkt</th>
                     <th className="w-14 border-b border-ink-200 px-2 py-2 text-center">Öppna</th>
@@ -378,12 +374,14 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             const assignment = approvedAssignments.find((item) => item.requirement_id === requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
             return <div id="product-work-queue" className="space-y-4 scroll-mt-5">
-              <nav aria-label="Navigera mellan produktposter" className={activeGroup === "green" ? "rounded-2xl border-2 border-emerald-300 bg-white p-4 shadow-sm sm:p-5" : activeGroup === "yellow" ? "rounded-2xl border-2 border-amber-300 bg-white p-4 shadow-sm sm:p-5" : "rounded-2xl border-2 border-rose-300 bg-white p-4 shadow-sm sm:p-5"}>
+              <nav aria-label="Navigera mellan produktposter" className="rounded-2xl border-2 border-ink-200 bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-center gap-3">
-                    <span className={activeGroup === "green" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white" : activeGroup === "yellow" ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-amber-950" : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white"}><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink-50">
+                      {activeGroup === "red" ? <CircleX className="h-6 w-6 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-6 w-6 text-amber-600" aria-hidden="true" />}
+                    </span>
                     <div>
-                      <p className={activeGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : activeGroup === "yellow" ? "text-sm font-bold uppercase tracking-[0.08em] text-amber-800" : "text-sm font-bold uppercase tracking-[0.08em] text-rose-700"}>{activeGroup === "green" ? "Grön · Säker träff" : activeGroup === "yellow" ? "Gul · Ahlsellträff finns" : "Röd · Ingen Ahlsellträff"}</p>
+                      <p className={activeGroup === "red" ? "text-sm font-bold uppercase tracking-[0.08em] text-rose-700" : "text-sm font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeGroup === "red" ? "Produkten hittas inte hos Ahlsell" : "Produkten måste ses över"}</p>
                       <p className="mt-0.5 text-base font-bold text-ink-950">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount} kvar i visningen</p>
                     </div>
                   </div>
@@ -470,7 +468,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           ) : (
             <div className="rounded-xl border-2 border-flow-300 bg-flow-50 p-4 text-center">
               <p className="text-lg font-bold text-flow-950">{remainingRequirements.length} {remainingRequirements.length === 1 ? "produktpost återstår" : "produktposter återstår"}</p>
-              <p className="mt-1 text-base text-flow-800">Gröna kvar: {greenRemainingCount} · Gula kvar: {yellowRemainingCount} · Röda kvar: {redRemainingCount}. Godkänn en produkt eller märk posten som Inte i sortiment.</p>
+              <p className="mt-1 text-base text-flow-800">Öppna varje post, kontrollera produktvalet och godkänn produkten eller märk posten som Inte i sortiment.</p>
             </div>
           )}
         </div>
@@ -1006,12 +1004,6 @@ function RequirementQueueRow({ requirement, assignment, memory, position, approv
   const memoryProductNumber = String(memory?.product_number ?? "").trim();
   const hasReusableMemory = !approved && Boolean(memoryProductName && memoryProductNumber);
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
-  const matchLabel = group === "green" ? "Säker träff" : group === "yellow" ? "Kontrollera" : "Ingen träff";
-  const matchClass = group === "green"
-    ? "bg-emerald-100 text-emerald-900"
-    : group === "yellow"
-      ? "bg-amber-100 text-amber-950"
-      : "bg-rose-100 text-rose-900";
   const rowClass = selected ? "bg-cyan-50 ring-1 ring-inset ring-flow-500" : "bg-white hover:bg-ink-50/80";
 
   return (
@@ -1019,15 +1011,15 @@ function RequirementQueueRow({ requirement, assignment, memory, position, approv
       <td className="border-r border-ink-100 px-3 py-2.5 text-center">
         <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" />
       </td>
-      <td className="px-3 py-2.5 align-middle">
+      <td className="px-2 py-2.5 text-center align-middle">
         {resolution ? (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
+          <span title={resolution.label} className="inline-flex text-slate-700"><Tag className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{resolution.label}</span></span>
         ) : approved ? (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
-        ) : hasReusableMemory ? (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700"><History className="h-3.5 w-3.5" aria-hidden="true" />Tidigare val</span>
+          <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
+        ) : group === "red" ? (
+          <span title="Produkten hittas inte hos Ahlsell" className="inline-flex text-rose-600"><CircleX className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten hittas inte hos Ahlsell</span></span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Att hantera</span>
+          <span title="Produkten måste ses över" className="inline-flex text-amber-600"><AlertTriangle className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten måste ses över</span></span>
         )}
       </td>
       <td className="px-3 py-2.5 align-middle">
@@ -1038,7 +1030,6 @@ function RequirementQueueRow({ requirement, assignment, memory, position, approv
         <button type="button" onClick={onOpen} className="line-clamp-1 max-w-xl text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
       </td>
       <td className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">{categoryLabel}</td>
-      <td className="px-3 py-2.5 align-middle"><span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-black ${matchClass}`}>{matchLabel}</span></td>
       <td className="whitespace-nowrap px-3 py-2.5 align-middle text-xs font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>
       <td className="px-3 py-2.5 align-middle text-xs">
         {productName ? (
