@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, History, Loader2, Plus, Search, ShieldCheck, Tag, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, History, Loader2, Plus, Search, ShieldCheck, Tag, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
@@ -185,6 +185,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const [selectedRequirementIds, setSelectedRequirementIds] = useState<Set<string>>(() => new Set());
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
+  const [productCardSaving, setProductCardSaving] = useState(false);
+  const productDialogRef = useRef<HTMLDialogElement>(null);
   const allQueueRequirements = useMemo(
     () => sortProductRequirementsByCategory(productRequirements),
     [productRequirements]
@@ -247,6 +249,25 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
   const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
+  const productCardOpen = Boolean(activeRequirement);
+
+  useEffect(() => {
+    const dialog = productDialogRef.current;
+    if (!dialog || !productCardOpen || dialog.open) return;
+    dialog.showModal();
+  }, [productCardOpen]);
+
+  useEffect(() => {
+    if (!productCardOpen) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousRootOverflow;
+    };
+  }, [productCardOpen]);
   const handledCount = productRequirements.length - remainingRequirements.length;
   const visibleQueueRemainingCount = queueRequirements.filter(
     (requirement) => !handledRequirementIds.has(requirement.id)
@@ -263,10 +284,11 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     : 100;
 
   function showRequirement(requirementId: string) {
+    if (productCardSaving) return;
     setActiveRequirementId(requirementId);
     setMessage(null);
     setError(null);
-    window.requestAnimationFrame(() => document.getElementById("product-work-queue")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    window.requestAnimationFrame(() => document.getElementById("product-card-scroll")?.scrollTo({ top: 0, behavior: "smooth" }));
   }
 
   function toggleProductCategory(category: ProductRequirementCategory) {
@@ -291,10 +313,11 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   }
 
   function closeRequirement() {
+    if (productCardSaving) return;
+    if (productDialogRef.current?.open) productDialogRef.current.close();
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
-    window.requestAnimationFrame(() => document.getElementById("product-table")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   function toggleRequirementSelection(requirementId: string, selected: boolean) {
@@ -344,7 +367,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
         </div>
       </div>
 
-      {productRequirements.length > 0 && !activeRequirement && (
+      {productRequirements.length > 0 && (
         <section id="product-table" aria-labelledby="product-table-heading" className="scroll-mt-5 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
           <div className="flex flex-col gap-2 border-b border-ink-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -357,7 +380,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {selectedVisibleRequirements.length > 0 && <span className="rounded-full bg-flow-100 px-2.5 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length} valda</span>}
-              <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-sm" disabled={selectedVisibleRequirements.length !== 1} onClick={() => showRequirement(selectedVisibleRequirements[0].id)}>
+              <Button type="button" variant="secondary" aria-haspopup="dialog" className="min-h-9 px-3 py-1.5 text-sm" disabled={selectedVisibleRequirements.length !== 1} onClick={() => showRequirement(selectedVisibleRequirements[0].id)}>
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Öppna vald
               </Button>
               <button type="button" disabled={selectedVisibleRequirements.length === 0} onClick={() => setSelectedRequirementIds(new Set())} className="min-h-9 rounded-lg px-2.5 text-xs font-bold text-flow-800 transition hover:bg-flow-50 disabled:cursor-not-allowed disabled:text-ink-300">Rensa</button>
@@ -430,45 +453,75 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             const activeGroup = groupByRequirementId.get(requirement.id) ?? "yellow";
             const assignment = approvedAssignmentByRequirementId.get(requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
-            return <div id="product-work-queue" className="space-y-4 scroll-mt-5">
-              <nav aria-label="Navigera mellan produktposter" className="rounded-2xl border-2 border-ink-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink-50">
-                      {activeGroup === "red" ? <CircleX className="h-6 w-6 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-6 w-6 text-amber-600" aria-hidden="true" />}
-                    </span>
-                    <div>
-                      <p className={activeGroup === "red" ? "text-sm font-bold uppercase tracking-[0.08em] text-rose-700" : "text-sm font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeGroup === "red" ? "Produkten hittas inte hos Ahlsell" : "Produkten måste ses över"}</p>
-                      <p className="mt-0.5 text-base font-bold text-ink-950">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount} kvar i visningen</p>
+            return (
+              <dialog
+                ref={productDialogRef}
+                aria-label={`Produktval för PDF-post ${projectRequirementDetails(requirement).postNumber ?? activeIndex + 1}`}
+                className="m-auto h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1320px] overflow-hidden rounded-2xl border border-ink-200 bg-ink-50 p-0 shadow-[0_30px_90px_rgba(2,17,38,0.45)] backdrop:bg-ink-950/65 backdrop:backdrop-blur-sm sm:h-[calc(100dvh-2.5rem)] sm:w-[calc(100%-2.5rem)]"
+                onCancel={(event) => {
+                  event.preventDefault();
+                  closeRequirement();
+                }}
+              >
+                <div id="product-work-queue" className="flex h-full w-full flex-col overflow-hidden">
+                  <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-ink-200 bg-white p-3 sm:p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-50">
+                          {activeGroup === "red" ? <CircleX className="h-6 w-6 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-6 w-6 text-amber-600" aria-hidden="true" />}
+                        </span>
+                        <div>
+                          <p className={activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeGroup === "red" ? "Produkten hittas inte hos Ahlsell" : "Produkten måste ses över"}</p>
+                          <p className="mt-0.5 text-sm font-bold text-ink-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount} kvar i visningen</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving || activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Föregående</Button>
+                        <Button variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving || activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+                        <Button autoFocus variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving} onClick={closeRequirement}>{productCardSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}{productCardSaving ? "Sparar…" : "Stäng kortet"}</Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button variant="secondary" className="min-h-12 justify-center" onClick={closeRequirement}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Tillbaka till produktlistan</Button>
-                    <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-5 w-5" aria-hidden="true" />Föregående</Button>
-                    <Button variant="secondary" className="min-h-12 justify-center" disabled={activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-5 w-5" aria-hidden="true" /></Button>
+                    <div
+                      role="progressbar"
+                      aria-label="Hanterade produktposter"
+                      aria-valuenow={progressPercent}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      className="mt-3 h-2 overflow-hidden rounded-full bg-ink-100"
+                    >
+                      <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
+                    </div>
+                  </nav>
+                  <div id="product-card-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5">
+                    {(message || error) && (
+                      <div role="status" aria-live="polite" className={error ? "mb-4 rounded-xl border-2 border-rose-300 bg-rose-50 p-4 text-sm font-semibold text-rose-900" : "mb-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900"}>
+                        {error ?? message}
+                      </div>
+                    )}
+                    <RequirementProductMappingCard
+                      key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
+                      projectId={projectId}
+                      requirement={requirement}
+                      assignment={assignment}
+                      sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
+                      position={activeIndex + 1}
+                      totalPosts={queueRequirements.length}
+                      memories={matchingMemories}
+                      memoryAccessories={memoryAccessories}
+                      onSavingChange={setProductCardSaving}
+                      onSaved={async (successMessage) => {
+                        setError(null);
+                        setMessage(successMessage);
+                        await onReload();
+                        if (productDialogRef.current?.open) productDialogRef.current.close();
+                        setActiveRequirementId(null);
+                      }}
+                      onError={(errorMessage) => { setMessage(null); setError(errorMessage || null); }}
+                    />
                   </div>
                 </div>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink-100" aria-label={`${progressPercent} procent av produktposterna hanterade`}><div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} /></div>
-              </nav>
-              <RequirementProductMappingCard
-                key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
-                projectId={projectId}
-                requirement={requirement}
-                assignment={assignment}
-                position={activeIndex + 1}
-                totalPosts={queueRequirements.length}
-                memories={matchingMemories}
-                memoryAccessories={memoryAccessories}
-                onSaved={async (successMessage) => {
-                  setError(null);
-                  setMessage(successMessage);
-                  setActiveRequirementId(null);
-                  await onReload();
-                  window.requestAnimationFrame(() => document.getElementById("product-table")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-                }}
-                onError={(errorMessage) => { setMessage(null); setError(errorMessage || null); }}
-              />
-            </div>;
+              </dialog>
+            );
           })()}
 
           {removalRequirements.length > 0 && (
@@ -534,14 +587,16 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   );
 }
 
-function RequirementProductMappingCard({ projectId, requirement, assignment, position, totalPosts, memories, memoryAccessories, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, requirement, assignment, sourcePdfHref, position, totalPosts, memories, memoryAccessories, onSavingChange, onSaved, onError }: {
   projectId: string;
   requirement: Row;
   assignment?: Row;
+  sourcePdfHref: string | null;
   position: number;
   totalPosts: number;
   memories: Row[];
   memoryAccessories: Row[];
+  onSavingChange: (saving: boolean) => void;
   onSaved: (message: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
@@ -629,6 +684,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       accessories
     };
     setSaving(true);
+    onSavingChange(true);
     onError("");
     try {
       const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
@@ -644,11 +700,13 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       onError(saveError instanceof Error ? saveError.message : "Produktvalet kunde inte sparas.");
     } finally {
       setSaving(false);
+      onSavingChange(false);
     }
   }
 
   async function saveResolution(nextResolution: ProductRequirementResolutionStatus | null) {
     setSaving(true);
+    onSavingChange(true);
     onError("");
     try {
       const response = await fetch(`/api/projects/${projectId}/product-resolutions`, {
@@ -665,6 +723,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
       onError(resolutionError instanceof Error ? resolutionError.message : "Märkningen kunde inte sparas.");
     } finally {
       setSaving(false);
+      onSavingChange(false);
     }
   }
 
@@ -686,9 +745,17 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
             </div>
             <p className="mt-3 max-w-4xl text-lg font-semibold leading-7 text-ink-900">{String(requirement.value_text ?? "Tekniskt krav")}</p>
           </div>
-          <div className="shrink-0 rounded-xl border border-ink-200 bg-white px-4 py-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Mängd</p>
-            <p className="mt-1 text-xl font-bold text-ink-950">{formatProjectQuantity(quantity)}</p>
+          <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+            <div className="rounded-xl border border-ink-200 bg-white px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Mängd</p>
+              <p className="mt-1 text-xl font-bold text-ink-950">{formatProjectQuantity(quantity)}</p>
+            </div>
+            {sourcePdfHref && (
+              <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-flow-300 bg-white px-3 py-2 text-sm font-bold text-flow-800 transition hover:border-flow-600 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                Öppna i PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
+              </a>
+            )}
           </div>
         </div>
 
@@ -715,7 +782,8 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
         </details>
       </div>
 
-      <div className="space-y-5 p-5 sm:p-6">
+      <fieldset disabled={saving} aria-busy={saving} className="m-0 min-w-0 border-0 p-0">
+        <div className="space-y-5 p-5 sm:p-6">
         <div className={resolution ? "rounded-xl border-2 border-slate-400 bg-slate-50 p-4" : "rounded-xl border-2 border-dashed border-ink-300 bg-ink-50 p-4"}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -805,7 +873,8 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, pos
             {saving ? "Godkänner…" : assignment ? `Godkänn ändringar för post ${details.postNumber ?? position}` : `Godkänn produkt för post ${details.postNumber ?? position}`}
           </Button>
         </div>
-      </div>
+        </div>
+      </fieldset>
     </article>
   );
 }
@@ -1094,12 +1163,20 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, p
             <ExternalLink className="h-3 w-3" aria-hidden="true" />
           </a>
         ) : (
-          <button type="button" onClick={onOpen} className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline">{details.postNumber ?? position}</button>
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`}
+            onClick={onOpen}
+            className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline"
+          >
+            {details.postNumber ?? position}
+          </button>
         )}
         {details.nsCode && <span className="block text-[10px] text-ink-500">{details.nsCode}</span>}
       </td>
       <td className="px-3 py-2.5 align-middle">
-        <button type="button" onClick={onOpen} className="line-clamp-1 max-w-xl text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
+        <button type="button" aria-haspopup="dialog" onClick={onOpen} className="line-clamp-1 max-w-xl text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
       </td>
       <td className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">{categoryLabel}</td>
       <td className="whitespace-nowrap px-3 py-2.5 align-middle text-xs font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>
@@ -1113,8 +1190,8 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, p
         )}
       </td>
       <td className="px-2 py-2 text-center align-middle">
-        <button type="button" onClick={onOpen} aria-label={`Öppna PDF-post ${details.postNumber ?? position}`} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-flow-800 transition hover:bg-flow-100 hover:text-flow-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        <button type="button" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`} title="Öppna produktkort" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-flow-800 transition hover:bg-flow-100 hover:text-flow-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+          <Plus className="h-4 w-4" aria-hidden="true" />
         </button>
       </td>
     </tr>
