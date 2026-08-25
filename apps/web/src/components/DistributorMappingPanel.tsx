@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent as ReactDragEvent, type SetStateAction } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, GripVertical, History, Loader2, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
-import { Input } from "@/components/Input";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
@@ -668,18 +667,18 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
               <dialog
                 ref={productDialogRef}
                 aria-label={`Produktval för PDF-post ${projectRequirementDetails(requirement).postNumber ?? activeIndex + 1}`}
-                className="m-auto h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1320px] overflow-hidden rounded-2xl border border-ink-200 bg-ink-50 p-0 shadow-[0_30px_90px_rgba(2,17,38,0.45)] backdrop:bg-ink-950/65 backdrop:backdrop-blur-sm sm:h-[calc(100dvh-2.5rem)] sm:w-[calc(100%-2.5rem)]"
+                className="m-auto h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1180px] overflow-hidden rounded-xl border border-ink-200 bg-white p-0 shadow-[0_24px_70px_rgba(2,17,38,0.36)] backdrop:bg-ink-950/65 backdrop:backdrop-blur-sm sm:h-[calc(100dvh-2.5rem)] sm:w-[calc(100%-2.5rem)]"
                 onCancel={(event) => {
                   event.preventDefault();
                   closeRequirement();
                 }}
               >
                 <div id="product-work-queue" className="flex h-full w-full flex-col overflow-hidden">
-                  <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-ink-200 bg-white p-3 sm:p-4">
+                  <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-ink-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-50">
-                          {activeGroup === "red" ? <CircleX className="h-6 w-6 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-6 w-6 text-amber-600" aria-hidden="true" />}
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink-50">
+                          {activeGroup === "red" ? <CircleX className="h-5 w-5 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
                         </span>
                         <div>
                           <p className={activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeGroup === "red" ? "Produkten hittas inte hos Ahlsell" : "Produkten måste ses över"}</p>
@@ -698,12 +697,12 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                       aria-valuenow={progressPercent}
                       aria-valuemin={0}
                       aria-valuemax={100}
-                      className="mt-3 h-2 overflow-hidden rounded-full bg-ink-100"
+                      className="mt-2 h-1 overflow-hidden rounded-full bg-ink-100"
                     >
                       <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
                     </div>
                   </nav>
-                  <div id="product-card-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5">
+                  <div id="product-card-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-0">
                     {(message || error) && (
                       <div role="status" aria-live="polite" className={error ? "mb-4 rounded-xl border-2 border-rose-300 bg-rose-50 p-4 text-sm font-semibold text-rose-900" : "mb-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900"}>
                         {error ?? message}
@@ -820,11 +819,12 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const [saving, setSaving] = useState(false);
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const [memoryExpanded, setMemoryExpanded] = useState(false);
+  const [catalogExpanded, setCatalogExpanded] = useState(() => !String(currentSnapshot.productNumber ?? ""));
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const resolution = productRequirementResolution(requirement);
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
-  const isHandled = isApproved || Boolean(resolution);
   const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
   const pdfArticleNumber = ahlsellGuide.directCandidates.find(
     (candidate) => candidate.source === "pdf_reference"
@@ -850,11 +850,14 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setAccessories(selection.accessories);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
+    setMemoryExpanded(false);
+    setCatalogExpanded(false);
     window.requestAnimationFrame(() => {
       document.getElementById(`product-selection-${requirement.id}`)?.scrollIntoView({
         behavior: "smooth",
         block: "start"
       });
+      document.getElementById(`product-number-${requirement.id}`)?.focus({ preventScroll: true });
     });
   }
 
@@ -943,48 +946,44 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   }
 
   return (
-    <article id={`post-${requirement.id}`} className={isHandled ? "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-emerald-300 bg-white shadow-sm" : "scroll-mt-6 overflow-hidden rounded-2xl border-2 border-amber-300 bg-white shadow-[0_12px_30px_rgba(120,53,15,0.08)]"}>
-      <div className={isHandled ? "bg-emerald-50 p-5 sm:p-6" : "bg-amber-50 p-5 sm:p-6"}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className={isHandled ? "text-sm font-bold text-emerald-800" : "text-sm font-bold text-amber-900"}>1 · KONTROLLERA PDF-KRAVET · POST {position} AV {totalPosts}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <h3 className="text-2xl font-bold text-ink-950 sm:text-3xl">PDF-post {details.postNumber ?? "saknas"}</h3>
-              {resolution ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-700 px-3 py-1.5 text-sm font-bold text-white"><Tag className="h-4 w-4" aria-hidden="true" /> {resolution.label}</span>
-              ) : isApproved ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Godkänd</span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 px-3 py-1.5 text-sm font-bold text-white">Inte godkänd</span>
-              )}
-            </div>
-            <p className="mt-3 max-w-4xl text-lg font-semibold leading-7 text-ink-900">{String(requirement.value_text ?? "Tekniskt krav")}</p>
-          </div>
-          <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-            <div className="rounded-xl border border-ink-200 bg-white px-4 py-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Mängd</p>
-              <p className="mt-1 text-xl font-bold text-ink-950">{formatProjectQuantity(quantity)}</p>
-            </div>
+    <article id={`post-${requirement.id}`} className="scroll-mt-6 bg-white">
+      <div className="border-b border-ink-200 px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            {resolution ? (
+              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-800"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
+            ) : isApproved ? (
+              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
+            ) : (
+              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Inte godkänd</span>
+            )}
             {sourcePdfHref && (
-              <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-flow-300 bg-white px-3 py-2 text-sm font-bold text-flow-800 transition hover:border-flow-600 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                Öppna i PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
+              <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-ink-200 bg-white px-2.5 py-1 text-xs font-bold text-flow-800 transition hover:border-flow-500 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                Öppna PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
               </a>
             )}
           </div>
+          <p className="text-xs font-semibold text-ink-600">Obligatoriskt fält <span className="font-black text-rose-600">*</span></p>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4">
+          <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produkt {position} av {totalPosts}</p>
+          <h3 className="mt-1 text-xl font-bold text-ink-950">PDF-post {details.postNumber ?? "saknas"}</h3>
+        </div>
+
+        <div className="mt-4 grid gap-x-4 gap-y-3 md:grid-cols-2">
+          <div className="md:col-span-2"><Fact label="Produktkrav" value={String(requirement.value_text ?? "Tekniskt krav")} strong /></div>
           <Fact label="PDF-postnummer" value={details.postNumber ?? "Saknas"} strong />
-          {details.chapterPost && <Fact label="Kapitelpost" value={details.chapterPost} />}
-          {pdfArticleNumber && <Fact label="NRF-nummer i PDF" value={pdfArticleNumber} strong />}
           <Fact label="Antal" value={formatProjectQuantity(quantity)} />
+          {details.chapterPost && <Fact label="Kapitelpost" value={details.chapterPost} />}
           {details.nsCode && <Fact label="NS-kod" value={details.nsCode} />}
           {details.system && <Fact label="System" value={projectRequirementSystemLabel(details.system)} />}
+          {pdfArticleNumber && <Fact label="NRF-nummer i PDF" value={pdfArticleNumber} strong />}
         </div>
 
-        <details className="mt-4 rounded-xl border border-ink-200 bg-white">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-base font-bold text-ink-800">Visa alla tekniska uppgifter<ChevronDown className="h-5 w-5 shrink-0" aria-hidden="true" /></summary>
+        <details className="mt-4 overflow-hidden rounded-md border border-ink-200 bg-white">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">Tekniska uppgifter<ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" /></summary>
           <div className="border-t border-ink-100">
             <dl className="grid sm:grid-cols-2 xl:grid-cols-3">
               {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
@@ -998,20 +997,20 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       </div>
 
       <fieldset disabled={saving} aria-busy={saving} className="m-0 min-w-0 border-0 p-0">
-        <div className="space-y-5 p-5 sm:p-6">
-        <div className={resolution ? "rounded-xl border-2 border-slate-400 bg-slate-50 p-4" : "rounded-xl border-2 border-dashed border-ink-300 bg-ink-50 p-4"}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
+        <div className={resolution ? "rounded-md border border-slate-300 bg-slate-50 px-3 py-2.5" : "rounded-md border border-ink-200 bg-white px-3 py-2.5"}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="flex items-center gap-2 text-base font-black text-ink-950"><Tag className="h-5 w-5" aria-hidden="true" /> Ahlsell saknar varan?</p>
-              <p className="mt-1 text-sm leading-6 text-ink-700">Märk posten som Inte i sortiment. Den räknas då som hanterad och blockerar inte godkännande av hela projektet.</p>
+              <p className="flex items-center gap-2 text-sm font-bold text-ink-950"><Tag className="h-4 w-4" aria-hidden="true" />Ahlsell saknar varan?</p>
+              <p className="mt-0.5 text-xs leading-5 text-ink-600">Märk posten som Inte i sortiment. Den räknas som hanterad och blockerar inte projektet.</p>
             </div>
             {resolution ? (
-              <Button type="button" variant="secondary" disabled={saving} onClick={() => void saveResolution(null)}>
+              <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={() => void saveResolution(null)}>
                 {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                 Ångra Inte i sortiment
               </Button>
             ) : (
-              <Button type="button" variant="secondary" disabled={saving} onClick={() => void saveResolution("not_in_assortment")}>
+              <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={() => void saveResolution("not_in_assortment")}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Tag className="h-4 w-4" aria-hidden="true" />}
                 Märk som Inte i sortiment
               </Button>
@@ -1020,70 +1019,90 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
         </div>
 
         {memories.length > 0 && (
-          <div className="rounded-xl border-2 border-sky-200 bg-sky-50 p-4">
-            <div className="flex items-center gap-2 text-base font-bold text-sky-900"><History className="h-5 w-5" aria-hidden="true" /> Tidigare bekräftad produkt – måste godkännas i detta projekt</div>
-            <p className="mt-1 text-sm leading-6 text-sky-900">Scipx har sparat produkten och tillbehören från ett tidigare projekt i samma organisation. Använd valet för att fylla i allt, kontrollera uppgifterna och godkänn sedan på nytt.</p>
-            <div className="mt-3 grid gap-3 lg:grid-cols-3">
-              {memories.map((memory) => (
-                <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="min-h-24 rounded-xl border-2 border-sky-200 bg-white p-4 text-left transition hover:border-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-wait disabled:opacity-60">
-                  <p className="text-base font-bold text-ink-950">{String(memory.product_name)}</p>
-                  <p className="mt-1 text-sm text-ink-700">NRF-nummer {String(memory.product_number)}</p>
-                  <p className="mt-3 text-sm font-bold text-sky-800">Använd tidigare bekräftad produkt</p>
-                </button>
-              ))}
+          <details open={memoryExpanded} onToggle={(event) => setMemoryExpanded(event.currentTarget.open)} className="group overflow-hidden rounded-md border border-ink-200 bg-white">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
+              <span className="flex items-center gap-2"><History className="h-4 w-4 text-flow-700" aria-hidden="true" />Tidigare bekräftade produkter ({memories.length})</span>
+              <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="border-t border-ink-200 p-3">
+              <p className="text-xs leading-5 text-ink-600">Ett tidigare val fyller i uppgifterna men måste godkännas på nytt i detta projekt.</p>
+              <div className="mt-2 grid gap-2 lg:grid-cols-3">
+                {memories.map((memory) => (
+                  <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5 text-left transition hover:border-flow-400 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 disabled:cursor-wait disabled:opacity-60">
+                    <p className="text-sm font-bold text-ink-950">{String(memory.product_name)}</p>
+                    <p className="mt-0.5 text-xs text-ink-600">NRF-nummer {String(memory.product_number)}</p>
+                    <p className="mt-2 text-xs font-bold text-flow-800">Använd produkt</p>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          </details>
         )}
 
-        <AhlsellPublicMatchPanel
-          projectId={projectId}
-          requirementId={requirement.id}
-          guide={ahlsellGuide}
-          disabled={saving}
-          onUseCandidate={applyAhlsellCandidate}
-        />
-
-        <div id={`product-selection-${requirement.id}`} className="scroll-mt-6"><p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">2 · Välj produkt</p><h4 className="mt-1 text-xl font-bold text-ink-950">Kontrollera den valda produkten</h4><p className="mt-1 text-sm text-ink-600">NRF-numret måste fyllas i. Produktnamnet hämtas automatiskt från produktvalet eller PDF-posten.</p></div>
-        {draftNotice && hasUnapprovedChanges && (
-          <div className="rounded-xl border-4 border-emerald-500 bg-emerald-50 p-4" role="status" aria-live="polite">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700" aria-hidden="true" />
-              <div><p className="text-lg font-black text-emerald-950">Produkten är vald – ett steg återstår</p><p className="mt-1 text-sm font-semibold leading-6 text-emerald-900">{draftNotice} Kontrollera NRF-numret och tryck därefter på den stora knappen ”Godkänn produkt”.</p></div>
-            </div>
+        <details open={catalogExpanded} onToggle={(event) => setCatalogExpanded(event.currentTarget.open)} className="group overflow-hidden rounded-md border border-ink-200 bg-white">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
+            <span className="flex items-center gap-2"><Search className="h-4 w-4 text-flow-700" aria-hidden="true" />Sök och välj produkt hos Ahlsell</span>
+            <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <div className="border-t border-ink-200 p-3">
+            <AhlsellPublicMatchPanel
+              projectId={projectId}
+              requirementId={requirement.id}
+              guide={ahlsellGuide}
+              disabled={saving}
+              onUseCandidate={applyAhlsellCandidate}
+            />
           </div>
-        )}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Input className="h-12 text-base" id={`product-number-${requirement.id}`} label="NRF-nummer *" value={productNumber} onChange={(event) => { setProductNumber(event.target.value); setProductName(""); setHasUnapprovedChanges(true); }} required />
-          <Input className="h-12 text-base" id={`manufacturer-${requirement.id}`} label="Tillverkare (valfritt)" value={manufacturerName} onChange={(event) => { setManufacturerName(event.target.value); setHasUnapprovedChanges(true); }} />
-        </div>
+        </details>
 
-        <details className="rounded-xl border border-ink-200 bg-ink-50">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-base font-bold text-ink-800">Tillbehör och intern kommentar (valfritt)<ChevronDown className="h-5 w-5 shrink-0" aria-hidden="true" /></summary>
-          <div className="space-y-5 border-t border-ink-200 p-4">
+        <section id={`product-selection-${requirement.id}`} className="scroll-mt-6 border-t border-ink-200 pt-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktuppgifter</p>
+            <h4 className="mt-1 text-base font-bold text-ink-950">Kontrollera den valda produkten</h4>
+            <p className="mt-0.5 text-xs leading-5 text-ink-600">Produktnamnet hämtas automatiskt från produktvalet eller PDF-posten.</p>
+          </div>
+          {draftNotice && hasUnapprovedChanges && (
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5" role="status" aria-live="polite">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+              <p className="text-xs font-semibold leading-5 text-emerald-900">{draftNotice} Kontrollera NRF-numret och godkänn sedan produkten.</p>
+            </div>
+          )}
+          <div className="mt-3 grid gap-x-4 gap-y-3 md:grid-cols-2">
+            <ProductFormInput id={`product-number-${requirement.id}`} label="NRF-nummer" value={productNumber} onChange={(value) => { setProductNumber(value); setProductName(""); setHasUnapprovedChanges(true); }} required />
+            <ProductFormInput id={`manufacturer-${requirement.id}`} label="Tillverkare" optional value={manufacturerName} onChange={(value) => { setManufacturerName(value); setHasUnapprovedChanges(true); }} />
+          </div>
+          <label className="mt-3 block" htmlFor={`product-notes-${requirement.id}`}>
+            <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-ink-600"><span>Intern kommentar <span className="font-normal text-ink-500">(valfritt)</span></span><span>{notes.length}/2000</span></span>
+            <textarea id={`product-notes-${requirement.id}`} rows={4} maxLength={2000} value={notes} onChange={(event) => { setNotes(event.target.value); setHasUnapprovedChanges(true); }} className="block w-full resize-y rounded-sm border-ink-300 bg-ink-50 text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
+          </label>
+        </section>
+
+        <details className="group overflow-hidden rounded-md border border-ink-200 bg-white">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50"><span>Tillbehör (valfritt){accessories.length > 0 ? ` · ${accessories.length}` : ""}</span><ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary>
+          <div className="space-y-3 border-t border-ink-200 p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-ink-700">Lägg till produkter som normalt beställs tillsammans med huvudprodukten.</p>
-              <Button type="button" variant="secondary" onClick={() => { setAccessories((current) => [...current, { name: "", productNumber: "", quantity: 1, unit: "st", notes: "" }]); setHasUnapprovedChanges(true); }}><Plus className="h-4 w-4" aria-hidden="true" /> Lägg till tillbehör</Button>
+              <p className="text-xs text-ink-600">Lägg till produkter som normalt beställs tillsammans med huvudprodukten.</p>
+              <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { setAccessories((current) => [...current, { name: "", productNumber: "", quantity: 1, unit: "st", notes: "" }]); setHasUnapprovedChanges(true); }}><Plus className="h-4 w-4" aria-hidden="true" />Lägg till tillbehör</Button>
             </div>
             {accessories.map((accessory, index) => (
-              <div key={index} className="grid gap-3 rounded-xl border border-ink-200 bg-white p-4 md:grid-cols-[2fr_1.3fr_0.8fr_0.7fr_auto]">
+              <div key={index} className="grid gap-3 rounded-md border border-ink-200 bg-ink-50 p-3 md:grid-cols-[2fr_1.3fr_0.8fr_0.7fr_auto]">
                 <CompactInput label="Tillbehör" value={accessory.name} onChange={(value) => { updateAccessory(setAccessories, index, "name", value); setHasUnapprovedChanges(true); }} />
                 <CompactInput label="NRF-nummer" value={accessory.productNumber} onChange={(value) => { updateAccessory(setAccessories, index, "productNumber", value); setHasUnapprovedChanges(true); }} />
                 <CompactInput label="Antal per produkt" type="number" min="0.001" step="0.001" value={String(accessory.quantity)} onChange={(value) => { updateAccessory(setAccessories, index, "quantity", Number(value)); setHasUnapprovedChanges(true); }} />
                 <CompactInput label="Enhet" value={accessory.unit} onChange={(value) => { updateAccessory(setAccessories, index, "unit", value); setHasUnapprovedChanges(true); }} />
-                <button type="button" aria-label="Ta bort tillbehör" onClick={() => { setAccessories((current) => current.filter((_, itemIndex) => itemIndex !== index)); setHasUnapprovedChanges(true); }} className="mt-7 flex h-11 w-11 items-center justify-center rounded-lg text-ink-500 transition hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></button>
+                <button type="button" aria-label="Ta bort tillbehör" onClick={() => { setAccessories((current) => current.filter((_, itemIndex) => itemIndex !== index)); setHasUnapprovedChanges(true); }} className="mt-6 flex h-10 w-10 items-center justify-center rounded-md text-ink-500 transition hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
               </div>
             ))}
-            <label className="block"><span className="mb-2 block text-sm font-semibold text-ink-700">Intern kommentar</span><textarea rows={3} value={notes} onChange={(event) => { setNotes(event.target.value); setHasUnapprovedChanges(true); }} className="block w-full rounded-lg border-ink-200 bg-white text-base text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500" /></label>
           </div>
         </details>
 
-        <div className={isApproved ? "flex flex-col gap-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between" : "flex flex-col gap-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between"}>
+        <div className="flex flex-col gap-3 border-t border-ink-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className={isApproved ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-800" : "text-sm font-bold uppercase tracking-[0.08em] text-amber-900"}>3 · Godkänn produkten</p>
-            <p className={isApproved ? "mt-1 text-sm font-medium text-emerald-900" : "mt-1 text-sm font-medium text-amber-950"}>{isApproved ? "Produkten är godkänd. Alla ändringar måste godkännas på nytt." : "Produkten är inte godkänd ännu. Kontrollera uppgifterna och tryck sedan på knappen."}</p>
+            <p className="text-sm font-bold text-ink-950">Godkänn produkten</p>
+            <p className="mt-0.5 text-xs leading-5 text-ink-600">{isApproved ? "Produkten är godkänd. Ändringar måste godkännas på nytt." : "Kontrollera uppgifterna och godkänn sedan produkten."}</p>
           </div>
-          <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="button" onClick={() => void save()} disabled={saving || !productNumber.trim()}>
-            {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+          <Button className="min-h-10 w-full justify-center px-4 py-2 text-sm sm:w-auto" type="button" onClick={() => void save()} disabled={saving || !productNumber.trim()}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
             {saving ? "Godkänner…" : assignment ? `Godkänn ändringar för post ${details.postNumber ?? position}` : `Godkänn produkt för post ${details.postNumber ?? position}`}
           </Button>
         </div>
@@ -1148,11 +1167,11 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
   );
 
   return (
-    <section className="rounded-xl border-2 border-cyan-200 bg-cyan-50 p-4 sm:p-5" aria-labelledby="ahlsell-match-heading">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <section aria-labelledby="ahlsell-match-heading">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-3xl">
-          <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-900">Ahlsell-matchning · inte godkänd</p>
-          <h4 id="ahlsell-match-heading" className="mt-1 text-xl font-bold text-ink-950">
+          <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Ahlsell-matchning · inte godkänd</p>
+          <h4 id="ahlsell-match-heading" className="mt-1 text-base font-bold text-ink-950">
             {loadingCatalog
               ? "Söker alla produkter hos Ahlsell…"
               : candidates.length > 0
@@ -1161,33 +1180,33 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
                   : `${candidates.length} ${candidates.length === 1 ? "produkt hittad" : "produkter hittade"}`
                 : "Ingen produkt hittades med denna sökning"}
           </h4>
-          <p className="mt-1 text-sm leading-6 text-ink-700">
+          <p className="mt-1 text-xs leading-5 text-ink-600">
             Scipx söker i Ahlsells offentliga katalog med uppgifterna i PDF-posten. Välj en kandidat för att fylla i utkastet. Ingen produkt godkänns automatiskt.
           </p>
         </div>
-        <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#06213d] px-5 py-3 text-base font-bold text-white transition hover:bg-[#0a3158] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700">
-          <Search className="h-5 w-5" aria-hidden="true" />Sök på Ahlsell<ExternalLink className="h-4 w-4" aria-hidden="true" />
+        <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-flow-800 transition hover:border-flow-500 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+          <Search className="h-4 w-4" aria-hidden="true" />Sök på Ahlsell<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
       </div>
 
-      <div className="mt-4 rounded-lg border border-cyan-200 bg-white px-4 py-3">
+      <div className="mt-3 rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5">
         <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Sökningar som Scipx använder</p>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
           {(catalogResult?.queries ?? guide.searchQueries ?? [guide.searchQuery]).map((query) => (
-            <span key={query} className="rounded-full bg-cyan-100 px-3 py-1 text-sm font-bold text-cyan-950">{query}</span>
+            <span key={query} className="rounded-md border border-ink-200 bg-white px-2 py-1 text-xs font-semibold text-ink-700">{query}</span>
           ))}
         </div>
       </div>
 
       {guide.recognitionNotes?.length > 0 && (
-        <ul className="mt-3 list-disc space-y-1 pl-6 text-sm font-medium leading-6 text-cyan-950">
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs font-medium leading-5 text-ink-700">
           {guide.recognitionNotes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       )}
 
       {loadingCatalog && (
-        <div className="mt-4 flex min-h-24 items-center justify-center gap-3 rounded-xl border border-cyan-200 bg-white text-base font-bold text-cyan-950" role="status">
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Hämtar alla Ahlsell-träffar…
+        <div className="mt-3 flex min-h-16 items-center justify-center gap-2 rounded-md border border-ink-200 bg-ink-50 text-sm font-bold text-ink-800" role="status">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar alla Ahlsell-träffar…
         </div>
       )}
 
@@ -1219,28 +1238,28 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
       )}
 
       {visibleCandidates.length > 0 && (
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="mt-3 grid gap-2 lg:grid-cols-2">
           {visibleCandidates.map((candidate) => {
             const isMostLikely = candidate.articleNumber === mostLikelyArticleNumber;
             return (
-            <article key={candidate.articleNumber} className={isMostLikely ? "rounded-xl border-4 border-emerald-500 bg-emerald-50 p-4 shadow-sm" : "rounded-xl border-2 border-cyan-200 bg-white p-4"}>
+            <article key={candidate.articleNumber} className={isMostLikely ? "rounded-md border-2 border-emerald-400 bg-emerald-50 p-3" : "rounded-md border border-ink-200 bg-white p-3"}>
               {isMostLikely && (
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-700 px-3 py-1.5 text-sm font-black text-white">
-                  <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Mest sannolik produkt
+                <div className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-700 px-2 py-1 text-xs font-bold text-white">
+                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />Mest sannolik produkt
                 </div>
               )}
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-base font-bold text-ink-950">{candidate.productName}</p>
-                  <p className="mt-1 text-sm font-bold text-cyan-900">NRF-nummer {candidate.articleNumber}</p>
-                  <p className="mt-1 text-xs font-semibold text-ink-600">{candidateSourceLabel(candidate.source)}</p>
+                  <p className="text-sm font-bold text-ink-950">{candidate.productName}</p>
+                  <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-ink-600">{candidateSourceLabel(candidate.source)}</p>
                 </div>
                 <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 </a>
               </div>
-              {candidate.description && <p className="mt-3 line-clamp-4 text-sm leading-6 text-ink-700">{candidate.description}</p>}
-              {candidate.specifications.length > 0 && <p className="mt-3 text-sm font-semibold leading-6 text-ink-700">{candidate.specifications.join(" · ")}</p>}
+              {candidate.description && <p className="mt-2 line-clamp-3 text-xs leading-5 text-ink-700">{candidate.description}</p>}
+              {candidate.specifications.length > 0 && <p className="mt-2 text-xs font-semibold leading-5 text-ink-700">{candidate.specifications.join(" · ")}</p>}
               {(candidate.matchReasons?.length ?? 0) > 0 && (
                 <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
                   <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Därför matchar den</p>
@@ -1257,17 +1276,17 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
                   </ul>
                 </div>
               )}
-              <Button type="button" variant="secondary" className="mt-4 min-h-12 w-full justify-center" disabled={disabled} onClick={() => onUseCandidate(candidate)}>
+              <Button type="button" variant="secondary" className="mt-3 min-h-9 w-full justify-center px-3 py-1.5 text-xs" disabled={disabled} onClick={() => onUseCandidate(candidate)}>
                 {isMostLikely ? "Välj rekommenderad produkt" : "Välj denna produkt"}
               </Button>
-              <p className="mt-2 text-center text-xs font-semibold text-amber-800">Fyller bara i fälten – produkten är fortfarande inte godkänd.</p>
+              <p className="mt-1.5 text-center text-[11px] font-semibold text-amber-800">Fyller bara i fälten – produkten är fortfarande inte godkänd.</p>
             </article>
           );})}
         </div>
       )}
 
       {pageCount > 1 && (
-        <div className="mt-4 flex flex-col items-center justify-between gap-3 rounded-xl border border-cyan-200 bg-white p-3 sm:flex-row">
+        <div className="mt-3 flex flex-col items-center justify-between gap-3 rounded-md border border-ink-200 bg-white p-3 sm:flex-row">
           <p className="text-sm font-bold text-ink-700">Visar {(candidatePage - 1) * CANDIDATES_PER_PAGE + 1}–{Math.min(candidatePage * CANDIDATES_PER_PAGE, candidates.length)} av {candidates.length}</p>
           <div className="flex items-center gap-2">
             <Button type="button" variant="secondary" disabled={candidatePage === 1} onClick={() => setCandidatePage((page) => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Föregående</Button>
@@ -1534,15 +1553,33 @@ function StatusNumber({ value, label, tone = "neutral" }: { value: number; label
 }
 
 function Fact({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
-  return <div className="rounded-lg border border-ink-200 bg-white px-4 py-3"><p className="text-xs font-bold uppercase tracking-wide text-ink-500">{label}</p><p className={strong ? "mt-1 text-lg font-bold text-ink-950" : "mt-1 text-base font-semibold text-ink-900"}>{value}</p></div>;
+  return <div><p className="mb-1 text-xs font-semibold text-ink-600">{label}</p><p className={strong ? "flex min-h-9 items-center rounded-sm border border-ink-300 bg-ink-50 px-3 py-2 text-sm font-bold text-ink-950" : "flex min-h-9 items-center rounded-sm border border-ink-300 bg-ink-50 px-3 py-2 text-sm font-medium text-ink-900"}>{value}</p></div>;
 }
 
 function SpecificationRow({ label, value }: { label: string; value: string }) {
   return <div className="border-b border-ink-100 px-4 py-3 sm:border-r"><dt className="text-xs font-bold uppercase tracking-wide text-ink-500">{label}</dt><dd className="mt-1 break-words text-sm leading-6 text-ink-900">{value}</dd></div>;
 }
 
+function ProductFormInput({ id, label, value, onChange, required = false, optional = false }: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  optional?: boolean;
+}) {
+  return (
+    <label className="block" htmlFor={id}>
+      <span className="mb-1 block text-xs font-semibold text-ink-600">
+        {label}{required && <span className="ml-1 font-black text-rose-600">*</span>}{optional && <span className="ml-1 font-normal text-ink-500">(valfritt)</span>}
+      </span>
+      <input id={id} required={required} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-ink-50 text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
+    </label>
+  );
+}
+
 function CompactInput({ label, value, onChange, type = "text", min, step }: { label: string; value: string; onChange: (value: string) => void; type?: string; min?: string; step?: string }) {
-  return <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-600">{label}</span><input type={type} min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} className="block h-11 w-full rounded-lg border-ink-200 bg-white text-base text-ink-900 focus:border-flow-500 focus:ring-flow-500" /></label>;
+  return <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-600">{label}</span><input type={type} min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-white text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" /></label>;
 }
 
 function updateAccessory(setAccessories: Dispatch<SetStateAction<AccessoryDraft[]>>, index: number, key: keyof AccessoryDraft, value: string | number) {
