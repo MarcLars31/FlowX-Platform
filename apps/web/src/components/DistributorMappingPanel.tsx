@@ -155,19 +155,18 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     }),
     [catalogStatuses, handledRequirementIds, memoryFingerprints, productRequirements, staticallySafeRequirementIds]
   );
-  const requirementsByGroup = useMemo<Record<AhlsellMatchGroup, Row[]>>(() => ({
-    green: greenRequirements,
-    yellow: yellowRequirements,
-    red: redRequirements
-  }), [greenRequirements, redRequirements, yellowRequirements]);
-  const [queueGroup, setQueueGroup] = useState<AhlsellMatchGroup | null>(null);
+  const groupByRequirementId = useMemo(() => new Map<string, AhlsellMatchGroup>([
+    ...greenRequirements.map((requirement) => [requirement.id, "green"] as const),
+    ...yellowRequirements.map((requirement) => [requirement.id, "yellow"] as const),
+    ...redRequirements.map((requirement) => [requirement.id, "red"] as const)
+  ]), [greenRequirements, redRequirements, yellowRequirements]);
   const [selectedProductCategories, setSelectedProductCategories] = useState<ProductRequirementCategory[] | null>(null);
   const [selectedRequirementIds, setSelectedRequirementIds] = useState<Set<string>>(() => new Set());
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const allQueueRequirements = useMemo(
-    () => queueGroup ? sortProductRequirementsByCategory(requirementsByGroup[queueGroup]) : [],
-    [queueGroup, requirementsByGroup]
+    () => sortProductRequirementsByCategory(productRequirements),
+    [productRequirements]
   );
   const productCategoryCounts = useMemo(() => {
     const counts = new Map<ProductRequirementCategory, number>();
@@ -190,8 +189,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     [allQueueRequirements, selectedProductCategories]
   );
   const queuePositionById = useMemo(
-    () => new Map(queueRequirements.map((requirement, index) => [requirement.id, index + 1])),
-    [queueRequirements]
+    () => new Map(allQueueRequirements.map((requirement, index) => [requirement.id, index + 1])),
+    [allQueueRequirements]
   );
   const selectedVisibleRequirements = queueRequirements.filter((requirement) => selectedRequirementIds.has(requirement.id));
   const allVisibleRequirementsSelected = queueRequirements.length > 0
@@ -212,9 +211,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const ahlsellCoveragePercent = productRequirements.length > 0
     ? Math.round((matchedRequirementCount / productRequirements.length) * 100)
     : 0;
-  const activeGroupHandledCount = queueRequirements.length - visibleQueueRemainingCount;
+  const visibleHandledCount = queueRequirements.length - visibleQueueRemainingCount;
   const progressPercent = queueRequirements.length > 0
-    ? Math.round((activeGroupHandledCount / queueRequirements.length) * 100)
+    ? Math.round((visibleHandledCount / queueRequirements.length) * 100)
     : 100;
 
   function showRequirement(requirementId: string) {
@@ -222,18 +221,6 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => document.getElementById("product-work-queue")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
-  function showQueue(group: AhlsellMatchGroup) {
-    const nextQueue = requirementsByGroup[group];
-    if (nextQueue.length === 0) return;
-    setQueueGroup(group);
-    setSelectedProductCategories(null);
-    setSelectedRequirementIds(new Set());
-    setActiveRequirementId(null);
-    setMessage(null);
-    setError(null);
-    window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   function toggleProductCategory(category: ProductRequirementCategory) {
@@ -261,7 +248,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
-    window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    window.requestAnimationFrame(() => document.getElementById("product-table")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   function toggleRequirementSelection(requirementId: string, selected: boolean) {
@@ -304,143 +291,69 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
         </div>
       </div>
 
-      {productRequirements.length > 0 && (
-        <section aria-labelledby="match-queues-heading" className="rounded-2xl border-2 border-ink-200 bg-white p-4 shadow-sm sm:p-5">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.08em] text-flow-700">Välj färg</p>
-            <h3 id="match-queues-heading" className="mt-1 text-2xl font-bold text-ink-950">Vilka produkter vill du arbeta med?</h3>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-700">Tryck först på grön, gul eller röd. Då visas alla produkter i gruppen i en tydlig tabell.</p>
-            {catalogChecksRemaining > 0 && <p className="mt-2 text-sm font-bold text-flow-700" role="status">Scipx kontrollerar Ahlsell för {catalogChecksRemaining} {catalogChecksRemaining === 1 ? "post" : "poster"}… Grupperna uppdateras automatiskt.</p>}
-            {catalogChecksRemaining === 0 && productRequirements.length > 0 && (
-              <p className="mt-2 text-sm font-bold text-flow-800" role="status">Ahlsell-täckning: {matchedRequirementCount} av {productRequirements.length} produktposter ({ahlsellCoveragePercent} %). Arbetsmoment och demontering räknas inte som produktmissar.</p>
-            )}
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <QueueButton
-              group="green"
-              active={queueGroup === "green"}
-              count={greenRequirements.length}
-              remaining={greenRemainingCount}
-              onClick={() => showQueue("green")}
-            />
-            <QueueButton
-              group="yellow"
-              active={queueGroup === "yellow"}
-              count={yellowRequirements.length}
-              remaining={yellowRemainingCount}
-              onClick={() => showQueue("yellow")}
-            />
-            <QueueButton
-              group="red"
-              active={queueGroup === "red"}
-              count={redRequirements.length}
-              remaining={redRemainingCount}
-              onClick={() => showQueue("red")}
-            />
-          </div>
-          {!queueGroup && (
-            <p className="mt-4 rounded-xl border border-flow-200 bg-flow-50 px-4 py-3 text-center text-sm font-bold text-flow-900">Välj en färg ovan för att visa produktposterna.</p>
-          )}
-        </section>
-      )}
-
-      {queueGroup && !activeRequirement && (
-        <section id="product-group-cards" aria-labelledby="product-group-cards-heading" className="scroll-mt-5 rounded-2xl border-2 border-ink-200 bg-ink-50 p-4 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      {productRequirements.length > 0 && !activeRequirement && (
+        <section id="product-table" aria-labelledby="product-table-heading" className="scroll-mt-5 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-2 border-b border-ink-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className={queueGroup === "green" ? "text-sm font-bold uppercase tracking-[0.08em] text-emerald-700" : queueGroup === "yellow" ? "text-sm font-bold uppercase tracking-[0.08em] text-amber-800" : "text-sm font-bold uppercase tracking-[0.08em] text-rose-700"}>{queueGroup === "green" ? "Gröna produkter" : queueGroup === "yellow" ? "Gula produkter" : "Röda produkter"}</p>
-              <h3 id="product-group-cards-heading" className="mt-1 text-2xl font-bold text-ink-950">Välj och godkänn produkter</h3>
-              <p className="mt-1 text-sm text-ink-700">{queueRequirements.length} {queueRequirements.length === 1 ? "produktpost visas" : "produktposter visas"}. Tabellen ger en snabb överblick innan du öppnar en post.</p>
+              <h3 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h3>
+              <p className="mt-0.5 text-xs font-semibold text-ink-600">
+                {catalogChecksRemaining > 0
+                  ? `Scipx kontrollerar Ahlsell för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
+                  : `Ahlsellträff för ${matchedRequirementCount} av ${productRequirements.length} poster (${ahlsellCoveragePercent} %).`}
+              </p>
             </div>
-            <p className="rounded-full bg-white px-4 py-2 text-sm font-bold text-ink-800 shadow-sm">{visibleQueueRemainingCount} kvar i visningen</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedVisibleRequirements.length > 0 && <span className="rounded-full bg-flow-100 px-2.5 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length} valda</span>}
+              <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-sm" disabled={selectedVisibleRequirements.length !== 1} onClick={() => showRequirement(selectedVisibleRequirements[0].id)}>
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Öppna vald
+              </Button>
+              <button type="button" disabled={selectedVisibleRequirements.length === 0} onClick={() => setSelectedRequirementIds(new Set())} className="min-h-9 rounded-lg px-2.5 text-xs font-bold text-flow-800 transition hover:bg-flow-50 disabled:cursor-not-allowed disabled:text-ink-300">Rensa</button>
+            </div>
           </div>
 
-          <div className="mt-5 rounded-xl border-2 border-flow-200 bg-white p-4">
-            <p className="text-sm font-black uppercase tracking-[0.08em] text-flow-800">Välj vilka produktgrupper du vill se</p>
-            <p className="mt-1 text-sm leading-6 text-ink-700">Välj en eller flera grupper. Exempel: tryck på Sprinklerhuvuden och därefter Rör för att se båda. Alla produkter återställer hela listan i rekommenderad ordning.</p>
-            <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filtrera produkter efter produktgrupp">
-              <ProductCategoryButton
-                active={selectedProductCategories === null}
-                count={allQueueRequirements.length}
-                label="Alla produkter"
-                onClick={showAllProductCategories}
-              />
-              {availableProductCategories.map((category) => (
-                <ProductCategoryButton
-                  key={category.id}
-                  active={selectedProductCategories?.includes(category.id) ?? false}
-                  count={productCategoryCounts.get(category.id) ?? 0}
-                  label={category.shortLabel}
-                  onClick={() => toggleProductCategory(category.id)}
-                />
-              ))}
-            </div>
-            <p className="mt-3 text-sm font-bold text-flow-900" role="status">
-              {selectedProductCategories === null
-                ? `Visar alla ${allQueueRequirements.length} produkter.`
-                : selectedProductCategories.length === 0
-                  ? "Ingen produktgrupp är vald. Välj minst en grupp ovan."
-                  : `Visar ${queueRequirements.length} produkter från ${selectedProductCategories.length} valda ${selectedProductCategories.length === 1 ? "grupp" : "grupper"}.`}
-            </p>
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-ink-200 bg-ink-50/70 px-4 py-2" role="group" aria-label="Filtrera produkter efter produktgrupp">
+            <ProductCategoryButton active={selectedProductCategories === null} count={allQueueRequirements.length} label="Alla" onClick={showAllProductCategories} />
+            {availableProductCategories.map((category) => (
+              <ProductCategoryButton key={category.id} active={selectedProductCategories?.includes(category.id) ?? false} count={productCategoryCounts.get(category.id) ?? 0} label={category.shortLabel} onClick={() => toggleProductCategory(category.id)} />
+            ))}
           </div>
 
           {queueRequirements.length > 0 ? (
-            <div className="mt-6 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-3 border-b border-ink-200 bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center gap-3">
-                  <p className="text-lg font-black text-ink-950">Produktposter ({queueRequirements.length})</p>
-                  {selectedVisibleRequirements.length > 0 && (
-                    <span className="rounded-full bg-flow-100 px-3 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length} valda</span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="secondary" disabled={selectedVisibleRequirements.length !== 1} onClick={() => showRequirement(selectedVisibleRequirements[0].id)}>
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />Öppna vald post
-                  </Button>
-                  <button type="button" disabled={selectedVisibleRequirements.length === 0} onClick={() => setSelectedRequirementIds(new Set())} className="min-h-11 rounded-lg px-3 text-sm font-bold text-flow-800 transition hover:bg-flow-50 disabled:cursor-not-allowed disabled:text-ink-300">
-                    Rensa val
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1120px] border-collapse text-left">
-                  <thead className="bg-ink-50 text-xs font-black uppercase tracking-[0.05em] text-ink-600">
-                    <tr>
-                      <th className="w-14 border-b border-r border-ink-200 px-4 py-3 text-center"><input type="checkbox" aria-label="Välj alla synliga produktposter" checked={allVisibleRequirementsSelected} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-5 w-5 rounded border-ink-300 text-flow-700 focus:ring-flow-500" /></th>
-                      <th className="w-28 border-b border-ink-200 px-4 py-3">Status</th>
-                      <th className="w-36 border-b border-ink-200 px-4 py-3">PDF-post</th>
-                      <th className="min-w-72 border-b border-ink-200 px-4 py-3">Produktkrav</th>
-                      <th className="w-44 border-b border-ink-200 px-4 py-3">Produktgrupp</th>
-                      <th className="w-36 border-b border-ink-200 px-4 py-3">Ahlsellträff</th>
-                      <th className="w-28 border-b border-ink-200 px-4 py-3">Mängd</th>
-                      <th className="w-56 border-b border-ink-200 px-4 py-3">Vald produkt</th>
-                      <th className="w-20 border-b border-ink-200 px-4 py-3 text-center">Åtgärd</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {queueRequirements.map((requirement) => (
-                      <RequirementQueueRow
-                        key={requirement.id}
-                        requirement={requirement}
-                        position={queuePositionById.get(requirement.id) ?? 1}
-                        approved={approvedRequirementIds.has(requirement.id)}
-                        group={queueGroup}
-                        assignment={approvedAssignments.find((item) => item.requirement_id === requirement.id)}
-                        memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
-                        selected={selectedRequirementIds.has(requirement.id)}
-                        onSelectedChange={(selected) => toggleRequirementSelection(requirement.id, selected)}
-                        onOpen={() => showRequirement(requirement.id)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1020px] border-collapse text-left">
+                <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
+                  <tr>
+                    <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label="Välj alla synliga produktposter" checked={allVisibleRequirementsSelected} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" /></th>
+                    <th className="w-24 border-b border-ink-200 px-3 py-2">Status</th>
+                    <th className="w-28 border-b border-ink-200 px-3 py-2">PDF-post</th>
+                    <th className="min-w-64 border-b border-ink-200 px-3 py-2">Produktkrav</th>
+                    <th className="w-36 border-b border-ink-200 px-3 py-2">Produktgrupp</th>
+                    <th className="w-28 border-b border-ink-200 px-3 py-2">Träff</th>
+                    <th className="w-24 border-b border-ink-200 px-3 py-2">Mängd</th>
+                    <th className="w-48 border-b border-ink-200 px-3 py-2">Vald produkt</th>
+                    <th className="w-14 border-b border-ink-200 px-2 py-2 text-center">Öppna</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {queueRequirements.map((requirement) => (
+                    <RequirementQueueRow
+                      key={requirement.id}
+                      requirement={requirement}
+                      position={queuePositionById.get(requirement.id) ?? 1}
+                      approved={approvedRequirementIds.has(requirement.id)}
+                      group={groupByRequirementId.get(requirement.id) ?? "yellow"}
+                      assignment={approvedAssignments.find((item) => item.requirement_id === requirement.id)}
+                      memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
+                      selected={selectedRequirementIds.has(requirement.id)}
+                      onSelectedChange={(selected) => toggleRequirementSelection(requirement.id, selected)}
+                      onOpen={() => showRequirement(requirement.id)}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <div className="mt-5 rounded-xl border border-ink-200 bg-white p-6 text-center">
-              <p className="font-bold text-ink-950">{selectedProductCategories?.length === 0 ? "Ingen produktgrupp är vald." : "Det finns inga produkter i den här visningen."}</p>
-              <p className="mt-1 text-sm text-ink-700">Välj en produktgrupp ovan eller tryck på Alla produkter.</p>
-            </div>
+            <div className="p-5 text-center"><p className="font-bold text-ink-950">Ingen produktgrupp är vald.</p><p className="mt-1 text-sm text-ink-700">Välj en grupp ovan eller tryck på Alla.</p></div>
           )}
         </section>
       )}
@@ -457,11 +370,11 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           <p className="mx-auto mt-2 max-w-2xl text-base leading-7 text-amber-900">Ladda upp en ny eller tydligare teknisk beskrivning och försök igen.</p>
           <Button className="mt-5 min-h-12 text-base" variant="secondary" onClick={onGoToDocuments}>Gå tillbaka och ladda upp PDF</Button>
         </div>
-      ) : queueGroup || productRequirements.length === 0 ? (
+      ) : (
         <div className="space-y-6">
           {activeRequirement && (() => {
             const requirement = activeRequirement;
-            const activeGroup = queueGroup ?? "yellow";
+            const activeGroup = groupByRequirementId.get(requirement.id) ?? "yellow";
             const assignment = approvedAssignments.find((item) => item.requirement_id === requirement.id);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
             return <div id="product-work-queue" className="space-y-4 scroll-mt-5">
@@ -496,7 +409,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                   setMessage(successMessage);
                   setActiveRequirementId(null);
                   await onReload();
-                  window.requestAnimationFrame(() => document.getElementById("product-group-cards")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                  window.requestAnimationFrame(() => document.getElementById("product-table")?.scrollIntoView({ behavior: "smooth", block: "start" }));
                 }}
                 onError={(errorMessage) => { setMessage(null); setError(errorMessage || null); }}
               />
@@ -561,7 +474,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             </div>
           )}
         </div>
-      ) : null}
+      )}
     </section>
   );
 }
@@ -1103,42 +1016,42 @@ function RequirementQueueRow({ requirement, assignment, memory, position, approv
 
   return (
     <tr className={`border-b border-ink-100 transition last:border-b-0 ${rowClass}`}>
-      <td className="border-r border-ink-100 px-4 py-4 text-center">
-        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} className="h-5 w-5 rounded border-ink-300 text-flow-700 focus:ring-flow-500" />
+      <td className="border-r border-ink-100 px-3 py-2.5 text-center">
+        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" />
       </td>
-      <td className="px-4 py-4 align-top">
+      <td className="px-3 py-2.5 align-middle">
         {resolution ? (
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700"><Tag className="h-4 w-4" aria-hidden="true" />{resolution.label}</span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
         ) : approved ? (
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Godkänd</span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
         ) : hasReusableMemory ? (
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700"><History className="h-4 w-4" aria-hidden="true" />Tidigare val</span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700"><History className="h-3.5 w-3.5" aria-hidden="true" />Tidigare val</span>
         ) : (
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700"><AlertTriangle className="h-4 w-4" aria-hidden="true" />Att hantera</span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Att hantera</span>
         )}
       </td>
-      <td className="px-4 py-4 align-top">
-        <button type="button" onClick={onOpen} className="font-black text-flow-800 hover:text-flow-950 hover:underline">{details.postNumber ?? position}</button>
-        {details.nsCode && <span className="mt-1 block text-xs text-ink-500">{details.nsCode}</span>}
+      <td className="px-3 py-2.5 align-middle">
+        <button type="button" onClick={onOpen} className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline">{details.postNumber ?? position}</button>
+        {details.nsCode && <span className="block text-[10px] text-ink-500">{details.nsCode}</span>}
       </td>
-      <td className="px-4 py-4 align-top">
-        <button type="button" onClick={onOpen} className="line-clamp-2 max-w-xl text-left text-sm font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
+      <td className="px-3 py-2.5 align-middle">
+        <button type="button" onClick={onOpen} className="line-clamp-1 max-w-xl text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
       </td>
-      <td className="px-4 py-4 align-top text-sm font-semibold text-ink-800">{categoryLabel}</td>
-      <td className="px-4 py-4 align-top"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${matchClass}`}>{matchLabel}</span></td>
-      <td className="whitespace-nowrap px-4 py-4 align-top text-sm font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>
-      <td className="px-4 py-4 align-top text-sm">
+      <td className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">{categoryLabel}</td>
+      <td className="px-3 py-2.5 align-middle"><span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-black ${matchClass}`}>{matchLabel}</span></td>
+      <td className="whitespace-nowrap px-3 py-2.5 align-middle text-xs font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>
+      <td className="px-3 py-2.5 align-middle text-xs">
         {productName ? (
-          <><span className="block font-bold text-ink-950">{productName}</span>{productNumber && <span className="mt-1 block text-xs text-ink-600">Art.nr {productNumber}</span>}</>
+          <><span className="line-clamp-1 block font-bold text-ink-950">{productName}</span>{productNumber && <span className="block text-[10px] text-ink-600">Art.nr {productNumber}</span>}</>
         ) : hasReusableMemory ? (
-          <><span className="block font-bold text-sky-900">{memoryProductName}</span><span className="mt-1 block text-xs text-sky-700">Tidigare · {memoryProductNumber}</span></>
+          <><span className="line-clamp-1 block font-bold text-sky-900">{memoryProductName}</span><span className="block text-[10px] text-sky-700">Tidigare · {memoryProductNumber}</span></>
         ) : (
           <span className="italic text-ink-500">Ingen produkt vald</span>
         )}
       </td>
-      <td className="px-4 py-4 text-center align-top">
-        <button type="button" onClick={onOpen} aria-label={`Öppna PDF-post ${details.postNumber ?? position}`} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-flow-800 transition hover:bg-flow-100 hover:text-flow-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+      <td className="px-2 py-2 text-center align-middle">
+        <button type="button" onClick={onOpen} aria-label={`Öppna PDF-post ${details.postNumber ?? position}`} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-flow-800 transition hover:bg-flow-100 hover:text-flow-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       </td>
     </tr>
@@ -1157,55 +1070,11 @@ function ProductCategoryButton({ active, count, label, onClick }: {
       aria-pressed={active}
       onClick={onClick}
       className={active
-        ? "inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-flow-700 bg-flow-700 px-4 py-2 text-sm font-black text-white shadow-sm"
-        : "inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-ink-200 bg-white px-4 py-2 text-sm font-bold text-ink-800 transition hover:border-flow-500 hover:bg-flow-50"}
+        ? "inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-flow-700 bg-flow-700 px-2.5 py-1 text-xs font-black text-white shadow-sm"
+        : "inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 py-1 text-xs font-bold text-ink-800 transition hover:border-flow-500 hover:bg-flow-50"}
     >
       <span>{label}</span>
-      <span className={active ? "rounded-full bg-white/20 px-2 py-0.5 text-xs text-white" : "rounded-full bg-ink-100 px-2 py-0.5 text-xs text-ink-700"}>{count}</span>
-    </button>
-  );
-}
-
-function QueueButton({ group, active, count, remaining, onClick }: {
-  group: AhlsellMatchGroup;
-  active: boolean;
-  count: number;
-  remaining: number;
-  onClick: () => void;
-}) {
-  const green = group === "green";
-  const yellow = group === "yellow";
-  const title = green ? "Grön" : yellow ? "Gul" : "Röd";
-  const description = green
-    ? "Scipx har hittat en produkt som stämmer tekniskt."
-    : yellow
-      ? "Ahlsell har produkter, men rätt artikel måste kontrolleras."
-      : "Ingen produkt hittades hos Ahlsell. Fyll i eller sök manuellt.";
-  const className = green
-    ? active
-      ? "min-h-36 rounded-2xl border-4 border-emerald-600 bg-emerald-50 p-5 text-left shadow-sm"
-      : "min-h-36 rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-5 text-left transition hover:border-emerald-500"
-    : yellow
-      ? active
-        ? "min-h-36 rounded-2xl border-4 border-amber-500 bg-amber-50 p-5 text-left shadow-sm"
-        : "min-h-36 rounded-2xl border-2 border-amber-300 bg-amber-50/60 p-5 text-left transition hover:border-amber-500"
-      : active
-        ? "min-h-36 rounded-2xl border-4 border-rose-600 bg-rose-50 p-5 text-left shadow-sm"
-        : "min-h-36 rounded-2xl border-2 border-rose-300 bg-rose-50/60 p-5 text-left transition hover:border-rose-500";
-  const titleClass = green ? "text-emerald-950" : yellow ? "text-amber-950" : "text-rose-950";
-  const countClass = green ? "bg-emerald-600 text-white" : yellow ? "bg-amber-400 text-amber-950" : "bg-rose-600 text-white";
-  const remainingClass = green ? "text-emerald-800" : yellow ? "text-amber-800" : "text-rose-800";
-
-  return (
-    <button type="button" aria-pressed={active} disabled={count === 0} onClick={onClick} className={`${className} disabled:cursor-not-allowed disabled:opacity-45`}>
-      <span className="flex items-start justify-between gap-4">
-        <span>
-          <span className={`block text-2xl font-black ${titleClass}`}>{title}</span>
-          <span className="mt-1 block text-sm leading-6 text-ink-700">{description}</span>
-        </span>
-        <span className={`flex h-12 min-w-12 items-center justify-center rounded-full px-3 text-xl font-black ${countClass}`}>{count}</span>
-      </span>
-      <span className={`mt-3 block text-sm font-bold ${remainingClass}`}>{remaining === 0 ? "Klar" : `${remaining} kvar att hantera`}{active ? " · Öppen nu" : ""}</span>
+      <span className={active ? "rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] text-white" : "rounded-full bg-ink-100 px-1.5 py-0.5 text-[10px] text-ink-700"}>{count}</span>
     </button>
   );
 }
