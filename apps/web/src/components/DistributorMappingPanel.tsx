@@ -1211,15 +1211,10 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
                 <p className="flex items-center gap-2 text-sm font-bold text-ink-950"><Tag className="h-4 w-4" aria-hidden="true" />Ahlsell saknar varan?</p>
                 <p className="mt-0.5 text-xs leading-5 text-ink-600">Märk posten som Inte i sortiment. Den räknas som hanterad och blockerar inte projektet.</p>
               </div>
-              {resolution ? (
+              {resolution && (
                 <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={clearNotInAssortmentResolution}>
                   {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   Ångra Inte i sortiment
-                </Button>
-              ) : (
-                <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={markAsNotInAssortment}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Tag className="h-4 w-4" aria-hidden="true" />}
-                  Märk som Inte i sortiment
                 </Button>
               )}
             </div>
