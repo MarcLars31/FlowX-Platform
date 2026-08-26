@@ -1089,11 +1089,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               <div className="min-w-0 flex-1">
                 <ProductFormInput id={`product-number-${requirement.id}`} label="NRF-nummer" value={productNumber} onChange={(value) => { setProductNumber(value); setProductName(""); setDraftNotice(null); setHasUnapprovedChanges(true); }} required />
               </div>
-              {productNumber.trim() && (
-                <Button type="button" variant="secondary" className="min-h-10 shrink-0 justify-center px-3 py-2 text-xs" onClick={clearSelectedProduct}>
-                  <RotateCcw className="h-4 w-4" aria-hidden="true" />Rensa NRF
-                </Button>
-              )}
               <div className="min-w-0 flex-1">
                 <ProductFormInput id={`manufacturer-${requirement.id}`} label="Tillverkare" optional value={manufacturerName} onChange={(value) => { setManufacturerName(value); setHasUnapprovedChanges(true); }} />
               </div>
@@ -1130,7 +1125,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
             </Button>
           </nav>
 
-          <div id={`ahlsell-products-${requirement.id}`} className="scroll-mt-24 rounded-md border border-ink-200 bg-white p-3">
+          <div id={`ahlsell-products-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
             <AhlsellPublicMatchPanel
               projectId={projectId}
               requirementId={requirement.id}
@@ -1268,12 +1263,6 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const candidates = orderAhlsellCandidatesForDisplay([...candidatesByArticle.values()]);
   const filteredCandidates = filterAhlsellCandidatesByNrf(candidates, selectedArticleNumber);
   const hasNrfFilter = Boolean(normalizeNrfNumber(selectedArticleNumber));
-  const recommendedCount = filteredCandidates.filter((candidate) => candidate.recommendation === "recommended").length;
-  const mostLikelyArticleNumber = candidates.find((candidate) =>
-    candidate.source === "pdf_reference"
-    || candidate.source === "public_verified"
-    || candidate.recommendation === "recommended"
-  )?.articleNumber ?? null;
   const pageCount = Math.max(1, Math.ceil(filteredCandidates.length / CANDIDATES_PER_PAGE));
   const activeCandidatePage = Math.min(candidatePage, pageCount);
   const visibleCandidates = filteredCandidates.slice(
@@ -1293,79 +1282,45 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 
   return (
     <section aria-labelledby="ahlsell-match-heading">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-3xl">
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Ahlsell-matchning · inte godkänd</p>
-          <h4 id="ahlsell-match-heading" className="mt-1 text-base font-bold text-ink-950">
-            {loadingCatalog
-              ? "Söker alla produkter hos Ahlsell…"
-              : filteredCandidates.length > 0
-                ? recommendedCount > 0
-                  ? `Mest sannolik produkt visas först · ${filteredCandidates.length} träffar`
-                  : `${filteredCandidates.length} ${filteredCandidates.length === 1 ? "produkt hittad" : "produkter hittade"}`
-                : hasNrfFilter && candidates.length > 0
-                  ? "Ingen Ahlsellprodukt matchar NRF-numret"
-                  : "Ingen produkt hittades med denna sökning"}
-          </h4>
-          <p className="mt-1 text-xs leading-5 text-ink-600">
-            Scipx söker i Ahlsells offentliga katalog med uppgifterna i PDF-posten. Välj en kandidat för att fylla i utkastet. Ingen produkt godkänns automatiskt.
-          </p>
+      <header className="px-3 py-3 sm:px-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktval</p>
+            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Välj en produkt från Ahlsell</h4>
+          </div>
+          <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
+            {!loadingCatalog && <span className="text-ink-600">{filteredCandidates.length} {filteredCandidates.length === 1 ? "träff" : "träffar"}</span>}
+            {hasNrfFilter && (
+              <button type="button" className="font-bold text-flow-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600" onClick={clearSelection}>
+                Rensa NRF
+              </button>
+            )}
+          </div>
         </div>
-        <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-flow-800 transition hover:border-flow-500 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-          <Search className="h-4 w-4" aria-hidden="true" />Sök på Ahlsell<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
-      </div>
-
-      <div className="mt-3 rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Sökningar som Scipx använder</p>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {(catalogResult?.queries ?? guide.searchQueries ?? [guide.searchQuery]).map((query) => (
-            <span key={query} className="rounded-md border border-ink-200 bg-white px-2 py-1 text-xs font-semibold text-ink-700">{query}</span>
-          ))}
-        </div>
-      </div>
-
-      {guide.recognitionNotes?.length > 0 && (
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs font-medium leading-5 text-ink-700">
-          {guide.recognitionNotes.map((note) => <li key={note}>{note}</li>)}
-        </ul>
-      )}
+        <p className="mt-1.5 text-xs leading-5 text-ink-600">Produkterna visas till höger om PDF-specifikationen. Markera en produkt i välj-cirkeln för att fylla NRF-numret.</p>
+      </header>
 
       {loadingCatalog && (
-        <div className="mt-3 flex min-h-16 items-center justify-center gap-2 rounded-md border border-ink-200 bg-ink-50 text-sm font-bold text-ink-800" role="status">
+        <div className="flex min-h-16 items-center justify-center gap-2 border-t border-ink-200 bg-ink-50 px-3 py-3 text-sm font-bold text-ink-800" role="status">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar alla Ahlsell-träffar…
         </div>
       )}
 
       {catalogError && (
-        <div className="mt-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="alert">
+        <div className="border-t border-amber-300 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950 sm:px-4" role="alert">
           <p className="font-bold">Produktlistan kunde inte hämtas automatiskt.</p>
           <p>{catalogError} Använd knappen ”Sök på Ahlsell” som reserv.</p>
         </div>
       )}
 
       {!loadingCatalog && !catalogError && catalogResult?.truncated && (
-        <div className="mt-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-950">
+        <div className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-950 sm:px-4">
           Ahlsell uppgav {catalogResult.total} träffar. Scipx visar de {catalogResult.candidates.length} första; förfina sökningen för en fullständig och relevant lista.
         </div>
       )}
 
-      {guide.warnings.length > 0 && (
-        <div className="mt-4 rounded-lg border-2 border-amber-300 bg-amber-50 p-4 text-amber-950">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
-            <div>
-              <p className="font-bold">Manuell kontroll krävs</p>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-6">
-                {guide.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
       {!loadingCatalog && hasNrfFilter && filteredCandidates.length === 0 && candidates.length > 0 && (
-        <div className="mt-3 flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between" role="status">
+        <div className="flex flex-col gap-3 border-t border-amber-300 bg-amber-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4" role="status">
           <p className="text-sm font-semibold text-amber-950">Inga hämtade produkter har NRF-nummer {selectedArticleNumber.trim()}.</p>
           <Button type="button" variant="secondary" className="min-h-9 shrink-0 justify-center px-3 py-1.5 text-xs" onClick={clearSelection}>
             <RotateCcw className="h-4 w-4" aria-hidden="true" />Visa alla produkter
@@ -1373,15 +1328,29 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         </div>
       )}
 
+      {!loadingCatalog && !catalogError && !hasNrfFilter && candidates.length === 0 && (
+        <div className="border-t border-ink-200 bg-ink-50 px-3 py-4 text-sm text-ink-700 sm:px-4">
+          <p className="font-semibold">Ingen produkt hittades med denna sökning.</p>
+          <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-flow-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+            Sök på Ahlsell<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+        </div>
+      )}
+
       {visibleCandidates.length > 0 && (
-        <div className="mt-3 space-y-2" role="radiogroup" aria-label="Välj Ahlsellprodukt">
+        <div className="divide-y divide-ink-200 border-t border-ink-200" role="radiogroup" aria-label="Välj Ahlsellprodukt">
           {visibleCandidates.map((candidate) => {
-            const isMostLikely = candidate.articleNumber === mostLikelyArticleNumber;
             const isSelected = normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber);
             return (
-            <article key={candidate.articleNumber} className={isSelected ? "rounded-md border-2 border-flow-600 bg-flow-50 p-3 shadow-sm" : isMostLikely ? "rounded-md border-2 border-emerald-400 bg-emerald-50 p-3" : "rounded-md border border-ink-200 bg-white p-3"}>
-              <div className="flex items-start gap-3">
-                <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+            <article key={candidate.articleNumber} className={isSelected ? "bg-cyan-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4"}>
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold leading-5 text-ink-950">{candidate.productName}</p>
+                  <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">{candidateSourceLabel(candidate.source)}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="flex items-center gap-2">
                   <input
                     type="radio"
                     name={`ahlsell-product-${requirementId}`}
@@ -1390,58 +1359,55 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                     disabled={disabled}
                     onChange={() => selectCandidate(candidate)}
                     aria-label={`Välj ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
-                    className="mt-1 h-4 w-4 shrink-0 border-ink-300 text-flow-700 focus:ring-flow-600"
+                    className="h-5 w-5 shrink-0 cursor-pointer border-ink-300 text-flow-700 focus:ring-flow-600 disabled:cursor-not-allowed"
                   />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-bold text-ink-950">{candidate.productName}</span>
-                      {isSelected && <span className="rounded-full bg-flow-800 px-2 py-0.5 text-[11px] font-bold text-white">Vald</span>}
-                      {isMostLikely && !isSelected && <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[11px] font-bold text-white">Mest sannolik</span>}
-                    </span>
-                    <span className="mt-0.5 block text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</span>
-                    <span className="mt-0.5 block text-[11px] font-semibold text-ink-600">{candidateSourceLabel(candidate.source)}</span>
+                    <span className="text-xs font-bold text-flow-800" aria-hidden="true">{isSelected ? "Vald" : "Välj"}</span>
                   </span>
-                </label>
-                <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800">
+                  <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 </a>
+                </div>
               </div>
-              {candidate.description && <p className="mt-2 line-clamp-3 text-xs leading-5 text-ink-700">{candidate.description}</p>}
-              {candidate.specifications.length > 0 && <p className="mt-2 text-xs font-semibold leading-5 text-ink-700">{candidate.specifications.join(" · ")}</p>}
-              {(candidate.matchReasons?.length ?? 0) > 0 && (
-                <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
-                  <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Därför matchar den</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-6 text-ink-800">
-                    {candidate.matchReasons?.map((reason) => <li key={reason}>{reason}</li>)}
-                  </ul>
-                </div>
-              )}
-              {(candidate.matchWarnings?.length ?? 0) > 0 && (
-                <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
-                  <p className="text-xs font-black uppercase tracking-wide text-amber-900">Avvikelse</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-6 text-amber-950">
-                    {candidate.matchWarnings?.map((warning) => <li key={warning}>{warning}</li>)}
-                  </ul>
-                </div>
-              )}
-              <Button type="button" variant={isSelected ? "primary" : "secondary"} className="mt-3 min-h-9 w-full justify-center px-3 py-1.5 text-xs" disabled={disabled} onClick={() => selectCandidate(candidate)}>
-                {isSelected ? "Vald produkt" : isMostLikely ? "Välj rekommenderad produkt" : "Välj denna produkt"}
-              </Button>
-              <p className="mt-1.5 text-center text-[11px] font-semibold text-amber-800">Fyller bara i fälten – produkten är fortfarande inte godkänd.</p>
             </article>
           );})}
         </div>
       )}
 
       {pageCount > 1 && (
-        <div className="mt-3 flex flex-col items-center justify-between gap-3 rounded-md border border-ink-200 bg-white p-3 sm:flex-row">
-          <p className="text-sm font-bold text-ink-700">Visar {(activeCandidatePage - 1) * CANDIDATES_PER_PAGE + 1}–{Math.min(activeCandidatePage * CANDIDATES_PER_PAGE, filteredCandidates.length)} av {filteredCandidates.length}</p>
+        <div className="flex flex-col items-center justify-between gap-2 border-t border-ink-200 bg-ink-50 px-3 py-2 sm:flex-row sm:px-4">
+          <p className="text-xs font-bold text-ink-700">Visar {(activeCandidatePage - 1) * CANDIDATES_PER_PAGE + 1}–{Math.min(activeCandidatePage * CANDIDATES_PER_PAGE, filteredCandidates.length)} av {filteredCandidates.length}</p>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="secondary" disabled={activeCandidatePage === 1} onClick={() => setCandidatePage((page) => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Föregående</Button>
-            <span className="min-w-20 text-center text-sm font-bold text-ink-700">Sida {activeCandidatePage} av {pageCount}</span>
-            <Button type="button" variant="secondary" disabled={activeCandidatePage === pageCount} onClick={() => setCandidatePage((page) => Math.min(pageCount, page + 1))}>Nästa <ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+            <Button type="button" variant="secondary" className="min-h-8 px-2 py-1 text-xs" disabled={activeCandidatePage === 1} onClick={() => setCandidatePage((page) => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Föregående</Button>
+            <span className="min-w-16 text-center text-xs font-bold text-ink-700">{activeCandidatePage} av {pageCount}</span>
+            <Button type="button" variant="secondary" className="min-h-8 px-2 py-1 text-xs" disabled={activeCandidatePage === pageCount} onClick={() => setCandidatePage((page) => Math.min(pageCount, page + 1))}>Nästa <ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
           </div>
         </div>
+      )}
+
+      {(guide.recognitionNotes.length > 0 || guide.warnings.length > 0 || (catalogResult?.queries ?? guide.searchQueries ?? [guide.searchQuery]).length > 0) && (
+        <details className="border-t border-ink-200 bg-ink-50/70">
+          <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-ink-700 hover:bg-ink-100 sm:px-4">Sök- och kontrolluppgifter</summary>
+          <div className="space-y-2 border-t border-ink-200 px-3 py-3 text-xs text-ink-700 sm:px-4">
+            <div className="flex flex-wrap gap-1.5">
+              {(catalogResult?.queries ?? guide.searchQueries ?? [guide.searchQuery]).map((query) => (
+                <span key={query} className="rounded border border-ink-200 bg-white px-2 py-1 font-semibold">{query}</span>
+              ))}
+            </div>
+            {guide.recognitionNotes.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5 leading-5">
+                {guide.recognitionNotes.map((note) => <li key={note}>{note}</li>)}
+              </ul>
+            )}
+            {guide.warnings.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5 font-semibold leading-5 text-amber-900">
+                {guide.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+            )}
+            <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-bold text-flow-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+              Sök på Ahlsell<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          </div>
+        </details>
       )}
     </section>
   );
