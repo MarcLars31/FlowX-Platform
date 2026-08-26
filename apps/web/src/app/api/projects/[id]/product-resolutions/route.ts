@@ -16,6 +16,13 @@ import {
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
+type RequirementValueRow = {
+  id: string;
+  value_json: unknown;
+  updated_at: string;
+};
+
+const REQUIREMENT_VALUE_UPDATE_ATTEMPTS = 3;
 
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -46,39 +53,17 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const organizationId = authorization.context.organization.id;
-    const [requirement] = await selectUserRows<{ id: string; value_json: unknown }>(
-      "project_requirements",
-      {
-        select: "id,value_json",
-        id: `eq.${requirementId}`,
-        project_id: `eq.${projectId}`,
-        organization_id: `eq.${organizationId}`,
-        deleted_at: "is.null",
-        limit: "1"
-      }
-    );
-    if (!requirement) {
-      return NextResponse.json({ error: "Produktraden hittades inte." }, { status: 404 });
-    }
-
     const resolvedAt = new Date().toISOString();
-    const updated = await updateUserRowsReturning<{ id: string; value_json: unknown }>(
-      "project_requirements",
-      {
-        id: `eq.${requirementId}`,
-        project_id: `eq.${projectId}`,
-        organization_id: `eq.${organizationId}`
-      },
-      {
-        value_json: withProductRequirementResolution(
-          requirement.value_json,
-          resolution as ProductRequirementResolutionStatus | null,
-          { resolvedAt, resolvedBy: authorization.user.id }
-        )
-      }
-    );
+    const updated = await updateRequirementResolutionWithRetry({
+      projectId,
+      requirementId,
+      organizationId,
+      resolution: resolution as ProductRequirementResolutionStatus | null,
+      resolvedAt,
+      resolvedBy: authorization.user.id
+    });
     if (!updated) {
-      throw new Error("Product requirement resolution was not saved.");
+      return NextResponse.json({ error: "Produktraden hittades inte." }, { status: 404 });
     }
 
     if (resolution !== null) {
@@ -125,4 +110,66 @@ export async function POST(request: Request, context: RouteContext) {
     }
     return NextResponse.json({ error: "Märkningen kunde inte sparas." }, { status: 500 });
   }
+}
+
+async function updateRequirementResolutionWithRetry({
+  projectId,
+  requirementId,
+  organizationId,
+  resolution,
+  resolvedAt,
+  resolvedBy
+}: {
+  projectId: string;
+  requirementId: string;
+  organizationId: string;
+  resolution: ProductRequirementResolutionStatus | null;
+  resolvedAt: string;
+  resolvedBy: string;
+}) {
+  let lastConflict: unknown;
+  for (let attempt = 0; attempt < REQUIREMENT_VALUE_UPDATE_ATTEMPTS; attempt += 1) {
+    const [requirement] = await selectUserRows<RequirementValueRow>(
+      "project_requirements",
+      {
+        select: "id,value_json,updated_at",
+        id: `eq.${requirementId}`,
+        project_id: `eq.${projectId}`,
+        organization_id: `eq.${organizationId}`,
+        deleted_at: "is.null",
+        limit: "1"
+      }
+    );
+    if (!requirement) return null;
+
+    try {
+      return await updateUserRowsReturning<RequirementValueRow>(
+        "project_requirements",
+        {
+          id: `eq.${requirementId}`,
+          project_id: `eq.${projectId}`,
+          organization_id: `eq.${organizationId}`,
+          updated_at: `eq.${requirement.updated_at}`,
+          deleted_at: "is.null"
+        },
+        {
+          value_json: withProductRequirementResolution(
+            requirement.value_json,
+            resolution,
+            { resolvedAt, resolvedBy }
+          )
+        }
+      );
+    } catch (error) {
+      if (!isRequirementValueConflict(error)) throw error;
+      lastConflict = error;
+    }
+  }
+
+  throw lastConflict ?? new Error("Product requirement resolution was not saved.");
+}
+
+function isRequirementValueConflict(error: unknown) {
+  return error instanceof Error &&
+    error.message === "Supabase update of project_requirements returned no row.";
 }

@@ -665,7 +665,6 @@ export function ProjectWorkspace({
             requirements={data.requirements}
             assignments={data.suggestions}
             memories={data.mappingMemories}
-            memoryAccessories={data.mappingAccessories}
             sourcePdfLookup={sourcePdfLookup}
             onReload={reload}
             onGoToDocuments={() => selectTab("documents")}

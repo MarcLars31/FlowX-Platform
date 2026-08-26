@@ -19,6 +19,9 @@ import {
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
+type RequirementValueRow = { value_json: unknown; updated_at: string };
+
+const REQUIREMENT_VALUE_UPDATE_ATTEMPTS = 3;
 
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -89,34 +92,54 @@ async function clearRequirementResolution(
   organizationId: string,
   actorId: string
 ) {
-  const [requirement] = await selectUserRows<{ value_json: unknown }>(
-    "project_requirements",
-    {
-      select: "value_json",
-      id: `eq.${requirementId}`,
-      project_id: `eq.${projectId}`,
-      organization_id: `eq.${organizationId}`,
-      deleted_at: "is.null",
-      limit: "1"
+  const resolvedAt = new Date().toISOString();
+  let lastConflict: unknown;
+  for (let attempt = 0; attempt < REQUIREMENT_VALUE_UPDATE_ATTEMPTS; attempt += 1) {
+    const [requirement] = await selectUserRows<RequirementValueRow>(
+      "project_requirements",
+      {
+        select: "value_json,updated_at",
+        id: `eq.${requirementId}`,
+        project_id: `eq.${projectId}`,
+        organization_id: `eq.${organizationId}`,
+        deleted_at: "is.null",
+        limit: "1"
+      }
+    );
+    if (!requirement) return;
+    const valueJson = record(requirement.value_json);
+    if (!("productResolution" in valueJson)) return;
+
+    try {
+      await updateUserRowsReturning(
+        "project_requirements",
+        {
+          id: `eq.${requirementId}`,
+          project_id: `eq.${projectId}`,
+          organization_id: `eq.${organizationId}`,
+          updated_at: `eq.${requirement.updated_at}`,
+          deleted_at: "is.null"
+        },
+        {
+          value_json: withProductRequirementResolution(valueJson, null, {
+            resolvedAt,
+            resolvedBy: actorId
+          })
+        }
+      );
+      return;
+    } catch (error) {
+      if (!isRequirementValueConflict(error)) throw error;
+      lastConflict = error;
     }
-  );
-  if (!requirement) return;
-  const valueJson = record(requirement.value_json);
-  if (!("productResolution" in valueJson)) return;
-  await updateUserRowsReturning(
-    "project_requirements",
-    {
-      id: `eq.${requirementId}`,
-      project_id: `eq.${projectId}`,
-      organization_id: `eq.${organizationId}`
-    },
-    {
-      value_json: withProductRequirementResolution(valueJson, null, {
-        resolvedAt: new Date().toISOString(),
-        resolvedBy: actorId
-      })
-    }
-  );
+  }
+
+  throw lastConflict ?? new Error("Product requirement resolution was not cleared.");
+}
+
+function isRequirementValueConflict(error: unknown) {
+  return error instanceof Error &&
+    error.message === "Supabase update of project_requirements returned no row.";
 }
 
 async function saveExplicitlyApprovedMapping(

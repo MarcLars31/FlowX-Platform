@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent as ReactDragEvent, type SetStateAction } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, GripVertical, History, Loader2, Mail, MessageSquarePlus, PackagePlus, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, History, Loader2, Mail, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
@@ -44,13 +44,20 @@ import {
 } from "@/lib/product-table-layout";
 
 type Row = Record<string, unknown> & { id: string };
-type AccessoryDraft = { name: string; productNumber: string; quantity: number; unit: string; notes: string };
 type ProductSelection = {
   productName: string;
   productNumber: string;
   manufacturerName: string;
-  notes: string;
-  accessories: AccessoryDraft[];
+};
+type RequirementAttachment = {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  comment: string | null;
+  uploadedAt: string;
+  uploadedBy: string;
+  downloadUrl: string;
 };
 type ProductTableSortKey = ProductTableColumnId;
 type ProductTableSort = { key: ProductTableSortKey; direction: "asc" | "desc" };
@@ -73,12 +80,11 @@ const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefi
 
 const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
-export function DistributorMappingPanel({ projectId, requirements, assignments, memories, memoryAccessories, sourcePdfLookup, onReload, onGoToDocuments, onFinish, finishing = false }: {
+export function DistributorMappingPanel({ projectId, requirements, assignments, memories, sourcePdfLookup, onReload, onGoToDocuments, onFinish, finishing = false }: {
   projectId: string;
   requirements: Row[];
   assignments: Row[];
   memories: Row[];
-  memoryAccessories: Row[];
   sourcePdfLookup: ProjectSourcePdfLookup;
   onReload: () => Promise<unknown>;
   onGoToDocuments: () => void;
@@ -739,7 +745,6 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                       position={activeIndex + 1}
                       totalPosts={queueRequirements.length}
                       memories={matchingMemories}
-                      memoryAccessories={memoryAccessories}
                       onSavingChange={setProductCardSaving}
                       onDirtyChange={setProductCardDirty}
                       onSaved={async (successMessage) => {
@@ -821,7 +826,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   );
 }
 
-function RequirementProductMappingCard({ projectId, requirement, assignment, sourcePdfHref, position, totalPosts, memories, memoryAccessories, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, requirement, assignment, sourcePdfHref, position, totalPosts, memories, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   requirement: Row;
   assignment?: Row;
@@ -829,7 +834,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   position: number;
   totalPosts: number;
   memories: Row[];
-  memoryAccessories: Row[];
   onSavingChange: (saving: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
   onSaved: (message: string) => Promise<void>;
@@ -839,16 +843,24 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const [productName, setProductName] = useState(String(currentSnapshot.name ?? ""));
   const [productNumber, setProductNumber] = useState(String(currentSnapshot.productNumber ?? ""));
   const [manufacturerName, setManufacturerName] = useState(String(currentSnapshot.manufacturer ?? ""));
-  const [notes, setNotes] = useState(String(currentSnapshot.notes ?? ""));
-  const [accessories, setAccessories] = useState<AccessoryDraft[]>(() => snapshotAccessories(currentSnapshot.accessories));
   const [saving, setSaving] = useState(false);
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [memoryExpanded, setMemoryExpanded] = useState(false);
-  const [accessoriesExpanded, setAccessoriesExpanded] = useState(() => accessories.length > 0);
+  const [attachments, setAttachments] = useState<RequirementAttachment[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(true);
+  const [attachmentExpanded, setAttachmentExpanded] = useState(false);
+  const [attachmentComment, setAttachmentComment] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentSaving, setAttachmentSaving] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [attachmentMessage, setAttachmentMessage] = useState<string | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const resolution = productRequirementResolution(requirement);
+  const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
+  const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft;
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
   const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
   const pdfArticleNumber = ahlsellGuide.directCandidates.find(
@@ -865,19 +877,43 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   });
 
   useEffect(() => {
-    onDirtyChange(hasUnapprovedChanges);
+    onDirtyChange(hasUnsavedChanges);
     return () => onDirtyChange(false);
-  }, [hasUnapprovedChanges, onDirtyChange]);
+  }, [hasUnsavedChanges, onDirtyChange]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`/api/projects/${projectId}/requirements/${requirement.id}/attachments`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as { attachments?: RequirementAttachment[]; error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error ?? "Vedlegget kunde inte hämtas.");
+        const loadedAttachments = payload?.attachments ?? [];
+        setAttachments((current) => {
+          const merged = new Map(current.map((attachment) => [attachment.id, attachment]));
+          for (const attachment of loadedAttachments) merged.set(attachment.id, attachment);
+          return [...merged.values()].sort((left, right) =>
+            right.uploadedAt.localeCompare(left.uploadedAt)
+          );
+        });
+      })
+      .catch((loadError) => {
+        if (loadError instanceof Error && loadError.name === "AbortError") return;
+        setAttachmentError(loadError instanceof Error ? loadError.message : "Vedlegget kunde inte hämtas.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAttachmentsLoading(false);
+      });
+    return () => controller.abort();
+  }, [projectId, requirement.id]);
 
   function selectionFromMemory(memory: Row): ProductSelection {
     return {
       productName: String(memory.product_name ?? ""),
       productNumber: String(memory.product_number ?? ""),
-      manufacturerName: String(memory.manufacturer_name ?? ""),
-      notes: String(memory.notes ?? ""),
-      accessories: memoryAccessories.filter((accessory) => accessory.memory_id === memory.id).map((accessory) => ({
-      name: String(accessory.product_name ?? ""), productNumber: String(accessory.product_number ?? ""), quantity: numeric(accessory.quantity_per_main_product, 1), unit: String(accessory.unit ?? "st"), notes: String(accessory.notes ?? "")
-      }))
+      manufacturerName: String(memory.manufacturer_name ?? "")
     };
   }
 
@@ -885,8 +921,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setProductName(selection.productName);
     setProductNumber(selection.productNumber);
     setManufacturerName(selection.manufacturerName);
-    setNotes(selection.notes);
-    setAccessories(selection.accessories);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
     setMemoryExpanded(false);
@@ -901,21 +935,10 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   }
 
   function applyAhlsellCandidate(candidate: AhlsellPublicCandidate) {
-    const candidateNote = candidate.source === "pdf_reference"
-      ? "NRF-numret hämtades från den uppladdade PDF-posten. Kontrollera produkten hos Ahlsell före beställning."
-      : candidate.source === "catalog_search"
-        ? compactText([
-            candidate.recommendation === "recommended" ? "Scipx rankade produkten högst mot de extraherade PDF-kraven." : null,
-            ...(candidate.matchReasons ?? []),
-            "Produkten hittades i Ahlsells offentliga katalog. Kontrollera tekniska krav, godkännanden, pris och saldo före beställning."
-          ])
-        : `Offentlig Ahlsell-träff kontrollerad ${candidate.verifiedAt}. Aktuella godkännanden, pris och saldo måste verifieras före beställning.`;
     showSelection({
       productName: candidate.productName,
       productNumber: candidate.articleNumber,
-      manufacturerName: candidate.manufacturer,
-      notes: notes.trim() || candidateNote,
-      accessories
+      manufacturerName: candidate.manufacturer
     }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`);
     onError("");
   }
@@ -938,18 +961,26 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     window.requestAnimationFrame(() => document.getElementById(`ahlsell-products-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
-  function addAccessory() {
-    setAccessories((current) => [...current, { name: "", productNumber: "", quantity: 1, unit: "st", notes: "" }]);
-    setAccessoriesExpanded(true);
-    setHasUnapprovedChanges(true);
-    window.requestAnimationFrame(() => document.getElementById(`product-accessories-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
-  function focusProductComment() {
-    document.getElementById(`product-notes-${requirement.id}`)?.focus();
+  function openAttachmentPanel() {
+    setAttachmentExpanded(true);
+    setAttachmentError(null);
+    setAttachmentMessage(null);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`product-attachments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById(`attachment-comment-${requirement.id}`)?.focus();
+    });
   }
 
   async function save() {
+    if (hasAttachmentDraft) {
+      setAttachmentExpanded(true);
+      setAttachmentError("Spara vedlegget eller töm fälten innan du godkänner produkten.");
+      return;
+    }
+    const sameApprovedProduct =
+      Boolean(normalizeNrfNumber(productNumber)) &&
+      normalizeNrfNumber(productNumber) ===
+        normalizeNrfNumber(String(currentSnapshot.productNumber ?? ""));
     const chosen = {
       productName: resolveDistributorProductName({
         productName,
@@ -958,8 +989,14 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       }),
       productNumber,
       manufacturerName,
-      notes,
-      accessories
+      notes:
+        sameApprovedProduct && typeof currentSnapshot.notes === "string"
+          ? currentSnapshot.notes
+          : "",
+      accessories:
+        sameApprovedProduct && Array.isArray(currentSnapshot.accessories)
+          ? currentSnapshot.accessories
+          : []
     };
     setSaving(true);
     onSavingChange(true);
@@ -978,6 +1015,46 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       onError(saveError instanceof Error ? saveError.message : "Produktvalet kunde inte sparas.");
     } finally {
       setSaving(false);
+      onSavingChange(false);
+    }
+  }
+
+  async function saveAttachment() {
+    if (!attachmentFile) {
+      setAttachmentError("Välj en fil som ska sparas som vedlegg.");
+      return;
+    }
+    if (attachmentFile.size > 4 * 1024 * 1024) {
+      setAttachmentError("Vedlegget får vara högst 4 MB.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("file", attachmentFile);
+    formData.set("comment", attachmentComment);
+    setAttachmentSaving(true);
+    onSavingChange(true);
+    setAttachmentError(null);
+    setAttachmentMessage(null);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/requirements/${requirement.id}/attachments`, {
+        method: "POST",
+        body: formData
+      });
+      const payload = (await response.json().catch(() => null)) as { attachment?: RequirementAttachment; error?: string } | null;
+      if (!response.ok || !payload?.attachment) {
+        throw new Error(payload?.error ?? "Vedlegget kunde inte sparas.");
+      }
+      const savedAttachment = payload.attachment;
+      setAttachments((current) => [savedAttachment, ...current.filter((item) => item.id !== savedAttachment.id)]);
+      setAttachmentComment("");
+      setAttachmentFile(null);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+      setAttachmentMessage(`${savedAttachment.fileName} har sparats som vedlegg.`);
+    } catch (uploadError) {
+      setAttachmentError(uploadError instanceof Error ? uploadError.message : "Vedlegget kunde inte sparas.");
+    } finally {
+      setAttachmentSaving(false);
       onSavingChange(false);
     }
   }
@@ -1006,12 +1083,12 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   }
 
   function markAsNotInAssortment() {
-    if ((assignment || hasUnapprovedChanges) && !window.confirm("Produkten och osparade ändringar ersätts av märkningen Inte i sortiment. Vill du fortsätta?")) return;
+    if ((assignment || hasUnsavedChanges) && !window.confirm("Produkten och osparade ändringar ersätts av märkningen Inte i sortiment. Vill du fortsätta?")) return;
     void saveResolution("not_in_assortment");
   }
 
   function clearNotInAssortmentResolution() {
-    if (hasUnapprovedChanges && !window.confirm("Du har osparade produktändringar. Vill du ta bort märkningen Inte i sortiment och lämna produktutkastet utan att spara?")) return;
+    if (hasUnsavedChanges && !window.confirm("Du har osparade ändringar. Vill du ta bort märkningen Inte i sortiment och lämna utkastet utan att spara?")) return;
     void saveResolution(null);
   }
 
@@ -1062,15 +1139,15 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
         </div>
       </section>
 
-      <fieldset disabled={saving} aria-busy={saving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
+      <fieldset disabled={saving || attachmentSaving} aria-busy={saving || attachmentSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
         <div className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Välj produkt</p>
               <h4 className="mt-0.5 text-base font-bold text-ink-950">Ahlsellprodukter för PDF-post {details.postNumber ?? position}</h4>
-              <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnapprovedChanges ? "Osparade ändringar" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
+              <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
             </div>
-            <Button aria-label="Godkänn och spara produkt" title="Godkänn och spara produkt" className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || !productNumber.trim()}>
+            <Button aria-label="Godkänn och spara produkt" title={hasAttachmentDraft ? "Spara vedlegget först" : "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || hasAttachmentDraft}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
               {saving ? "Sparar…" : "Godkänn och spara"}
             </Button>
@@ -1100,9 +1177,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
             <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={startManualProductEntry}>
               <Plus className="h-4 w-4" aria-hidden="true" />Lägg till manuellt
             </Button>
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory}>
-              <PackagePlus className="h-4 w-4" aria-hidden="true" />Lägg till tillbehör
-            </Button>
             <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={showAllProductAlternatives}>
               <Search className="h-4 w-4" aria-hidden="true" />Visa alternativ
             </Button>
@@ -1114,8 +1188,8 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
             <a href={productPostMailHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
               <Mail className="h-4 w-4" aria-hidden="true" />Maila post
             </a>
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={focusProductComment}>
-              <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />Lägg till kommentar
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
+              <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
             </Button>
           </nav>
 
@@ -1172,27 +1246,63 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
             </details>
           )}
 
-          <label className="block scroll-mt-24 rounded-md border border-ink-200 bg-white p-3" htmlFor={`product-notes-${requirement.id}`}>
-            <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-ink-600"><span>Intern kommentar <span className="font-normal text-ink-500">(valfritt)</span></span><span>{notes.length}/2000</span></span>
-            <textarea id={`product-notes-${requirement.id}`} rows={4} maxLength={2000} value={notes} onChange={(event) => { setNotes(event.target.value); setHasUnapprovedChanges(true); }} className="block w-full resize-y rounded-sm border-ink-300 bg-ink-50 text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
-          </label>
-
-          <details id={`product-accessories-${requirement.id}`} open={accessoriesExpanded} onToggle={(event) => setAccessoriesExpanded(event.currentTarget.open)} className="group scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50"><span>Tillbehör (valfritt){accessories.length > 0 ? ` · ${accessories.length}` : ""}</span><ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary>
-            <div className="space-y-3 border-t border-ink-200 p-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-ink-600">Lägg till produkter som normalt beställs tillsammans med huvudprodukten.</p>
-                <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory}><Plus className="h-4 w-4" aria-hidden="true" />Lägg till tillbehör</Button>
-              </div>
-              {accessories.map((accessory, index) => (
-                <div key={index} className="grid gap-3 rounded-md border border-ink-200 bg-ink-50 p-3 md:grid-cols-[2fr_1.3fr_0.8fr_0.7fr_auto]">
-                  <CompactInput label="Tillbehör" value={accessory.name} onChange={(value) => { updateAccessory(setAccessories, index, "name", value); setHasUnapprovedChanges(true); }} />
-                  <CompactInput label="NRF-nummer" value={accessory.productNumber} onChange={(value) => { updateAccessory(setAccessories, index, "productNumber", value); setHasUnapprovedChanges(true); }} />
-                  <CompactInput label="Antal per produkt" type="number" min="0.001" step="0.001" value={String(accessory.quantity)} onChange={(value) => { updateAccessory(setAccessories, index, "quantity", Number(value)); setHasUnapprovedChanges(true); }} />
-                  <CompactInput label="Enhet" value={accessory.unit} onChange={(value) => { updateAccessory(setAccessories, index, "unit", value); setHasUnapprovedChanges(true); }} />
-                  <button type="button" aria-label="Ta bort tillbehör" onClick={() => { setAccessories((current) => current.filter((_, itemIndex) => itemIndex !== index)); setHasUnapprovedChanges(true); }} className="mt-6 flex h-10 w-10 items-center justify-center rounded-md text-ink-500 transition hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+          <details id={`product-attachments-${requirement.id}`} open={attachmentExpanded} onToggle={(event) => setAttachmentExpanded(event.currentTarget.open)} className="group scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
+              <span className="flex items-center gap-2"><Paperclip className="h-4 w-4 text-flow-700" aria-hidden="true" />Vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="space-y-4 border-t border-ink-200 p-3">
+              <form className="space-y-3 rounded-md border border-ink-200 bg-ink-50 p-3" onSubmit={(event) => { event.preventDefault(); void saveAttachment(); }}>
+                <div>
+                  <h5 className="text-sm font-bold text-ink-950">Legg til vedlegg</h5>
+                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Skriv en egen kommentar och välj filen som ska sparas med denna PDF-post.</p>
                 </div>
-              ))}
+                <label className="block" htmlFor={`attachment-comment-${requirement.id}`}>
+                  <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-ink-600"><span>Kommentar <span className="font-normal text-ink-500">(valfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
+                  <textarea id={`attachment-comment-${requirement.id}`} rows={3} maxLength={2000} value={attachmentComment} onChange={(event) => { setAttachmentComment(event.target.value); setAttachmentError(null); setAttachmentMessage(null); }} className="block w-full resize-y rounded-sm border-ink-300 bg-white text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <label className="block" htmlFor={`attachment-file-${requirement.id}`}>
+                    <span className="mb-1 block text-xs font-semibold text-ink-600">Fil</span>
+                    <input ref={attachmentInputRef} id={`attachment-file-${requirement.id}`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" onChange={(event) => { setAttachmentFile(event.target.files?.[0] ?? null); setAttachmentError(null); setAttachmentMessage(null); }} className="block min-h-10 w-full rounded-sm border border-ink-300 bg-white text-sm text-ink-800 file:mr-3 file:min-h-10 file:border-0 file:border-r file:border-ink-200 file:bg-ink-50 file:px-3 file:text-xs file:font-bold file:text-ink-800 hover:file:bg-flow-50" />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
+                      Rensa
+                    </Button>
+                    <Button type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
+                      {attachmentSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+                      {attachmentSaving ? "Sparar…" : "Spara vedlegg"}
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-ink-500">Max 4 MB. Tillåtna format: PDF, PNG, JPG, WebP, TXT och CSV. Sparade filer hämtas som nedladdningar.</p>
+                {attachmentError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{attachmentError}</p>}
+                {attachmentMessage && <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">{attachmentMessage}</p>}
+              </form>
+
+              <div>
+                <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-ink-600">Sparade vedlegg</h5>
+                {attachmentsLoading ? (
+                  <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-ink-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar vedlegg…</p>
+                ) : attachments.length === 0 ? (
+                  <p className="mt-2 text-xs text-ink-600">Inga vedlegg har sparats för posten.</p>
+                ) : (
+                  <div className="mt-2 divide-y divide-ink-200 overflow-hidden rounded-md border border-ink-200 bg-white">
+                    {attachments.map((attachment) => (
+                      <article key={attachment.id} className="flex items-start gap-3 p-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-flow-50 text-flow-800"><FileText className="h-4 w-4" aria-hidden="true" /></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words text-sm font-bold text-ink-950">{attachment.fileName}</p>
+                          <p className="mt-0.5 text-xs text-ink-500">{formatAttachmentSize(attachment.sizeBytes)} · {formatAttachmentDate(attachment.uploadedAt)}</p>
+                          {attachment.comment && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-700">{attachment.comment}</p>}
+                        </div>
+                        <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-flow-800 hover:border-flow-400 hover:bg-flow-50" aria-label={`Hämta ${attachment.fileName}`} title="Hämta vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </details>
         </div>
@@ -1342,6 +1452,16 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                   <p className="text-sm font-bold leading-5 text-ink-950">{candidate.productName}</p>
                   <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
                   <p className="mt-1 text-xs leading-5 text-ink-600">{candidateSourceLabel(candidate.source)}</p>
+                  {candidate.matchWarnings && candidate.matchWarnings.length > 0 && (
+                    <div className="mt-1.5 rounded-sm border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs leading-4 text-rose-900">
+                      <p className="font-bold">Matchar inte PDF-kravet:</p>
+                      <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                        {candidate.matchWarnings.map((warning, index) => (
+                          <li key={`${candidate.articleNumber}-${index}`}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="flex items-center gap-2">
@@ -1411,10 +1531,6 @@ function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {
   if (source === "pdf_reference") return "NRF-numret står i den uppladdade PDF-filen";
   if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog – kontroll krävs";
   return "Tidigare verifierad i Ahlsells offentliga katalog";
-}
-
-function compactText(values: Array<string | null | undefined>) {
-  return values.filter((value): value is string => Boolean(value)).join(" ");
 }
 
 function buildProductPostMailHref({ postNumber, productRequirement, quantity, nsCode, system, attributes, sourceExcerpt }: {
@@ -1713,27 +1829,17 @@ function ProductFormInput({ id, label, value, onChange, required = false, option
   );
 }
 
-function CompactInput({ label, value, onChange, type = "text", min, step }: { label: string; value: string; onChange: (value: string) => void; type?: string; min?: string; step?: string }) {
-  return <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-600">{label}</span><input type={type} min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-white text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" /></label>;
+function formatAttachmentSize(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "Okänd storlek";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} kB`;
+  return `${(value / (1024 * 1024)).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
 }
 
-function updateAccessory(setAccessories: Dispatch<SetStateAction<AccessoryDraft[]>>, index: number, key: keyof AccessoryDraft, value: string | number) {
-  setAccessories((current) => current.map((accessory, itemIndex) => itemIndex === index ? { ...accessory, [key]: value } : accessory));
-}
-
-function snapshotAccessories(value: unknown): AccessoryDraft[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    const accessory = record(item);
-    const name = String(accessory.name ?? "");
-    if (!name) return [];
-    return [{ name, productNumber: String(accessory.productNumber ?? ""), quantity: numeric(accessory.quantity, 1), unit: String(accessory.unit ?? "st"), notes: String(accessory.notes ?? "") }];
-  });
-}
-
-function numeric(value: unknown, fallback: number) {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+function formatAttachmentDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Okänt datum";
+  return new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
 function record(value: unknown): Record<string, unknown> {
