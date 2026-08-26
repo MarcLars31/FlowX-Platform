@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent as ReactDragEvent, type SetStateAction } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, GripVertical, History, Loader2, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, ExternalLink, GripVertical, History, Loader2, Mail, MessageSquarePlus, PackagePlus, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
@@ -17,6 +17,7 @@ import { projectRequirementDetails, projectRequirementSystemLabel, specification
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 import { ahlsellCatalogStatusFromPayload, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-card-candidates";
 import {
   PRODUCT_REQUIREMENT_CATEGORIES,
   productRequirementCategory,
@@ -220,6 +221,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const [productCardSaving, setProductCardSaving] = useState(false);
+  const [productCardDirty, setProductCardDirty] = useState(false);
   const productDialogRef = useRef<HTMLDialogElement>(null);
   const visibleProductTableColumns = productTableLayout.order.filter(
     (columnId) => !productTableLayout.hidden.includes(columnId)
@@ -334,6 +336,17 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
       document.documentElement.style.overflow = previousRootOverflow;
     };
   }, [productCardOpen]);
+
+  useEffect(() => {
+    if (!productCardOpen || !productCardDirty) return;
+    const protectUnsavedProduct = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", protectUnsavedProduct);
+    return () => window.removeEventListener("beforeunload", protectUnsavedProduct);
+  }, [productCardDirty, productCardOpen]);
+
   const handledCount = productRequirements.length - remainingRequirements.length;
   const visibleQueueRemainingCount = queueRequirements.filter(
     (requirement) => !handledRequirementIds.has(requirement.id)
@@ -351,6 +364,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
 
   function showRequirement(requirementId: string) {
     if (productCardSaving) return;
+    if (activeRequirementId && activeRequirementId !== requirementId && !confirmDiscardProductChanges()) return;
+    setProductCardDirty(false);
     setActiveRequirementId(requirementId);
     setMessage(null);
     setError(null);
@@ -380,10 +395,17 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
 
   function closeRequirement() {
     if (productCardSaving) return;
+    if (!confirmDiscardProductChanges()) return;
     if (productDialogRef.current?.open) productDialogRef.current.close();
+    setProductCardDirty(false);
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
+  }
+
+  function confirmDiscardProductChanges() {
+    if (!productCardDirty) return true;
+    return window.confirm("Du har osparade ändringar i produktkortet. Tryck Avbryt för att fortsätta och spara, eller OK för att stänga utan att spara.");
   }
 
   function toggleRequirementSelection(requirementId: string, selected: boolean) {
@@ -667,7 +689,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
               <dialog
                 ref={productDialogRef}
                 aria-label={`Produktval för PDF-post ${projectRequirementDetails(requirement).postNumber ?? activeIndex + 1}`}
-                className="m-auto h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1180px] overflow-hidden rounded-xl border border-ink-200 bg-white p-0 shadow-[0_24px_70px_rgba(2,17,38,0.36)] backdrop:bg-ink-950/65 backdrop:backdrop-blur-sm sm:h-[calc(100dvh-2.5rem)] sm:w-[calc(100%-2.5rem)]"
+                className="fixed inset-0 m-0 h-[100dvh] max-h-none w-screen max-w-none overflow-hidden border-0 bg-white p-0 shadow-none backdrop:bg-ink-950/65 backdrop:backdrop-blur-sm"
                 onCancel={(event) => {
                   event.preventDefault();
                   closeRequirement();
@@ -701,13 +723,13 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                     >
                       <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
                     </div>
-                  </nav>
-                  <div id="product-card-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-0">
                     {(message || error) && (
-                      <div role="status" aria-live="polite" className={error ? "mb-4 rounded-xl border-2 border-rose-300 bg-rose-50 p-4 text-sm font-semibold text-rose-900" : "mb-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900"}>
+                      <div role="status" aria-live="polite" className={error ? "mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900" : "mt-3 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"}>
                         {error ?? message}
                       </div>
                     )}
+                  </nav>
+                  <div id="product-card-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-0 lg:overflow-hidden">
                     <RequirementProductMappingCard
                       key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
                       projectId={projectId}
@@ -719,7 +741,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                       memories={matchingMemories}
                       memoryAccessories={memoryAccessories}
                       onSavingChange={setProductCardSaving}
+                      onDirtyChange={setProductCardDirty}
                       onSaved={async (successMessage) => {
+                        setProductCardDirty(false);
                         setError(null);
                         setMessage(successMessage);
                         await onReload();
@@ -797,7 +821,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   );
 }
 
-function RequirementProductMappingCard({ projectId, requirement, assignment, sourcePdfHref, position, totalPosts, memories, memoryAccessories, onSavingChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, requirement, assignment, sourcePdfHref, position, totalPosts, memories, memoryAccessories, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   requirement: Row;
   assignment?: Row;
@@ -807,6 +831,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   memories: Row[];
   memoryAccessories: Row[];
   onSavingChange: (saving: boolean) => void;
+  onDirtyChange: (dirty: boolean) => void;
   onSaved: (message: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
@@ -820,7 +845,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [memoryExpanded, setMemoryExpanded] = useState(false);
-  const [catalogExpanded, setCatalogExpanded] = useState(() => !String(currentSnapshot.productNumber ?? ""));
+  const [accessoriesExpanded, setAccessoriesExpanded] = useState(() => accessories.length > 0);
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const resolution = productRequirementResolution(requirement);
@@ -829,6 +854,20 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const pdfArticleNumber = ahlsellGuide.directCandidates.find(
     (candidate) => candidate.source === "pdf_reference"
   )?.articleNumber ?? null;
+  const productPostMailHref = buildProductPostMailHref({
+    postNumber: details.postNumber ?? String(position),
+    productRequirement: String(requirement.value_text ?? "Tekniskt krav"),
+    quantity: formatProjectQuantity(quantity),
+    nsCode: details.nsCode,
+    system: details.system ? projectRequirementSystemLabel(details.system) : null,
+    attributes: details.attributes,
+    sourceExcerpt: details.sourceExcerpt
+  });
+
+  useEffect(() => {
+    onDirtyChange(hasUnapprovedChanges);
+    return () => onDirtyChange(false);
+  }, [hasUnapprovedChanges, onDirtyChange]);
 
   function selectionFromMemory(memory: Row): ProductSelection {
     return {
@@ -851,14 +890,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
     setMemoryExpanded(false);
-    setCatalogExpanded(false);
-    window.requestAnimationFrame(() => {
-      document.getElementById(`product-selection-${requirement.id}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-      document.getElementById(`product-number-${requirement.id}`)?.focus({ preventScroll: true });
-    });
   }
 
   function applyMemory(memory: Row) {
@@ -887,6 +918,35 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       accessories
     }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`);
     onError("");
+  }
+
+  function clearSelectedProduct() {
+    setProductName("");
+    setProductNumber("");
+    setManufacturerName("");
+    setDraftNotice(null);
+    setHasUnapprovedChanges(true);
+  }
+
+  function startManualProductEntry() {
+    if (productNumber.trim()) clearSelectedProduct();
+    window.requestAnimationFrame(() => document.getElementById(`product-number-${requirement.id}`)?.focus());
+  }
+
+  function showAllProductAlternatives() {
+    if (productNumber.trim()) clearSelectedProduct();
+    window.requestAnimationFrame(() => document.getElementById(`ahlsell-products-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function addAccessory() {
+    setAccessories((current) => [...current, { name: "", productNumber: "", quantity: 1, unit: "st", notes: "" }]);
+    setAccessoriesExpanded(true);
+    setHasUnapprovedChanges(true);
+    window.requestAnimationFrame(() => document.getElementById(`product-accessories-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function focusProductComment() {
+    document.getElementById(`product-notes-${requirement.id}`)?.focus();
   }
 
   async function save() {
@@ -945,13 +1005,23 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     }
   }
 
+  function markAsNotInAssortment() {
+    if ((assignment || hasUnapprovedChanges) && !window.confirm("Produkten och osparade ändringar ersätts av märkningen Inte i sortiment. Vill du fortsätta?")) return;
+    void saveResolution("not_in_assortment");
+  }
+
+  function clearNotInAssortmentResolution() {
+    if (hasUnapprovedChanges && !window.confirm("Du har osparade produktändringar. Vill du ta bort märkningen Inte i sortiment och lämna produktutkastet utan att spara?")) return;
+    void saveResolution(null);
+  }
+
   return (
-    <article id={`post-${requirement.id}`} className="scroll-mt-6 bg-white">
-      <div className="border-b border-ink-200 px-4 py-4 sm:px-6 sm:py-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
+      <section aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-ink-200 bg-ink-50/50 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <div className="px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-wrap items-center gap-2">
             {resolution ? (
-              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-800"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
+              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
             ) : isApproved ? (
               <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
             ) : (
@@ -964,148 +1034,178 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               </a>
             )}
           </div>
-          <p className="text-xs font-semibold text-ink-600">Obligatoriskt fält <span className="font-black text-rose-600">*</span></p>
-        </div>
 
-        <div className="mt-4">
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produkt {position} av {totalPosts}</p>
-          <h3 className="mt-1 text-xl font-bold text-ink-950">PDF-post {details.postNumber ?? "saknas"}</h3>
-        </div>
+          <div className="mt-4">
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produkt {position} av {totalPosts}</p>
+            <h3 id={`pdf-specification-${requirement.id}`} className="mt-1 text-xl font-bold text-ink-950">PDF-post {details.postNumber ?? "saknas"}</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink-800">{String(requirement.value_text ?? "Tekniskt krav")}</p>
+          </div>
 
-        <div className="mt-4 grid gap-x-4 gap-y-3 md:grid-cols-2">
-          <div className="md:col-span-2"><Fact label="Produktkrav" value={String(requirement.value_text ?? "Tekniskt krav")} strong /></div>
-          <Fact label="PDF-postnummer" value={details.postNumber ?? "Saknas"} strong />
-          <Fact label="Antal" value={formatProjectQuantity(quantity)} />
-          {details.chapterPost && <Fact label="Kapitelpost" value={details.chapterPost} />}
-          {details.nsCode && <Fact label="NS-kod" value={details.nsCode} />}
-          {details.system && <Fact label="System" value={projectRequirementSystemLabel(details.system)} />}
-          {pdfArticleNumber && <Fact label="NRF-nummer i PDF" value={pdfArticleNumber} strong />}
-        </div>
-
-        <details className="mt-4 overflow-hidden rounded-md border border-ink-200 bg-white">
-          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">Tekniska uppgifter<ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" /></summary>
-          <div className="border-t border-ink-100">
-            <dl className="grid sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 overflow-hidden rounded-md border border-ink-200 bg-white">
+            <div className="border-b border-ink-200 px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Fullständig specifikation från PDF</p>
+              <p className="mt-1 text-xs leading-5 text-ink-600">Alla extraherade krav visas här medan du väljer produkt.</p>
+            </div>
+            <dl className="grid sm:grid-cols-2">
+              <SpecificationRow label="PDF-postnummer" value={details.postNumber ?? "Saknas"} />
+              <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
+              {details.chapterPost && <SpecificationRow label="Kapitelpost" value={details.chapterPost} />}
               {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
+              {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
+              {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
               {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
+              {pdfArticleNumber && <SpecificationRow label="NRF-nummer i PDF" value={pdfArticleNumber} />}
               {details.sourcePage && <SpecificationRow label="Källsida" value={String(details.sourcePage)} />}
               {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
             </dl>
-            {details.sourceExcerpt && <details className="border-t border-ink-100"><summary className="cursor-pointer px-4 py-3 text-sm font-bold text-flow-800 hover:bg-flow-50">Visa originaltext från PDF</summary><pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-ink-100 bg-ink-50 p-4 font-sans text-sm leading-6 text-ink-700">{details.sourceExcerpt}</pre></details>}
-          </div>
-        </details>
-      </div>
-
-      <fieldset disabled={saving} aria-busy={saving} className="m-0 min-w-0 border-0 p-0">
-        <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
-        <div className={resolution ? "rounded-md border border-slate-300 bg-slate-50 px-3 py-2.5" : "rounded-md border border-ink-200 bg-white px-3 py-2.5"}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="flex items-center gap-2 text-sm font-bold text-ink-950"><Tag className="h-4 w-4" aria-hidden="true" />Ahlsell saknar varan?</p>
-              <p className="mt-0.5 text-xs leading-5 text-ink-600">Märk posten som Inte i sortiment. Den räknas som hanterad och blockerar inte projektet.</p>
-            </div>
-            {resolution ? (
-              <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={() => void saveResolution(null)}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                Ångra Inte i sortiment
-              </Button>
-            ) : (
-              <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={() => void saveResolution("not_in_assortment")}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Tag className="h-4 w-4" aria-hidden="true" />}
-                Märk som Inte i sortiment
-              </Button>
+            {details.sourceExcerpt && (
+              <div className="border-t border-ink-200">
+                <p className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-ink-500">Originaltext från PDF</p>
+                <pre className="whitespace-pre-wrap border-t border-ink-100 bg-ink-50 p-4 font-sans text-sm leading-6 text-ink-700">{details.sourceExcerpt}</pre>
+              </div>
             )}
           </div>
         </div>
+      </section>
 
-        {memories.length > 0 && (
-          <details open={memoryExpanded} onToggle={(event) => setMemoryExpanded(event.currentTarget.open)} className="group overflow-hidden rounded-md border border-ink-200 bg-white">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
-              <span className="flex items-center gap-2"><History className="h-4 w-4 text-flow-700" aria-hidden="true" />Tidigare bekräftade produkter ({memories.length})</span>
-              <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
-            </summary>
-            <div className="border-t border-ink-200 p-3">
-              <p className="text-xs leading-5 text-ink-600">Ett tidigare val fyller i uppgifterna men måste godkännas på nytt i detta projekt.</p>
-              <div className="mt-2 grid gap-2 lg:grid-cols-3">
-                {memories.map((memory) => (
-                  <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5 text-left transition hover:border-flow-400 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 disabled:cursor-wait disabled:opacity-60">
-                    <p className="text-sm font-bold text-ink-950">{String(memory.product_name)}</p>
-                    <p className="mt-0.5 text-xs text-ink-600">NRF-nummer {String(memory.product_number)}</p>
-                    <p className="mt-2 text-xs font-bold text-flow-800">Använd produkt</p>
-                  </button>
-                ))}
+      <fieldset disabled={saving} aria-busy={saving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
+        <div className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Välj produkt</p>
+              <h4 className="mt-0.5 text-base font-bold text-ink-950">Ahlsellprodukter för PDF-post {details.postNumber ?? position}</h4>
+              <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnapprovedChanges ? "Osparade ändringar" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
+            </div>
+            <Button aria-label="Godkänn och spara produkt" title="Godkänn och spara produkt" className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || !productNumber.trim()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+              {saving ? "Sparar…" : "Godkänn och spara"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
+          <section id={`product-selection-${requirement.id}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1">
+                <ProductFormInput id={`product-number-${requirement.id}`} label="NRF-nummer" value={productNumber} onChange={(value) => { setProductNumber(value); setProductName(""); setDraftNotice(null); setHasUnapprovedChanges(true); }} required />
+              </div>
+              {productNumber.trim() && (
+                <Button type="button" variant="secondary" className="min-h-10 shrink-0 justify-center px-3 py-2 text-xs" onClick={clearSelectedProduct}>
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />Rensa NRF
+                </Button>
+              )}
+              <div className="min-w-0 flex-1">
+                <ProductFormInput id={`manufacturer-${requirement.id}`} label="Tillverkare" optional value={manufacturerName} onChange={(value) => { setManufacturerName(value); setHasUnapprovedChanges(true); }} />
               </div>
             </div>
-          </details>
-        )}
+            <p className="mt-2 text-xs leading-5 text-ink-600">Skriv ett NRF-nummer manuellt eller välj en produkt nedan. När ett nummer är ifyllt visas bara matchande produkter.</p>
+            {draftNotice && hasUnapprovedChanges && (
+              <div className="mt-3 flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5" role="status" aria-live="polite">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+                <p className="text-xs font-semibold leading-5 text-emerald-900">{draftNotice} Kontrollera NRF-numret och godkänn sedan produkten.</p>
+              </div>
+            )}
+          </section>
 
-        <details open={catalogExpanded} onToggle={(event) => setCatalogExpanded(event.currentTarget.open)} className="group overflow-hidden rounded-md border border-ink-200 bg-white">
-          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
-            <span className="flex items-center gap-2"><Search className="h-4 w-4 text-flow-700" aria-hidden="true" />Sök och välj produkt hos Ahlsell</span>
-            <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
-          </summary>
-          <div className="border-t border-ink-200 p-3">
+          <nav aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={startManualProductEntry}>
+              <Plus className="h-4 w-4" aria-hidden="true" />Lägg till manuellt
+            </Button>
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory}>
+              <PackagePlus className="h-4 w-4" aria-hidden="true" />Lägg till tillbehör
+            </Button>
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={showAllProductAlternatives}>
+              <Search className="h-4 w-4" aria-hidden="true" />Visa alternativ
+            </Button>
+            {!resolution && (
+              <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
+                <Tag className="h-4 w-4" aria-hidden="true" />Inte i sortiment
+              </Button>
+            )}
+            <a href={productPostMailHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+              <Mail className="h-4 w-4" aria-hidden="true" />Maila post
+            </a>
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={focusProductComment}>
+              <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />Lägg till kommentar
+            </Button>
+          </nav>
+
+          <div id={`ahlsell-products-${requirement.id}`} className="scroll-mt-24 rounded-md border border-ink-200 bg-white p-3">
             <AhlsellPublicMatchPanel
               projectId={projectId}
               requirementId={requirement.id}
               guide={ahlsellGuide}
               disabled={saving}
+              selectedArticleNumber={productNumber}
+              onClearSelection={clearSelectedProduct}
               onUseCandidate={applyAhlsellCandidate}
             />
           </div>
-        </details>
 
-        <section id={`product-selection-${requirement.id}`} className="scroll-mt-6 border-t border-ink-200 pt-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktuppgifter</p>
-            <h4 className="mt-1 text-base font-bold text-ink-950">Kontrollera den valda produkten</h4>
-            <p className="mt-0.5 text-xs leading-5 text-ink-600">Produktnamnet hämtas automatiskt från produktvalet eller PDF-posten.</p>
-          </div>
-          {draftNotice && hasUnapprovedChanges && (
-            <div className="mt-3 flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5" role="status" aria-live="polite">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
-              <p className="text-xs font-semibold leading-5 text-emerald-900">{draftNotice} Kontrollera NRF-numret och godkänn sedan produkten.</p>
+          <div className={resolution ? "rounded-md border border-slate-300 bg-slate-50 px-3 py-2.5" : "rounded-md border border-ink-200 bg-white px-3 py-2.5"}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-bold text-ink-950"><Tag className="h-4 w-4" aria-hidden="true" />Ahlsell saknar varan?</p>
+                <p className="mt-0.5 text-xs leading-5 text-ink-600">Märk posten som Inte i sortiment. Den räknas som hanterad och blockerar inte projektet.</p>
+              </div>
+              {resolution ? (
+                <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={clearNotInAssortmentResolution}>
+                  {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                  Ångra Inte i sortiment
+                </Button>
+              ) : (
+                <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={markAsNotInAssortment}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Tag className="h-4 w-4" aria-hidden="true" />}
+                  Märk som Inte i sortiment
+                </Button>
+              )}
             </div>
-          )}
-          <div className="mt-3 grid gap-x-4 gap-y-3 md:grid-cols-2">
-            <ProductFormInput id={`product-number-${requirement.id}`} label="NRF-nummer" value={productNumber} onChange={(value) => { setProductNumber(value); setProductName(""); setHasUnapprovedChanges(true); }} required />
-            <ProductFormInput id={`manufacturer-${requirement.id}`} label="Tillverkare" optional value={manufacturerName} onChange={(value) => { setManufacturerName(value); setHasUnapprovedChanges(true); }} />
           </div>
-          <label className="mt-3 block" htmlFor={`product-notes-${requirement.id}`}>
+
+          {memories.length > 0 && (
+            <details open={memoryExpanded} onToggle={(event) => setMemoryExpanded(event.currentTarget.open)} className="group overflow-hidden rounded-md border border-ink-200 bg-white">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
+                <span className="flex items-center gap-2"><History className="h-4 w-4 text-flow-700" aria-hidden="true" />Tidigare bekräftade produkter ({memories.length})</span>
+                <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
+              </summary>
+              <div className="border-t border-ink-200 p-3">
+                <p className="text-xs leading-5 text-ink-600">Ett tidigare val fyller i uppgifterna men måste godkännas på nytt i detta projekt.</p>
+                <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                  {memories.map((memory) => (
+                    <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5 text-left transition hover:border-flow-400 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 disabled:cursor-wait disabled:opacity-60">
+                      <p className="text-sm font-bold text-ink-950">{String(memory.product_name)}</p>
+                      <p className="mt-0.5 text-xs text-ink-600">NRF-nummer {String(memory.product_number)}</p>
+                      <p className="mt-2 text-xs font-bold text-flow-800">Använd produkt</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </details>
+          )}
+
+          <label className="block scroll-mt-24 rounded-md border border-ink-200 bg-white p-3" htmlFor={`product-notes-${requirement.id}`}>
             <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-ink-600"><span>Intern kommentar <span className="font-normal text-ink-500">(valfritt)</span></span><span>{notes.length}/2000</span></span>
             <textarea id={`product-notes-${requirement.id}`} rows={4} maxLength={2000} value={notes} onChange={(event) => { setNotes(event.target.value); setHasUnapprovedChanges(true); }} className="block w-full resize-y rounded-sm border-ink-300 bg-ink-50 text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
           </label>
-        </section>
 
-        <details className="group overflow-hidden rounded-md border border-ink-200 bg-white">
-          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50"><span>Tillbehör (valfritt){accessories.length > 0 ? ` · ${accessories.length}` : ""}</span><ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary>
-          <div className="space-y-3 border-t border-ink-200 p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-ink-600">Lägg till produkter som normalt beställs tillsammans med huvudprodukten.</p>
-              <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { setAccessories((current) => [...current, { name: "", productNumber: "", quantity: 1, unit: "st", notes: "" }]); setHasUnapprovedChanges(true); }}><Plus className="h-4 w-4" aria-hidden="true" />Lägg till tillbehör</Button>
-            </div>
-            {accessories.map((accessory, index) => (
-              <div key={index} className="grid gap-3 rounded-md border border-ink-200 bg-ink-50 p-3 md:grid-cols-[2fr_1.3fr_0.8fr_0.7fr_auto]">
-                <CompactInput label="Tillbehör" value={accessory.name} onChange={(value) => { updateAccessory(setAccessories, index, "name", value); setHasUnapprovedChanges(true); }} />
-                <CompactInput label="NRF-nummer" value={accessory.productNumber} onChange={(value) => { updateAccessory(setAccessories, index, "productNumber", value); setHasUnapprovedChanges(true); }} />
-                <CompactInput label="Antal per produkt" type="number" min="0.001" step="0.001" value={String(accessory.quantity)} onChange={(value) => { updateAccessory(setAccessories, index, "quantity", Number(value)); setHasUnapprovedChanges(true); }} />
-                <CompactInput label="Enhet" value={accessory.unit} onChange={(value) => { updateAccessory(setAccessories, index, "unit", value); setHasUnapprovedChanges(true); }} />
-                <button type="button" aria-label="Ta bort tillbehör" onClick={() => { setAccessories((current) => current.filter((_, itemIndex) => itemIndex !== index)); setHasUnapprovedChanges(true); }} className="mt-6 flex h-10 w-10 items-center justify-center rounded-md text-ink-500 transition hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+          <details id={`product-accessories-${requirement.id}`} open={accessoriesExpanded} onToggle={(event) => setAccessoriesExpanded(event.currentTarget.open)} className="group scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50"><span>Tillbehör (valfritt){accessories.length > 0 ? ` · ${accessories.length}` : ""}</span><ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary>
+            <div className="space-y-3 border-t border-ink-200 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-ink-600">Lägg till produkter som normalt beställs tillsammans med huvudprodukten.</p>
+                <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory}><Plus className="h-4 w-4" aria-hidden="true" />Lägg till tillbehör</Button>
               </div>
-            ))}
-          </div>
-        </details>
-
-        <div className="flex flex-col gap-3 border-t border-ink-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-bold text-ink-950">Godkänn produkten</p>
-            <p className="mt-0.5 text-xs leading-5 text-ink-600">{isApproved ? "Produkten är godkänd. Ändringar måste godkännas på nytt." : "Kontrollera uppgifterna och godkänn sedan produkten."}</p>
-          </div>
-          <Button className="min-h-10 w-full justify-center px-4 py-2 text-sm sm:w-auto" type="button" onClick={() => void save()} disabled={saving || !productNumber.trim()}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-            {saving ? "Godkänner…" : assignment ? `Godkänn ändringar för post ${details.postNumber ?? position}` : `Godkänn produkt för post ${details.postNumber ?? position}`}
-          </Button>
-        </div>
+              {accessories.map((accessory, index) => (
+                <div key={index} className="grid gap-3 rounded-md border border-ink-200 bg-ink-50 p-3 md:grid-cols-[2fr_1.3fr_0.8fr_0.7fr_auto]">
+                  <CompactInput label="Tillbehör" value={accessory.name} onChange={(value) => { updateAccessory(setAccessories, index, "name", value); setHasUnapprovedChanges(true); }} />
+                  <CompactInput label="NRF-nummer" value={accessory.productNumber} onChange={(value) => { updateAccessory(setAccessories, index, "productNumber", value); setHasUnapprovedChanges(true); }} />
+                  <CompactInput label="Antal per produkt" type="number" min="0.001" step="0.001" value={String(accessory.quantity)} onChange={(value) => { updateAccessory(setAccessories, index, "quantity", Number(value)); setHasUnapprovedChanges(true); }} />
+                  <CompactInput label="Enhet" value={accessory.unit} onChange={(value) => { updateAccessory(setAccessories, index, "unit", value); setHasUnapprovedChanges(true); }} />
+                  <button type="button" aria-label="Ta bort tillbehör" onClick={() => { setAccessories((current) => current.filter((_, itemIndex) => itemIndex !== index)); setHasUnapprovedChanges(true); }} className="mt-6 flex h-10 w-10 items-center justify-center rounded-md text-ink-500 transition hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
       </fieldset>
     </article>
@@ -1114,17 +1214,29 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
 
 const CANDIDATES_PER_PAGE = 6;
 
-function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, onUseCandidate }: {
+function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, onClearSelection, onUseCandidate }: {
   projectId: string;
   requirementId: string;
   guide: AhlsellRequirementGuide;
   disabled: boolean;
+  selectedArticleNumber: string;
+  onClearSelection: () => void;
   onUseCandidate: (candidate: AhlsellPublicCandidate) => void;
 }) {
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
-  const [candidatePage, setCandidatePage] = useState(1);
+  const candidateFilterKey = normalizeNrfNumber(selectedArticleNumber);
+  const [candidatePagination, setCandidatePagination] = useState({ filterKey: candidateFilterKey, page: 1 });
+  const candidatePage = candidatePagination.filterKey === candidateFilterKey ? candidatePagination.page : 1;
+
+  function setCandidatePage(update: number | ((page: number) => number)) {
+    setCandidatePagination((current) => {
+      const currentPage = current.filterKey === candidateFilterKey ? current.page : 1;
+      const nextPage = typeof update === "function" ? update(currentPage) : update;
+      return { filterKey: candidateFilterKey, page: nextPage };
+    });
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1154,17 +1266,30 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
   for (const candidate of guide.directCandidates) candidatesByArticle.set(candidate.articleNumber, candidate);
   for (const candidate of catalogResult?.candidates ?? []) candidatesByArticle.set(candidate.articleNumber, candidate);
   const candidates = orderAhlsellCandidatesForDisplay([...candidatesByArticle.values()]);
-  const recommendedCount = candidates.filter((candidate) => candidate.recommendation === "recommended").length;
+  const filteredCandidates = filterAhlsellCandidatesByNrf(candidates, selectedArticleNumber);
+  const hasNrfFilter = Boolean(normalizeNrfNumber(selectedArticleNumber));
+  const recommendedCount = filteredCandidates.filter((candidate) => candidate.recommendation === "recommended").length;
   const mostLikelyArticleNumber = candidates.find((candidate) =>
     candidate.source === "pdf_reference"
     || candidate.source === "public_verified"
     || candidate.recommendation === "recommended"
   )?.articleNumber ?? null;
-  const pageCount = Math.max(1, Math.ceil(candidates.length / CANDIDATES_PER_PAGE));
-  const visibleCandidates = candidates.slice(
-    (candidatePage - 1) * CANDIDATES_PER_PAGE,
-    candidatePage * CANDIDATES_PER_PAGE
+  const pageCount = Math.max(1, Math.ceil(filteredCandidates.length / CANDIDATES_PER_PAGE));
+  const activeCandidatePage = Math.min(candidatePage, pageCount);
+  const visibleCandidates = filteredCandidates.slice(
+    (activeCandidatePage - 1) * CANDIDATES_PER_PAGE,
+    activeCandidatePage * CANDIDATES_PER_PAGE
   );
+
+  function selectCandidate(candidate: AhlsellPublicCandidate) {
+    setCandidatePage(1);
+    onUseCandidate(candidate);
+  }
+
+  function clearSelection() {
+    setCandidatePage(1);
+    onClearSelection();
+  }
 
   return (
     <section aria-labelledby="ahlsell-match-heading">
@@ -1174,11 +1299,13 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
           <h4 id="ahlsell-match-heading" className="mt-1 text-base font-bold text-ink-950">
             {loadingCatalog
               ? "Söker alla produkter hos Ahlsell…"
-              : candidates.length > 0
+              : filteredCandidates.length > 0
                 ? recommendedCount > 0
-                  ? `Mest sannolik produkt visas först · ${candidates.length} träffar`
-                  : `${candidates.length} ${candidates.length === 1 ? "produkt hittad" : "produkter hittade"}`
-                : "Ingen produkt hittades med denna sökning"}
+                  ? `Mest sannolik produkt visas först · ${filteredCandidates.length} träffar`
+                  : `${filteredCandidates.length} ${filteredCandidates.length === 1 ? "produkt hittad" : "produkter hittade"}`
+                : hasNrfFilter && candidates.length > 0
+                  ? "Ingen Ahlsellprodukt matchar NRF-numret"
+                  : "Ingen produkt hittades med denna sökning"}
           </h4>
           <p className="mt-1 text-xs leading-5 text-ink-600">
             Scipx söker i Ahlsells offentliga katalog med uppgifterna i PDF-posten. Välj en kandidat för att fylla i utkastet. Ingen produkt godkänns automatiskt.
@@ -1237,23 +1364,44 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
         </div>
       )}
 
+      {!loadingCatalog && hasNrfFilter && filteredCandidates.length === 0 && candidates.length > 0 && (
+        <div className="mt-3 flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between" role="status">
+          <p className="text-sm font-semibold text-amber-950">Inga hämtade produkter har NRF-nummer {selectedArticleNumber.trim()}.</p>
+          <Button type="button" variant="secondary" className="min-h-9 shrink-0 justify-center px-3 py-1.5 text-xs" onClick={clearSelection}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />Visa alla produkter
+          </Button>
+        </div>
+      )}
+
       {visibleCandidates.length > 0 && (
-        <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        <div className="mt-3 space-y-2" role="radiogroup" aria-label="Välj Ahlsellprodukt">
           {visibleCandidates.map((candidate) => {
             const isMostLikely = candidate.articleNumber === mostLikelyArticleNumber;
+            const isSelected = normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber);
             return (
-            <article key={candidate.articleNumber} className={isMostLikely ? "rounded-md border-2 border-emerald-400 bg-emerald-50 p-3" : "rounded-md border border-ink-200 bg-white p-3"}>
-              {isMostLikely && (
-                <div className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-700 px-2 py-1 text-xs font-bold text-white">
-                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />Mest sannolik produkt
-                </div>
-              )}
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-bold text-ink-950">{candidate.productName}</p>
-                  <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
-                  <p className="mt-0.5 text-[11px] font-semibold text-ink-600">{candidateSourceLabel(candidate.source)}</p>
-                </div>
+            <article key={candidate.articleNumber} className={isSelected ? "rounded-md border-2 border-flow-600 bg-flow-50 p-3 shadow-sm" : isMostLikely ? "rounded-md border-2 border-emerald-400 bg-emerald-50 p-3" : "rounded-md border border-ink-200 bg-white p-3"}>
+              <div className="flex items-start gap-3">
+                <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                  <input
+                    type="radio"
+                    name={`ahlsell-product-${requirementId}`}
+                    value={candidate.articleNumber}
+                    checked={isSelected}
+                    disabled={disabled}
+                    onChange={() => selectCandidate(candidate)}
+                    aria-label={`Välj ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
+                    className="mt-1 h-4 w-4 shrink-0 border-ink-300 text-flow-700 focus:ring-flow-600"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold text-ink-950">{candidate.productName}</span>
+                      {isSelected && <span className="rounded-full bg-flow-800 px-2 py-0.5 text-[11px] font-bold text-white">Vald</span>}
+                      {isMostLikely && !isSelected && <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[11px] font-bold text-white">Mest sannolik</span>}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</span>
+                    <span className="mt-0.5 block text-[11px] font-semibold text-ink-600">{candidateSourceLabel(candidate.source)}</span>
+                  </span>
+                </label>
                 <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 </a>
@@ -1276,8 +1424,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
                   </ul>
                 </div>
               )}
-              <Button type="button" variant="secondary" className="mt-3 min-h-9 w-full justify-center px-3 py-1.5 text-xs" disabled={disabled} onClick={() => onUseCandidate(candidate)}>
-                {isMostLikely ? "Välj rekommenderad produkt" : "Välj denna produkt"}
+              <Button type="button" variant={isSelected ? "primary" : "secondary"} className="mt-3 min-h-9 w-full justify-center px-3 py-1.5 text-xs" disabled={disabled} onClick={() => selectCandidate(candidate)}>
+                {isSelected ? "Vald produkt" : isMostLikely ? "Välj rekommenderad produkt" : "Välj denna produkt"}
               </Button>
               <p className="mt-1.5 text-center text-[11px] font-semibold text-amber-800">Fyller bara i fälten – produkten är fortfarande inte godkänd.</p>
             </article>
@@ -1287,11 +1435,11 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, on
 
       {pageCount > 1 && (
         <div className="mt-3 flex flex-col items-center justify-between gap-3 rounded-md border border-ink-200 bg-white p-3 sm:flex-row">
-          <p className="text-sm font-bold text-ink-700">Visar {(candidatePage - 1) * CANDIDATES_PER_PAGE + 1}–{Math.min(candidatePage * CANDIDATES_PER_PAGE, candidates.length)} av {candidates.length}</p>
+          <p className="text-sm font-bold text-ink-700">Visar {(activeCandidatePage - 1) * CANDIDATES_PER_PAGE + 1}–{Math.min(activeCandidatePage * CANDIDATES_PER_PAGE, filteredCandidates.length)} av {filteredCandidates.length}</p>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="secondary" disabled={candidatePage === 1} onClick={() => setCandidatePage((page) => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Föregående</Button>
-            <span className="min-w-20 text-center text-sm font-bold text-ink-700">Sida {candidatePage} av {pageCount}</span>
-            <Button type="button" variant="secondary" disabled={candidatePage === pageCount} onClick={() => setCandidatePage((page) => Math.min(pageCount, page + 1))}>Nästa <ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+            <Button type="button" variant="secondary" disabled={activeCandidatePage === 1} onClick={() => setCandidatePage((page) => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Föregående</Button>
+            <span className="min-w-20 text-center text-sm font-bold text-ink-700">Sida {activeCandidatePage} av {pageCount}</span>
+            <Button type="button" variant="secondary" disabled={activeCandidatePage === pageCount} onClick={() => setCandidatePage((page) => Math.min(pageCount, page + 1))}>Nästa <ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
           </div>
         </div>
       )}
@@ -1307,6 +1455,37 @@ function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {
 
 function compactText(values: Array<string | null | undefined>) {
   return values.filter((value): value is string => Boolean(value)).join(" ");
+}
+
+function buildProductPostMailHref({ postNumber, productRequirement, quantity, nsCode, system, attributes, sourceExcerpt }: {
+  postNumber: string;
+  productRequirement: string;
+  quantity: string;
+  nsCode?: string | null;
+  system?: string | null;
+  attributes: Array<[string, string]>;
+  sourceExcerpt?: string | null;
+}) {
+  const technicalDetails = attributes
+    .slice(0, 12)
+    .map(([key, value]) => `${specificationLabel(key)}: ${value}`)
+    .join("\n");
+  const body = [
+    "Hej,",
+    "",
+    "Vi behöver hjälp med följande produktpost:",
+    `PDF-post: ${postNumber}`,
+    nsCode ? `NS-kod: ${nsCode}` : null,
+    system ? `System: ${system}` : null,
+    `Produktkrav: ${productRequirement}`,
+    `Antal: ${quantity}`,
+    technicalDetails || null,
+    sourceExcerpt ? `\nOriginaltext från PDF:\n${sourceExcerpt.slice(0, 1200)}` : null,
+    "",
+    "Vänligen återkom med lämplig produkt och NRF-nummer."
+  ].filter((line): line is string => line !== null).join("\n");
+
+  return `mailto:?subject=${encodeURIComponent(`Produktfråga – PDF-post ${postNumber}`)}&body=${encodeURIComponent(body)}`;
 }
 
 function NonProductRequirementCard({ requirement, position, totalPosts, kind }: { requirement: Row; position: number; totalPosts: number; kind: "remove" | "work" }) {
@@ -1550,10 +1729,6 @@ function ProductCategoryButton({ active, count, label, onClick }: {
 function StatusNumber({ value, label, tone = "neutral" }: { value: number; label: string; tone?: "neutral" | "success" | "warning" }) {
   const color = tone === "success" ? "text-emerald-700" : tone === "warning" ? "text-amber-700" : "text-ink-950";
   return <div className="border-r border-ink-100 px-3 py-3 last:border-r-0"><p className={`text-2xl font-bold ${color}`}>{value}</p><p className="mt-0.5 text-xs font-semibold text-ink-600">{label}</p></div>;
-}
-
-function Fact({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
-  return <div><p className="mb-1 text-xs font-semibold text-ink-600">{label}</p><p className={strong ? "flex min-h-9 items-center rounded-sm border border-ink-300 bg-ink-50 px-3 py-2 text-sm font-bold text-ink-950" : "flex min-h-9 items-center rounded-sm border border-ink-300 bg-ink-50 px-3 py-2 text-sm font-medium text-ink-900"}>{value}</p></div>;
 }
 
 function SpecificationRow({ label, value }: { label: string; value: string }) {

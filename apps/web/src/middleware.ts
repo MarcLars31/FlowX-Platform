@@ -8,13 +8,15 @@ import {
   shouldRefreshAccessToken
 } from "@/lib/supabase-auth-config";
 
+// Keep session refresh in Edge middleware until the Cloudflare adapter can bundle Next 16 Node proxy files.
+
 type RefreshedSession = {
   access_token: string;
   refresh_token: string;
   expires_in: number;
 };
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const accessToken = request.cookies.get(ACCESS_COOKIE)?.value;
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
 
