@@ -1058,12 +1058,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               {details.sourcePage && <SpecificationRow label="Källsida" value={String(details.sourcePage)} />}
               {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
             </dl>
-            {details.sourceExcerpt && (
-              <div className="border-t border-ink-200">
-                <p className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-ink-500">Originaltext från PDF</p>
-                <pre className="whitespace-pre-wrap border-t border-ink-100 bg-ink-50 p-4 font-sans text-sm leading-6 text-ink-700">{details.sourceExcerpt}</pre>
-              </div>
-            )}
           </div>
         </div>
       </section>
