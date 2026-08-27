@@ -1434,6 +1434,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [candidateSubtitles, setCandidateSubtitles] = useState<Record<string, string | null>>({});
+  const [subtitleRetry, setSubtitleRetry] = useState({ requestKey: "", count: 0 });
   const candidateFilterKey = normalizeNrfNumber(selectedArticleNumber);
   const [candidatePagination, setCandidatePagination] = useState({ filterKey: candidateFilterKey, page: 1 });
   const candidatePage = candidatePagination.filterKey === candidateFilterKey ? candidatePagination.page : 1;
@@ -1512,6 +1514,73 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
     (activeCandidatePage - 1) * CANDIDATES_PER_PAGE,
     activeCandidatePage * CANDIDATES_PER_PAGE
   );
+  const visibleSubtitleCandidates = [
+    ...filteredMemories.flatMap((memory) => {
+      const candidate = candidatesByArticle.get(normalizeNrfNumber(String(memory.product_number)));
+      return candidate ? [candidate] : [];
+    }),
+    ...visibleCandidates
+  ];
+  const visibleSubtitleRequest = JSON.stringify(
+    [...new Map(visibleSubtitleCandidates.flatMap((candidate) => {
+      const item = ahlsellSubtitleItem(candidate);
+      return item ? [[item.articleNumber, item] as const] : [];
+    })).values()]
+  );
+  const subtitleRetryCount = subtitleRetry.requestKey === visibleSubtitleRequest
+    ? subtitleRetry.count
+    : 0;
+
+  useEffect(() => {
+    const visibleItems = JSON.parse(visibleSubtitleRequest) as Array<{
+      articleNumber: string;
+      productUrl: string;
+    }>;
+    const pendingItems = visibleItems.filter((item) =>
+      !Object.prototype.hasOwnProperty.call(candidateSubtitles, item.articleNumber)
+    ).slice(0, CANDIDATES_PER_PAGE);
+    if (pendingItems.length === 0) return;
+
+    const controller = new AbortController();
+    let retryTimeout: ReturnType<typeof setTimeout> | undefined;
+    void fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-subtitles`, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ items: pendingItems }),
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as {
+          subtitles?: Record<string, string | null>;
+        } | null;
+        if (!response.ok) throw new Error("Ahlsells produkttext kunde inte hämtas.");
+        const resolved = payload?.subtitles ?? {};
+        setCandidateSubtitles((current) => ({
+          ...current,
+          ...Object.fromEntries(pendingItems.map((item) => [item.articleNumber, null])),
+          ...resolved
+        }));
+        setSubtitleRetry({ requestKey: visibleSubtitleRequest, count: 0 });
+      })
+      .catch((error) => {
+        if (error instanceof Error && error.name === "AbortError") return;
+        if (subtitleRetryCount < 2) {
+          retryTimeout = setTimeout(() => {
+            if (!controller.signal.aborted) {
+              setSubtitleRetry({
+                requestKey: visibleSubtitleRequest,
+                count: subtitleRetryCount + 1
+              });
+            }
+          }, 2_000 * (subtitleRetryCount + 1));
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
+  }, [candidateSubtitles, projectId, requirementId, subtitleRetryCount, visibleSubtitleRequest]);
 
   function selectCandidate(candidate: AhlsellPublicCandidate) {
     setCandidatePage(1);
@@ -1593,12 +1662,17 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
             {filteredMemories.map((memory) => {
               const articleNumber = String(memory.product_number);
               const productName = String(memory.product_name);
+              const candidate = candidatesByArticle.get(normalizeNrfNumber(articleNumber));
+              const productSubtitle = candidateSubtitles[normalizeNrfNumber(articleNumber)] ?? candidate?.description;
               const isSelected = normalizeNrfNumber(articleNumber) === normalizeNrfNumber(selectedArticleNumber);
               return (
                 <article key={String(memory.id)} className={memoriesAreExact ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-amber-50/50 px-3 py-3 sm:px-4"}>
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold leading-5 text-ink-950">{productName}</p>
+                      {productSubtitle && (
+                        <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-ink-700" title={productSubtitle}>{productSubtitle}</p>
+                      )}
                       <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {articleNumber}</p>
                       <p className={memoriesAreExact ? "mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800" : "mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"}>
                         {memoriesAreExact ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -1631,6 +1705,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
           {visibleCandidates.map((candidate) => {
             const isSelected = normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber);
             const matchState = memoriesAreExact ? ahlsellCandidateMatchState(candidate) : "review";
+            const candidateSubtitle = candidateSubtitles[normalizeNrfNumber(candidate.articleNumber)] ?? candidate.description;
             const candidateClass = matchState === "exact"
               ? "bg-emerald-50 px-3 py-3 sm:px-4"
               : matchState === "mismatch"
@@ -1641,6 +1716,9 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold leading-5 text-ink-950">{candidate.productName}</p>
+                  {candidateSubtitle && (
+                    <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-ink-700" title={candidateSubtitle}>{candidateSubtitle}</p>
+                  )}
                   <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
                   {matchState === "exact" ? (
                     <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Exakt match</p>
@@ -1721,6 +1799,31 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       )}
     </section>
   );
+}
+
+function ahlsellSubtitleItem(candidate: AhlsellPublicCandidate) {
+  try {
+    const url = new URL(candidate.productUrl);
+    const hostname = url.hostname.toLocaleLowerCase("en-US");
+    const articleNumber = normalizeNrfNumber(candidate.articleNumber);
+    const pathTokens = decodeURIComponent(url.pathname)
+      .toLocaleLowerCase("en-US")
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+    if (
+      url.protocol !== "https:"
+      || Boolean(url.port)
+      || !["ahlsell.no", "www.ahlsell.no", "ahlsell.se", "www.ahlsell.se"].includes(hostname)
+      || !url.pathname.toLocaleLowerCase("en-US").startsWith("/products/")
+      || !articleNumber
+      || !pathTokens.includes(articleNumber)
+    ) {
+      return null;
+    }
+    return { articleNumber, productUrl: url.toString() };
+  } catch {
+    return null;
+  }
 }
 
 function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {

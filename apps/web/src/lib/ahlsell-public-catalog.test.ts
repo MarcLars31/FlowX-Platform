@@ -92,6 +92,7 @@ test("combines synonym searches and resolves the exact Ahlsell variant article",
   assert.deepEqual(result.queries, ["Sprinkler K80 SR Opp", "Sprinklerhode K80 SR 68", "Sprinklerhode K80 Hvit"]);
   assert.equal(result.candidates.length, 1);
   assert.equal(result.candidates[0].articleNumber, "9254508");
+  assert.equal(result.candidates[0].description, "Trykklasse PN16 & VDS-godkjent.");
   assert.match(result.candidates[0].productUrl, /9254508/);
   assert.ok(result.candidates[0].specifications.includes("K-faktor: 80"));
   assert.ok(result.candidates[0].specifications.includes("Farge: Hvit"));
