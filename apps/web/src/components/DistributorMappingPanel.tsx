@@ -1087,11 +1087,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     void saveResolution("not_in_assortment");
   }
 
-  function clearNotInAssortmentResolution() {
-    if (hasUnsavedChanges && !window.confirm("Du har osparade ändringar. Vill du ta bort märkningen Inte i sortiment och lämna utkastet utan att spara?")) return;
-    void saveResolution(null);
-  }
-
   return (
     <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
       <section aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-ink-200 bg-ink-50/50 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
@@ -1211,12 +1206,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
                 <p className="flex items-center gap-2 text-sm font-bold text-ink-950"><Tag className="h-4 w-4" aria-hidden="true" />Ahlsell saknar varan?</p>
                 <p className="mt-0.5 text-xs leading-5 text-ink-600">Märk posten som Inte i sortiment. Den räknas som hanterad och blockerar inte projektet.</p>
               </div>
-              {resolution && (
-                <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" disabled={saving} onClick={clearNotInAssortmentResolution}>
-                  {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                  Ångra Inte i sortiment
-                </Button>
-              )}
             </div>
           </div>
 
