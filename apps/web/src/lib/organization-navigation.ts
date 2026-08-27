@@ -9,6 +9,7 @@ export type OrganizationNavigationItem = {
     | "projects"
     | "history"
     | "statistics"
+    | "crm"
     | "technical_description";
   anyPermissions?: readonly PermissionKey[];
 };
@@ -45,6 +46,17 @@ export const ORGANIZATION_NAVIGATION: readonly OrganizationNavigationItem[] = [
     name: "Statistik",
     href: "/statistics",
     icon: "statistics",
+    anyPermissions: [
+      "project.view_own",
+      "project.view_team",
+      "project.view_organization",
+      "project.view_all"
+    ]
+  },
+  {
+    name: "CRM",
+    href: "/crm",
+    icon: "crm",
     anyPermissions: [
       "project.view_own",
       "project.view_team",

@@ -9,6 +9,7 @@ import {
   FileJson,
   FileText,
   FolderKanban,
+  Handshake,
   History,
   Home,
   PackageSearch,
@@ -47,6 +48,7 @@ const organizationIcons = {
   projects: FolderKanban,
   history: History,
   statistics: BarChart3,
+  crm: Handshake,
   technical_description: FileText
 } satisfies Record<OrganizationNavigationItem["icon"], typeof Home>;
 

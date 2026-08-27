@@ -35,6 +35,7 @@ test("mini users can search products but cannot access projects", () => {
 
   assert.equal(navigation.some((item) => item.href.startsWith("/projects")), false);
   assert.equal(navigation.some((item) => item.href === "/statistics"), false);
+  assert.equal(navigation.some((item) => item.href === "/crm"), false);
 });
 
 test("full users can create projects but cannot invite members", () => {
@@ -53,11 +54,15 @@ test("full users can create projects but cannot invite members", () => {
     navigation.some((item) => item.href === "/statistics"),
     true
   );
+  assert.equal(
+    navigation.some((item) => item.href === "/crm"),
+    true
+  );
   assert.deepEqual(
     navigation
-      .filter((item) => ["/project-history", "/statistics"].includes(item.href))
+      .filter((item) => ["/project-history", "/statistics", "/crm"].includes(item.href))
       .map((item) => item.href),
-    ["/project-history", "/statistics"]
+    ["/project-history", "/statistics", "/crm"]
   );
   assert.equal(
     navigation.some((item) => item.href.startsWith("/organization")),
