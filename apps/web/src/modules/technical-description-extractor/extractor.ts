@@ -6,6 +6,10 @@ import type {
   TechnicalDescriptionRuleHint,
   TechnicalDescriptionWarning
 } from "./types";
+import {
+  MAX_SUPPORTED_SPRINKLER_K_FACTOR,
+  parseSprinklerKFactor
+} from "@/lib/project-requirement-data-warnings";
 
 type ExtractOptions = {
   fileName?: string;
@@ -57,6 +61,7 @@ export function extractTechnicalDescriptionFromPages(
   const warnings: TechnicalDescriptionWarning[] = [];
   const project = extractProject(pages);
   const materialLines = extractMaterialLines(pages, warnings);
+  appendMaterialLineValidationWarnings(materialLines, warnings);
   const standards = unique(
     pages.flatMap((page) =>
       [...page.text.matchAll(STANDARD_PATTERN)].map((match) =>
@@ -113,6 +118,42 @@ export function extractTechnicalDescriptionFromPages(
     pages,
     warnings
   };
+}
+
+function appendMaterialLineValidationWarnings(
+  lines: TechnicalDescriptionMaterialLine[],
+  warnings: TechnicalDescriptionWarning[]
+) {
+  for (const line of lines) {
+    const kFactor = numericAttributeValue(line.attributes, "k-faktor");
+    if (kFactor === null || kFactor <= MAX_SUPPORTED_SPRINKLER_K_FACTOR) continue;
+
+    if (!line.reviewFlags.includes("implausible-k-factor")) {
+      line.reviewFlags.push("implausible-k-factor");
+    }
+    warnings.push({
+      id: `implausible-k-factor-${line.sourcePage}-${line.postNumber ?? line.id}`,
+      code: "IMPLAUSIBLE_K_FACTOR",
+      message: `PDF-post ${line.postNumber ?? line.description} anger K-faktor ${formatValidationNumber(kFactor)}, vilket är över ${MAX_SUPPORTED_SPRINKLER_K_FACTOR}. Kontrollera värdet i original-PDF:n innan en produkt väljs.`,
+      sourcePage: line.sourcePage,
+      sourceText: line.sourceText,
+      severity: "warning"
+    });
+  }
+}
+
+function numericAttributeValue(
+  attributes: Record<string, string>,
+  expectedKey: string
+) {
+  const value = Object.entries(attributes).find(
+    ([key]) => normalizeAttributeKey(key) === expectedKey
+  )?.[1];
+  return parseSprinklerKFactor(value);
+}
+
+function formatValidationNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
 }
 
 function extractProject(pages: TechnicalDescriptionPage[]) {
@@ -1371,9 +1412,6 @@ function normalizeAttributeValue(key: string, value: string) {
   }
   if (key === "k-faktor") {
     normalized = normalized.replace(/(\d),(\d)/g, "$1.$2");
-    if (/^\d{4}$/.test(normalized) && normalized.endsWith("5")) {
-      normalized = `${normalized.slice(0, -1)}.${normalized.slice(-1)}`;
-    }
   }
   if (key === "utløsningstemperatur") {
     normalized = normalized

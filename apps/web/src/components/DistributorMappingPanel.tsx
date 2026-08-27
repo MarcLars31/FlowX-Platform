@@ -14,6 +14,7 @@ import {
 } from "@/lib/product-requirement-resolution";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
+import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 import { ahlsellCatalogStatusFromPayload, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
@@ -156,13 +157,18 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const staticallySafeRequirementIds = useMemo(() => new Set(productRequirements.flatMap((requirement) => {
     const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
     const safe = handledRequirementIds.has(requirement.id)
-      || Boolean(fingerprint && memoryFingerprints.has(fingerprint))
-      || buildAhlsellRequirementGuide(requirement).directCandidates.length > 0;
+      || (!hasProjectRequirementDataWarning(requirement) && (
+        Boolean(fingerprint && memoryFingerprints.has(fingerprint))
+        || buildAhlsellRequirementGuide(requirement).directCandidates.length > 0
+      ));
     return safe ? [requirement.id] : [];
   })), [handledRequirementIds, memoryFingerprints, productRequirements]);
   const catalogCheckRequirementIds = useMemo(
     () => productRequirements
-      .filter((requirement) => !staticallySafeRequirementIds.has(requirement.id))
+      .filter((requirement) =>
+        !staticallySafeRequirementIds.has(requirement.id)
+        && !hasProjectRequirementDataWarning(requirement)
+      )
       .map((requirement) => requirement.id),
     [productRequirements, staticallySafeRequirementIds]
   );
@@ -868,6 +874,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const [attachmentMessage, setAttachmentMessage] = useState<string | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const details = projectRequirementDetails(requirement);
+  const dataWarnings = projectRequirementDataWarnings(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
@@ -1171,6 +1178,20 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               </a>
             )}
           </div>
+
+          {dataWarnings.length > 0 && (
+            <div className="mt-4 space-y-2" role="alert">
+              {dataWarnings.map((warning) => (
+                <div key={warning.code} className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-amber-950">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-black">{warning.label}</p>
+                    <p className="mt-0.5 text-xs font-semibold leading-5">{warning.message}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="mt-4">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produkt {position} av {totalPosts}</p>
@@ -1692,6 +1713,7 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, c
   onOpen: () => void;
 }) {
   const details = projectRequirementDetails(requirement);
+  const dataWarnings = projectRequirementDataWarnings(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const productSnapshot = record(assignment?.product_snapshot);
   const resolution = productRequirementResolution(requirement);
@@ -1753,6 +1775,12 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, c
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle">
           <button type="button" aria-haspopup="dialog" onClick={onOpen} className="line-clamp-1 max-w-xl text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
+          {dataWarnings.map((warning) => (
+            <span key={warning.code} title={warning.message} className="mt-0.5 flex items-center gap-1 text-[10px] font-bold leading-4 text-amber-800">
+              <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {warning.label}
+            </span>
+          ))}
         </td>
       );
     }

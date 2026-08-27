@@ -1,3 +1,5 @@
+import { projectRequirementKFactorDisplayValue } from "./project-requirement-data-warnings";
+
 export type ProjectRequirementDetail = {
   postNumber: string | null;
   chapterPost: string | null;
@@ -18,6 +20,8 @@ export function projectRequirementDetails(
     text(value.technicalSpecification) ?? text(requirement.source_excerpt);
   const requirementKey = text(requirement.requirement_key);
   const attributes = normalizedAttributes(record(value.attributes));
+  const sourceKFactor = projectRequirementKFactorDisplayValue(requirement);
+  if (sourceKFactor) attributes["k-faktor"] = sourceKFactor;
 
   return {
     postNumber: text(value.postNumber) ?? postNumberFromSource(sourceExcerpt),

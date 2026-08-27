@@ -1,4 +1,5 @@
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
+import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
 
 export type AhlsellMatchGroup = "green" | "yellow" | "red";
 export type AhlsellCatalogMatchStatus = "safe" | "found" | "none";
@@ -47,6 +48,8 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
   const redRequirements: Row[] = [];
 
   for (const requirement of requirements) {
+    const handledByUser = approvedRequirementIds.has(requirement.id);
+    const requiresDataReview = !handledByUser && hasProjectRequirementDataWarning(requirement);
     const precomputedSafe = staticallySafeRequirementIds?.has(requirement.id) ?? false;
     const hasApprovedProduct = !staticallySafeRequirementIds && approvedRequirementIds.has(requirement.id);
     const fingerprint = !staticallySafeRequirementIds && typeof requirement.mapping_fingerprint === "string"
@@ -57,7 +60,9 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
       && buildAhlsellRequirementGuide(requirement).directCandidates.length > 0;
     const catalogStatus = catalogStatuses[requirement.id];
 
-    if (precomputedSafe || hasApprovedProduct || hasLearnedProduct || hasDirectAhlsellMatch || catalogStatus === "safe") {
+    if (requiresDataReview) {
+      yellowRequirements.push(requirement);
+    } else if (precomputedSafe || hasApprovedProduct || hasLearnedProduct || hasDirectAhlsellMatch || catalogStatus === "safe") {
       greenRequirements.push(requirement);
     } else if (catalogStatus === "none") {
       redRequirements.push(requirement);

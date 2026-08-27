@@ -70,6 +70,32 @@ test("keeps unchecked catalog rows yellow until Ahlsell has answered", () => {
   assert.equal(result.redRequirements.length, 0);
 });
 
+test("keeps implausible K-factors out of automatic safe results until handled", () => {
+  const anomalousRequirement = (id: string) => ({
+    id,
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: { "k-faktor": "560" } }
+  });
+  const result = splitAhlsellMatchGroups([
+    anomalousRequirement("automatic"),
+    anomalousRequirement("approved"),
+    anomalousRequirement("resolved")
+  ], {
+    approvedRequirementIds: new Set(["approved", "resolved"]),
+    memoryFingerprints: new Set(),
+    catalogStatuses: {
+      automatic: "none",
+      approved: "safe",
+      resolved: "safe"
+    },
+    staticallySafeRequirementIds: new Set(["automatic", "approved", "resolved"])
+  });
+
+  assert.deepEqual(result.yellowRequirements.map((item) => item.id), ["automatic"]);
+  assert.deepEqual(result.greenRequirements.map((item) => item.id), ["approved", "resolved"]);
+});
+
 test("classifies safe, uncertain and empty Ahlsell responses", () => {
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "recommended" }]), "safe");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible" }]), "found");

@@ -616,6 +616,7 @@ export async function POST(request: Request) {
           attributes: line.attributes,
           system: line.system ?? null,
           standardRefs: line.standardRefs,
+          reviewFlags: line.reviewFlags,
           technicalSpecification: line.technicalSpecification ?? line.sourceText
         },
         unit: line.unit ?? null,
@@ -651,6 +652,7 @@ export async function POST(request: Request) {
             attributes: line.attributes,
             system: line.system ?? null,
             standardRefs: line.standardRefs,
+            reviewFlags: line.reviewFlags,
             technicalSpecification: line.technicalSpecification ?? line.sourceText
           },
           certainty: "interpreted",

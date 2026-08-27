@@ -1,3 +1,9 @@
+import {
+  parseSprinklerKFactor,
+  projectRequirementDataWarnings,
+  projectRequirementKFactorDisplayValue
+} from "@/lib/project-requirement-data-warnings";
+
 export type AhlsellPublicCandidate = {
   articleNumber: string;
   productName: string;
@@ -125,8 +131,10 @@ export function buildAhlsellRequirementGuide(
   const unit = normalize(text(value.unit) ?? "");
   const intent = detectAhlsellProductIntent(primaryCombined, combined, category, unit);
   const isSprinklerAccessory = intent === "sprinkler_guard";
+  const dataWarnings = projectRequirementDataWarnings(requirement);
 
-  const rawKFactor = numberFromAttribute(attributes, ["k faktor", "k factor", "k verdi", "k value"])
+  const rawKFactor = parseSprinklerKFactor(projectRequirementKFactorDisplayValue(requirement))
+    ?? numberFromAttribute(attributes, ["k faktor", "k factor", "k verdi", "k value"])
     ?? numberFromText(combined, /\bk\s*[-=]?\s*(\d+(?:[.,]\d+)?)/i);
   // Norwegian descriptions frequently write K-80. The hyphen is a separator,
   // not a negative hydraulic value.
@@ -208,6 +216,7 @@ export function buildAhlsellRequirementGuide(
   const searchQueries = unique(plannedQueries).slice(0, 3);
   const searchQuery = searchQueries[0] ?? description;
   const warnings = compact([
+    ...dataWarnings.map((warning) => warning.message),
     orientationResult.mixed
       ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."
       : null,
@@ -226,6 +235,7 @@ export function buildAhlsellRequirementGuide(
   ]);
 
   const verifiedCandidates = !isNorwegianSource
+    && dataWarnings.length === 0
     && intent === "sprinkler_head"
     && !orientationResult.mixed
     && !responseResult.conflict
@@ -246,10 +256,12 @@ export function buildAhlsellRequirementGuide(
           && (!finish || item.finish === finish)
         )
       : [];
-  const directCandidates: AhlsellPublicCandidate[] = compact([
-    pdfReferenceCandidate,
-    ...verifiedCandidates
-  ]);
+  const directCandidates: AhlsellPublicCandidate[] = dataWarnings.length > 0
+    ? []
+    : compact([
+        pdfReferenceCandidate,
+        ...verifiedCandidates
+      ]);
 
   const searchUrl = new URL(ahlsellSearchUrl);
   searchUrl.searchParams.set("parameters.SearchPhrase", searchQuery || description);

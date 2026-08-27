@@ -82,6 +82,31 @@ test("recommends the exact K80 68C standard upright sprinkler variant", () => {
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("68")));
 });
 
+test("does not recommend K115 when the raw PDF source says K1145", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: {
+      technicalSpecification: "Type sprinkler: Tørrsprinkler\nK-faktor: 1145",
+      attributes: {
+        "k-faktor": "114.5",
+        utløsningstemperatur: "68 C",
+        følsomhetsgrad: "Standard-respons",
+        plassering: "Stående",
+        "gjengedimensjon (dn)": "25"
+      }
+    }
+  }, [{
+    ...candidate("9254000", "Sprinklerhode K115 SR - Opp", "Standard sprinklerhode", "/sprinkler/9254000/"),
+    specifications: ["K-faktor: 115", "Responstemperatur: 68 °C", "Responstid: Standardrespons"]
+  }]);
+
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.ok(ranked.matchWarnings?.some((warning) =>
+    warning.includes("PDF kräver K1145") && warning.includes("träffen anger K115")
+  ));
+});
+
 test("does not confuse the phrase opp til with an upright sprinkler", () => {
   const [ranked] = rankAhlsellCandidates({
     category: "sprinkler_head",

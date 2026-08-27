@@ -77,6 +77,10 @@ export function enrichProjectRequirements(
         standardRefs: line.standardRefs.length
           ? line.standardRefs
           : currentValue.standardRefs ?? [],
+        reviewFlags: mergedReviewFlags(
+          line.reviewFlags,
+          currentValue.reviewFlags
+        ),
         technicalSpecification:
           line.technicalSpecification ??
           currentValue.technicalSpecification ??
@@ -86,6 +90,13 @@ export function enrichProjectRequirements(
         stringValue(requirement.source_excerpt) ?? line.sourceText
     };
   });
+}
+
+function mergedReviewFlags(extracted: string[], current: unknown) {
+  const stored = Array.isArray(current)
+    ? current.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    : [];
+  return [...new Set([...stored, ...extracted])];
 }
 
 function technicalDescriptionPages(value: unknown) {

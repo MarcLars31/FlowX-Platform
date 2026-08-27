@@ -85,6 +85,29 @@ test("blocks direct matching and warns about K115 combined with DN15", () => {
   assert.ok(guide.warnings.some((warning) => warning.includes("K115") && warning.includes("DN15")));
 });
 
+test("uses the raw PDF K-factor and blocks automatic matches for legacy rows", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: {
+      technicalSpecification: "Type sprinkler: Tørrsprinkler\nK-faktor: 1145",
+      attributes: {
+        plassering: "Stående",
+        "følsomhetsgrad": "Standard-respons",
+        utløsningstemperatur: "68 C",
+        "k-faktor": "114.5",
+        "gjengedimensjon (dn)": "25"
+      }
+    }
+  });
+
+  assert.ok(guide.criteria.includes("K1145"));
+  assert.equal(guide.directCandidates.length, 0);
+  assert.ok(guide.warnings.some((warning) =>
+    warning.includes("K-faktor 1145") && warning.includes("över 400")
+  ));
+});
+
 test("does not collapse a mixed upright and pendent PDF row into one article", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head",

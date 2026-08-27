@@ -59,6 +59,20 @@ test("returns every stored specification without the former eight-item limit", (
   assert.equal(details.sourcePage, 32);
 });
 
+test("shows the raw PDF K-factor when legacy OCR normalization stored a decimal", () => {
+  const details = projectRequirementDetails({
+    value_json: {
+      attributes: { "k-faktor": "114.5" },
+      technicalSpecification: "SPRINKLER\nK-faktor: 1145"
+    }
+  });
+
+  assert.deepEqual(
+    details.attributes.find(([key]) => key === "k-faktor"),
+    ["k-faktor", "1145"]
+  );
+});
+
 test("enriches an existing requirement with its inherited main-post specifications", () => {
   const documentId = "00000000-0000-4000-8000-000000000001";
   const [requirement] = enrichProjectRequirements(
@@ -119,4 +133,35 @@ test("enriches an existing requirement with its inherited main-post specificatio
   assert.equal(attributes.materiale, "Stål – malingsbehandlet");
   assert.equal(attributes.trykk, "12 bar");
   assert.equal(attributes.dimensjon, "DN100");
+});
+
+test("carries extraction review flags into enriched project requirements", () => {
+  const documentId = "00000000-0000-4000-8000-000000000002";
+  const sourceText = [
+    "33.500.1 UE2.11121532",
+    "SPRINKLER",
+    "Antall stk 1",
+    "K-faktor: 560"
+  ].join("\n");
+  const [requirement] = enrichProjectRequirements([{
+    id: "requirement-warning",
+    value_text: "SPRINKLER",
+    value_json: { postNumber: "33.500.1", attributes: {} },
+    source_page: 1,
+    source_excerpt: sourceText,
+    source_technical_description_document_id: documentId
+  }], [{
+    id: documentId,
+    file_name: "sprinkler.pdf",
+    source_pages: [{
+      pageNumber: 1,
+      method: "ocr",
+      confidence: 0.9,
+      text: sourceText
+    }]
+  }]);
+  const value = requirement.value_json as Record<string, unknown>;
+
+  assert.deepEqual(value.reviewFlags, ["ocr-source", "implausible-k-factor"]);
+  assert.equal((value.attributes as Record<string, unknown>)["k-faktor"], "560");
 });

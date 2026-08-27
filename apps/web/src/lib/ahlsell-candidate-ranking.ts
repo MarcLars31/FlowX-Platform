@@ -1,4 +1,8 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import {
+  parseSprinklerKFactor,
+  projectRequirementKFactorDisplayValue
+} from "@/lib/project-requirement-data-warnings";
 
 const PIPE_OUTSIDE_DIAMETER_BY_DN: Record<number, number> = {
   15: 21.3, 20: 26.9, 25: 33.7, 32: 42.4, 40: 48.3, 50: 60.3,
@@ -69,7 +73,9 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     dn,
     outsideDiameter: outsideDiameter ?? (dn === null ? null : PIPE_OUTSIDE_DIAMETER_BY_DN[dn] ?? null),
     pn: numberAfterLabel(primaryText, /\bpn\s*(\d{1,3})\b/) ?? numberAfterLabel(text, /\bpn\s*(\d{1,3})\b/),
-    kFactor: extractKFactor(primaryText) ?? extractKFactor(text),
+    kFactor: parseSprinklerKFactor(projectRequirementKFactorDisplayValue(requirement))
+      ?? extractKFactor(primaryText)
+      ?? extractKFactor(text),
     temperatureC: extractTemperature(primaryText) ?? extractTemperature(text),
     response: /\b(standard(?:respons)?|sr)\b/.test(primaryText)
       ? "standard"

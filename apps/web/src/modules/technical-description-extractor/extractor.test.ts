@@ -817,7 +817,7 @@ test("does not turn sprinkler drawings and hydraulic reports into material rows"
   assert.deepEqual(result.materialLines, []);
 });
 
-test("repairs OCR decimal loss in dry-sprinkler K-factors", () => {
+test("preserves implausible dry-sprinkler K-factors for manual review", () => {
   const result = extractTechnicalDescriptionFromPages([{
     pageNumber: 3,
     method: "ocr",
@@ -833,7 +833,57 @@ test("repairs OCR decimal loss in dry-sprinkler K-factors", () => {
     ].join("\n")
   }]);
 
-  assert.equal(result.materialLines[0].attributes["k-faktor"], "114.5");
+  assert.equal(result.materialLines[0].attributes["k-faktor"], "1145");
+  assert.ok(result.materialLines[0].reviewFlags.includes("implausible-k-factor"));
+  assert.ok(result.warnings.some((warning) =>
+    warning.code === "IMPLAUSIBLE_K_FACTOR"
+    && warning.message.includes("K-faktor 1145")
+  ));
+});
+
+test("only flags K-factors above 400", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "33.500.1 UE2.11121532",
+      "SPRINKLER",
+      "Antall stk 1",
+      "K-faktor: 400",
+      "33.500.2 UE2.11121532",
+      "SPRINKLER",
+      "Antall stk 1",
+      "K-faktor: 400,1"
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines[0].attributes["k-faktor"], "400");
+  assert.ok(!result.materialLines[0].reviewFlags.includes("implausible-k-factor"));
+  assert.equal(result.materialLines[1].attributes["k-faktor"], "400.1");
+  assert.ok(result.materialLines[1].reviewFlags.includes("implausible-k-factor"));
+  assert.equal(
+    result.warnings.filter((warning) => warning.code === "IMPLAUSIBLE_K_FACTOR").length,
+    1
+  );
+});
+
+test("keeps explicit decimal K-factors while normalizing decimal commas", () => {
+  const commaResult = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "ocr",
+    confidence: 0.9,
+    text: "33.500.1 UE2.11121532\nSPRINKLER\nAntall stk 1\nK-faktor: 114,5"
+  }]);
+  const pointResult = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "ocr",
+    confidence: 0.9,
+    text: "33.500.1 UE2.11121532\nSPRINKLER\nAntall stk 1\nK-faktor: 114.5"
+  }]);
+
+  assert.equal(commaResult.materialLines[0].attributes["k-faktor"], "114.5");
+  assert.equal(pointResult.materialLines[0].attributes["k-faktor"], "114.5");
 });
 
 test("canonicalizes compact and spaced NS standard references", () => {
