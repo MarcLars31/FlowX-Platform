@@ -189,6 +189,31 @@ test("detects conflicting standard and quick response wording", () => {
   assert.ok(guide.warnings.some((warning) => warning.includes("standard- och quick-respons")));
 });
 
+test("does not confuse a standard surface treatment with standard response", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: {
+      technicalSpecification: [
+        "Følsomhetsgrad: Kvikk respons",
+        "Overflatebehandling: Som standard for produkt"
+      ].join("\n"),
+      attributes: {
+        plassering: "Stående",
+        følsomhetsgrad: "Kvikk respons",
+        utløsningstemperatur: "68 °C",
+        "k-faktor": "80",
+        "gjengedimensjon (dn)": "15",
+        overflatebehandling: "Som standard for produkt"
+      }
+    }
+  });
+
+  assert.ok(guide.searchQueries.some((query) => /\bQR\b/.test(query)));
+  assert.ok(guide.searchQueries.every((query) => !/\bSR\b/.test(query)));
+  assert.ok(guide.warnings.every((warning) => !warning.includes("standard- och quick-respons")));
+});
+
 test("treats Norwegian K-80 notation as K80 and searches protection grids as accessories", () => {
   const sprinkler = buildAhlsellRequirementGuide({
     category: "sprinkler_head",

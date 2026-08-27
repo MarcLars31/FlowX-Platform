@@ -77,9 +77,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
       ?? extractKFactor(primaryText)
       ?? extractKFactor(text),
     temperatureC: extractTemperature(primaryText) ?? extractTemperature(text),
-    response: /\b(standard(?:respons)?|sr)\b/.test(primaryText)
-      ? "standard"
-      : /\b(kvikk|quick|qr)\b/.test(primaryText) ? "quick" : null,
+    response: extractSprinklerResponse(primaryText),
     orientation: /\b(staende|upright|oppover|opp)\b/.test(primaryText)
       ? "upright"
       : /\b(hengende|pendent|nedover|ned)\b/.test(primaryText)
@@ -333,9 +331,7 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
     }
   }
   if (requirement.response) {
-    const candidateResponse = /\bstandardrespons|\bsr\b/.test(candidateText)
-      ? "standard"
-      : /\b(kvikkrespons|quick|qr)\b/.test(candidateText) ? "quick" : null;
+    const candidateResponse = extractSprinklerResponse(candidateText);
     if (candidateResponse === requirement.response) {
       score += 12;
       reasons.push(requirement.response === "standard" ? "Standardrespons stämmer." : "Quick response stämmer.");
@@ -483,6 +479,16 @@ function extractKFactor(value: string) {
 function extractTemperature(value: string) {
   return numberAfterLabel(value, /\b(?:utlosningstemperatur|responstemperatur|temperature)\s*(\d+(?:[.,]\d+)?)\s*(?:c\b)?/)
     ?? numberAfterLabel(value, /\b(57|68|79|93|100|121|141|182|260)\s*(?:c\b)/);
+}
+
+function extractSprinklerResponse(value: string): TechnicalProfile["response"] {
+  if (/\b(?:kvikk|hurtig)\s*(?:respons|response)\b|\bquick(?:\s*response)?\b|\bqr\b/.test(value)) {
+    return "quick";
+  }
+  if (/\b(?:standard|normal)\s*(?:respons|response)\b|\bsr\b/.test(value)) {
+    return "standard";
+  }
+  return null;
 }
 
 function extractFinish(value: string): TechnicalProfile["finish"] {

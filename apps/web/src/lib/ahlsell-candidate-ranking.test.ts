@@ -82,6 +82,39 @@ test("recommends the exact K80 68C standard upright sprinkler variant", () => {
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("68")));
 });
 
+test("prefers the V2704 QR quick-response sprinkler when another attribute says standard", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Stående",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15 / 1/2\"",
+      overflatebehandling: "Som standard for produkt"
+    } }
+  }, [
+    {
+      ...candidate("9254042", "Sprinklerhoder Modell V2703 SR Victaulic FireLock - Opp", "Standard spraysprinkler", "/sprinkler/9254042/"),
+      specifications: ["K-faktor: 80", "Responstemperatur: 68 °C", "Responstid: Standardrespons"]
+    },
+    {
+      ...candidate("9254043", "Sprinklerhoder Modell V2704 QR Victaulic FireLock - Opp", "Standard spraysprinkler", "/sprinkler/9254043/"),
+      specifications: ["K-faktor: 80", "Responstemperatur: 68 °C", "Responstid: Hurtig respons"]
+    }
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "9254043");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("Quick response")));
+  const standardResponse = ranked.find((candidate) => candidate.articleNumber === "9254042");
+  assert.notEqual(standardResponse?.recommendation, "recommended");
+  assert.ok(standardResponse?.matchWarnings?.some((warning) => warning.includes("responstid")));
+});
+
 test("does not recommend K115 when the raw PDF source says K1145", () => {
   const [ranked] = rankAhlsellCandidates({
     category: "sprinkler_head",

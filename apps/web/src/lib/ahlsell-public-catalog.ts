@@ -481,8 +481,8 @@ function attributeScore(
   const actual = [...attributes].find(([key]) => key.includes(label))?.[1];
   if (!actual) return 0;
   const normalizedExpected = normalize(expected);
-  const aliases = normalizedExpected === "quick" ? ["quick", "kvikk"]
-    : normalizedExpected === "standard" ? ["standard"]
+  const aliases = normalizedExpected === "quick" ? ["quick", "kvikk", "hurtig", "snabb", "qr"]
+    : normalizedExpected === "standard" ? ["standard", "normal", "sr"]
       : normalizedExpected === "white" || normalizedExpected === "vit" ? ["hvit", "vit", "white"]
         : normalizedExpected === "brass" || normalizedExpected === "massing" ? ["messing", "massing", "brass"]
           : [normalizedExpected];

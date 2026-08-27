@@ -97,6 +97,60 @@ test("combines synonym searches and resolves the exact Ahlsell variant article",
   assert.ok(result.candidates[0].specifications.includes("Farge: Hvit"));
 });
 
+test("selects Ahlsells hurtig-respons variant for a QR sprinkler query", async () => {
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/api/search/variants") {
+      return Response.json({
+        settings: { headers: { "0": "K-faktor", "1": "Responstemperatur", "2": "Responstid" } },
+        items: [
+          {
+            code: "9254042",
+            buyable: true,
+            url: "/products/sprinkler/9254042/",
+            productName: "Sprinklerhoder Modell V2703 SR Victaulic FireLock - Opp",
+            isActiveVariant: true,
+            attributes: {
+              "0": { value: "80", unit: "" },
+              "1": { value: "68", unit: "°C" },
+              "2": { value: "Standardrespons", unit: "" }
+            }
+          },
+          {
+            code: "9254043",
+            buyable: true,
+            url: "/products/sprinkler/9254043/",
+            productName: "Sprinklerhoder Modell V2704 QR Victaulic FireLock - Opp",
+            isActiveVariant: false,
+            attributes: {
+              "0": { value: "80", unit: "" },
+              "1": { value: "68", unit: "°C" },
+              "2": { value: "Hurtig respons", unit: "" }
+            }
+          }
+        ]
+      });
+    }
+    return Response.json({
+      productCount: 1,
+      productCards: [{
+        ...product("9254042", "Sprinklerhoder Modell V27 Victaulic FireLock - Opp", "Victaulic"),
+        code: "V27_UPRIGHT",
+        numberOfVariants: 2
+      }]
+    });
+  };
+
+  const result = await searchAhlsellPublicCatalogQueries({
+    market: "no",
+    queries: ["Sprinkler K80 QR Opp 68"],
+    fetchImpl
+  });
+
+  assert.equal(result.candidates[0].articleNumber, "9254043");
+  assert.ok(result.candidates[0].specifications.includes("Responstid: Hurtig respons"));
+});
+
 test("checks the technically relevant product family before earlier unrelated search cards", async () => {
   const variantRequests: string[] = [];
   const fetchImpl: typeof fetch = async (input) => {
