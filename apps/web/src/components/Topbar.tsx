@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FolderKanban, History, Home } from "lucide-react";
+import { BarChart3, FolderKanban, History, Home } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Badge } from "@/components/Badge";
 import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
@@ -7,7 +7,8 @@ import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
 const mobileIcons = {
   home: Home,
   projects: FolderKanban,
-  history: History
+  history: History,
+  statistics: BarChart3
 } as const;
 
 export function Topbar({

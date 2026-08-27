@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
+  BarChart3,
   ClipboardCheck,
   FileJson,
   FileText,
@@ -45,6 +46,7 @@ const organizationIcons = {
   products: PackageSearch,
   projects: FolderKanban,
   history: History,
+  statistics: BarChart3,
   technical_description: FileText
 } satisfies Record<OrganizationNavigationItem["icon"], typeof Home>;
 
