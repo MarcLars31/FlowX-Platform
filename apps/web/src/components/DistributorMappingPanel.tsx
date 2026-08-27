@@ -1039,9 +1039,12 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setAttachmentError(null);
     setAttachmentMessage(null);
     window.requestAnimationFrame(() => {
-      document.getElementById(`product-attachments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
       document.getElementById(`attachment-comment-${requirement.id}`)?.focus();
     });
+  }
+
+  function closeAttachmentPanel() {
+    if (!attachmentSaving) setAttachmentExpanded(false);
   }
 
   async function save() {
@@ -1318,15 +1321,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
             </section>
           )}
 
-          <div className={resolution ? "rounded-md border border-slate-300 bg-slate-50 px-3 py-2.5" : "rounded-md border border-ink-200 bg-white px-3 py-2.5"}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-bold text-ink-950"><Tag className="h-4 w-4" aria-hidden="true" />Ahlsell saknar varan?</p>
-                <p className="mt-0.5 text-xs leading-5 text-ink-600">Märk posten som Inte i sortiment. Den räknas som hanterad och blockerar inte projektet.</p>
-              </div>
-            </div>
-          </div>
-
           {memories.length > 0 && (
             <details open={memoryExpanded} onToggle={(event) => setMemoryExpanded(event.currentTarget.open)} className="group overflow-hidden rounded-md border border-ink-200 bg-white">
               <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
@@ -1348,66 +1342,95 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
             </details>
           )}
 
-          <details id={`product-attachments-${requirement.id}`} open={attachmentExpanded} onToggle={(event) => setAttachmentExpanded(event.currentTarget.open)} className="group scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
-              <span className="flex items-center gap-2"><Paperclip className="h-4 w-4 text-flow-700" aria-hidden="true" />Vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
-            </summary>
-            <div className="space-y-4 border-t border-ink-200 p-3">
-              <form className="space-y-3 rounded-md border border-ink-200 bg-ink-50 p-3" onSubmit={(event) => { event.preventDefault(); void saveAttachment(); }}>
-                <div>
-                  <h5 className="text-sm font-bold text-ink-950">Legg til vedlegg</h5>
-                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Skriv en egen kommentar och välj filen som ska sparas med denna PDF-post.</p>
-                </div>
-                <label className="block" htmlFor={`attachment-comment-${requirement.id}`}>
-                  <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-ink-600"><span>Kommentar <span className="font-normal text-ink-500">(valfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
-                  <textarea id={`attachment-comment-${requirement.id}`} rows={3} maxLength={2000} value={attachmentComment} onChange={(event) => { setAttachmentComment(event.target.value); setAttachmentError(null); setAttachmentMessage(null); }} className="block w-full resize-y rounded-sm border-ink-300 bg-white text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
-                </label>
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                  <label className="block" htmlFor={`attachment-file-${requirement.id}`}>
-                    <span className="mb-1 block text-xs font-semibold text-ink-600">Fil</span>
-                    <input ref={attachmentInputRef} id={`attachment-file-${requirement.id}`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" onChange={(event) => { setAttachmentFile(event.target.files?.[0] ?? null); setAttachmentError(null); setAttachmentMessage(null); }} className="block min-h-10 w-full rounded-sm border border-ink-300 bg-white text-sm text-ink-800 file:mr-3 file:min-h-10 file:border-0 file:border-r file:border-ink-200 file:bg-ink-50 file:px-3 file:text-xs file:font-bold file:text-ink-800 hover:file:bg-flow-50" />
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
-                      Rensa
-                    </Button>
-                    <Button type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
-                      {attachmentSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
-                      {attachmentSaving ? "Sparar…" : "Spara vedlegg"}
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-ink-500">Max 4 MB. Tillåtna format: PDF, PNG, JPG, WebP, TXT och CSV. Sparade filer hämtas som nedladdningar.</p>
-                {attachmentError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{attachmentError}</p>}
-                {attachmentMessage && <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">{attachmentMessage}</p>}
-              </form>
-
-              <div>
-                <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-ink-600">Sparade vedlegg</h5>
-                {attachmentsLoading ? (
-                  <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-ink-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar vedlegg…</p>
-                ) : attachments.length === 0 ? (
-                  <p className="mt-2 text-xs text-ink-600">Inga vedlegg har sparats för posten.</p>
-                ) : (
-                  <div className="mt-2 divide-y divide-ink-200 overflow-hidden rounded-md border border-ink-200 bg-white">
-                    {attachments.map((attachment) => (
-                      <article key={attachment.id} className="flex items-start gap-3 p-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-flow-50 text-flow-800"><FileText className="h-4 w-4" aria-hidden="true" /></span>
-                        <div className="min-w-0 flex-1">
-                          <p className="break-words text-sm font-bold text-ink-950">{attachment.fileName}</p>
-                          <p className="mt-0.5 text-xs text-ink-500">{formatAttachmentSize(attachment.sizeBytes)} · {formatAttachmentDate(attachment.uploadedAt)}</p>
-                          {attachment.comment && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-700">{attachment.comment}</p>}
-                        </div>
-                        <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-flow-800 hover:border-flow-400 hover:bg-flow-50" aria-label={`Hämta ${attachment.fileName}`} title="Hämta vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </details>
         </div>
+
+        {attachmentExpanded && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+            <button
+              type="button"
+              aria-label="Stäng vedlegg"
+              className="absolute inset-0 bg-ink-950/65 backdrop-blur-sm"
+              onClick={closeAttachmentPanel}
+              disabled={attachmentSaving}
+            />
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`attachment-dialog-title-${requirement.id}`}
+              className="relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-ink-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
+            >
+              <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-ink-200 bg-white px-4 py-3 sm:px-5">
+                <div>
+                  <h5 id={`attachment-dialog-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-ink-950">
+                    <Paperclip className="h-4 w-4 text-flow-700" aria-hidden="true" />
+                    Legg til vedlegg
+                  </h5>
+                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Lägg en kommentar och fil till PDF-post {details.postNumber ?? position}.</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Stäng"
+                  title="Stäng"
+                  onClick={closeAttachmentPanel}
+                  disabled={attachmentSaving}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-ink-600 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 disabled:cursor-wait disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </header>
+
+              <div className="space-y-5 p-4 sm:p-5">
+                <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void saveAttachment(); }}>
+                  <label className="block" htmlFor={`attachment-comment-${requirement.id}`}>
+                    <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-ink-600"><span>Kommentar <span className="font-normal text-ink-500">(valfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
+                    <textarea id={`attachment-comment-${requirement.id}`} rows={3} maxLength={2000} value={attachmentComment} onChange={(event) => { setAttachmentComment(event.target.value); setAttachmentError(null); setAttachmentMessage(null); }} className="block w-full resize-y rounded-sm border-ink-300 bg-white text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <label className="block" htmlFor={`attachment-file-${requirement.id}`}>
+                      <span className="mb-1 block text-xs font-semibold text-ink-600">Fil</span>
+                      <input ref={attachmentInputRef} id={`attachment-file-${requirement.id}`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" onChange={(event) => { setAttachmentFile(event.target.files?.[0] ?? null); setAttachmentError(null); setAttachmentMessage(null); }} className="block min-h-10 w-full rounded-sm border border-ink-300 bg-white text-sm text-ink-800 file:mr-3 file:min-h-10 file:border-0 file:border-r file:border-ink-200 file:bg-ink-50 file:px-3 file:text-xs file:font-bold file:text-ink-800 hover:file:bg-flow-50" />
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
+                        Rensa
+                      </Button>
+                      <Button type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
+                        {attachmentSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+                        {attachmentSaving ? "Sparar…" : "Spara vedlegg"}
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-ink-500">Max 4 MB. Tillåtna format: PDF, PNG, JPG, WebP, TXT och CSV.</p>
+                  {attachmentError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{attachmentError}</p>}
+                  {attachmentMessage && <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">{attachmentMessage}</p>}
+                </form>
+
+                <div className="border-t border-ink-200 pt-4">
+                  <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-ink-600">Sparade vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</h5>
+                  {attachmentsLoading ? (
+                    <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-ink-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar vedlegg…</p>
+                  ) : attachments.length === 0 ? (
+                    <p className="mt-2 text-xs text-ink-600">Inga vedlegg har sparats för posten.</p>
+                  ) : (
+                    <div className="mt-2 divide-y divide-ink-200 overflow-hidden rounded-md border border-ink-200 bg-white">
+                      {attachments.map((attachment) => (
+                        <article key={attachment.id} className="flex items-start gap-3 p-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-flow-50 text-flow-800"><FileText className="h-4 w-4" aria-hidden="true" /></span>
+                          <div className="min-w-0 flex-1">
+                            <p className="break-words text-sm font-bold text-ink-950">{attachment.fileName}</p>
+                            <p className="mt-0.5 text-xs text-ink-500">{formatAttachmentSize(attachment.sizeBytes)} · {formatAttachmentDate(attachment.uploadedAt)}</p>
+                            {attachment.comment && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-700">{attachment.comment}</p>}
+                          </div>
+                          <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-flow-800 hover:border-flow-400 hover:bg-flow-50" aria-label={`Hämta ${attachment.fileName}`} title="Hämta vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
       </fieldset>
     </article>
   );
