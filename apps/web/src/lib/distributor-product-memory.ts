@@ -31,16 +31,22 @@ export async function loadDistributorProductMemory(
     return { mappingMemories: [], mappingAccessories: [] };
   }
 
-  const mappingMemories = await selectUserRows<DistributorProductMemoryRow>(
-    "distributor_product_memories",
-    {
-      organization_id: `eq.${organizationId}`,
-      distributor_name: "eq.Ahlsell",
-      deleted_at: "is.null",
-      order: "usage_count.desc,last_used_at.desc",
-      limit: "500"
-    }
+  const mappingMemoryBatches = await Promise.all(
+    chunkValues([...fingerprints], 50).map((fingerprintBatch) =>
+      selectUserRows<DistributorProductMemoryRow>(
+        "distributor_product_memories",
+        {
+          organization_id: `eq.${organizationId}`,
+          distributor_name: "eq.Ahlsell",
+          requirement_fingerprint: `in.(${fingerprintBatch.join(",")})`,
+          deleted_at: "is.null",
+          order: "usage_count.desc,last_used_at.desc",
+          limit: "1000"
+        }
+      )
+    )
   );
+  const mappingMemories = mappingMemoryBatches.flat();
   const relevantMemories = mappingMemories.filter((memory) =>
     fingerprints.has(memory.requirement_fingerprint)
   );
@@ -48,15 +54,28 @@ export async function loadDistributorProductMemory(
     return { mappingMemories: [], mappingAccessories: [] };
   }
 
-  const mappingAccessories =
-    await selectUserRows<DistributorProductAccessoryRow>(
-      "distributor_product_memory_accessories",
-      {
-        organization_id: `eq.${organizationId}`,
-        memory_id: `in.(${relevantMemories.map((memory) => memory.id).join(",")})`,
-        order: "usage_count.desc,product_name.asc"
-      }
-    );
+  const accessoryBatches = await Promise.all(
+    chunkValues(relevantMemories.map((memory) => memory.id), 100).map((memoryIdBatch) =>
+      selectUserRows<DistributorProductAccessoryRow>(
+        "distributor_product_memory_accessories",
+        {
+          organization_id: `eq.${organizationId}`,
+          memory_id: `in.(${memoryIdBatch.join(",")})`,
+          order: "usage_count.desc,product_name.asc",
+          limit: "1000"
+        }
+      )
+    )
+  );
+  const mappingAccessories = accessoryBatches.flat();
 
   return { mappingMemories: relevantMemories, mappingAccessories };
+}
+
+function chunkValues<T>(values: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
 }

@@ -46,7 +46,22 @@ export function orderAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandid
   );
 }
 
+export function isExactAhlsellCandidate(candidate: AhlsellPublicCandidate) {
+  if ((candidate.matchWarnings?.length ?? 0) > 0) return false;
+  return candidate.exactMatch === true
+    || candidate.source === "public_verified";
+}
+
+export type AhlsellCandidateMatchState = "exact" | "review" | "mismatch";
+
+export function ahlsellCandidateMatchState(candidate: AhlsellPublicCandidate): AhlsellCandidateMatchState {
+  if (isExactAhlsellCandidate(candidate)) return "exact";
+  if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely") return "mismatch";
+  return "review";
+}
+
 function confidenceTier(candidate: AhlsellPublicCandidate) {
+  if (isExactAhlsellCandidate(candidate)) return 0;
   if (candidate.source === "pdf_reference" || candidate.source === "public_verified") return 0;
   if (candidate.recommendation === "recommended") return 1;
   if (candidate.recommendation === "possible") return 2;
@@ -240,7 +255,44 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   const recommendation = matchScore >= 75 && warnings.length === 0
     ? "recommended"
     : matchScore >= 35 ? "possible" : "unlikely";
-  return { ...candidate, matchScore, matchReasons: reasons, matchWarnings: warnings, recommendation };
+  const exactMatch = candidate.exactMatch === true || (
+    recommendation === "recommended"
+    && matchScore === 100
+    && warnings.length === 0
+    && hasCompleteTechnicalEvidence(candidateText, candidateName, requirement)
+  );
+  return { ...candidate, matchScore, matchReasons: reasons, matchWarnings: warnings, recommendation, exactMatch };
+}
+
+function hasCompleteTechnicalEvidence(
+  candidateText: string,
+  candidateName: string,
+  requirement: TechnicalProfile
+) {
+  if (requirement.dn !== null) {
+    const candidateDn = extractDn(candidateText);
+    const diameterMatches = requirement.outsideDiameter !== null
+      && new RegExp(`\\b${String(requirement.outsideDiameter).replace(".", "[.,]")}\\s*(?:mm)?\\b`).test(candidateText);
+    if (candidateDn !== requirement.dn && !diameterMatches) return false;
+  }
+  if (requirement.pn !== null) {
+    const candidatePn = numberAfterLabel(candidateText, /\bpn\s*(\d{1,3})\b/);
+    const barMatches = new RegExp(`\\b${requirement.pn}\\s*bar\\b`).test(candidateText);
+    if (candidatePn !== requirement.pn && !barMatches) return false;
+  }
+  if (requirement.kFactor !== null) {
+    const candidateK = extractKFactor(candidateText);
+    if (candidateK === null || !closeEnough(candidateK, requirement.kFactor)) return false;
+  }
+  if (requirement.temperatureC !== null) {
+    const candidateTemperature = extractTemperature(candidateText);
+    if (candidateTemperature === null || !closeEnough(candidateTemperature, requirement.temperatureC)) return false;
+  }
+  if (requirement.response && extractSprinklerResponse(candidateText) !== requirement.response) return false;
+  if (requirement.orientation && candidateOrientation(candidateName, candidateText) !== requirement.orientation) return false;
+  if (requirement.finish && extractFinish(candidateText) !== requirement.finish) return false;
+  if (requirement.drySystem && !/\b(torr|dry)\b/.test(candidateText)) return false;
+  return true;
 }
 
 function scoreWetAlarmValve(candidateText: string, reasons: string[], warnings: string[], requirementText: string) {

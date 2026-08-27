@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ahlsellCatalogStatusFromPayload, classifyAhlsellCatalogCandidates, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
+import { ahlsellCatalogStatusFromPayload, classifyAhlsellCatalogCandidates, hasReusableProductMemory, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
 
 test("separates Ahlsell matches from rows requiring manual work", () => {
   const result = splitAhlsellMatchGroups([
@@ -48,11 +48,11 @@ test("separates Ahlsell matches from rows requiring manual work", () => {
 
   assert.deepEqual(
     result.greenRequirements.map((requirement) => requirement.id),
-    ["pdf-article", "learned", "approved", "catalog-safe"]
+    ["learned", "approved", "catalog-safe"]
   );
   assert.deepEqual(
     result.yellowRequirements.map((requirement) => requirement.id),
-    ["catalog-found"]
+    ["pdf-article", "catalog-found"]
   );
   assert.deepEqual(
     result.redRequirements.map((requirement) => requirement.id),
@@ -97,7 +97,9 @@ test("keeps implausible K-factors out of automatic safe results until handled", 
 });
 
 test("classifies safe, uncertain and empty Ahlsell responses", () => {
-  assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "recommended" }]), "safe");
+  assert.equal(classifyAhlsellCatalogCandidates([{ exactMatch: true, recommendation: "recommended" }]), "safe");
+  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, matchWarnings: [], recommendation: "recommended" }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 95, matchWarnings: [], recommendation: "recommended" }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible" }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "unlikely" }]), "none");
   assert.equal(classifyAhlsellCatalogCandidates([]), "none");
@@ -105,7 +107,45 @@ test("classifies safe, uncertain and empty Ahlsell responses", () => {
 
 test("accepts compact and legacy catalog payloads during a rolling deployment", () => {
   assert.equal(ahlsellCatalogStatusFromPayload({ classification: "safe" }), "safe");
+  assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ exactMatch: true, recommendation: "recommended" }] }), "safe");
+  assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ recommendation: "recommended" }] }), "found");
   assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ recommendation: "possible" }] }), "found");
   assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [] }), "none");
   assert.equal(ahlsellCatalogStatusFromPayload({ error: "temporary" }), null);
+});
+
+test("reuses approved history only for the exact stored fingerprint", () => {
+  const memoryFingerprints = new Set(["fp-k80-qr"]);
+  assert.equal(hasReusableProductMemory({ mapping_fingerprint: "fp-k80-qr" }, memoryFingerprints), true);
+  assert.equal(hasReusableProductMemory({ mapping_fingerprint: "fp-k80-sr" }, memoryFingerprints), false);
+  assert.equal(hasReusableProductMemory({ mapping_fingerprint: "" }, memoryFingerprints), false);
+
+  const result = splitAhlsellMatchGroups([
+    { id: "exact", mapping_fingerprint: "fp-k80-qr", value_text: "Sprinkler K80" },
+    { id: "different", mapping_fingerprint: "fp-k80-sr", value_text: "Sprinkler K80" }
+  ], {
+    approvedRequirementIds: new Set(),
+    memoryFingerprints,
+    catalogStatuses: { exact: "none", different: "none" }
+  });
+
+  assert.deepEqual(result.greenRequirements.map((item) => item.id), ["exact"]);
+  assert.deepEqual(result.redRequirements.map((item) => item.id), ["different"]);
+});
+
+test("keeps an exact historical fingerprint yellow when the requirement has a data warning", () => {
+  const result = splitAhlsellMatchGroups([{
+    id: "warning",
+    category: "sprinkler_head",
+    mapping_fingerprint: "fp-warning",
+    value_text: "SPRINKLER",
+    value_json: { attributes: { "k-faktor": "560" } }
+  }], {
+    approvedRequirementIds: new Set(),
+    memoryFingerprints: new Set(["fp-warning"]),
+    catalogStatuses: { warning: "safe" }
+  });
+
+  assert.deepEqual(result.yellowRequirements.map((item) => item.id), ["warning"]);
+  assert.equal(result.greenRequirements.length, 0);
 });

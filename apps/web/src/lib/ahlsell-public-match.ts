@@ -18,6 +18,7 @@ export type AhlsellPublicCandidate = {
   matchReasons?: string[];
   matchWarnings?: string[];
   recommendation?: "recommended" | "possible" | "unlikely";
+  exactMatch?: boolean;
   familyCode?: string;
   variantCount?: number;
 };
@@ -480,6 +481,7 @@ function candidate(
     productUrl: `https://www.ahlsell.se/products/varme--sanitet/sprinklersortiment-for-sprinklerkunder/sprinklerhuvud/${route}/${articleNumber}`,
     specifications: [`K${kFactor}`, `DN${dn}`, `${temperatureC}°C`, orientationLabel(orientation), responseLabel(response), finishLabel(finish), `SIN ${sin}`],
     source: "public_verified",
+    exactMatch: true,
     verifiedAt: VERIFIED_AT,
     kFactor,
     dn,

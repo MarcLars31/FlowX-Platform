@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
+import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
 test("ranks the DN100 Series 751 wet alarm station above a gate valve and residential manifold", () => {
@@ -74,10 +74,11 @@ test("recommends the exact K80 68C standard upright sprinkler variant", () => {
     } }
   }, [{
     ...candidate("9254042", "Sprinklerhoder V2703 SR - Opp", "Standard sprinklerhode", "/sprinkler/9254042/"),
-    specifications: ["K-faktor: 80", "Responstemperatur: 68 °C", "Responstid: Standardrespons", "Farge: Messing"]
+    specifications: ["K-faktor: 80", "Gjengedimensjon: DN15", "Responstemperatur: 68 °C", "Responstid: Standardrespons", "Farge: Messing"]
   }]);
 
   assert.equal(ranked.recommendation, "recommended");
+  assert.equal(isExactAhlsellCandidate(ranked), true);
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("K80")));
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("68")));
 });
@@ -99,19 +100,21 @@ test("prefers the V2704 QR quick-response sprinkler when another attribute says 
   }, [
     {
       ...candidate("9254042", "Sprinklerhoder Modell V2703 SR Victaulic FireLock - Opp", "Standard spraysprinkler", "/sprinkler/9254042/"),
-      specifications: ["K-faktor: 80", "Responstemperatur: 68 °C", "Responstid: Standardrespons"]
+      specifications: ["K-faktor: 80", "Gjengedimensjon: DN15", "Responstemperatur: 68 °C", "Responstid: Standardrespons"]
     },
     {
       ...candidate("9254043", "Sprinklerhoder Modell V2704 QR Victaulic FireLock - Opp", "Standard spraysprinkler", "/sprinkler/9254043/"),
-      specifications: ["K-faktor: 80", "Responstemperatur: 68 °C", "Responstid: Hurtig respons"]
+      specifications: ["K-faktor: 80", "Gjengedimensjon: DN15", "Responstemperatur: 68 °C", "Responstid: Hurtig respons"]
     }
   ]);
 
   assert.equal(ranked[0].articleNumber, "9254043");
   assert.equal(ranked[0].recommendation, "recommended");
+  assert.equal(ranked[0].exactMatch, true);
   assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("Quick response")));
   const standardResponse = ranked.find((candidate) => candidate.articleNumber === "9254042");
   assert.notEqual(standardResponse?.recommendation, "recommended");
+  assert.equal(standardResponse?.exactMatch, false);
   assert.ok(standardResponse?.matchWarnings?.some((warning) => warning.includes("responstid")));
 });
 
@@ -192,6 +195,16 @@ test("always places Scipx most likely product first without mutating the input",
 
   assert.deepEqual(ordered.map((item) => item.articleNumber), ["1", "2", "3"]);
   assert.deepEqual(input.map((item) => item.articleNumber), ["2", "1", "3"]);
+});
+
+test("reserves exact-match presentation for a complete 100-point match without warnings", () => {
+  const exact = { ...candidate("exact", "Exakt produkt", "", "/exact/"), matchScore: 100, recommendation: "recommended" as const, matchWarnings: [], exactMatch: true };
+  const strong = { ...candidate("strong", "Stark produkt", "", "/strong/"), matchScore: 95, recommendation: "recommended" as const, matchWarnings: [] };
+  const mismatch = { ...candidate("wrong", "Fel produkt", "", "/wrong/"), matchScore: 100, recommendation: "possible" as const, matchWarnings: ["Fel respons."] };
+
+  assert.equal(ahlsellCandidateMatchState(exact), "exact");
+  assert.equal(ahlsellCandidateMatchState(strong), "review");
+  assert.equal(ahlsellCandidateMatchState(mismatch), "mismatch");
 });
 
 test("ranks a dimensionally matching sprinkler pipe above a tee from the same broad search", () => {

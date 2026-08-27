@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, History, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
@@ -16,8 +16,8 @@ import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
-import { ahlsellCatalogStatusFromPayload, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
-import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
+import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-card-candidates";
 import {
   accessoriesForSelectedProduct,
@@ -158,8 +158,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
     const safe = handledRequirementIds.has(requirement.id)
       || (!hasProjectRequirementDataWarning(requirement) && (
-        Boolean(fingerprint && memoryFingerprints.has(fingerprint))
-        || buildAhlsellRequirementGuide(requirement).directCandidates.length > 0
+        Boolean(fingerprint && hasReusableProductMemory(requirement, memoryFingerprints))
+        || buildAhlsellRequirementGuide(requirement).directCandidates.some(isExactAhlsellCandidate)
       ));
     return safe ? [requirement.id] : [];
   })), [handledRequirementIds, memoryFingerprints, productRequirements]);
@@ -704,7 +704,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             const requirement = activeRequirement;
             const activeGroup = groupByRequirementId.get(requirement.id) ?? "yellow";
             const assignment = approvedAssignmentByRequirementId.get(requirement.id);
-            const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint).slice(0, 3);
+            const activeResolution = productRequirementResolution(requirement);
+            const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint);
             return (
               <dialog
                 ref={productDialogRef}
@@ -720,10 +721,10 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-center gap-3">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink-50">
-                          {activeGroup === "red" ? <CircleX className="h-5 w-5 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
+                          {activeGroup === "green" ? <CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /> : activeGroup === "red" ? <CircleX className="h-5 w-5 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
                         </span>
                         <div>
-                          <p className={activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeGroup === "red" ? "Produkten hittas inte hos Ahlsell" : "Produkten måste ses över"}</p>
+                          <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-emerald-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeResolution ? `Posten är hanterad · ${activeResolution.label}` : assignment ? "Produkten är godkänd" : activeGroup === "green" ? "Exakt match hittad · godkänn valet" : activeGroup === "red" ? "Produkten hittas inte hos Ahlsell" : "Produkten måste ses över"}</p>
                           <p className="mt-0.5 text-sm font-bold text-ink-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount} kvar i visningen</p>
                         </div>
                       </div>
@@ -863,7 +864,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const [saving, setSaving] = useState(false);
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
-  const [memoryExpanded, setMemoryExpanded] = useState(false);
   const [attachments, setAttachments] = useState<RequirementAttachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(true);
   const [attachmentExpanded, setAttachmentExpanded] = useState(false);
@@ -955,7 +955,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setAccessoriesExpanded(nextAccessories.length > 0);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
-    setMemoryExpanded(false);
   }
 
   function applyMemory(memory: Row) {
@@ -1287,8 +1286,11 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               guide={ahlsellGuide}
               disabled={saving}
               selectedArticleNumber={productNumber}
+              memories={memories}
+              memoriesAreExact={dataWarnings.length === 0}
               onClearSelection={clearSelectedProduct}
               onUseCandidate={applyAhlsellCandidate}
+              onUseMemory={applyMemory}
             />
           </div>
 
@@ -1319,27 +1321,6 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
                 <p className="text-xs leading-5 text-ink-500">Tillbehören följer bara den valda huvudprodukten. Om huvudproduktens NRF-nummer ändras rensas tillbehören.</p>
               </div>
             </section>
-          )}
-
-          {memories.length > 0 && (
-            <details open={memoryExpanded} onToggle={(event) => setMemoryExpanded(event.currentTarget.open)} className="group overflow-hidden rounded-md border border-ink-200 bg-white">
-              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-ink-800 hover:bg-ink-50">
-                <span className="flex items-center gap-2"><History className="h-4 w-4 text-flow-700" aria-hidden="true" />Tidigare bekräftade produkter ({memories.length})</span>
-                <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
-              </summary>
-              <div className="border-t border-ink-200 p-3">
-                <p className="text-xs leading-5 text-ink-600">Ett tidigare val fyller i uppgifterna men måste godkännas på nytt i detta projekt.</p>
-                <div className="mt-2 grid gap-2 lg:grid-cols-2">
-                  {memories.map((memory) => (
-                    <button key={memory.id} type="button" disabled={saving} onClick={() => applyMemory(memory)} className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5 text-left transition hover:border-flow-400 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 disabled:cursor-wait disabled:opacity-60">
-                      <p className="text-sm font-bold text-ink-950">{String(memory.product_name)}</p>
-                      <p className="mt-0.5 text-xs text-ink-600">NRF-nummer {String(memory.product_number)}</p>
-                      <p className="mt-2 text-xs font-bold text-flow-800">Använd produkt</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </details>
           )}
 
         </div>
@@ -1438,14 +1419,17 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
 
 const CANDIDATES_PER_PAGE = 6;
 
-function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, onClearSelection, onUseCandidate }: {
+function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, onClearSelection, onUseCandidate, onUseMemory }: {
   projectId: string;
   requirementId: string;
   guide: AhlsellRequirementGuide;
   disabled: boolean;
   selectedArticleNumber: string;
+  memories: Row[];
+  memoriesAreExact: boolean;
   onClearSelection: () => void;
   onUseCandidate: (candidate: AhlsellPublicCandidate) => void;
+  onUseMemory: (memory: Row) => void;
 }) {
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -1486,11 +1470,41 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
     return () => controller.abort();
   }, [projectId, requirementId]);
 
+  const usableMemoriesByArticle = new Map<string, Row>();
+  for (const memory of memories) {
+    const productName = String(memory.product_name ?? "").trim();
+    const articleNumber = normalizeNrfNumber(String(memory.product_number ?? ""));
+    if (productName && articleNumber && !usableMemoriesByArticle.has(articleNumber)) {
+      usableMemoriesByArticle.set(articleNumber, memory);
+    }
+  }
+  const usableMemories = [...usableMemoriesByArticle.values()];
+  const memoryArticleNumbers = new Set(usableMemories.map((memory) =>
+    normalizeNrfNumber(String(memory.product_number))
+  ));
   const candidatesByArticle = new Map<string, AhlsellPublicCandidate>();
-  for (const candidate of guide.directCandidates) candidatesByArticle.set(candidate.articleNumber, candidate);
-  for (const candidate of catalogResult?.candidates ?? []) candidatesByArticle.set(candidate.articleNumber, candidate);
-  const candidates = orderAhlsellCandidatesForDisplay([...candidatesByArticle.values()]);
+  for (const candidate of catalogResult?.candidates ?? []) {
+    candidatesByArticle.set(normalizeNrfNumber(candidate.articleNumber), candidate);
+  }
+  for (const directCandidate of guide.directCandidates) {
+    const key = normalizeNrfNumber(directCandidate.articleNumber);
+    const catalogCandidate = candidatesByArticle.get(key);
+    candidatesByArticle.set(key, catalogCandidate ? {
+      ...directCandidate,
+      ...catalogCandidate,
+      source: directCandidate.source,
+      exactMatch: isExactAhlsellCandidate(directCandidate) || isExactAhlsellCandidate(catalogCandidate)
+    } : directCandidate);
+  }
+  const candidates = orderAhlsellCandidatesForDisplay([...candidatesByArticle.values()])
+    .filter((candidate) => !memoryArticleNumbers.has(normalizeNrfNumber(candidate.articleNumber)));
   const filteredCandidates = filterAhlsellCandidatesByNrf(candidates, selectedArticleNumber);
+  const filteredMemories = usableMemories.filter((memory) => {
+    const filter = normalizeNrfNumber(selectedArticleNumber);
+    return !filter || normalizeNrfNumber(String(memory.product_number)) === filter;
+  });
+  const totalResultCount = usableMemories.length + candidates.length;
+  const filteredResultCount = filteredMemories.length + filteredCandidates.length;
   const hasNrfFilter = Boolean(normalizeNrfNumber(selectedArticleNumber));
   const pageCount = Math.max(1, Math.ceil(filteredCandidates.length / CANDIDATES_PER_PAGE));
   const activeCandidatePage = Math.min(candidatePage, pageCount);
@@ -1518,7 +1532,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
             <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Välj en produkt från Ahlsell</h4>
           </div>
           <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
-            {!loadingCatalog && <span className="text-ink-600">{filteredCandidates.length} {filteredCandidates.length === 1 ? "träff" : "träffar"}</span>}
+            {!loadingCatalog && <span className="text-ink-600">{filteredResultCount} {filteredResultCount === 1 ? "träff" : "träffar"}</span>}
             {hasNrfFilter && (
               <button type="button" className="font-bold text-flow-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600" onClick={clearSelection}>
                 Rensa NRF
@@ -1548,7 +1562,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         </div>
       )}
 
-      {!loadingCatalog && hasNrfFilter && filteredCandidates.length === 0 && candidates.length > 0 && (
+      {!loadingCatalog && hasNrfFilter && filteredResultCount === 0 && totalResultCount > 0 && (
         <div className="flex flex-col gap-3 border-t border-amber-300 bg-amber-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4" role="status">
           <p className="text-sm font-semibold text-amber-950">Inga hämtade produkter har NRF-nummer {selectedArticleNumber.trim()}.</p>
           <Button type="button" variant="secondary" className="min-h-9 shrink-0 justify-center px-3 py-1.5 text-xs" onClick={clearSelection}>
@@ -1557,7 +1571,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         </div>
       )}
 
-      {!loadingCatalog && !catalogError && !hasNrfFilter && candidates.length === 0 && (
+      {!loadingCatalog && !catalogError && !hasNrfFilter && totalResultCount === 0 && (
         <div className="border-t border-ink-200 bg-ink-50 px-3 py-4 text-sm text-ink-700 sm:px-4">
           <p className="font-semibold">Ingen produkt hittades med denna sökning.</p>
           <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-flow-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
@@ -1566,16 +1580,73 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         </div>
       )}
 
+      {filteredMemories.length > 0 && (
+        <div className="border-t border-emerald-300" role="radiogroup" aria-label="Tidigare bekräftade produkter">
+          <div className={memoriesAreExact ? "bg-emerald-100/80 px-3 py-2 sm:px-4" : "bg-amber-50 px-3 py-2 sm:px-4"}>
+            <p className={memoriesAreExact ? "flex items-center gap-1.5 text-xs font-bold text-emerald-900" : "flex items-center gap-1.5 text-xs font-bold text-amber-900"}>
+              {memoriesAreExact ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
+              {memoriesAreExact ? "Exakt match från tidigare bekräftade val" : "Tidigare val finns, men PDF-uppgifterna måste kontrolleras"}
+            </p>
+            <p className="mt-0.5 text-xs text-ink-600">Valet måste godkännas på nytt i detta projekt.</p>
+          </div>
+          <div className="divide-y divide-emerald-200">
+            {filteredMemories.map((memory) => {
+              const articleNumber = String(memory.product_number);
+              const productName = String(memory.product_name);
+              const isSelected = normalizeNrfNumber(articleNumber) === normalizeNrfNumber(selectedArticleNumber);
+              return (
+                <article key={String(memory.id)} className={memoriesAreExact ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-amber-50/50 px-3 py-3 sm:px-4"}>
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold leading-5 text-ink-950">{productName}</p>
+                      <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {articleNumber}</p>
+                      <p className={memoriesAreExact ? "mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800" : "mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"}>
+                        {memoriesAreExact ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
+                        {memoriesAreExact ? "Exakt match · tidigare bekräftad" : "Tidigare bekräftad · kontroll krävs"}
+                      </p>
+                    </div>
+                    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-flow-800">
+                      <input
+                        type="radio"
+                        name={`ahlsell-product-${requirementId}`}
+                        value={articleNumber}
+                        checked={isSelected}
+                        disabled={disabled}
+                        onChange={() => onUseMemory(memory)}
+                        aria-label={`Välj tidigare bekräftad produkt ${productName}, NRF-nummer ${articleNumber}`}
+                        className="h-5 w-5 shrink-0 cursor-pointer border-ink-300 text-emerald-700 focus:ring-emerald-600 disabled:cursor-not-allowed"
+                      />
+                      <span aria-hidden="true">{isSelected ? "Vald" : "Välj"}</span>
+                    </label>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {visibleCandidates.length > 0 && (
         <div className="divide-y divide-ink-200 border-t border-ink-200" role="radiogroup" aria-label="Välj Ahlsellprodukt">
           {visibleCandidates.map((candidate) => {
             const isSelected = normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber);
+            const matchState = memoriesAreExact ? ahlsellCandidateMatchState(candidate) : "review";
+            const candidateClass = matchState === "exact"
+              ? "bg-emerald-50 px-3 py-3 sm:px-4"
+              : matchState === "mismatch"
+                ? "bg-rose-50/40 px-3 py-3 sm:px-4"
+                : isSelected ? "bg-cyan-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4";
             return (
-            <article key={candidate.articleNumber} className={isSelected ? "bg-cyan-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4"}>
+            <article key={candidate.articleNumber} className={candidateClass}>
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold leading-5 text-ink-950">{candidate.productName}</p>
                   <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
+                  {matchState === "exact" ? (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Exakt match</p>
+                  ) : matchState === "review" && candidate.recommendation === "recommended" ? (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Stark träff · kontroll krävs</p>
+                  ) : null}
                   <p className="mt-1 text-xs leading-5 text-ink-600">{candidateSourceLabel(candidate.source)}</p>
                   {candidate.matchWarnings && candidate.matchWarnings.length > 0 && (
                     <div className="mt-1.5 rounded-sm border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs leading-4 text-rose-900">
@@ -1654,8 +1725,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 
 function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {
   if (source === "pdf_reference") return "NRF-numret står i den uppladdade PDF-filen";
-  if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog – kontroll krävs";
-  return "Tidigare verifierad i Ahlsells offentliga katalog";
+  if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog";
+  return "Verifierad i Ahlsells offentliga katalog";
 }
 
 function buildProductPostMailHref({ postNumber, productRequirement, quantity, nsCode, system, attributes, sourceExcerpt }: {
@@ -1746,7 +1817,9 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, c
   const memoryProductNumber = String(memory?.product_number ?? "").trim();
   const hasReusableMemory = !approved && Boolean(memoryProductName && memoryProductNumber);
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
-  const rowClass = selected ? "bg-cyan-50 ring-1 ring-inset ring-flow-500" : "bg-white hover:bg-ink-50/80";
+  const rowClass = selected
+    ? "bg-cyan-50 ring-1 ring-inset ring-flow-500"
+    : group === "green" ? "bg-emerald-50/70 hover:bg-emerald-50" : "bg-white hover:bg-ink-50/80";
 
   function renderProductTableCell(columnId: ProductTableColumnId) {
     if (columnId === "control") {
@@ -1758,6 +1831,8 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, c
             <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
           ) : group === "red" ? (
             <span title="Produkten hittas inte hos Ahlsell" className="inline-flex text-rose-600"><CircleX className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten hittas inte hos Ahlsell</span></span>
+          ) : group === "green" ? (
+            <span title="Exakt match hittad – kontrollera och godkänn" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Exakt match hittad – kontrollera och godkänn</span></span>
           ) : (
             <span title="Produkten måste ses över" className="inline-flex text-amber-600"><AlertTriangle className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten måste ses över</span></span>
           )}
@@ -1846,8 +1921,9 @@ function productTableSortValue(
   memory?: Row
 ): string | number | null {
   if (key === "control") {
-    if (productRequirementResolution(requirement)) return 3;
-    if (approved) return 2;
+    if (productRequirementResolution(requirement)) return 4;
+    if (approved) return 3;
+    if (group === "green") return 2;
     return group === "red" ? 0 : 1;
   }
   if (key === "post") return projectRequirementDetails(requirement).postNumber;

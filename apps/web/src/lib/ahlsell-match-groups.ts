@@ -1,4 +1,5 @@
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
+import { isExactAhlsellCandidate } from "@/lib/ahlsell-candidate-ranking";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
 
 export type AhlsellMatchGroup = "green" | "yellow" | "red";
@@ -9,10 +10,26 @@ export function isAhlsellCatalogMatchStatus(value: unknown): value is AhlsellCat
 }
 
 export function classifyAhlsellCatalogCandidates(
-  candidates: ReadonlyArray<{ recommendation?: "recommended" | "possible" | "unlikely" }>
+  candidates: ReadonlyArray<{
+    source?: "public_verified" | "pdf_reference" | "catalog_search";
+    recommendation?: "recommended" | "possible" | "unlikely";
+    matchScore?: number;
+    matchWarnings?: string[];
+    exactMatch?: boolean;
+  }>
 ): AhlsellCatalogMatchStatus {
-  if (candidates.some((candidate) => candidate.recommendation === "recommended")) return "safe";
-  return candidates.some((candidate) => candidate.recommendation === "possible") ? "found" : "none";
+  if (candidates.some((candidate) => isExactAhlsellCandidate({
+    ...candidate,
+    articleNumber: "",
+    productName: "",
+    manufacturer: "",
+    productUrl: "",
+    specifications: [],
+    source: candidate.source ?? "catalog_search"
+  }))) return "safe";
+  return candidates.some((candidate) =>
+    candidate.recommendation === "recommended" || candidate.recommendation === "possible"
+  ) ? "found" : "none";
 }
 
 export function ahlsellCatalogStatusFromPayload(value: unknown): AhlsellCatalogMatchStatus | null {
@@ -21,13 +38,28 @@ export function ahlsellCatalogStatusFromPayload(value: unknown): AhlsellCatalogM
   if (isAhlsellCatalogMatchStatus(payload.classification)) return payload.classification;
   if (!Array.isArray(payload.candidates)) return null;
   return classifyAhlsellCatalogCandidates(
-    payload.candidates.filter((candidate): candidate is { recommendation?: "recommended" | "possible" | "unlikely" } =>
+    payload.candidates.filter((candidate): candidate is {
+      recommendation?: "recommended" | "possible" | "unlikely";
+      matchScore?: number;
+      matchWarnings?: string[];
+      exactMatch?: boolean;
+    } =>
       Boolean(candidate) && typeof candidate === "object" && !Array.isArray(candidate)
     )
   );
 }
 
 type RequirementRow = Record<string, unknown> & { id: string };
+
+export function hasReusableProductMemory(
+  requirement: Record<string, unknown>,
+  memoryFingerprints: ReadonlySet<string>
+) {
+  const fingerprint = requirement.mapping_fingerprint;
+  return typeof fingerprint === "string"
+    && fingerprint.length > 0
+    && memoryFingerprints.has(fingerprint);
+}
 
 export function splitAhlsellMatchGroups<Row extends RequirementRow>(
   requirements: readonly Row[],
@@ -52,12 +84,10 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
     const requiresDataReview = !handledByUser && hasProjectRequirementDataWarning(requirement);
     const precomputedSafe = staticallySafeRequirementIds?.has(requirement.id) ?? false;
     const hasApprovedProduct = !staticallySafeRequirementIds && approvedRequirementIds.has(requirement.id);
-    const fingerprint = !staticallySafeRequirementIds && typeof requirement.mapping_fingerprint === "string"
-      ? requirement.mapping_fingerprint
-      : null;
-    const hasLearnedProduct = !staticallySafeRequirementIds && Boolean(fingerprint && memoryFingerprints.has(fingerprint));
+    const hasLearnedProduct = !staticallySafeRequirementIds
+      && hasReusableProductMemory(requirement, memoryFingerprints);
     const hasDirectAhlsellMatch = !staticallySafeRequirementIds
-      && buildAhlsellRequirementGuide(requirement).directCandidates.length > 0;
+      && buildAhlsellRequirementGuide(requirement).directCandidates.some(isExactAhlsellCandidate);
     const catalogStatus = catalogStatuses[requirement.id];
 
     if (requiresDataReview) {
