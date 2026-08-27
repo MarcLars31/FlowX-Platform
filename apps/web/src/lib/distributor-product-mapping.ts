@@ -46,6 +46,7 @@ export function validateDistributorProductMapping(
   if (accessoryValues.length > 20) return { error: "Högst 20 tillbehör kan sparas." };
 
   const accessories: DistributorAccessoryInput[] = [];
+  const accessoryIdentities = new Set<string>();
   for (const accessory of accessoryValues) {
     if (!isRecord(accessory)) return { error: "Ett tillbehör har ogiltigt format." };
     const name = text(accessory.name, 240);
@@ -57,9 +58,18 @@ export function validateDistributorProductMapping(
     if (!Number.isFinite(rawQuantity) || rawQuantity <= 0 || rawQuantity > 100000) {
       return { error: `Ogiltig mängd för tillbehöret ${name}.` };
     }
+    const productNumber = text(accessory.productNumber, 120);
+    const normalizedProductNumber = normalizedIdentity(productNumber, true);
+    const identity = normalizedProductNumber
+      ? `nrf:${normalizedProductNumber}`
+      : `name:${normalizedIdentity(name)}`;
+    if (accessoryIdentities.has(identity)) {
+      return { error: `Tillbehöret ${name} är redan tillagt.` };
+    }
+    accessoryIdentities.add(identity);
     accessories.push({
       name,
-      productNumber: text(accessory.productNumber, 120),
+      productNumber,
       quantity: rawQuantity,
       unit: text(accessory.unit, 30) || "st",
       notes: text(accessory.notes, 500)
@@ -94,6 +104,11 @@ export function resolveDistributorProductName({ productName, requirementName, pr
 
 function text(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function normalizedIdentity(value: string, removeNrfPrefix = false) {
+  const normalized = value.normalize("NFKC").trim().toLocaleLowerCase("sv-SE").replace(/[^\p{L}\p{N}]/gu, "");
+  return removeNrfPrefix ? normalized.replace(/^nrf/, "") : normalized;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

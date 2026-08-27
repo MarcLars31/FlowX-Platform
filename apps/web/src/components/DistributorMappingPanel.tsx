@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, History, Loader2, Mail, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, History, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
@@ -18,6 +18,14 @@ import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-
 import { ahlsellCatalogStatusFromPayload, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-card-candidates";
+import {
+  accessoriesForSelectedProduct,
+  newProductAccessoryDraft,
+  productAccessoryDraftError,
+  productAccessoryPayload,
+  readProductAccessoryDrafts,
+  type ProductAccessoryDraft
+} from "@/lib/product-card-accessories";
 import {
   PRODUCT_REQUIREMENT_CATEGORIES,
   productRequirementCategory,
@@ -843,6 +851,9 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const [productName, setProductName] = useState(String(currentSnapshot.name ?? ""));
   const [productNumber, setProductNumber] = useState(String(currentSnapshot.productNumber ?? ""));
   const [manufacturerName, setManufacturerName] = useState(String(currentSnapshot.manufacturer ?? ""));
+  const [accessories, setAccessories] = useState<ProductAccessoryDraft[]>(() => readProductAccessoryDrafts(currentSnapshot.accessories));
+  const [accessoryOwnerProductNumber, setAccessoryOwnerProductNumber] = useState(() => accessories.length > 0 ? productNumber : "");
+  const [accessoriesExpanded, setAccessoriesExpanded] = useState(() => accessories.length > 0);
   const [saving, setSaving] = useState(false);
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
@@ -861,6 +872,12 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
   const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft;
+  const selectedProductAccessories = accessoriesForSelectedProduct({
+    currentProductNumber: accessoryOwnerProductNumber,
+    nextProductNumber: productNumber,
+    accessories
+  });
+  const accessoryError = productAccessoryDraftError(selectedProductAccessories);
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
   const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
   const pdfArticleNumber = ahlsellGuide.directCandidates.find(
@@ -918,9 +935,17 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   }
 
   function showSelection(selection: ProductSelection, notice: string) {
+    const nextAccessories = accessoriesForSelectedProduct({
+      currentProductNumber: accessoryOwnerProductNumber,
+      nextProductNumber: selection.productNumber,
+      accessories
+    });
     setProductName(selection.productName);
     setProductNumber(selection.productNumber);
     setManufacturerName(selection.manufacturerName);
+    setAccessories(nextAccessories);
+    setAccessoryOwnerProductNumber(nextAccessories.length > 0 ? selection.productNumber : "");
+    setAccessoriesExpanded(nextAccessories.length > 0);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
     setMemoryExpanded(false);
@@ -951,6 +976,13 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setHasUnapprovedChanges(true);
   }
 
+  function changeProductNumber(nextProductNumber: string) {
+    setProductNumber(nextProductNumber);
+    setProductName("");
+    setDraftNotice(null);
+    setHasUnapprovedChanges(true);
+  }
+
   function startManualProductEntry() {
     if (productNumber.trim()) clearSelectedProduct();
     window.requestAnimationFrame(() => document.getElementById(`product-number-${requirement.id}`)?.focus());
@@ -959,6 +991,40 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   function showAllProductAlternatives() {
     if (productNumber.trim()) clearSelectedProduct();
     window.requestAnimationFrame(() => document.getElementById(`ahlsell-products-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function addAccessory() {
+    if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
+    if (accessories.length > 0 && selectedProductAccessories.length === 0 && !window.confirm(`Tillbehören för NRF ${accessoryOwnerProductNumber} ersätts med tillbehör för NRF ${productNumber.trim()}. Vill du fortsätta?`)) return;
+    const nextIndex = selectedProductAccessories.length;
+    setAccessories([...selectedProductAccessories, newProductAccessoryDraft()]);
+    setAccessoryOwnerProductNumber(productNumber);
+    setAccessoriesExpanded(true);
+    setHasUnapprovedChanges(true);
+    onError("");
+    window.requestAnimationFrame(() => {
+      document.getElementById(`product-accessories-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      document.getElementById(`accessory-name-${requirement.id}-${nextIndex}`)?.focus();
+    });
+  }
+
+  function updateAccessory(index: number, key: keyof ProductAccessoryDraft, value: string) {
+    setAccessories((current) => current.map((accessory, itemIndex) =>
+      itemIndex === index ? { ...accessory, [key]: value } : accessory
+    ));
+    setHasUnapprovedChanges(true);
+    onError("");
+  }
+
+  function removeAccessory(index: number) {
+    const next = accessories.filter((_, itemIndex) => itemIndex !== index);
+    setAccessories(next);
+    if (next.length === 0) {
+      setAccessoriesExpanded(false);
+      setAccessoryOwnerProductNumber("");
+    }
+    setHasUnapprovedChanges(true);
+    onError("");
   }
 
   function openAttachmentPanel() {
@@ -977,10 +1043,12 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       setAttachmentError("Spara vedlegget eller töm fälten innan du godkänner produkten.");
       return;
     }
-    const sameApprovedProduct =
-      Boolean(normalizeNrfNumber(productNumber)) &&
-      normalizeNrfNumber(productNumber) ===
-        normalizeNrfNumber(String(currentSnapshot.productNumber ?? ""));
+    if (accessoryError) {
+      setAccessoriesExpanded(true);
+      onError(accessoryError);
+      return;
+    }
+    const sameApprovedProduct = Boolean(normalizeNrfNumber(productNumber)) && normalizeNrfNumber(productNumber) === normalizeNrfNumber(String(currentSnapshot.productNumber ?? ""));
     const chosen = {
       productName: resolveDistributorProductName({
         productName,
@@ -993,10 +1061,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
         sameApprovedProduct && typeof currentSnapshot.notes === "string"
           ? currentSnapshot.notes
           : "",
-      accessories:
-        sameApprovedProduct && Array.isArray(currentSnapshot.accessories)
-          ? currentSnapshot.accessories
-          : []
+      accessories: productAccessoryPayload(selectedProductAccessories)
     };
     setSaving(true);
     onSavingChange(true);
@@ -1142,7 +1207,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               <h4 className="mt-0.5 text-base font-bold text-ink-950">Ahlsellprodukter för PDF-post {details.postNumber ?? position}</h4>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
             </div>
-            <Button aria-label="Godkänn och spara produkt" title={hasAttachmentDraft ? "Spara vedlegget först" : "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || hasAttachmentDraft}>
+            <Button aria-label="Godkänn och spara produkt" title={hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || hasAttachmentDraft || Boolean(accessoryError)}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
               {saving ? "Sparar…" : "Godkänn och spara"}
             </Button>
@@ -1153,7 +1218,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
           <section id={`product-selection-${requirement.id}`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="min-w-0 flex-1">
-                <ProductFormInput id={`product-number-${requirement.id}`} label="NRF-nummer" value={productNumber} onChange={(value) => { setProductNumber(value); setProductName(""); setDraftNotice(null); setHasUnapprovedChanges(true); }} required />
+                <ProductFormInput id={`product-number-${requirement.id}`} label="NRF-nummer" value={productNumber} onChange={changeProductNumber} required />
               </div>
               <div className="min-w-0 flex-1">
                 <ProductFormInput id={`manufacturer-${requirement.id}`} label="Tillverkare" optional value={manufacturerName} onChange={(value) => { setManufacturerName(value); setHasUnapprovedChanges(true); }} />
@@ -1171,6 +1236,9 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
           <nav aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
             <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={startManualProductEntry}>
               <Plus className="h-4 w-4" aria-hidden="true" />Lägg till manuellt
+            </Button>
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={!productNumber.trim() || selectedProductAccessories.length >= 20} title={!productNumber.trim() ? "Välj en huvudprodukt först" : selectedProductAccessories.length >= 20 ? "Högst 20 tillbehör" : "Lägg till tillbehör på den valda produkten"}>
+              <PackagePlus className="h-4 w-4" aria-hidden="true" />Lägg till tillbehör
             </Button>
             <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={showAllProductAlternatives}>
               <Search className="h-4 w-4" aria-hidden="true" />Visa alternativ
@@ -1199,6 +1267,35 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               onUseCandidate={applyAhlsellCandidate}
             />
           </div>
+
+          {accessoriesExpanded && selectedProductAccessories.length > 0 && (
+            <section id={`product-accessories-${requirement.id}`} aria-labelledby={`product-accessories-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border border-flow-300 bg-white">
+              <div className="flex flex-col gap-3 border-b border-flow-200 bg-flow-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h5 id={`product-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Tillbehör till vald produkt</h5>
+                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Tillbehören kopplas till huvudproduktens NRF-nummer {productNumber.trim()} och sparas tillsammans med den.</p>
+                </div>
+                <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20}>
+                  <Plus className="h-4 w-4" aria-hidden="true" />Lägg till ett till
+                </Button>
+              </div>
+              <div className="space-y-3 p-3">
+                {selectedProductAccessories.map((accessory, index) => (
+                  <div key={index} className="grid gap-3 rounded-md border border-ink-200 bg-ink-50 p-3 md:grid-cols-[minmax(180px,1.7fr)_minmax(140px,1.2fr)_minmax(120px,0.8fr)_minmax(90px,0.6fr)_auto]">
+                    <AccessoryInput id={`accessory-name-${requirement.id}-${index}`} label="Tillbehör" value={accessory.name} required onChange={(value) => updateAccessory(index, "name", value)} />
+                    <AccessoryInput id={`accessory-nrf-${requirement.id}-${index}`} label="NRF-nummer" value={accessory.productNumber} onChange={(value) => updateAccessory(index, "productNumber", value)} />
+                    <AccessoryInput id={`accessory-quantity-${requirement.id}-${index}`} label="Antal per produkt" type="number" min="0.001" max="100000" step="0.001" value={accessory.quantity} onChange={(value) => updateAccessory(index, "quantity", value)} />
+                    <AccessoryInput id={`accessory-unit-${requirement.id}-${index}`} label="Enhet" value={accessory.unit} onChange={(value) => updateAccessory(index, "unit", value)} />
+                    <button type="button" aria-label={`Ta bort tillbehör ${index + 1}`} title="Ta bort tillbehör" onClick={() => removeAccessory(index)} className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-transparent text-ink-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+                {accessoryError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{accessoryError}</p>}
+                <p className="text-xs leading-5 text-ink-500">Tillbehören följer bara den valda huvudprodukten. Om huvudproduktens NRF-nummer ändras rensas tillbehören.</p>
+              </div>
+            </section>
+          )}
 
           <div className={resolution ? "rounded-md border border-slate-300 bg-slate-50 px-3 py-2.5" : "rounded-md border border-ink-200 bg-white px-3 py-2.5"}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1793,6 +1890,25 @@ function StatusNumber({ value, label, tone = "neutral" }: { value: number; label
 
 function SpecificationRow({ label, value }: { label: string; value: string }) {
   return <div className="border-b border-ink-100 px-4 py-3 sm:border-r"><dt className="text-xs font-bold uppercase tracking-wide text-ink-500">{label}</dt><dd className="mt-1 break-words text-sm leading-6 text-ink-900">{value}</dd></div>;
+}
+
+function AccessoryInput({ id, label, value, onChange, type = "text", min, max, step, required = false }: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  min?: string;
+  max?: string;
+  step?: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="block" htmlFor={id}>
+      <span className="mb-1 block text-xs font-semibold text-ink-600">{label}{required && <span className="ml-1 font-black text-rose-600">*</span>}</span>
+      <input id={id} type={type} min={min} max={max} step={step} required={required} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-white text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
+    </label>
+  );
 }
 
 function ProductFormInput({ id, label, value, onChange, required = false, optional = false }: {

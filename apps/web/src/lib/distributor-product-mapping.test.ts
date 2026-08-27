@@ -69,6 +69,44 @@ test("requires an NRF number and positive accessory quantity", () => {
   assert.ok("error" in invalidQuantity);
 });
 
+test("rejects duplicate accessories before they can duplicate exported quantities", () => {
+  const duplicateNrf = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
+    productName: "Sprinkler",
+    productNumber: "123",
+    accessories: [
+      { name: "Vit rosett", productNumber: "765 4321", quantity: 1 },
+      { name: "Annat namn", productNumber: "NRF 7654321", quantity: 1 }
+    ]
+  });
+  assert.deepEqual(duplicateNrf, { error: "Tillbehöret Annat namn är redan tillagt." });
+
+  const duplicateName = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
+    productName: "Sprinkler",
+    productNumber: "123",
+    accessories: [
+      { name: " Vit rosett ", quantity: 1 },
+      { name: "vit   rosett", quantity: 1 }
+    ]
+  });
+  assert.ok("error" in duplicateName);
+
+  const emptyNormalizedNrf = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
+    productName: "Sprinkler",
+    productNumber: "123",
+    accessories: [
+      { name: "Rosett", productNumber: "NRF", quantity: 1 },
+      { name: "Rosett", productNumber: "", quantity: 1 }
+    ]
+  });
+  assert.ok("error" in emptyNormalizedNrf);
+});
+
 test("never accepts a product without explicit user approval", () => {
   const missingApproval = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
