@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { getOrganizationContext } from "@/lib/organization-context";
+import { PROJECT_STAGES } from "@/lib/project-governance";
 import {
   buildProjectStatistics,
   type ProjectStatisticsRow
@@ -19,14 +20,6 @@ type StatisticsProjectRow = ProjectStatisticsRow & {
   name: string;
   project_number: string | null;
   updated_at: string;
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Utkast",
-  active: "Aktiva",
-  on_hold: "Pausade",
-  completed: "Klara",
-  archived: "Arkiverade"
 };
 
 export default async function StatisticsPage() {
@@ -41,19 +34,11 @@ export default async function StatisticsPage() {
     order: "updated_at.desc"
   });
   const statistics = buildProjectStatistics(projects);
-  const statusRows = Object.entries(STATUS_LABELS).map(([status, label]) => ({
-    status,
+  const stageRows = PROJECT_STAGES.map(([stage, label]) => ({
+    stage,
     label,
-    count: statistics.byStatus[status] ?? 0
-  }));
-  const knownStatuses = new Set(Object.keys(STATUS_LABELS));
-  const otherCount = Object.entries(statistics.byStatus).reduce(
-    (sum, [status, count]) => sum + (knownStatuses.has(status) ? 0 : count),
-    0
-  );
-  if (otherCount > 0) {
-    statusRows.push({ status: "other", label: "Övriga", count: otherCount });
-  }
+    count: statistics.byStage[stage] ?? 0
+  })).filter((row) => row.count > 0);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -81,7 +66,7 @@ export default async function StatisticsPage() {
         <StatisticsMetric
           label="Pågående"
           value={statistics.ongoing}
-          detail={`${statistics.onHold} pausade`}
+          detail="Projekt som fortfarande bearbetas"
           icon={<Activity className="h-5 w-5" aria-hidden="true" />}
         />
         <StatisticsMetric
@@ -101,16 +86,16 @@ export default async function StatisticsPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
           <div className="border-b border-cyan-300/15 bg-[#06213d] px-5 py-4 text-white sm:px-6">
-            <h2 className="font-bold text-white">Projektstatus</h2>
-            <p className="mt-1 text-sm text-slate-300">Fördelning av alla tillgängliga projekt.</p>
+            <h2 className="font-bold text-white">Arbetssteg</h2>
+            <p className="mt-1 text-sm text-slate-300">Var de tillgängliga projekten befinner sig just nu.</p>
           </div>
           <div className="space-y-5 px-5 py-6 sm:px-6">
-            {statusRows.map((row) => {
+            {stageRows.map((row) => {
               const percent = statistics.total > 0
                 ? Math.round((row.count / statistics.total) * 100)
                 : 0;
               return (
-                <div key={row.status}>
+                <div key={row.stage}>
                   <div className="mb-2 flex items-center justify-between gap-4 text-sm">
                     <span className="font-medium text-ink-800">{row.label}</span>
                     <span className="tabular-nums text-ink-500">{row.count} · {percent} %</span>
@@ -124,6 +109,9 @@ export default async function StatisticsPage() {
                 </div>
               );
             })}
+            {stageRows.length === 0 && (
+              <p className="py-6 text-center text-sm text-ink-500">Inga projekt att visa ännu.</p>
+            )}
           </div>
         </section>
 
@@ -187,9 +175,9 @@ function StatisticsMetric({
 }
 
 function statusLabel(project: StatisticsProjectRow) {
-  if (project.status === "archived") return STATUS_LABELS.archived;
-  if (project.current_stage === "completed") return STATUS_LABELS.completed;
-  return STATUS_LABELS[project.status] ?? project.status;
+  if (project.status === "archived") return "Arkiverat";
+  return PROJECT_STAGES.find(([stage]) => stage === project.current_stage)?.[1]
+    ?? "Projektinformation";
 }
 
 function formatDate(value: string) {

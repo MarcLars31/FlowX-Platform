@@ -7,11 +7,10 @@ test("returns zeroed statistics when there are no projects", () => {
     total: 0,
     ongoing: 0,
     completed: 0,
-    onHold: 0,
     archived: 0,
     createdThisMonth: 0,
     completionRate: 0,
-    byStatus: {}
+    byStage: {}
   });
 });
 
@@ -45,13 +44,12 @@ test("summarizes project status, stage and creation month", () => {
   assert.equal(statistics.total, 4);
   assert.equal(statistics.ongoing, 2);
   assert.equal(statistics.completed, 1);
-  assert.equal(statistics.onHold, 1);
   assert.equal(statistics.archived, 1);
   assert.equal(statistics.createdThisMonth, 3);
   assert.equal(statistics.completionRate, 25);
-  assert.deepEqual(statistics.byStatus, {
-    active: 2,
-    on_hold: 1,
-    archived: 1
+  assert.deepEqual(statistics.byStage, {
+    product_matching: 1,
+    documents: 1,
+    completed: 2
   });
 });
