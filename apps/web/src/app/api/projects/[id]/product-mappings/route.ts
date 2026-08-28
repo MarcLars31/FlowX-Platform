@@ -149,6 +149,7 @@ async function saveExplicitlyApprovedMapping(
     requirementId: string;
     userApproved: true;
     productName: string;
+    productSubtitle: string;
     productNumber: string;
     manufacturerName: string;
     notes: string;
@@ -166,13 +167,20 @@ async function saveExplicitlyApprovedMapping(
   };
 
   try {
-    return await callUserRpc<Record<string, unknown>>(
+    const result = await callUserRpc<Record<string, unknown>>(
       "approve_distributor_product_mapping",
       {
         ...mappingPayload,
         requested_user_approved: input.userApproved
       }
     );
+    return attachProductSubtitle({
+      projectId,
+      requirementId: input.requirementId,
+      actorId,
+      productSubtitle: input.productSubtitle,
+      result
+    });
   } catch (error) {
     if (!isMissingApprovalRpc(error)) throw error;
   }
@@ -225,12 +233,75 @@ async function saveExplicitlyApprovedMapping(
     throw new Error("The approved product assignment could not be marked approved.");
   }
 
-  return {
-    ...result,
-    approvedByUser: true,
-    approvalStatus: "user_approved",
-    approvedAt
-  };
+  return attachProductSubtitle({
+    projectId,
+    requirementId: input.requirementId,
+    actorId,
+    productSubtitle: input.productSubtitle,
+    result: {
+      ...result,
+      approvedByUser: true,
+      approvalStatus: "user_approved",
+      approvedAt
+    }
+  });
+}
+
+async function attachProductSubtitle({
+  projectId,
+  requirementId,
+  actorId,
+  productSubtitle,
+  result
+}: {
+  projectId: string;
+  requirementId: string;
+  actorId: string;
+  productSubtitle: string;
+  result: Record<string, unknown>;
+}) {
+  if (!productSubtitle) return result;
+  try {
+    const assignmentId = result.assignmentId;
+    if (!isUuid(assignmentId)) return result;
+
+    const [assignment] = await selectSupabaseRows<{ product_snapshot: unknown }>(
+      "project_product_suggestions",
+      {
+        id: `eq.${assignmentId}`,
+        project_id: `eq.${projectId}`,
+        requirement_id: `eq.${requirementId}`,
+        selected_by: `eq.${actorId}`,
+        status: "eq.selected",
+        limit: "1"
+      }
+    );
+    if (!assignment) return result;
+
+    const updatedRows = await updateSupabaseRowsReturning(
+      "project_product_suggestions",
+      {
+        id: `eq.${assignmentId}`,
+        project_id: `eq.${projectId}`,
+        requirement_id: `eq.${requirementId}`,
+        selected_by: `eq.${actorId}`,
+        status: "eq.selected"
+      },
+      {
+        product_snapshot: {
+          ...record(assignment.product_snapshot),
+          subtitle: productSubtitle
+        }
+      }
+    );
+    return updatedRows.length === 1
+      ? { ...result, productSubtitle }
+      : result;
+  } catch {
+    // Mapping approval is authoritative. A temporary subtitle enrichment failure
+    // must not turn a completed approval into a retryable 500 response.
+    return result;
+  }
 }
 
 function isMissingApprovalRpc(error: unknown) {

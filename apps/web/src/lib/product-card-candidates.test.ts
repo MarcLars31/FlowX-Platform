@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "./product-card-candidates";
+import { validateAhlsellProductLabelItems } from "./ahlsell-product-labels";
 
 const candidates: AhlsellPublicCandidate[] = [
   candidate("9254042", "Sprinklerhuvud V2703"),
@@ -40,6 +41,29 @@ test("visar bara de tre högst rankade Ahlsellprodukterna", () => {
     ["9254042", "9254043", "9254464"]
   );
   assert.equal(rankedCandidates.length, 4);
+});
+
+test("validerar en begränsad lista med unika produktrader för Ahlselltexter", () => {
+  const valid = validateAhlsellProductLabelItems({
+    items: [{
+      requirementId: "11111111-1111-4111-8111-111111111111",
+      articleNumber: "NRF 925 4043"
+    }]
+  });
+  assert.deepEqual(valid, {
+    data: [{
+      requirementId: "11111111-1111-4111-8111-111111111111",
+      articleNumber: "9254043"
+    }]
+  });
+
+  const duplicate = validateAhlsellProductLabelItems({
+    items: [
+      { requirementId: "11111111-1111-4111-8111-111111111111", articleNumber: "9254043" },
+      { requirementId: "11111111-1111-4111-8111-111111111111", articleNumber: "9254042" }
+    ]
+  });
+  assert.ok("error" in duplicate);
 });
 
 function candidate(articleNumber: string, productName: string): AhlsellPublicCandidate {

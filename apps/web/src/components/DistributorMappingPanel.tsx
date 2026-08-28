@@ -16,8 +16,10 @@ import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
+import { bulkProductApprovalSelection, type BulkProductApprovalSelection } from "@/lib/bulk-product-approval";
 import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "@/lib/product-card-candidates";
 import {
   accessoriesForSelectedProduct,
@@ -55,6 +57,7 @@ import {
 type Row = Record<string, unknown> & { id: string };
 type ProductSelection = {
   productName: string;
+  productSubtitle: string;
   productNumber: string;
   manufacturerName: string;
 };
@@ -154,6 +157,19 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     }
     return preferred;
   }, [memories]);
+  const memoriesByFingerprint = useMemo(() => {
+    const grouped = new Map<string, Row[]>();
+    for (const memory of memories) {
+      const fingerprint = typeof memory.requirement_fingerprint === "string"
+        ? memory.requirement_fingerprint
+        : null;
+      if (!fingerprint) continue;
+      const matching = grouped.get(fingerprint) ?? [];
+      matching.push(memory);
+      grouped.set(fingerprint, matching);
+    }
+    return grouped;
+  }, [memories]);
   const staticallySafeRequirementIds = useMemo(() => new Set(productRequirements.flatMap((requirement) => {
     const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
     const safe = handledRequirementIds.has(requirement.id)
@@ -238,6 +254,8 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   const [draggedProductTableColumn, setDraggedProductTableColumn] = useState<ProductTableColumnId | null>(null);
   const [productTableLayoutAnnouncement, setProductTableLayoutAnnouncement] = useState("");
   const [selectedRequirementIds, setSelectedRequirementIds] = useState<Set<string>>(() => new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
+  const [productLabelsByRequirementId, setProductLabelsByRequirementId] = useState<Record<string, AhlsellProductLabel>>({});
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const [productCardSaving, setProductCardSaving] = useState(false);
@@ -293,6 +311,22 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
     ),
     [productCategoryCounts]
   );
+  const bulkApprovalSelectionByRequirementId = useMemo(() => {
+    const selections = new Map<string, BulkProductApprovalSelection>();
+    for (const requirement of productRequirements) {
+      if (groupByRequirementId.get(requirement.id) !== "green") continue;
+      const fingerprint = typeof requirement.mapping_fingerprint === "string"
+        ? requirement.mapping_fingerprint
+        : null;
+      const selection = bulkProductApprovalSelection({
+        requirement,
+        memories: fingerprint ? memoriesByFingerprint.get(fingerprint) : undefined,
+        handled: handledRequirementIds.has(requirement.id)
+      });
+      if (selection) selections.set(requirement.id, selection);
+    }
+    return selections;
+  }, [groupByRequirementId, handledRequirementIds, memoriesByFingerprint, productRequirements]);
   const queueRequirements = useMemo(() => {
     const filteredRequirements = selectedProductCategories === null
       ? allQueueRequirements
@@ -312,7 +346,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
           approvedAssignmentByRequirementId.get(requirement.id),
           typeof requirement.mapping_fingerprint === "string"
             ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint)
-            : undefined
+            : undefined,
+          bulkApprovalSelectionByRequirementId.get(requirement.id),
+          productLabelsByRequirementId[requirement.id]
         )
       }))
       .sort((left, right) => {
@@ -326,14 +362,55 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
         return compared === 0 ? left.originalIndex - right.originalIndex : compared * direction;
       })
       .map(({ requirement }) => requirement);
-  }, [allQueueRequirements, approvedAssignmentByRequirementId, approvedRequirementIds, groupByRequirementId, preferredMemoryByFingerprint, productTableSort, selectedProductCategories]);
+  }, [allQueueRequirements, approvedAssignmentByRequirementId, approvedRequirementIds, bulkApprovalSelectionByRequirementId, groupByRequirementId, preferredMemoryByFingerprint, productLabelsByRequirementId, productTableSort, selectedProductCategories]);
   const queuePositionById = useMemo(
     () => new Map(allQueueRequirements.map((requirement, index) => [requirement.id, index + 1])),
     [allQueueRequirements]
   );
-  const selectedVisibleRequirements = queueRequirements.filter((requirement) => selectedRequirementIds.has(requirement.id));
-  const allVisibleRequirementsSelected = queueRequirements.length > 0
-    && selectedVisibleRequirements.length === queueRequirements.length;
+  const productLabelItems = useMemo(() => queueRequirements.flatMap((requirement) => {
+    const assignmentSnapshot = record(approvedAssignmentByRequirementId.get(requirement.id)?.product_snapshot);
+    if (typeof assignmentSnapshot.subtitle === "string" && assignmentSnapshot.subtitle.trim()) return [];
+    const productNumber = String(
+      assignmentSnapshot.productNumber
+      ?? bulkApprovalSelectionByRequirementId.get(requirement.id)?.productNumber
+      ?? ""
+    ).trim();
+    const loadedLabel = productLabelsByRequirementId[requirement.id];
+    if (
+      productNumber
+      && loadedLabel?.subtitle
+      && normalizeNrfNumber(loadedLabel.articleNumber) === normalizeNrfNumber(productNumber)
+    ) return [];
+    return productNumber
+      ? [{ requirementId: requirement.id, articleNumber: productNumber } satisfies AhlsellProductLabelItem]
+      : [];
+  }), [approvedAssignmentByRequirementId, bulkApprovalSelectionByRequirementId, productLabelsByRequirementId, queueRequirements]);
+  const productLabelRequestKey = JSON.stringify(productLabelItems);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const requestedItems = JSON.parse(productLabelRequestKey) as AhlsellProductLabelItem[];
+    if (requestedItems.length === 0) return () => controller.abort();
+    void fetchAhlsellProductLabels(projectId, requestedItems, controller.signal)
+      .then((labels) => {
+        if (!controller.signal.aborted) {
+          setProductLabelsByRequirementId((current) => ({ ...current, ...labels }));
+        }
+      })
+      .catch(() => {
+        // The saved product and NRF remain visible if Ahlsell is temporarily unavailable.
+      });
+    return () => controller.abort();
+  }, [projectId, productLabelRequestKey]);
+
+  const bulkEligibleVisibleRequirements = queueRequirements.filter((requirement) =>
+    bulkApprovalSelectionByRequirementId.has(requirement.id)
+  );
+  const selectedVisibleRequirements = bulkEligibleVisibleRequirements.filter((requirement) =>
+    selectedRequirementIds.has(requirement.id)
+  );
+  const allVisibleRequirementsSelected = bulkEligibleVisibleRequirements.length > 0
+    && selectedVisibleRequirements.length === bulkEligibleVisibleRequirements.length;
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
   const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
@@ -439,8 +516,85 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
 
   function toggleAllVisibleRequirements(selected: boolean) {
     setSelectedRequirementIds(selected
-      ? new Set(queueRequirements.map((requirement) => requirement.id))
+      ? new Set(bulkEligibleVisibleRequirements.map((requirement) => requirement.id))
       : new Set());
+  }
+
+  async function approveSelectedGreenProducts() {
+    const selectedProducts = selectedVisibleRequirements.flatMap((requirement) => {
+      const selection = bulkApprovalSelectionByRequirementId.get(requirement.id);
+      return selection ? [{ requirement, selection }] : [];
+    });
+    if (selectedProducts.length === 0 || bulkApproving) return;
+
+    setBulkApproving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const labelItems = selectedProducts.map(({ requirement, selection }) => ({
+        requirementId: requirement.id,
+        articleNumber: selection.productNumber
+      }));
+      const fetchedLabels = await fetchAhlsellProductLabels(projectId, labelItems);
+      const labels = { ...productLabelsByRequirementId, ...fetchedLabels };
+      setProductLabelsByRequirementId(labels);
+      const unresolved = selectedProducts.filter(({ requirement, selection }) => {
+        const label = labels[requirement.id];
+        return !label
+          || normalizeNrfNumber(label.articleNumber) !== normalizeNrfNumber(selection.productNumber)
+          || !label.subtitle.trim();
+      });
+      if (unresolved.length > 0) {
+        const posts = unresolved
+          .map(({ requirement }) => projectRequirementDetails(requirement).postNumber ?? requirement.id)
+          .slice(0, 4)
+          .join(", ");
+        throw new Error(`Ahlsells tekniska produkttext kunde inte hämtas för ${posts}. Inga produkter godkändes.`);
+      }
+
+      const approvedIds: string[] = [];
+      const failed: Array<{ requirementId: string; message: string }> = [];
+      for (const { requirement, selection } of selectedProducts) {
+        const label = labels[requirement.id];
+        if (!label) continue;
+        try {
+          const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              requirementId: requirement.id,
+              userApproved: true,
+              productName: label.productName || selection.productName,
+              productSubtitle: label.subtitle,
+              productNumber: selection.productNumber,
+              manufacturerName: label.manufacturer || selection.manufacturerName,
+              notes: "",
+              accessories: []
+            })
+          });
+          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+          if (!response.ok) throw new Error(payload?.error ?? "Produkten kunde inte godkännas.");
+          approvedIds.push(requirement.id);
+        } catch (approvalError) {
+          failed.push({
+            requirementId: requirement.id,
+            message: approvalError instanceof Error ? approvalError.message : "Produkten kunde inte godkännas."
+          });
+        }
+      }
+
+      await onReload();
+      setSelectedRequirementIds(new Set(failed.map((item) => item.requirementId)));
+      if (failed.length > 0) {
+        setError(`${approvedIds.length} produkter godkändes. ${failed.length} kunde inte sparas och är fortfarande markerade: ${failed[0].message}`);
+      } else {
+        setMessage(`${approvedIds.length} gröna produkter godkändes och sparades.`);
+      }
+    } catch (approvalError) {
+      setError(approvalError instanceof Error ? approvalError.message : "Produkterna kunde inte godkännas.");
+    } finally {
+      setBulkApproving(false);
+    }
   }
 
   function toggleProductTableSort(key: ProductTableSortKey) {
@@ -542,6 +696,16 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
               {selectedVisibleRequirements.length > 0 && <span className="rounded-full bg-flow-100 px-2.5 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length} valda</span>}
               <Button
                 type="button"
+                className="min-h-9 px-3 py-1.5 text-sm"
+                disabled={selectedVisibleRequirements.length === 0 || bulkApproving}
+                onClick={() => void approveSelectedGreenProducts()}
+                title="Godkänner endast gröna poster med ett otvetydigt tidigare val eller en exakt direktträff"
+              >
+                {bulkApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                {bulkApproving ? "Godkänner…" : `Godkänn valda gröna${selectedVisibleRequirements.length > 0 ? ` (${selectedVisibleRequirements.length})` : ""}`}
+              </Button>
+              <Button
+                type="button"
                 variant="secondary"
                 aria-expanded={productTableLayoutEditorOpen}
                 aria-controls="product-table-layout-editor"
@@ -628,7 +792,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
               <table className="w-full border-collapse text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
-                    <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label="Välj alla synliga produktposter" checked={allVisibleRequirementsSelected} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" /></th>
+                    <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label="Välj alla synliga gröna produktposter som kan godkännas direkt" checked={allVisibleRequirementsSelected} disabled={bulkEligibleVisibleRequirements.length === 0 || bulkApproving} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-40" /></th>
                     {visibleProductTableColumns.map((columnId) => {
                       const column = PRODUCT_TABLE_COLUMNS[columnId];
                       return (
@@ -664,9 +828,12 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                       group={groupByRequirementId.get(requirement.id) ?? "yellow"}
                       assignment={approvedAssignmentByRequirementId.get(requirement.id)}
                       memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
+                      bulkSelection={bulkApprovalSelectionByRequirementId.get(requirement.id)}
+                      productLabel={productLabelsByRequirementId[requirement.id]}
                       sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
                       columns={visibleProductTableColumns}
-                      selected={selectedRequirementIds.has(requirement.id)}
+                      selected={bulkApprovalSelectionByRequirementId.has(requirement.id) && selectedRequirementIds.has(requirement.id)}
+                      selectionDisabled={!bulkApprovalSelectionByRequirementId.has(requirement.id) || bulkApproving}
                       onSelectedChange={(selected) => toggleRequirementSelection(requirement.id, selected)}
                       onOpen={() => showRequirement(requirement.id)}
                     />
@@ -764,6 +931,11 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                       onDirtyChange={setProductCardDirty}
                       onSaved={async (successMessage) => {
                         setProductCardDirty(false);
+                        setSelectedRequirementIds((current) => {
+                          const next = new Set(current);
+                          next.delete(requirement.id);
+                          return next;
+                        });
                         setError(null);
                         setMessage(successMessage);
                         await onReload();
@@ -856,6 +1028,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
 }) {
   const currentSnapshot = record(assignment?.product_snapshot);
   const [productName, setProductName] = useState(String(currentSnapshot.name ?? ""));
+  const [productSubtitle, setProductSubtitle] = useState(String(currentSnapshot.subtitle ?? ""));
   const [productNumber, setProductNumber] = useState(String(currentSnapshot.productNumber ?? ""));
   const [manufacturerName, setManufacturerName] = useState(String(currentSnapshot.manufacturer ?? ""));
   const [accessories, setAccessories] = useState<ProductAccessoryDraft[]>(() => readProductAccessoryDrafts(currentSnapshot.accessories));
@@ -933,9 +1106,10 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     return () => controller.abort();
   }, [projectId, requirement.id]);
 
-  function selectionFromMemory(memory: Row): ProductSelection {
+  function selectionFromMemory(memory: Row, resolved?: { productName?: string; productSubtitle?: string }): ProductSelection {
     return {
-      productName: String(memory.product_name ?? ""),
+      productName: resolved?.productName || String(memory.product_name ?? ""),
+      productSubtitle: resolved?.productSubtitle || String(memory.product_subtitle ?? ""),
       productNumber: String(memory.product_number ?? ""),
       manufacturerName: String(memory.manufacturer_name ?? "")
     };
@@ -948,6 +1122,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       accessories
     });
     setProductName(selection.productName);
+    setProductSubtitle(selection.productSubtitle);
     setProductNumber(selection.productNumber);
     setManufacturerName(selection.manufacturerName);
     setAccessories(nextAccessories);
@@ -957,17 +1132,18 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setDraftNotice(notice);
   }
 
-  function applyMemory(memory: Row) {
+  function applyMemory(memory: Row, resolved?: { productName?: string; productSubtitle?: string }) {
     showSelection(
-      selectionFromMemory(memory),
+      selectionFromMemory(memory, resolved),
       `Tidigare godkänd produkt har valts för kontroll: ${String(memory.product_name)} · NRF-nummer ${String(memory.product_number)}.`
     );
     onError("");
   }
 
-  function applyAhlsellCandidate(candidate: AhlsellPublicCandidate) {
+  function applyAhlsellCandidate(candidate: AhlsellPublicCandidate, resolvedSubtitle = "") {
     showSelection({
       productName: candidate.productName,
+      productSubtitle: resolvedSubtitle,
       productNumber: candidate.articleNumber,
       manufacturerName: candidate.manufacturer
     }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`);
@@ -976,6 +1152,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
 
   function clearSelectedProduct() {
     setProductName("");
+    setProductSubtitle("");
     setProductNumber("");
     setManufacturerName("");
     setDraftNotice(null);
@@ -985,6 +1162,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   function changeProductNumber(nextProductNumber: string) {
     setProductNumber(nextProductNumber);
     setProductName("");
+    setProductSubtitle("");
     setDraftNotice(null);
     setHasUnapprovedChanges(true);
   }
@@ -1058,24 +1236,47 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       return;
     }
     const sameApprovedProduct = Boolean(normalizeNrfNumber(productNumber)) && normalizeNrfNumber(productNumber) === normalizeNrfNumber(String(currentSnapshot.productNumber ?? ""));
-    const chosen = {
-      productName: resolveDistributorProductName({
-        productName,
-        requirementName: requirement.value_text,
-        productNumber
-      }),
-      productNumber,
-      manufacturerName,
-      notes:
-        sameApprovedProduct && typeof currentSnapshot.notes === "string"
-          ? currentSnapshot.notes
-          : "",
-      accessories: productAccessoryPayload(selectedProductAccessories)
-    };
     setSaving(true);
     onSavingChange(true);
     onError("");
     try {
+      let resolvedProductName = productName;
+      let resolvedProductSubtitle = productSubtitle;
+      let resolvedManufacturerName = manufacturerName;
+      if (productNumber.trim() && !resolvedProductSubtitle.trim()) {
+        try {
+          const labels = await fetchAhlsellProductLabels(projectId, [{
+            requirementId: requirement.id,
+            articleNumber: productNumber
+          }]);
+          const label = labels[requirement.id];
+          if (label && normalizeNrfNumber(label.articleNumber) === normalizeNrfNumber(productNumber)) {
+            resolvedProductName = label.productName || resolvedProductName;
+            resolvedProductSubtitle = label.subtitle;
+            resolvedManufacturerName = label.manufacturer || resolvedManufacturerName;
+            setProductName(resolvedProductName);
+            setProductSubtitle(resolvedProductSubtitle);
+            setManufacturerName(resolvedManufacturerName);
+          }
+        } catch {
+          // Ahlsells produkttext förbättrar visningen men får inte blockera ett uttryckligt produktval.
+        }
+      }
+      const chosen = {
+        productName: resolveDistributorProductName({
+          productName: resolvedProductName,
+          requirementName: requirement.value_text,
+          productNumber
+        }),
+        productSubtitle: resolvedProductSubtitle,
+        productNumber,
+        manufacturerName: resolvedManufacturerName,
+        notes:
+          sameApprovedProduct && typeof currentSnapshot.notes === "string"
+            ? currentSnapshot.notes
+            : "",
+        accessories: productAccessoryPayload(selectedProductAccessories)
+      };
       const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1428,8 +1629,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   memories: Row[];
   memoriesAreExact: boolean;
   onClearSelection: () => void;
-  onUseCandidate: (candidate: AhlsellPublicCandidate) => void;
-  onUseMemory: (memory: Row) => void;
+  onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
+  onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string }) => void;
 }) {
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -1567,7 +1768,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   }, [candidateSubtitles, projectId, requirementId, subtitleRetryCount, visibleSubtitleRequest]);
 
   function selectCandidate(candidate: AhlsellPublicCandidate) {
-    onUseCandidate(candidate);
+    onUseCandidate(
+      candidate,
+      candidateSubtitles[normalizeNrfNumber(candidate.articleNumber)] ?? ""
+    );
   }
 
   function clearSelection() {
@@ -1651,7 +1855,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
               const articleNumber = String(memory.product_number);
               const productName = String(memory.product_name);
               const candidate = candidatesByArticle.get(normalizeNrfNumber(articleNumber));
-              const productSubtitle = candidateSubtitles[normalizeNrfNumber(articleNumber)] ?? candidate?.description;
+              const resolvedSubtitle = candidateSubtitles[normalizeNrfNumber(articleNumber)] ?? "";
+              const productSubtitle = resolvedSubtitle || candidate?.description;
               const isSelected = normalizeNrfNumber(articleNumber) === normalizeNrfNumber(selectedArticleNumber);
               return (
                 <article key={String(memory.id)} className={memoriesAreExact ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-amber-50/50 px-3 py-3 sm:px-4"}>
@@ -1674,7 +1879,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                         value={articleNumber}
                         checked={isSelected}
                         disabled={disabled}
-                        onChange={() => onUseMemory(memory)}
+                        onChange={() => onUseMemory(memory, {
+                          productName: candidate?.productName || productName,
+                          productSubtitle: resolvedSubtitle
+                        })}
                         aria-label={`Välj tidigare bekräftad produkt ${productName}, NRF-nummer ${articleNumber}`}
                         className="h-5 w-5 shrink-0 cursor-pointer border-ink-300 text-emerald-700 focus:ring-emerald-600 disabled:cursor-not-allowed"
                       />
@@ -1873,16 +2081,19 @@ function NonProductRequirementCard({ requirement, position, totalPosts, kind }: 
   );
 }
 
-function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, columns, position, approved, group, selected, onSelectedChange, onOpen }: {
+function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, productLabel, sourcePdfHref, columns, position, approved, group, selected, selectionDisabled, onSelectedChange, onOpen }: {
   requirement: Row;
   assignment?: Row;
   memory?: Row;
+  bulkSelection?: BulkProductApprovalSelection;
+  productLabel?: AhlsellProductLabel;
   sourcePdfHref: string | null;
   columns: ProductTableColumnId[];
   position: number;
   approved: boolean;
   group: AhlsellMatchGroup;
   selected: boolean;
+  selectionDisabled: boolean;
   onSelectedChange: (selected: boolean) => void;
   onOpen: () => void;
 }) {
@@ -1892,10 +2103,22 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, c
   const productSnapshot = record(assignment?.product_snapshot);
   const resolution = productRequirementResolution(requirement);
   const productName = String(productSnapshot.name ?? "").trim();
+  const productSubtitle = String(productSnapshot.subtitle ?? "").trim();
   const productNumber = String(productSnapshot.productNumber ?? "").trim();
   const memoryProductName = String(memory?.product_name ?? "").trim();
   const memoryProductNumber = String(memory?.product_number ?? "").trim();
+  const memoryProductSubtitle = String(memory?.product_subtitle ?? "").trim();
   const hasReusableMemory = !approved && Boolean(memoryProductName && memoryProductNumber);
+  const displayProductNumber = productNumber || bulkSelection?.productNumber || memoryProductNumber;
+  const matchingProductLabel = productLabel
+    && normalizeNrfNumber(productLabel.articleNumber) === normalizeNrfNumber(displayProductNumber)
+      ? productLabel
+      : undefined;
+  const selectedProductDisplayName = productSubtitle || matchingProductLabel?.subtitle || productName;
+  const suggestedProductDisplayName = matchingProductLabel?.subtitle
+    || memoryProductSubtitle
+    || bulkSelection?.productName
+    || memoryProductName;
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
   const rowClass = selected
     ? "bg-cyan-50 ring-1 ring-inset ring-flow-500"
@@ -1966,10 +2189,12 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, c
     if (columnId === "quantity") return <td key={columnId} className="whitespace-nowrap px-3 py-2.5 align-middle text-xs font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>;
     return (
       <td key={columnId} className="px-3 py-2.5 align-middle text-xs">
-        {productName ? (
-          <><span className="line-clamp-1 block font-bold text-ink-950">{productName}</span>{productNumber && <span className="block text-[10px] text-ink-600">NRF-nummer {productNumber}</span>}</>
+        {productName || productNumber ? (
+          <><span className="line-clamp-2 block font-bold leading-4 text-ink-950" title={productName || selectedProductDisplayName}>{selectedProductDisplayName || `NRF ${productNumber}`}</span>{productNumber && <span className="block text-[10px] text-ink-600">NRF-nummer {productNumber}</span>}</>
+        ) : bulkSelection ? (
+          <><span className="line-clamp-2 block font-bold leading-4 text-sky-950" title={bulkSelection.productName}>{suggestedProductDisplayName}</span><span className="block text-[10px] text-sky-700">{bulkSelection.source === "memory" ? "Tidigare val" : "Direktträff"} · NRF-nummer {bulkSelection.productNumber}</span></>
         ) : hasReusableMemory ? (
-          <><span className="line-clamp-1 block font-bold text-sky-900">{memoryProductName}</span><span className="block text-[10px] text-sky-700">Tidigare · NRF-nummer {memoryProductNumber}</span></>
+          <><span className="line-clamp-2 block font-bold leading-4 text-sky-900">{memoryProductSubtitle || memoryProductName}</span><span className="block text-[10px] text-sky-700">Tidigare · NRF-nummer {memoryProductNumber}</span></>
         ) : (
           <span className="italic text-ink-500">Ingen produkt vald</span>
         )}
@@ -1980,7 +2205,7 @@ function RequirementQueueRow({ requirement, assignment, memory, sourcePdfHref, c
   return (
     <tr className={`border-b border-ink-100 transition last:border-b-0 ${rowClass}`}>
       <td className="border-r border-ink-100 px-3 py-2.5 text-center">
-        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500" />
+        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} title={selectionDisabled ? "Endast gröna poster med ett otvetydigt produktval kan massgodkännas" : "Välj för gemensamt godkännande"} checked={selected} disabled={selectionDisabled} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-35" />
       </td>
       {columns.map(renderProductTableCell)}
       <td className="px-2 py-2 text-center align-middle">
@@ -1998,7 +2223,9 @@ function productTableSortValue(
   approved: boolean,
   group: AhlsellMatchGroup,
   assignment?: Row,
-  memory?: Row
+  memory?: Row,
+  bulkSelection?: BulkProductApprovalSelection,
+  productLabel?: AhlsellProductLabel
 ): string | number | null {
   if (key === "control") {
     if (productRequirementResolution(requirement)) return 4;
@@ -2012,11 +2239,22 @@ function productTableSortValue(
   if (key === "quantity") return projectRequirementQuantity(requirement.value_json).quantity;
 
   const productSnapshot = record(assignment?.product_snapshot);
+  const productSubtitle = String(productSnapshot.subtitle ?? "").trim();
   const productName = String(productSnapshot.name ?? "").trim();
-  if (productName) return productName;
+  const productNumber = String(productSnapshot.productNumber ?? "").trim();
+  const displayProductNumber = productNumber || bulkSelection?.productNumber || String(memory?.product_number ?? "").trim();
+  const resolvedLabel = productLabel
+    && normalizeNrfNumber(productLabel.articleNumber) === normalizeNrfNumber(displayProductNumber)
+      ? productLabel.subtitle
+      : "";
+  if (productSubtitle || resolvedLabel || productName) return productSubtitle || resolvedLabel || productName;
+  if (bulkSelection) return bulkSelection.productName;
+  const memoryProductSubtitle = String(memory?.product_subtitle ?? "").trim();
   const memoryProductName = String(memory?.product_name ?? "").trim();
   const memoryProductNumber = String(memory?.product_number ?? "").trim();
-  return !approved && memoryProductName && memoryProductNumber ? memoryProductName : null;
+  return !approved && memoryProductName && memoryProductNumber
+    ? memoryProductSubtitle || memoryProductName
+    : null;
 }
 
 function ProductSortHeader({ label, sortKey, sort, dragging, onSort, onDragStart, onDragEnd, onDragOver, onDrop, align = "left", className = "" }: {
@@ -2134,6 +2372,32 @@ function ProductFormInput({ id, label, value, onChange, required = false, option
       <input id={id} required={required} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-ink-50 text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
     </label>
   );
+}
+
+async function fetchAhlsellProductLabels(
+  projectId: string,
+  items: AhlsellProductLabelItem[],
+  signal?: AbortSignal
+) {
+  const labels: Record<string, AhlsellProductLabel> = {};
+  for (let index = 0; index < items.length; index += MAX_AHLSELL_PRODUCT_LABEL_ITEMS) {
+    const batch = items.slice(index, index + MAX_AHLSELL_PRODUCT_LABEL_ITEMS);
+    const response = await fetch(`/api/projects/${projectId}/ahlsell-product-labels`, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ items: batch }),
+      signal
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      labels?: Record<string, AhlsellProductLabel>;
+      error?: string;
+    } | null;
+    if (!response.ok) {
+      throw new Error(payload?.error ?? "Ahlsells produkttexter kunde inte hämtas.");
+    }
+    Object.assign(labels, payload?.labels ?? {});
+  }
+  return labels;
 }
 
 function formatAttachmentSize(value: number) {

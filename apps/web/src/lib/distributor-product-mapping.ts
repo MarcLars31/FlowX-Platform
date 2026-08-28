@@ -10,6 +10,7 @@ export type DistributorProductMappingInput = {
   requirementId: string;
   userApproved: true;
   productName: string;
+  productSubtitle: string;
   productNumber: string;
   manufacturerName: string;
   notes: string;
@@ -32,6 +33,7 @@ export function validateDistributorProductMapping(
     productName: value.productName,
     productNumber
   });
+  const productSubtitle = text(value.productSubtitle, 500);
   const manufacturerName = text(value.manufacturerName, 200);
   const notes = text(value.notes, 2000);
   if (!isUuid(requirementId)) return { error: "Ogiltigt krav-id." };
@@ -81,6 +83,7 @@ export function validateDistributorProductMapping(
       requirementId,
       userApproved: true,
       productName,
+      productSubtitle,
       productNumber,
       manufacturerName,
       notes,
@@ -96,10 +99,9 @@ export function resolveDistributorProductName({ productName, requirementName, pr
 }) {
   const selectedName = text(productName, 240);
   if (selectedName) return selectedName;
-  const pdfRequirementName = text(requirementName, 240);
-  if (pdfRequirementName) return pdfRequirementName;
   const nrfNumber = text(productNumber, 120);
-  return nrfNumber ? `NRF ${nrfNumber}` : "";
+  if (nrfNumber) return `NRF ${nrfNumber}`;
+  return text(requirementName, 240);
 }
 
 function text(value: unknown, maxLength: number) {
