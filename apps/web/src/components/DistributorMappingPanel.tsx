@@ -18,7 +18,7 @@ import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
-import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-card-candidates";
+import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "@/lib/product-card-candidates";
 import {
   accessoriesForSelectedProduct,
   newProductAccessoryDraft,
@@ -1417,7 +1417,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   );
 }
 
-const CANDIDATES_PER_PAGE = 6;
+const MAX_SUBTITLE_ITEMS_PER_REQUEST = 6;
 
 function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, onClearSelection, onUseCandidate, onUseMemory }: {
   projectId: string;
@@ -1436,17 +1436,6 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [candidateSubtitles, setCandidateSubtitles] = useState<Record<string, string | null>>({});
   const [subtitleRetry, setSubtitleRetry] = useState({ requestKey: "", count: 0 });
-  const candidateFilterKey = normalizeNrfNumber(selectedArticleNumber);
-  const [candidatePagination, setCandidatePagination] = useState({ filterKey: candidateFilterKey, page: 1 });
-  const candidatePage = candidatePagination.filterKey === candidateFilterKey ? candidatePagination.page : 1;
-
-  function setCandidatePage(update: number | ((page: number) => number)) {
-    setCandidatePagination((current) => {
-      const currentPage = current.filterKey === candidateFilterKey ? current.page : 1;
-      const nextPage = typeof update === "function" ? update(currentPage) : update;
-      return { filterKey: candidateFilterKey, page: nextPage };
-    });
-  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1508,12 +1497,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const totalResultCount = usableMemories.length + candidates.length;
   const filteredResultCount = filteredMemories.length + filteredCandidates.length;
   const hasNrfFilter = Boolean(normalizeNrfNumber(selectedArticleNumber));
-  const pageCount = Math.max(1, Math.ceil(filteredCandidates.length / CANDIDATES_PER_PAGE));
-  const activeCandidatePage = Math.min(candidatePage, pageCount);
-  const visibleCandidates = filteredCandidates.slice(
-    (activeCandidatePage - 1) * CANDIDATES_PER_PAGE,
-    activeCandidatePage * CANDIDATES_PER_PAGE
-  );
+  const visibleCandidates = topAhlsellCandidates(filteredCandidates);
   const visibleSubtitleCandidates = [
     ...filteredMemories.flatMap((memory) => {
       const candidate = candidatesByArticle.get(normalizeNrfNumber(String(memory.product_number)));
@@ -1538,7 +1522,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
     }>;
     const pendingItems = visibleItems.filter((item) =>
       !Object.prototype.hasOwnProperty.call(candidateSubtitles, item.articleNumber)
-    ).slice(0, CANDIDATES_PER_PAGE);
+    ).slice(0, MAX_SUBTITLE_ITEMS_PER_REQUEST);
     if (pendingItems.length === 0) return;
 
     const controller = new AbortController();
@@ -1583,12 +1567,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   }, [candidateSubtitles, projectId, requirementId, subtitleRetryCount, visibleSubtitleRequest]);
 
   function selectCandidate(candidate: AhlsellPublicCandidate) {
-    setCandidatePage(1);
     onUseCandidate(candidate);
   }
 
   function clearSelection() {
-    setCandidatePage(1);
     onClearSelection();
   }
 
@@ -1601,7 +1583,13 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
             <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Välj en produkt från Ahlsell</h4>
           </div>
           <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
-            {!loadingCatalog && <span className="text-ink-600">{filteredResultCount} {filteredResultCount === 1 ? "träff" : "träffar"}</span>}
+            {!loadingCatalog && (
+              <span className="text-ink-600">
+                {filteredCandidates.length > visibleCandidates.length
+                  ? `Visar ${visibleCandidates.length} bästa av ${filteredCandidates.length} Ahlsell-träffar`
+                  : `${filteredResultCount} ${filteredResultCount === 1 ? "träff" : "träffar"}`}
+              </span>
+            )}
             {hasNrfFilter && (
               <button type="button" className="font-bold text-flow-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600" onClick={clearSelection}>
                 Rensa NRF
@@ -1627,7 +1615,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 
       {!loadingCatalog && !catalogError && catalogResult?.truncated && (
         <div className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-950 sm:px-4">
-          Ahlsell uppgav {catalogResult.total} träffar. Scipx visar de {catalogResult.candidates.length} första; förfina sökningen för en fullständig och relevant lista.
+          Ahlsell uppgav {catalogResult.total} träffar. Scipx visar endast de tre högst rankade Ahlsell-resultaten.
         </div>
       )}
 
@@ -1758,17 +1746,6 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
               </div>
             </article>
           );})}
-        </div>
-      )}
-
-      {pageCount > 1 && (
-        <div className="flex flex-col items-center justify-between gap-2 border-t border-ink-200 bg-ink-50 px-3 py-2 sm:flex-row sm:px-4">
-          <p className="text-xs font-bold text-ink-700">Visar {(activeCandidatePage - 1) * CANDIDATES_PER_PAGE + 1}–{Math.min(activeCandidatePage * CANDIDATES_PER_PAGE, filteredCandidates.length)} av {filteredCandidates.length}</p>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="secondary" className="min-h-8 px-2 py-1 text-xs" disabled={activeCandidatePage === 1} onClick={() => setCandidatePage((page) => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Föregående</Button>
-            <span className="min-w-16 text-center text-xs font-bold text-ink-700">{activeCandidatePage} av {pageCount}</span>
-            <Button type="button" variant="secondary" className="min-h-8 px-2 py-1 text-xs" disabled={activeCandidatePage === pageCount} onClick={() => setCandidatePage((page) => Math.min(pageCount, page + 1))}>Nästa <ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
-          </div>
         </div>
       )}
 
