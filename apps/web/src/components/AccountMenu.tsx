@@ -2,18 +2,31 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { LogOut, Settings, UserRound } from "lucide-react";
+import {
+  Building2,
+  LoaderCircle,
+  LogOut,
+  Settings,
+  UserRound
+} from "lucide-react";
+import type { OrganizationOption } from "@/types/organization";
 
 export function AccountMenu({
   userName,
   userEmail,
-  roleLabel
+  roleLabel,
+  activeOrganizationId,
+  organizationOptions = []
 }: {
   userName: string;
   userEmail?: string;
   roleLabel?: string;
+  activeOrganizationId?: string;
+  organizationOptions?: readonly OrganizationOption[];
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const initials =
     userName
@@ -45,6 +58,36 @@ export function AccountMenu({
     };
   }, [isOpen]);
 
+  async function switchOrganization(organizationId: string) {
+    if (!organizationId || organizationId === activeOrganizationId) return;
+
+    setIsSwitching(true);
+    setSwitchError(null);
+
+    try {
+      const response = await fetch("/api/organizations/context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId })
+      });
+
+      if (!response.ok) {
+        throw new Error("Det gick inte att byta organisation.");
+      }
+
+      setIsOpen(false);
+      window.location.assign("/dashboard");
+    } catch (error) {
+      setSwitchError(
+        error instanceof Error
+          ? error.message
+          : "Det gick inte att byta organisation."
+      );
+    } finally {
+      setIsSwitching(false);
+    }
+  }
+
   return (
     <div ref={menuRef} className="relative">
       <button
@@ -73,6 +116,49 @@ export function AccountMenu({
               <p className="mt-2 text-xs font-medium text-flow-700">{roleLabel}</p>
             )}
           </div>
+
+          {organizationOptions.length > 1 && (
+            <div className="border-b border-ink-100 px-4 py-3">
+              <label
+                htmlFor="account-organization"
+                className="flex items-center gap-2 text-xs font-semibold text-ink-700"
+              >
+                <Building2
+                  className="h-4 w-4 text-flow-700"
+                  aria-hidden="true"
+                />
+                Organisation
+              </label>
+              <div className="relative mt-2">
+                <select
+                  id="account-organization"
+                  value={activeOrganizationId}
+                  disabled={isSwitching}
+                  onChange={(event) =>
+                    void switchOrganization(event.target.value)
+                  }
+                  className="min-h-10 w-full appearance-none rounded-md border border-ink-200 bg-white px-3 pr-9 text-sm font-medium text-ink-900 outline-none transition focus:border-flow-500 focus:ring-2 focus:ring-flow-100 disabled:cursor-wait disabled:bg-ink-50"
+                >
+                  {organizationOptions.map((organization) => (
+                    <option key={organization.id} value={organization.id}>
+                      {organization.name}
+                    </option>
+                  ))}
+                </select>
+                {isSwitching && (
+                  <LoaderCircle
+                    className="pointer-events-none absolute right-3 top-3 h-4 w-4 animate-spin text-flow-700"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+              {switchError && (
+                <p role="alert" className="mt-2 text-xs text-rose-700">
+                  {switchError}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="p-1.5">
             <Link

@@ -3,6 +3,7 @@ import { BarChart3, FolderKanban, Handshake, History, Home } from "lucide-react"
 import { AccountMenu } from "@/components/AccountMenu";
 import { Badge } from "@/components/Badge";
 import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
+import type { OrganizationOption } from "@/types/organization";
 
 const mobileIcons = {
   home: Home,
@@ -15,12 +16,16 @@ const mobileIcons = {
 export function Topbar({
   navigation,
   organizationName = "Scipx",
+  activeOrganizationId,
+  organizationOptions,
   userName = "Platform administrator",
   userEmail,
   roleLabel = "Internal administration"
 }: {
   navigation?: readonly OrganizationNavigationItem[];
   organizationName?: string;
+  activeOrganizationId?: string;
+  organizationOptions?: readonly OrganizationOption[];
   userName?: string;
   userEmail?: string;
   roleLabel?: string;
@@ -44,6 +49,8 @@ export function Topbar({
             userName={userName}
             userEmail={userEmail}
             roleLabel={roleLabel}
+            activeOrganizationId={activeOrganizationId}
+            organizationOptions={organizationOptions}
           />
         </div>
       </div>

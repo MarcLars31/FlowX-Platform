@@ -1,11 +1,14 @@
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
+import type { OrganizationOption } from "@/types/organization";
 
 export function AppShell({
   children,
   navigation,
   organizationName,
+  activeOrganizationId,
+  organizationOptions,
   userName,
   userEmail,
   roleLabel
@@ -13,6 +16,8 @@ export function AppShell({
   children: React.ReactNode;
   navigation?: readonly OrganizationNavigationItem[];
   organizationName?: string;
+  activeOrganizationId?: string;
+  organizationOptions?: readonly OrganizationOption[];
   userName?: string;
   userEmail?: string;
   roleLabel?: string;
@@ -30,6 +35,8 @@ export function AppShell({
         <Topbar
           navigation={navigation}
           organizationName={organizationName}
+          activeOrganizationId={activeOrganizationId}
+          organizationOptions={organizationOptions}
           userName={userName}
           userEmail={userEmail}
           roleLabel={roleLabel}

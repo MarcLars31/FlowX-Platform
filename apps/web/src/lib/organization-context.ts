@@ -6,7 +6,8 @@ import { selectUserRows } from "@/lib/supabase-user-rest";
 import type {
   Organization,
   OrganizationContext,
-  OrganizationMembership
+  OrganizationMembership,
+  OrganizationOption
 } from "@/types/organization";
 import type { PermissionKey } from "@/lib/organization-rbac";
 
@@ -89,6 +90,31 @@ export async function getOrganizationContext(): Promise<OrganizationContext | nu
         isPermissionKey(key)
       )
   };
+}
+
+export async function getOrganizationOptions(
+  userId: string
+): Promise<OrganizationOption[]> {
+  const memberships = await selectUserRows<
+    Pick<OrganizationMembership, "organization_id">
+  >("organization_members", {
+    select: "organization_id",
+    user_id: `eq.${userId}`,
+    status: "eq.active"
+  });
+  const organizationIds = [
+    ...new Set(memberships.map((membership) => membership.organization_id))
+  ];
+
+  if (organizationIds.length === 0) return [];
+
+  return selectUserRows<OrganizationOption>("organizations", {
+    select: "id,name",
+    id: `in.(${organizationIds.join(",")})`,
+    status: "eq.active",
+    deleted_at: "is.null",
+    order: "name.asc"
+  });
 }
 
 export function organizationHasAnyPermission(

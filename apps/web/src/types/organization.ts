@@ -65,6 +65,8 @@ export type OrganizationContext = {
   permissions: PermissionKey[];
 };
 
+export type OrganizationOption = Pick<Organization, "id" | "name">;
+
 export type Team = {
   id: string;
   organization_id: string;

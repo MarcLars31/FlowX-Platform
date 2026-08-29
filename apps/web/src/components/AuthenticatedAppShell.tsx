@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { getOrganizationContext } from "@/lib/organization-context";
+import {
+  getOrganizationContext,
+  getOrganizationOptions
+} from "@/lib/organization-context";
 import {
   getOrganizationAccessStatus,
   organizationAccessSnapshot
@@ -34,7 +37,10 @@ export async function AuthenticatedAppShell({
     );
   }
 
-  const context = await getOrganizationContext();
+  const [context, organizationOptions] = await Promise.all([
+    getOrganizationContext(),
+    getOrganizationOptions(user.id)
+  ]);
   if (!context) {
     return (
       <main className="mx-auto flex min-h-screen max-w-xl items-center px-6">
@@ -65,6 +71,8 @@ export async function AuthenticatedAppShell({
     <AppShell
       navigation={filterOrganizationNavigation(context.permissions)}
       organizationName={context.organization.name}
+      activeOrganizationId={context.organization.id}
+      organizationOptions={organizationOptions}
       userName={userName}
       userEmail={user.email}
       roleLabel={formatRole(context.membership.role_slug)}
