@@ -155,7 +155,10 @@ function CrmDashboard({
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.5fr)]">
-        <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
+        <section
+          id="project-opportunities"
+          className="scroll-mt-24 overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm"
+        >
           <PanelHeader
             title="Projektmöjligheter"
             description="Kundprojekt, teknisk fas och nästa konkreta arbetssteg."
@@ -255,7 +258,10 @@ function CrmDashboard({
 
 function FollowUpPanel({ followUps }: { followUps: CommercialProjectInsight[] }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
+    <section
+      id="follow-ups"
+      className="scroll-mt-24 overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm"
+    >
       <PanelHeader
         title="Behöver följas upp"
         description="Projekt med passerad leveransdag, lång inaktivitet eller kvarvarande produktarbete."

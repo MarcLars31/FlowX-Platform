@@ -2,13 +2,11 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
-  BarChart3,
   BriefcaseBusiness,
   CalendarClock,
   CheckCircle2,
   FolderOpen,
   Handshake,
-  History,
   PackageCheck,
   Plus,
   UserRound
@@ -64,6 +62,9 @@ export default async function DashboardPage() {
     data.hasRequirementInsights && data.hasProductSelectionInsights;
   const openProjects = insights.projects.filter((project) => project.isActive);
   const followUps = openProjects.filter((project) => project.needsFollowUp);
+  const projectsWithRemainingProducts = openProjects.filter(
+    (project) => project.remainingProductRequirements > 0
+  );
   const remainingProductPosts = openProjects.reduce(
     (total, project) => total + project.remainingProductRequirements,
     0
@@ -119,6 +120,11 @@ export default async function DashboardPage() {
           detail="prioriterade nästa steg"
           icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
           tone={followUps.length > 0 ? "amber" : "green"}
+          href={
+            followUps.length === 1
+              ? projectWorkHref(followUps[0])
+              : "/crm#follow-ups"
+          }
         />
         <SummaryMetric
           label="Produktposter kvar"
@@ -126,6 +132,11 @@ export default async function DashboardPage() {
           detail={productInsightsAvailable ? "kvar att hantera i öppna projekt" : "produktdata är inte tillgänglig för din roll"}
           icon={<PackageCheck className="h-5 w-5" aria-hidden="true" />}
           tone="blue"
+          href={
+            projectsWithRemainingProducts.length === 1
+              ? `/projects/${projectsWithRemainingProducts[0].id}?step=products`
+              : "/projects"
+          }
         />
         <SummaryMetric
           label="Nya denna månad"
@@ -133,6 +144,7 @@ export default async function DashboardPage() {
           detail="öppna projekt skapade i Scipx"
           icon={<CalendarClock className="h-5 w-5" aria-hidden="true" />}
           tone="green"
+          href="/crm#project-opportunities"
         />
         </section>
       )}
@@ -247,14 +259,6 @@ export default async function DashboardPage() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-cyan-900/10 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-ink-950">Snabbvägar</h2>
-            <nav className="mt-3 grid gap-2" aria-label="CRM-snabbvägar">
-              <QuickLink href="/crm" icon={<BriefcaseBusiness aria-hidden="true" />} label="Hela CRM" />
-              <QuickLink href="/statistics" icon={<BarChart3 aria-hidden="true" />} label="Statistik" />
-              <QuickLink href="/project-history" icon={<History aria-hidden="true" />} label="Projekthistorik" />
-            </nav>
-          </section>
           </aside>
         )}
       </div>
@@ -402,21 +406,6 @@ function EmptyProjects({
         </Link>
       )}
     </div>
-  );
-}
-
-function QuickLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="group flex min-h-11 items-center gap-3 rounded-xl border border-ink-200 px-3 text-sm font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800"
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-50 text-ink-500 transition group-hover:bg-white group-hover:text-flow-700 [&_svg]:h-4 [&_svg]:w-4">
-        {icon}
-      </span>
-      <span className="flex-1">{label}</span>
-      <ArrowRight className="h-4 w-4 text-ink-400 transition group-hover:translate-x-1 group-hover:text-flow-700" aria-hidden="true" />
-    </Link>
   );
 }
 
