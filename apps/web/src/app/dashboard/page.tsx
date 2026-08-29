@@ -1,274 +1,428 @@
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowRight,
-  Check,
+  BarChart3,
+  BriefcaseBusiness,
+  CalendarClock,
   CheckCircle2,
-  FileSpreadsheet,
-  FileText,
-  FileUp,
   FolderOpen,
+  Handshake,
+  History,
   PackageCheck,
-  ScanText
+  Plus,
+  UserRound
 } from "lucide-react";
+import { Badge } from "@/components/Badge";
+import { ScipxPageHeader } from "@/components/ScipxPageHeader";
+import {
+  loadCommercialProjectData,
+  ownerNameById,
+  type CommercialProjectData
+} from "@/lib/commercial-project-data";
+import {
+  buildCommercialProjectInsights,
+  type CommercialProjectInsight,
+  type CommercialTechnicalPhaseKey
+} from "@/lib/commercial-project-insights";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { selectUserRows } from "@/lib/supabase-user-rest";
-import type { OrganizationProject } from "@/types/organization";
+
+const PROJECT_VIEW_PERMISSIONS = [
+  "project.view_own",
+  "project.view_team",
+  "project.view_organization",
+  "project.view_all"
+] as const;
+
+const EMPTY_PROJECT_DATA: CommercialProjectData = {
+  projects: [],
+  requirements: [],
+  assignments: [],
+  profiles: [],
+  hasRequirementInsights: false,
+  hasProductSelectionInsights: false
+};
 
 export default async function DashboardPage() {
   const context = await getOrganizationContext();
   if (!context) return null;
 
-  const canViewProjects = context.permissions.some((permission) =>
-    [
-      "project.view_own",
-      "project.view_team",
-      "project.view_organization",
-      "project.view_all"
-    ].includes(permission)
+  const canViewProjects = PROJECT_VIEW_PERMISSIONS.some((permission) =>
+    context.permissions.includes(permission)
   );
   const canCreateProject = context.permissions.includes("project.create");
-  const availableProjects = canViewProjects
-    ? await selectUserRows<OrganizationProject>("projects", {
-        select: "id,name,project_number,status,current_stage,updated_at,organization_id,access_level,created_at",
-        organization_id: `eq.${context.organization.id}`,
-        deleted_at: "is.null",
-        order: "updated_at.desc",
-        limit: "50"
-      })
-    : [];
-  const openProjects = availableProjects.filter(isOpenProject);
-  const latestOpenProject = openProjects[0];
+  const data = canViewProjects
+    ? await loadCommercialProjectData(context, { projectScope: "open" })
+    : EMPTY_PROJECT_DATA;
+  const insights = buildCommercialProjectInsights({
+    projects: data.projects,
+    requirements: data.hasProductSelectionInsights ? data.requirements : [],
+    assignments: data.assignments
+  });
+  const ownerNames = ownerNameById(data.profiles);
+  const productInsightsAvailable =
+    data.hasRequirementInsights && data.hasProductSelectionInsights;
+  const openProjects = insights.projects.filter((project) => project.isActive);
+  const followUps = openProjects.filter((project) => project.needsFollowUp);
+  const remainingProductPosts = openProjects.reduce(
+    (total, project) => total + project.remainingProductRequirements,
+    0
+  );
 
   return (
-    <div className="scipx-dashboard-frame mx-auto max-w-[1500px]">
-      <section className="relative isolate h-full overflow-hidden rounded-[28px] border border-cyan-300/20 bg-[#03162d] text-white shadow-[0_24px_70px_rgba(2,17,38,0.25)]">
-        <BlueprintBackdrop />
-        <div className="relative grid h-full lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)]">
-          <div className="scipx-dashboard-content flex h-full flex-col justify-center p-5 sm:p-7 lg:p-8 xl:p-10 2xl:p-12">
+    <div className="mx-auto max-w-[1500px] space-y-6">
+      <ScipxPageHeader
+        eyebrow="CRM-start"
+        title={`Öppna projekt i ${context.organization.name}`}
+        description="Få överblick över pågående kundprojekt, prioritera nästa steg och starta ett nytt projekt direkt härifrån."
+        icon={<Handshake aria-hidden="true" />}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+          {canViewProjects && (
+            <Link
+              href="/crm"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/15"
+            >
+              <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />
+              Öppna hela CRM
+            </Link>
+          )}
+          {canCreateProject && (
+            <Link
+              href="/projects/new"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-sm font-black text-[#03162d] transition hover:bg-cyan-300"
+            >
+              <Plus className="h-5 w-5" aria-hidden="true" />
+              Starta nytt projekt
+            </Link>
+          )}
+        </div>
+      </ScipxPageHeader>
+
+      {canViewProjects && (
+        <section aria-label="CRM-översikt" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryMetric
+          label="Öppna projekt"
+          value={formatNumber(openProjects.length)}
+          detail="pågående kundprojekt"
+          icon={<FolderOpen className="h-5 w-5" aria-hidden="true" />}
+          tone="cyan"
+        />
+        <SummaryMetric
+          label="Behöver följas upp"
+          value={formatNumber(followUps.length)}
+          detail="prioriterade nästa steg"
+          icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
+          tone={followUps.length > 0 ? "amber" : "green"}
+        />
+        <SummaryMetric
+          label="Produktposter kvar"
+          value={productInsightsAvailable ? formatNumber(remainingProductPosts) : "–"}
+          detail={productInsightsAvailable ? "kvar att hantera i öppna projekt" : "produktdata är inte tillgänglig för din roll"}
+          icon={<PackageCheck className="h-5 w-5" aria-hidden="true" />}
+          tone="blue"
+        />
+        <SummaryMetric
+          label="Nya denna månad"
+          value={formatNumber(insights.createdThisMonth)}
+          detail="öppna projekt skapade i Scipx"
+          icon={<CalendarClock className="h-5 w-5" aria-hidden="true" />}
+          tone="green"
+        />
+        </section>
+      )}
+
+      <div className={canViewProjects ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]" : ""}>
+        <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-ink-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
-              <BrandLockup />
-              <p className="scipx-dashboard-eyebrow mt-5 max-w-2xl text-xs font-bold uppercase tracking-[0.2em] text-cyan-300 sm:text-sm">
-                Från PDF till produktval
-              </p>
-              <h1 className="mt-3 max-w-3xl text-3xl font-black leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl xl:text-[2.9rem]">
-                Ladda upp PDF.
-                <span className="block text-cyan-300">Scipx ordnar resten.</span>
-              </h1>
-              <p className="scipx-dashboard-description mt-4 max-w-xl text-sm leading-6 text-slate-200 sm:text-base sm:leading-7">
-                Scipx läser postnummer, specifikationer och mängder. Ni väljer
-                rätt Ahlsell-artiklar och laddar ned sammanställningen i Excel
-                eller PDF.
-              </p>
-
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-                {canCreateProject && (
-                  <Link
-                    href="/projects/new"
-                    className="group inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-cyan-400 px-6 text-base font-extrabold text-[#03162d] shadow-[0_0_28px_rgba(34,211,238,0.28)] transition hover:bg-cyan-300 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-cyan-200"
-                  >
-                    <FileUp className="h-5 w-5" aria-hidden="true" />
-                    Ladda upp teknisk beskrivning
-                    <ArrowRight
-                      className="h-5 w-5 transition group-hover:translate-x-1"
-                      aria-hidden="true"
-                    />
-                  </Link>
-                )}
-                {canViewProjects && (
-                  <Link
-                    href="/projects"
-                    className="scipx-dashboard-secondary inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-5 text-base font-bold text-white backdrop-blur transition hover:border-cyan-300/70 hover:bg-white/[0.12] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-cyan-200"
-                  >
-                    <FolderOpen className="h-5 w-5" aria-hidden="true" />
-                    Öppna tidigare projekt
-                  </Link>
-                )}
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-black text-ink-950">Öppna projekt</h2>
+                <Badge tone="teal">{formatCount(openProjects.length, "projekt", "projekt")}</Badge>
               </div>
-              {!latestOpenProject && (
-                <p className="scipx-dashboard-helper mt-3 flex items-center gap-2 text-sm font-medium text-cyan-100">
-                  <CheckCircle2 className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-                  Börja här – projektet skapas automatiskt från din PDF
-                </p>
-              )}
+              <p className="mt-1 text-sm text-ink-500">Projekt som fortfarande är i arbete, prioriterade efter vad som behöver göras.</p>
             </div>
-
-            {latestOpenProject ? (
-              <OpenProjectCard project={latestOpenProject} total={openProjects.length} />
-            ) : (
-              <div className="scipx-dashboard-capabilities mt-8 grid max-w-2xl grid-cols-2 gap-x-4 gap-y-5 border-t border-cyan-200/20 pt-5 sm:grid-cols-4">
-                <Capability icon={<ScanText />} label="Texten läses" />
-                <Capability icon={<FileText />} label="Poster hittas" />
-                <Capability icon={<PackageCheck />} label="Produkt väljs" />
-                <Capability icon={<FileSpreadsheet />} label="Underlag skapas" />
-              </div>
+            {canViewProjects && (
+              <Link
+                href="/projects"
+                className="inline-flex min-h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-ink-200 px-3 text-sm font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800 sm:self-auto"
+              >
+                Visa alla projekt
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
             )}
           </div>
 
-          <div className="scipx-dashboard-visual relative items-center justify-center border-t border-cyan-200/15 bg-[#021227]/35 p-6 sm:p-8 lg:border-l lg:border-t-0 xl:p-10">
-            <div className="relative w-full max-w-[570px]">
-              <div className="absolute -inset-10 rounded-full bg-cyan-400/10 blur-3xl" />
-              <div className="relative grid gap-4 sm:grid-cols-[minmax(135px,0.92fr)_40px_minmax(155px,1.08fr)] sm:items-center">
-                <DocumentPreview />
-                <div className="hidden justify-center sm:flex" aria-hidden="true">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-200/50 bg-cyan-400/15 text-cyan-200 shadow-[0_0_30px_rgba(34,211,238,0.38)]">
-                    <ArrowRight className="h-5 w-5" />
-                  </span>
-                </div>
-                <ProductPreview />
+          {!canViewProjects ? (
+            <EmptyProjects
+              title="Projektåtkomst saknas"
+              detail="Din roll har inte behörighet att se organisationens projekt."
+            />
+          ) : openProjects.length === 0 ? (
+            <EmptyProjects
+              title="Inga öppna projekt"
+              detail="Starta ett nytt kundprojekt så visas det automatiskt på CRM-starten."
+              canCreateProject={canCreateProject}
+            />
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-ink-200 bg-ink-50 text-xs font-bold uppercase tracking-[0.06em] text-ink-500">
+                    <tr>
+                      <th className="px-5 py-3.5 sm:px-6">Kund och projekt</th>
+                      <th className="px-4 py-3.5">Fas</th>
+                      <th className="px-4 py-3.5">Produktval</th>
+                      <th className="px-4 py-3.5">Uppdaterat</th>
+                      <th className="px-4 py-3.5">Ansvarig</th>
+                      <th className="px-5 py-3.5 text-right sm:px-6">Öppna</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink-100">
+                    {openProjects.slice(0, 12).map((project) => (
+                      <OpenProjectRow
+                        key={project.id}
+                        project={project}
+                        ownerName={project.ownerUserId ? ownerNames.get(project.ownerUserId) : undefined}
+                        productInsightsAvailable={productInsightsAvailable}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
+              {openProjects.length > 12 && (
+                <div className="border-t border-ink-100 bg-ink-50 px-5 py-3 text-sm text-ink-600 sm:px-6">
+                  De 12 högst prioriterade projekten visas här. Alla {openProjects.length} öppna projekt finns under Projekt.
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
+        {canViewProjects && (
+          <aside className="space-y-6">
+          <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
+            <div className="border-b border-cyan-300/15 bg-[#06213d] px-5 py-4 text-white">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-bold">Nästa att göra</h2>
+                <Badge tone={followUps.length > 0 ? "amber" : "green"}>
+                  {followUps.length > 0 ? `${followUps.length} att följa upp` : "I fas"}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-slate-300">De viktigaste öppna projektstegen just nu.</p>
             </div>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
+            {followUps.length === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" aria-hidden="true" />
+                <p className="mt-3 font-bold text-ink-900">Inget akut att följa upp</p>
+                <p className="mt-1 text-sm leading-6 text-ink-500">Öppna projekt har inga prioriterade varningar.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-ink-100">
+                {followUps.slice(0, 5).map((project) => (
+                  <Link
+                    key={project.id}
+                    href={projectWorkHref(project)}
+                    className="group block px-5 py-4 transition hover:bg-amber-50/50"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate font-bold text-ink-950">{project.name}</span>
+                        <span className="mt-1 block text-sm leading-5 text-ink-600">{project.nextAction}</span>
+                      </span>
+                      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-ink-400 transition group-hover:translate-x-1 group-hover:text-flow-700" aria-hidden="true" />
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {project.isOverdue && <Badge tone="rose">Passerad leverans</Badge>}
+                      {project.isStale && <Badge tone="amber">Ingen ändring på 14+ dagar</Badge>}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
 
-function OpenProjectCard({ project, total }: { project: OrganizationProject; total: number }) {
-  const continuation = projectContinuation(project);
-  return (
-    <section className="scipx-dashboard-open-project mt-4 max-w-2xl rounded-xl border-2 border-cyan-300 bg-white px-4 py-3 text-[#10233d] shadow-[0_12px_28px_rgba(0,0,0,0.2)]">
-      <div className="flex items-center gap-3">
-        <span className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-emerald-500" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-[#007598]">Pågående projekt</span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">{total} öppna</span>
-          </div>
-          <p className="mt-0.5 truncate text-sm font-black sm:text-base">{project.name}</p>
-          <p className="text-xs font-semibold text-slate-600">Nästa: {continuation.label}</p>
-        </div>
-        <Link href={continuation.href} className="group inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#06213d] px-4 text-sm font-black text-white transition hover:bg-[#0a3156] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-cyan-500">
-          Fortsätt
-          <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" aria-hidden="true" />
-        </Link>
-        {total > 1 && <Link href="/projects" className="hidden shrink-0 text-xs font-black text-[#007598] underline decoration-2 underline-offset-4 hover:text-[#004f70] sm:inline">Visa alla</Link>}
-      </div>
-    </section>
-  );
-}
-
-function isOpenProject(project: OrganizationProject) {
-  return project.current_stage !== "completed" && !["completed", "archived"].includes(project.status);
-}
-
-function projectContinuation(project: OrganizationProject) {
-  const stage = project.current_stage ?? "documents";
-  if (["setup", "documents", "technical_description"].includes(stage)) {
-    return { href: `/projects/${project.id}?step=documents`, label: "Ladda upp PDF" };
-  }
-  if (["requirements_review", "analysis", "product_matching"].includes(stage)) {
-    return { href: `/projects/${project.id}?step=products`, label: "Välj produkter" };
-  }
-  return { href: `/projects/${project.id}`, label: "Visa sammanfattningen" };
-}
-
-function BrandLockup() {
-  return (
-    <div className="inline-flex items-center" aria-label="Scipx">
-      <span className="text-4xl font-black tracking-[0.02em] text-white sm:text-6xl">SCIP</span>
-      <span className="-ml-1 text-5xl font-black leading-none text-cyan-300 sm:text-7xl">X</span>
-    </div>
-  );
-}
-
-function BlueprintBackdrop() {
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(66,173,217,0.075)_1px,transparent_1px),linear-gradient(90deg,rgba(66,173,217,0.075)_1px,transparent_1px)] bg-[size:32px_32px]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_48%_48%,rgba(20,180,225,0.16),transparent_34%),linear-gradient(90deg,rgba(3,22,45,0.05),rgba(3,22,45,0.66))]" />
-      <svg className="absolute -left-20 top-5 h-72 w-[520px] text-cyan-200/15" viewBox="0 0 520 280" fill="none">
-        <path d="M5 45h148v54h70v66h94v-38h170" stroke="currentColor" strokeWidth="3" />
-        <path d="M4 52h141v54h70v66h110v-38h162" stroke="currentColor" />
-        <circle cx="153" cy="102" r="16" stroke="currentColor" strokeWidth="2" />
-        <circle cx="218" cy="168" r="15" stroke="currentColor" strokeWidth="2" />
-        <path d="M317 116v36M337 116v36M327 152v40" stroke="currentColor" />
-        <path d="M359 192h-65M350 200h-47" stroke="currentColor" />
-      </svg>
-      <svg className="absolute -bottom-12 right-0 h-64 w-[620px] text-cyan-200/10" viewBox="0 0 620 250" fill="none">
-        <path d="M0 176h137v-46h91v46h132v-72h86v72h174" stroke="currentColor" strokeWidth="3" />
-        <path d="M0 184h145v-46h75v46h148v-72h70v72h182" stroke="currentColor" />
-        <circle cx="183" cy="180" r="49" stroke="currentColor" strokeWidth="2" />
-        <circle cx="404" cy="180" r="61" stroke="currentColor" strokeWidth="2" />
-        <circle cx="404" cy="180" r="34" stroke="currentColor" />
-      </svg>
-    </div>
-  );
-}
-
-function Capability({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <div className="flex flex-col gap-2 text-sm font-bold text-slate-200 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-cyan-300">
-      {icon}
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function DocumentPreview() {
-  return (
-    <div className="relative mx-auto w-full max-w-[195px] rotate-[-3deg] sm:mx-0">
-      <div className="absolute -inset-x-2 inset-y-3 rotate-6 rounded-xl border border-white/15 bg-white/10" />
-      <div className="relative rounded-xl border border-white/50 bg-slate-50 p-5 text-[#12243c] shadow-2xl">
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-600 text-xs font-black text-white">PDF</span>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Teknisk beskrivning</span>
-        </div>
-        <div className="mt-5 space-y-4">
-          <DocumentLine title="33.335.1" text="Sprinklerhuvud · K80 · 68 °C" />
-          <DocumentLine title="33.335.2" text="Alarmventil · DN150 · 16 bar" />
-          <DocumentLine title="33.335.3" text="Rör · DN100 · 124 meter" />
-        </div>
-        <p className="mt-5 border-t border-slate-200 pt-3 text-[10px] font-semibold text-slate-400">PDF-underlag</p>
+          <section className="rounded-2xl border border-cyan-900/10 bg-white p-5 shadow-sm">
+            <h2 className="font-bold text-ink-950">Snabbvägar</h2>
+            <nav className="mt-3 grid gap-2" aria-label="CRM-snabbvägar">
+              <QuickLink href="/crm" icon={<BriefcaseBusiness aria-hidden="true" />} label="Hela CRM" />
+              <QuickLink href="/statistics" icon={<BarChart3 aria-hidden="true" />} label="Statistik" />
+              <QuickLink href="/project-history" icon={<History aria-hidden="true" />} label="Projekthistorik" />
+            </nav>
+          </section>
+          </aside>
+        )}
       </div>
     </div>
   );
 }
 
-function DocumentLine({ title, text }: { title: string; text: string }) {
-  return (
-    <div>
-      <p className="text-[11px] font-black">{title}</p>
-      <p className="mt-0.5 text-[10px] leading-4 text-slate-600">{text}</p>
-      <span className="mt-2 block h-1 rounded-full bg-slate-200" />
-    </div>
-  );
-}
-
-function ProductPreview() {
-  return (
-    <div className="space-y-3">
-      <PreviewCard label="INSTALLATION" title="Sprinklerhuvud" details={["K-faktor 80", "68 °C", "Antal 24 st"]} />
-      <PreviewCard label="INSTALLATION" title="Alarmventil" details={["DN150", "16 bar", "Antal 1 st"]} />
-      <div className="rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-[#3c2c18] shadow-[0_12px_30px_rgba(0,0,0,0.18)]">
-        <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Befintligt</p>
-        <p className="mt-2 text-sm font-black">Rivning</p>
-        <p className="mt-1 text-[11px] leading-4 text-amber-950/70">Identifierad separat från nya produktval.</p>
-      </div>
-    </div>
-  );
-}
-
-function PreviewCard({
-  label,
-  title,
-  details
+function OpenProjectRow({
+  project,
+  ownerName,
+  productInsightsAvailable
 }: {
-  label: string;
-  title: string;
-  details: string[];
+  project: CommercialProjectInsight;
+  ownerName?: string;
+  productInsightsAvailable: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-cyan-300/60 bg-white p-4 text-[#10233d] shadow-[0_12px_30px_rgba(0,0,0,0.22),0_0_18px_rgba(34,211,238,0.12)]">
-      <span className="rounded border border-cyan-400 px-2 py-1 text-[9px] font-black tracking-wider text-[#007aa8]">{label}</span>
-      <p className="mt-3 text-sm font-black">{title}</p>
-      <p className="mt-1 text-[11px] leading-4 text-slate-600">{details.join(" · ")}</p>
-      <p className="mt-3 flex items-center gap-1.5 text-[10px] font-black uppercase text-[#0087aa]">
-        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-white">
-          <Check className="h-2.5 w-2.5" aria-hidden="true" />
+    <tr className={project.needsFollowUp ? "bg-amber-50/30 transition hover:bg-amber-50/70" : "transition hover:bg-ink-50"}>
+      <td className="px-5 py-4 sm:px-6">
+        <Link href={projectWorkHref(project)} className="font-bold text-ink-950 hover:text-flow-800 hover:underline">
+          {project.name}
+        </Link>
+        <p className="mt-1 max-w-72 truncate text-xs text-ink-500">
+          {project.customerName}{project.projectNumber ? ` · Projektnr ${project.projectNumber}` : ""}
+        </p>
+        {project.needsFollowUp && (
+          <p className="mt-1.5 max-w-80 text-xs font-semibold text-amber-800">{project.nextAction}</p>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-4">
+        <Badge tone={phaseTone(project.technicalPhaseKey)}>{project.technicalPhase}</Badge>
+      </td>
+      <td className="min-w-44 px-4 py-4">
+        {productInsightsAvailable ? (
+          <>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-semibold text-ink-700">{project.handledProductRequirements}/{project.totalProductRequirements}</span>
+              <span className="font-black tabular-nums text-ink-950">{project.productProgress} %</span>
+            </div>
+            <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-ink-100">
+              <span className="block h-full rounded-full bg-flow-500" style={{ width: `${project.productProgress}%` }} />
+            </span>
+          </>
+        ) : (
+          <span className="text-xs text-ink-500">Åtkomst saknas</span>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-4 text-ink-600">{formatDate(project.updatedAt)}</td>
+      <td className="px-4 py-4">
+        <span className="inline-flex items-center gap-2 whitespace-nowrap font-semibold text-ink-700">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-flow-50 text-flow-700">
+            <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
+          {ownerName ?? "Ej registrerat"}
         </span>
-        Klar för produktval
-      </p>
+      </td>
+      <td className="px-5 py-4 text-right sm:px-6">
+        <Link
+          href={projectWorkHref(project)}
+          aria-label={`Öppna ${project.name}`}
+          className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-lg bg-[#06213d] px-3 text-sm font-bold text-white transition hover:bg-[#0a3156]"
+        >
+          Fortsätt
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
+function SummaryMetric({
+  label,
+  value,
+  detail,
+  icon,
+  tone
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: React.ReactNode;
+  tone: "green" | "cyan" | "blue" | "amber";
+}) {
+  const tones = {
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    cyan: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+    blue: "bg-blue-50 text-blue-700 ring-blue-200",
+    amber: "bg-amber-50 text-amber-700 ring-amber-200"
+  };
+  return (
+    <article className="rounded-2xl border border-ink-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.09em] text-ink-500">{label}</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.035em] tabular-nums text-ink-950">{value}</p>
+        </div>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${tones[tone]}`}>{icon}</span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-ink-500">{detail}</p>
+    </article>
+  );
+}
+
+function EmptyProjects({
+  title,
+  detail,
+  canCreateProject = false
+}: {
+  title: string;
+  detail: string;
+  canCreateProject?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center px-6 py-14 text-center">
+      <FolderOpen className="h-9 w-9 text-ink-400" aria-hidden="true" />
+      <h2 className="mt-3 font-bold text-ink-950">{title}</h2>
+      <p className="mt-1 max-w-md text-sm leading-6 text-ink-500">{detail}</p>
+      {canCreateProject && (
+        <Link
+          href="/projects/new"
+          className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-400 px-4 text-sm font-black text-[#03162d] transition hover:bg-cyan-300"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Starta nytt projekt
+        </Link>
+      )}
     </div>
   );
+}
+
+function QuickLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="group flex min-h-11 items-center gap-3 rounded-xl border border-ink-200 px-3 text-sm font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800"
+    >
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-50 text-ink-500 transition group-hover:bg-white group-hover:text-flow-700 [&_svg]:h-4 [&_svg]:w-4">
+        {icon}
+      </span>
+      <span className="flex-1">{label}</span>
+      <ArrowRight className="h-4 w-4 text-ink-400 transition group-hover:translate-x-1 group-hover:text-flow-700" aria-hidden="true" />
+    </Link>
+  );
+}
+
+function projectWorkHref(project: CommercialProjectInsight) {
+  if (["setup", "documents", "technical_description"].includes(project.currentStage)) {
+    return `/projects/${project.id}?step=documents`;
+  }
+  if (["requirements_review", "analysis", "product_matching"].includes(project.currentStage)) {
+    return `/projects/${project.id}?step=products`;
+  }
+  return `/projects/${project.id}`;
+}
+
+function phaseTone(phase: CommercialTechnicalPhaseKey): "green" | "teal" | "blue" | "amber" | "slate" {
+  if (phase === "completed") return "green";
+  if (phase === "review") return "teal";
+  if (phase === "product_selection") return "blue";
+  if (phase === "analysis") return "amber";
+  return "slate";
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Ej registrerat";
+  return new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium" }).format(date);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("sv-SE").format(value);
+}
+
+function formatCount(value: number, singular: string, plural: string) {
+  return `${formatNumber(value)} ${value === 1 ? singular : plural}`;
 }

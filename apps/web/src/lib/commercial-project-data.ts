@@ -21,6 +21,13 @@ export type CommercialProjectData = {
   hasProductSelectionInsights: boolean;
 };
 
+type CommercialProjectDataOptions = {
+  includeProfiles?: boolean;
+  projectScope?: "all" | "open";
+};
+
+const PROJECT_FILTER_CHUNK_SIZE = 100;
+
 /**
  * Loads the projects the current user may access. Project RLS remains the
  * authority; the organization filter only narrows the request to the selected
@@ -28,7 +35,7 @@ export type CommercialProjectData = {
  */
 export async function loadCommercialProjectData(
   context: OrganizationContext,
-  options: { includeProfiles?: boolean } = {}
+  options: CommercialProjectDataOptions = {}
 ): Promise<CommercialProjectData> {
   const organizationId = context.organization.id;
   const hasRequirementInsights = context.permissions.includes("project.requirement.view");
@@ -36,19 +43,25 @@ export async function loadCommercialProjectData(
     "project.product_suggestion.view"
   );
 
-  const projects = await selectAllUserRows<CommercialProjectRow>("projects", {
+  const candidateProjects = await selectAllUserRows<CommercialProjectRow>("projects", {
     select:
       "id,name,customer_name,end_customer,project_number,status,current_stage,created_at,updated_at,created_by,assigned_to,project_manager_id,expected_delivery_date,demo_data_set_id",
     organization_id: `eq.${organizationId}`,
     deleted_at: "is.null",
     demo_data_set_id: "is.null",
+    ...(options.projectScope === "open"
+      ? { status: "not.in.(completed,archived)" }
+      : {}),
     order: "id.asc"
   });
+  const projects = options.projectScope === "open"
+    ? candidateProjects.filter(isOpenProject)
+    : candidateProjects;
   const projectIds = new Set(projects.map((project) => project.id));
 
   const [rawRequirements, rawAssignments] = await Promise.all([
     hasRequirementInsights && projects.length > 0
-      ? selectAllUserRows<BusinessDevelopmentRequirementRow>("project_requirements", {
+      ? selectRowsForProjectScope<BusinessDevelopmentRequirementRow>(options.projectScope, "project_requirements", [...projectIds], {
           select:
             "id,project_id,category,requirement_key,display_name,value_text,value_json,mapping_fingerprint,status",
           organization_id: `eq.${organizationId}`,
@@ -57,7 +70,7 @@ export async function loadCommercialProjectData(
         })
       : Promise.resolve([]),
     hasRequirementInsights && hasProductSelectionInsights && projects.length > 0
-      ? selectAllUserRows<CommercialAssignmentRow>("project_product_suggestions", {
+      ? selectRowsForProjectScope<CommercialAssignmentRow>(options.projectScope, "project_product_suggestions", [...projectIds], {
           select:
             "id,project_id,requirement_id,status,product_snapshot,selected_at,created_at,updated_at",
           organization_id: `eq.${organizationId}`,
@@ -86,6 +99,38 @@ export async function loadCommercialProjectData(
     hasRequirementInsights,
     hasProductSelectionInsights
   };
+}
+
+function selectRowsForProjectScope<Row>(
+  projectScope: CommercialProjectDataOptions["projectScope"],
+  table: string,
+  projectIds: readonly string[],
+  params: Record<string, string> & { order: string }
+) {
+  return projectScope === "open"
+    ? selectRowsForProjects<Row>(table, projectIds, params)
+    : selectAllUserRows<Row>(table, params);
+}
+
+async function selectRowsForProjects<Row>(
+  table: string,
+  projectIds: readonly string[],
+  params: Record<string, string> & { order: string }
+) {
+  const rows: Row[] = [];
+  for (let start = 0; start < projectIds.length; start += PROJECT_FILTER_CHUNK_SIZE) {
+    const ids = projectIds.slice(start, start + PROJECT_FILTER_CHUNK_SIZE);
+    rows.push(...await selectAllUserRows<Row>(table, {
+      ...params,
+      project_id: `in.(${ids.join(",")})`
+    }));
+  }
+  return rows;
+}
+
+function isOpenProject(project: CommercialProjectRow) {
+  return project.current_stage !== "completed"
+    && !["completed", "archived"].includes(project.status);
 }
 
 async function selectOwnerProfiles(ownerIds: readonly string[]) {
