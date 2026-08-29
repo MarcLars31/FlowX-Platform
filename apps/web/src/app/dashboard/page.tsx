@@ -107,6 +107,11 @@ export default async function DashboardPage() {
           detail="pågående kundprojekt"
           icon={<FolderOpen className="h-5 w-5" aria-hidden="true" />}
           tone="cyan"
+          href={
+            openProjects.length === 1
+              ? projectWorkHref(openProjects[0])
+              : "/projects"
+          }
         />
         <SummaryMetric
           label="Behöver följas upp"
@@ -325,13 +330,15 @@ function SummaryMetric({
   value,
   detail,
   icon,
-  tone
+  tone,
+  href
 }: {
   label: string;
   value: string;
   detail: string;
   icon: React.ReactNode;
   tone: "green" | "cyan" | "blue" | "amber";
+  href?: string;
 }) {
   const tones = {
     green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -339,8 +346,14 @@ function SummaryMetric({
     blue: "bg-blue-50 text-blue-700 ring-blue-200",
     amber: "bg-amber-50 text-amber-700 ring-amber-200"
   };
-  return (
-    <article className="rounded-2xl border border-ink-200 bg-white p-5 shadow-sm">
+  const card = (
+    <article
+      className={`h-full rounded-2xl border border-ink-200 bg-white p-5 shadow-sm transition ${
+        href
+          ? "group-hover:-translate-y-0.5 group-hover:border-flow-300 group-hover:shadow-md"
+          : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.09em] text-ink-500">{label}</p>
@@ -350,6 +363,18 @@ function SummaryMetric({
       </div>
       <p className="mt-2 text-sm leading-6 text-ink-500">{detail}</p>
     </article>
+  );
+
+  if (!href) return card;
+
+  return (
+    <Link
+      href={href}
+      aria-label={`${label}: ${value}. Öppna och fortsätt.`}
+      className="group block rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
+    >
+      {card}
+    </Link>
   );
 }
 
