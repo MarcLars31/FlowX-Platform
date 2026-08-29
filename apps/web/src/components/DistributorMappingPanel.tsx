@@ -49,6 +49,7 @@ import {
   parseProductTableLayout,
   PRODUCT_TABLE_COLUMN_IDS,
   PRODUCT_TABLE_LAYOUT_STORAGE_KEY,
+  productTableRowClass,
   setProductTableColumnVisible,
   type ProductTableColumnId,
   type ProductTableLayout
@@ -2120,9 +2121,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     || bulkSelection?.productName
     || memoryProductName;
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
-  const rowClass = selected
-    ? "bg-cyan-50 ring-1 ring-inset ring-flow-500"
-    : group === "green" ? "bg-emerald-50/70 hover:bg-emerald-50" : "bg-white hover:bg-ink-50/80";
+  const rowClass = productTableRowClass({ approved, selected });
 
   function renderProductTableCell(columnId: ProductTableColumnId) {
     if (columnId === "control") {

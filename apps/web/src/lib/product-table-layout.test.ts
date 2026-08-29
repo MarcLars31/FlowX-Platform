@@ -6,6 +6,7 @@ import {
   moveProductTableColumnByOffset,
   normalizeProductTableLayout,
   parseProductTableLayout,
+  productTableRowClass,
   setProductTableColumnVisible
 } from "./product-table-layout";
 
@@ -46,4 +47,19 @@ test("hides optional columns but keeps core columns visible", () => {
   assert.deepEqual(setProductTableColumnVisible(DEFAULT_PRODUCT_TABLE_LAYOUT, "control", false).hidden, []);
   assert.deepEqual(setProductTableColumnVisible(DEFAULT_PRODUCT_TABLE_LAYOUT, "post", false).hidden, []);
   assert.deepEqual(setProductTableColumnVisible(DEFAULT_PRODUCT_TABLE_LAYOUT, "requirement", false).hidden, []);
+});
+
+test("colors only approved product rows green", () => {
+  assert.equal(
+    productTableRowClass({ approved: false, selected: false }),
+    "bg-white hover:bg-ink-50/80"
+  );
+  assert.equal(
+    productTableRowClass({ approved: false, selected: true }),
+    "bg-cyan-50 ring-1 ring-inset ring-flow-500"
+  );
+  assert.equal(
+    productTableRowClass({ approved: true, selected: true }),
+    "bg-emerald-100/80 hover:bg-emerald-100"
+  );
 });
