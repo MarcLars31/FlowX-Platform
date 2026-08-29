@@ -1,5 +1,6 @@
 import "server-only";
 import { getCurrentAccessToken } from "@/lib/supabase-auth";
+import { collectAllRows } from "@/lib/paginated-rows";
 
 type UserSupabaseConfig = {
   url: string;
@@ -38,6 +39,36 @@ export async function selectUserRows<T>(
 
   if (!response.ok) throw await readUserSupabaseError(response);
   return (await response.json()) as T[];
+}
+
+export async function selectAllUserRows<T>(
+  table: string,
+  params: Record<string, string> & { order: string },
+  options: { pageSize?: number; maxRows?: number } = {}
+) {
+  if (typeof params.order !== "string" || !params.order.trim()) {
+    throw new Error(
+      "selectAllUserRows requires an explicit stable order (including a unique tie-breaker)."
+    );
+  }
+  if (params.limit !== undefined || params.offset !== undefined) {
+    throw new Error(
+      "selectAllUserRows controls limit and offset; remove them from params."
+    );
+  }
+
+  return collectAllRows<T>(
+    ({ limit, offset }) =>
+      selectUserRows<T>(table, {
+        ...params,
+        limit: String(limit),
+        offset: String(offset)
+      }),
+    {
+      ...options,
+      resourceLabel: `Supabase select from ${table}`
+    }
+  );
 }
 
 export async function insertUserRowReturning<T>(
