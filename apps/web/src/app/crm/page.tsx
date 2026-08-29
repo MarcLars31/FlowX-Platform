@@ -119,7 +119,7 @@ function CrmDashboard({
           </span>
         </p>
         <span className="shrink-0 font-semibold tabular-nums">
-          {insights.totalProjects} projekt · {insights.customerCount} kunder
+          {formatCount(insights.totalProjects, "projekt", "projekt")} · {formatCount(insights.customerCount, "kund", "kunder")}
         </span>
       </section>
 
@@ -305,7 +305,7 @@ function CustomerPanel({
       <PanelHeader
         title="Kunder"
         description="Projektbelastning och produktstatus per kund."
-        badge={`${insights.customerCount} kunder`}
+        badge={formatCount(insights.customerCount, "kund", "kunder")}
         badgeTone="teal"
       />
       {insights.customerSummaries.length === 0 ? (
@@ -395,7 +395,7 @@ function ProductSignals({
               key={product.key}
               icon={<PackageCheck className="h-5 w-5" aria-hidden="true" />}
               title={product.name}
-              detail={`${product.approvals} godkända val i ${product.projectCount} projekt${product.nrfNumber ? ` · NRF ${product.nrfNumber}` : ""}`}
+              detail={`${formatCount(product.approvals, "godkänt val", "godkända val")} i ${formatCount(product.projectCount, "projekt", "projekt")}${product.nrfNumber ? ` · NRF ${product.nrfNumber}` : ""}`}
               action="Återanvänd den bekräftade produkten när samma krav återkommer"
             />
           ))}
@@ -608,4 +608,8 @@ function formatDate(value: string) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("sv-SE").format(value);
+}
+
+function formatCount(value: number, singular: string, plural: string) {
+  return `${formatNumber(value)} ${value === 1 ? singular : plural}`;
 }

@@ -73,8 +73,8 @@ export function BusinessDevelopmentDashboard({
           produktposter och produktval ändras i Scipx.
         </p>
         <div className="flex shrink-0 flex-wrap gap-x-4 gap-y-1 font-semibold tabular-nums">
-          <span>{commercialInsights.totalProjects} projekt</span>
-          <span>{commercialInsights.customerCount} kunder</span>
+          <span>{formatCount(commercialInsights.totalProjects, "projekt", "projekt")}</span>
+          <span>{formatCount(commercialInsights.customerCount, "kund", "kunder")}</span>
           <span>{hasRequirementInsights ? `${businessStatistics.totalProductRequirements} produktposter` : "Produktdata: begränsad åtkomst"}</span>
         </div>
       </section>
@@ -142,7 +142,7 @@ export function BusinessDevelopmentDashboard({
           <PanelHeader
             title="Tekniskt projektflöde"
             description="Var projekten befinner sig i Scipx arbetsflöde."
-            badge={`${commercialInsights.activeProjects} aktiva`}
+            badge={formatCount(commercialInsights.activeProjects, "aktivt projekt", "aktiva projekt")}
           />
           {commercialInsights.totalProjects === 0 ? (
             <EmptyState
@@ -265,7 +265,7 @@ export function BusinessDevelopmentDashboard({
           <PanelHeader
             title="Kundöversikt"
             description="Projektaktivitet och produkthantering per kund."
-            badge={`${commercialInsights.customerCount} kunder`}
+            badge={formatCount(commercialInsights.customerCount, "kund", "kunder")}
           />
           {commercialInsights.customerSummaries.length === 0 ? (
             <EmptyState
@@ -583,4 +583,8 @@ function formatDate(value: string) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 1 }).format(value);
+}
+
+function formatCount(value: number, singular: string, plural: string) {
+  return `${formatNumber(value)} ${value === 1 ? singular : plural}`;
 }
