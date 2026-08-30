@@ -10,6 +10,11 @@ import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
+import { loadSprsokTechnicalCatalog } from "@/lib/sprsok-technical-catalog";
+import {
+  mergeSprsokAssistedAhlsellQueries,
+  rankSprsokTechnicalReferences
+} from "@/lib/sprsok-technical-match";
 import { selectUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
 
 export const runtime = "nodejs";
@@ -56,13 +61,24 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const guide = buildAhlsellRequirementGuide(requirement);
+    const references = await technicalReferencesOrEmpty(requirement);
+    const assisted = mergeSprsokAssistedAhlsellQueries(
+      guide.searchQueries,
+      references
+    );
+    const searchQueries = assisted.queries.length > 0
+      ? assisted.queries
+      : guide.searchQueries;
+    const queries = classificationMode
+      ? searchQueries.slice(0, assisted.used ? 3 : 2)
+      : searchQueries;
     const result = await searchAhlsellPublicCatalogQueries({
       market: ahlsellMarketFromSearchUrl(guide.searchUrl),
       // The compact group check still needs the second synonym search and a
       // handful of exact variant families. Otherwise many dimensioned Ahlsell
       // products remain yellow simply because the correct family was not one
       // of the first two broad-search cards.
-      queries: classificationMode ? guide.searchQueries.slice(0, 2) : guide.searchQueries,
+      queries,
       maxCandidates: classificationMode ? 50 : 80,
       maxVariantFamilies: classificationMode ? 5 : 8
     });
@@ -78,7 +94,18 @@ export async function GET(request: Request, context: RouteContext) {
       });
     }
 
-    return NextResponse.json(rankedResult, {
+    return NextResponse.json({
+      ...rankedResult,
+      technicalAssistance: {
+        source: "sprsok",
+        used: assisted.used && queries.some((query) =>
+          references.some((reference) =>
+            reference.queryEligible && normalizeQuery(reference.ahlsellSearchQuery) === normalizeQuery(query)
+          )
+        ),
+        referenceCount: references.length
+      }
+    }, {
       headers: { "Cache-Control": "private, no-store" }
     });
   } catch (error) {
@@ -100,4 +127,20 @@ export async function GET(request: Request, context: RouteContext) {
       { status: 500 }
     );
   }
+}
+
+async function technicalReferencesOrEmpty(requirement: Record<string, unknown>) {
+  try {
+    return rankSprsokTechnicalReferences(
+      requirement,
+      await loadSprsokTechnicalCatalog()
+    );
+  } catch {
+    // SPRSÖK is advisory. Ahlsell search must remain available if it is down.
+    return [];
+  }
+}
+
+function normalizeQuery(value: string) {
+  return value.toLocaleLowerCase("sv-SE").replace(/\s+/g, " ").trim();
 }

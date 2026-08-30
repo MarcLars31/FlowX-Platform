@@ -74,6 +74,13 @@ type RequirementAttachment = {
 };
 type ProductTableSortKey = ProductTableColumnId;
 type ProductTableSort = { key: ProductTableSortKey; direction: "asc" | "desc" };
+type SprsokAssistedCatalogResult = AhlsellCatalogResult & {
+  technicalAssistance?: {
+    source: "sprsok";
+    used: boolean;
+    referenceCount: number;
+  };
+};
 
 type ProductTableColumnDefinition = {
   label: string;
@@ -1633,7 +1640,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
   onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string }) => void;
 }) {
-  const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
+  const [catalogResult, setCatalogResult] = useState<SprsokAssistedCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [candidateSubtitles, setCandidateSubtitles] = useState<Record<string, string | null>>({});
@@ -1647,7 +1654,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       headers: { Accept: "application/json" }
     })
       .then(async (response) => {
-        const payload = (await response.json().catch(() => null)) as (AhlsellCatalogResult & { error?: string }) | null;
+        const payload = (await response.json().catch(() => null)) as (SprsokAssistedCatalogResult & { error?: string }) | null;
         if (!response.ok) throw new Error(payload?.error ?? "Ahlsell-sökningen misslyckades.");
         if (!payload) throw new Error("Ahlsell-sökningen gav inget läsbart svar.");
         setCatalogResult(payload);
@@ -1962,6 +1969,11 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         <details className="border-t border-ink-200 bg-ink-50/70">
           <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-ink-700 hover:bg-ink-100 sm:px-4">Sök- och kontrolluppgifter</summary>
           <div className="space-y-2 border-t border-ink-200 px-3 py-3 text-xs text-ink-700 sm:px-4">
+            {catalogResult?.technicalAssistance?.used && (
+              <p className="rounded border border-cyan-200 bg-cyan-50 px-2.5 py-2 font-semibold leading-5 text-cyan-950">
+                Sökningen förfinades med tekniska referenser från SPRSÖK. Det visar inte Ahlsells sortiment eller lager.
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {(catalogResult?.queries ?? guide.searchQueries ?? [guide.searchQuery]).map((query) => (
                 <span key={query} className="rounded border border-ink-200 bg-white px-2 py-1 font-semibold">{query}</span>
