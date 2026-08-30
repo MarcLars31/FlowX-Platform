@@ -199,6 +199,68 @@ test("a punctuated SPRSÖK SIN can match the same explicit model in the PDF", ()
   assert.match(references[0]?.ahlsellSearchQuery ?? "", /^TY-B K80 QR Opp$/);
 });
 
+test("a negative deck plate field does not turn a sprinkler head into an accessory", () => {
+  const requirement = sprinklerRequirement({
+    model: "",
+    kFactor: "80",
+    response: "Kvikk respons",
+    placement: "Opp"
+  });
+  requirement.source_excerpt = [
+    "SPRINKLER",
+    "K-faktor: 80",
+    "Følsomhetsgrad: Kvikk respons",
+    "Plassering: Opp",
+    "Dekkskive/pyntering (ved innfelling): Nei"
+  ].join("\n");
+  requirement.value_json = {
+    attributes: {
+      "K-faktor": "80",
+      Følsomhetsgrad: "Kvikk respons",
+      Plassering: "Opp",
+      "Dekkskive/pyntering (ved innfelling)": "Nei"
+    },
+    sourceText: requirement.source_excerpt
+  };
+
+  const references = rankSprsokTechnicalReferences(requirement, [
+    sprsokRow({ id: 1, sin: "TY313", leverandor: "Tyco", type: "Standard Dekning", utforelse: "Stående | Upright", k_verdi: "80 (5.6)", rti: "QR" })
+  ]);
+
+  assert.deepEqual(references.map((reference) => reference.sourceId), ["1"]);
+});
+
+test("an actual deck plate product is not matched as a sprinkler head", () => {
+  const requirement = sprinklerRequirement({
+    model: "",
+    kFactor: "80",
+    response: "Kvikk respons",
+    placement: "Opp"
+  });
+  requirement.requirement_key = "dekkskive";
+  requirement.display_name = "Dekkskive for sprinklerhode";
+
+  assert.deepEqual(rankSprsokTechnicalReferences(requirement, [
+    sprsokRow({ id: 1, k_verdi: "80", rti: "QR", utforelse: "Opp" })
+  ]), []);
+});
+
+test("a miscategorized accessory is still rejected from its concise product name", () => {
+  const requirement = sprinklerRequirement({
+    model: "",
+    kFactor: "80",
+    response: "Kvikk respons",
+    placement: "Opp"
+  });
+  requirement.requirement_key = "misc-product";
+  requirement.display_name = "Produktpost";
+  requirement.value_text = "Dekkskive for sprinklerhode";
+
+  assert.deepEqual(rankSprsokTechnicalReferences(requirement, [
+    sprsokRow({ id: 1, k_verdi: "80", rti: "QR", utforelse: "Opp" })
+  ]), []);
+});
+
 function sprinklerRequirement({
   model,
   kFactor,

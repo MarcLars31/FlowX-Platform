@@ -55,6 +55,7 @@ type ApplicationTraits = {
 };
 
 const ACCESSORY_OR_NON_HEAD = /\b(?:sprinklergitter|beskyttelsesgitter|skyddskorg|dekkskive|rosett|tillbehor|tilbehor|accessor|hand(?:slokker|slackare)|brannslukker|brandslackare|skumslukker|foam extinguisher|rorledning|sprinklerror|kupling|ventil)\b/;
+const ACCESSORY_OR_NON_HEAD_AT_START = /^(?:sprinklergitter|beskyttelsesgitter|skyddskorg|dekkskive|rosett|tillbehor|tilbehor|accessor|hand(?:slokker|slackare)|brannslukker|brandslackare|skumslukker|foam extinguisher|rorledning|sprinklerror|kupling|ventil)\b/;
 const QUICK_RESPONSE = /\b(?:qr|quick[ -]?response|kvikk[ -]?respons|hurtig[ -]?respons|rask[ -]?respons|snabb[ -]?respons)\b/;
 const STANDARD_RESPONSE = /\b(?:sr|standard[ -]?(?:response|respons)|normal[ -]?(?:response|respons))\b/;
 const UPRIGHT = /\b(?:upright|staende|oppadrettet|oppvendt|ssu)\b/;
@@ -151,7 +152,23 @@ function requirementProfile(
   if (normalize(displayText(value.operation)) === "remove") return null;
 
   const normalizedText = normalize(requirementSourceText(requirement));
-  if (!normalizedText || ACCESSORY_OR_NON_HEAD.test(normalizedText)) return null;
+  const productIdentityText = normalize([
+    displayText(requirement.category),
+    displayText(requirement.requirement_key),
+    displayText(requirement.display_name),
+    displayText(value.productType),
+    displayText(value.productKind)
+  ].filter(Boolean).join(" "));
+  const conciseProductText = normalize(displayText(requirement.value_text));
+  // Technical head specifications often include negative accessory fields,
+  // for example "Dekkskive ...: Nei". Only classify the row from its product
+  // identity or the start of its concise name; scanning every attribute would
+  // reject the sprinkler itself.
+  if (
+    !normalizedText
+    || ACCESSORY_OR_NON_HEAD.test(productIdentityText)
+    || ACCESSORY_OR_NON_HEAD_AT_START.test(conciseProductText)
+  ) return null;
 
   const kFactor = parseSprinklerKFactor(
     projectRequirementKFactorDisplayValue(requirement)

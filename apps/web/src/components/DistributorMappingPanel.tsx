@@ -74,6 +74,25 @@ type RequirementAttachment = {
 };
 type ProductTableSortKey = ProductTableColumnId;
 type ProductTableSort = { key: ProductTableSortKey; direction: "asc" | "desc" };
+type SprsokTechnicalReference = {
+  id: string;
+  source: "sprsok";
+  sin: string;
+  supplier: string;
+  type: string;
+  execution: string;
+  kValue: string;
+  response: string;
+  datasheetUrl: string | null;
+  matchedFields: string[];
+  conflictingFields: string[];
+};
+type SprsokReferencesLoadState = {
+  requestKey: string;
+  status: "loading" | "ready" | "error";
+  references: SprsokTechnicalReference[];
+  error: string | null;
+};
 type SprsokAssistedCatalogResult = AhlsellCatalogResult & {
   technicalAssistance?: {
     source: "sprsok";
@@ -1428,6 +1447,13 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
             </dl>
           </div>
+
+          {productRequirementCategory(requirement) === "sprinkler_head" && (
+            <SprsokTechnicalReferencesPanel
+              projectId={projectId}
+              requirementId={requirement.id}
+            />
+          )}
         </div>
       </section>
 
@@ -1623,6 +1649,169 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
         )}
       </fieldset>
     </article>
+  );
+}
+
+function SprsokTechnicalReferencesPanel({ projectId, requirementId }: {
+  projectId: string;
+  requirementId: string;
+}) {
+  const requestKey = `${projectId}:${requirementId}`;
+  const [loadState, setLoadState] = useState<SprsokReferencesLoadState>(() => ({
+    requestKey,
+    status: "loading",
+    references: [],
+    error: null
+  }));
+  const activeState = loadState.requestKey === requestKey
+    ? loadState
+    : { requestKey, status: "loading" as const, references: [], error: null };
+  const { references, error } = activeState;
+  const loading = activeState.status === "loading";
+  const headingId = `sprsok-references-heading-${requirementId}`;
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void fetch(`/api/projects/${projectId}/requirements/${requirementId}/sprsok-references`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as {
+          references?: unknown;
+          error?: string;
+        } | null;
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "SPRSÖK-referenserna kunde inte hämtas.");
+        }
+        if (!Array.isArray(payload?.references)) {
+          throw new Error("SPRSÖK-referenserna gav inget läsbart svar.");
+        }
+        if (!controller.signal.aborted) {
+          setLoadState({
+            requestKey,
+            status: "ready",
+            references: readSprsokTechnicalReferences(payload.references).slice(0, 3),
+            error: null
+          });
+        }
+      })
+      .catch((loadError) => {
+        if (loadError instanceof Error && loadError.name === "AbortError") return;
+        if (!controller.signal.aborted) {
+          setLoadState({
+            requestKey,
+            status: "error",
+            references: [],
+            error: loadError instanceof Error ? loadError.message : "SPRSÖK-referenserna kunde inte hämtas."
+          });
+        }
+      });
+
+    return () => controller.abort();
+  }, [projectId, requestKey, requirementId]);
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      aria-busy={loading}
+      className="mt-4 overflow-hidden rounded-md border border-sky-200 bg-white"
+    >
+      <header className="border-b border-sky-200 bg-sky-50 px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-sky-800">Teknisk jämförelse</p>
+            <h4 id={headingId} className="mt-0.5 text-base font-bold text-ink-950">Tekniska referenser från SPRSÖK</h4>
+          </div>
+          <span className="inline-flex min-h-7 items-center rounded-full border border-sky-300 bg-white px-2.5 py-1 text-xs font-black text-sky-900">
+            Ej valbar
+          </span>
+        </div>
+        <p className="mt-1.5 text-xs leading-5 text-ink-700">
+          Referenserna är jämförelsematerial, inte Ahlsellartiklar. De kan inte väljas eller sparas som NRF.
+        </p>
+      </header>
+
+      {loading ? (
+        <div className="flex min-h-16 items-center gap-2 px-4 py-3 text-sm font-semibold text-ink-700" role="status" aria-live="polite">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+          Hämtar tekniska referenser från SPRSÖK…
+        </div>
+      ) : error ? (
+        <div className="px-4 py-3 text-sm leading-6 text-amber-950" role="status" aria-live="polite">
+          <p className="font-bold">Tekniska referenser kunde inte hämtas.</p>
+          <p className="text-xs">{error} Ahlsells produktval påverkas inte.</p>
+        </div>
+      ) : references.length === 0 ? (
+        <p className="px-4 py-3 text-sm leading-6 text-ink-700" role="status" aria-live="polite">
+          Inga jämförbara SPRSÖK-referenser hittades. Ahlsells produktval fortsätter som vanligt.
+        </p>
+      ) : (
+        <ul className="divide-y divide-sky-100" aria-label={`${references.length} tekniska SPRSÖK-referenser, ej valbara`}>
+          {references.map((reference) => (
+            <li key={reference.id} className="px-4 py-3">
+              <article aria-label={`SPRSÖK-referens ${reference.sin || reference.type || reference.id}, ej valbar`}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-bold leading-5 text-ink-950">{reference.type || "Teknisk produktreferens"}</p>
+                    {reference.supplier && <p className="mt-0.5 text-xs font-semibold text-ink-600">{reference.supplier}</p>}
+                  </div>
+                  {reference.datasheetUrl && (
+                    <a
+                      href={reference.datasheetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Öppna datablad för SPRSÖK-referens ${reference.sin || reference.type || reference.id} i ny flik`}
+                      className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-900 transition hover:border-sky-500 hover:bg-sky-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
+                    >
+                      Datablad<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+
+                <dl className="mt-3 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
+                  {reference.sin && <SprsokReferenceDetail label="SIN / tillverkarartikel" value={reference.sin} />}
+                  {reference.execution && <SprsokReferenceDetail label="Utförande" value={reference.execution} />}
+                  {reference.kValue && <SprsokReferenceDetail label="K-värde" value={reference.kValue} />}
+                  {reference.response && <SprsokReferenceDetail label="Respons / RTI" value={reference.response} />}
+                </dl>
+
+                {reference.matchedFields.length > 0 && (
+                  <div className="mt-3" aria-label="Matchande tekniska egenskaper">
+                    <p className="text-xs font-bold text-ink-700">Överensstämmer på</p>
+                    <ul className="mt-1 flex flex-wrap gap-1.5">
+                      {reference.matchedFields.map((field) => (
+                        <li key={field} className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-950">{field}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {reference.conflictingFields.length > 0 && (
+                  <div className="mt-3 rounded-sm border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-950">
+                    <p className="font-bold">Avvikelser som måste kontrolleras</p>
+                    <ul className="mt-0.5 list-disc pl-4">
+                      {reference.conflictingFields.map((field) => <li key={field}>{field}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </article>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SprsokReferenceDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="font-bold text-ink-500">{label}</dt>
+      <dd className="mt-0.5 break-words leading-5 text-ink-900">{value}</dd>
+    </div>
   );
 }
 
@@ -2422,6 +2611,57 @@ function formatAttachmentDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Okänt datum";
   return new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short" }).format(date);
+}
+
+function readSprsokTechnicalReferences(values: unknown[]) {
+  const references: SprsokTechnicalReference[] = [];
+  const seenIds = new Set<string>();
+
+  for (const value of values) {
+    const candidate = record(value);
+    const id = typeof candidate.id === "string" || typeof candidate.id === "number"
+      ? String(candidate.id).trim()
+      : "";
+    if (!id || candidate.source !== "sprsok" || seenIds.has(id)) continue;
+    seenIds.add(id);
+
+    references.push({
+      id,
+      source: "sprsok",
+      sin: sprsokDisplayText(candidate.sin),
+      supplier: sprsokDisplayText(candidate.supplier),
+      type: sprsokDisplayText(candidate.type),
+      execution: sprsokDisplayText(candidate.execution),
+      kValue: sprsokDisplayText(candidate.kValue),
+      response: sprsokDisplayText(candidate.response),
+      datasheetUrl: safeSprsokDatasheetUrl(candidate.datasheetUrl),
+      matchedFields: sprsokStringList(candidate.matchedFields),
+      conflictingFields: sprsokStringList(candidate.conflictingFields)
+    });
+  }
+
+  return references;
+}
+
+function sprsokStringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(sprsokDisplayText).filter(Boolean))].slice(0, 20);
+}
+
+function sprsokDisplayText(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function safeSprsokDatasheetUrl(value: unknown) {
+  const input = sprsokDisplayText(value);
+  if (!input) return null;
+  try {
+    const url = new URL(input);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function record(value: unknown): Record<string, unknown> {
