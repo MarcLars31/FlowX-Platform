@@ -47,23 +47,48 @@ test("uses an article number printed on the PDF row as the exact Ahlsell search"
   assert.match(decodeURIComponent(guide.directCandidates[0].productUrl), /SearchPhrase=9253497/);
 });
 
-test("does not suggest a visible sprinkler for a concealed ceiling requirement", () => {
+test("treats infellt visible ceiling mounting as recessed pendent, not concealed", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head",
-    value_text: "Sprinkler hvit inkl. rosett",
+    value_text: "SPRINKLER",
     value_json: {
       attributes: {
         "plassering": "Innfelt, synlig montasje i tak",
+        "type sprinkler": "Konvensjonell sprinkler",
         "følsomhetsgrad": "Kvikk respons",
         "utløsningstemperatur": "68 °C",
         "k-faktor": "80",
-        "gjengedimensjon (dn)": "15"
+        "gjengedimensjon (dn)": "15",
+        "dekkskive/pyntering (ved innfelling)": "Ja"
       }
     }
   });
 
   assert.equal(guide.directCandidates.length, 0);
+  assert.ok(guide.criteria.includes("Pendent"));
+  assert.ok(guide.criteria.includes("Recessed"));
+  assert.ok(!guide.criteria.includes("Concealed"));
+  assert.ok(guide.searchQueries.some((query) => /\bQR\b.*\bNed\b|\bNed\b.*\bQR\b/.test(query)));
+  assert.ok(guide.searchQueries.every((query) => !/\bOpp\b/.test(query)));
+  assert.ok(guide.recognitionNotes.some((note) => note.includes("pendentkrav")));
+});
+
+test("keeps a genuinely hidden sprinkler with cover plate classified as concealed", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "Sprinkler med skjult lokk",
+    value_json: { attributes: {
+      plassering: "Skjult i himling med flat cover plate",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "15"
+    } }
+  });
+
+  assert.ok(guide.criteria.includes("Pendent"));
   assert.ok(guide.criteria.includes("Concealed"));
+  assert.ok(!guide.criteria.includes("Recessed"));
 });
 
 test("blocks direct matching and warns about K115 combined with DN15", () => {

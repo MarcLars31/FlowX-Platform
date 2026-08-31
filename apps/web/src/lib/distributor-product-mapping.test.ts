@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   isUuid,
   resolveDistributorProductName,
-  validateDistributorProductMapping
+  validateDistributorProductMapping,
+  validateManualDistributorProduct
 } from "./distributor-product-mapping";
 import { bulkProductApprovalSelection } from "./bulk-product-approval";
 
@@ -16,6 +17,7 @@ test("accepts a distributor product with normalized accessories", () => {
   const result = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: true,
+    entryMethod: "catalog",
     productName: "  Quick response sprinkler  ",
     productSubtitle: "  1/2\" sprinkler K80 QR  ",
     productNumber: " 1234567 ",
@@ -40,6 +42,7 @@ test("accepts only an NRF number and supplies the database product name", () => 
   const onlyNrf = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: true,
+    entryMethod: "catalog",
     productNumber: " 1234567 "
   });
   assert.ok("data" in onlyNrf);
@@ -57,6 +60,7 @@ test("requires an NRF number and positive accessory quantity", () => {
   const missingNumber = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: true,
+    entryMethod: "catalog",
     productName: "Sprinkler",
     productNumber: ""
   });
@@ -65,6 +69,7 @@ test("requires an NRF number and positive accessory quantity", () => {
   const invalidQuantity = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: true,
+    entryMethod: "catalog",
     productName: "Sprinkler",
     productNumber: "123",
     accessories: [{ name: "Rosett", quantity: 0 }]
@@ -72,10 +77,114 @@ test("requires an NRF number and positive accessory quantity", () => {
   assert.ok("error" in invalidQuantity);
 });
 
+test("accepts and normalizes every field from the manual product card", () => {
+  const draft = validateManualDistributorProduct({
+    productNumber: " 925 4043 ",
+    manufacturerArticleNumber: " V2704-QR ",
+    manufacturerName: " Victaulic ",
+    deliveryTimeDays: " 5 ",
+    unitPrice: "1 250,50",
+    currency: "nok"
+  });
+  assert.deepEqual(draft, {
+    data: {
+      productNumber: "925 4043",
+      manufacturerArticleNumber: "V2704-QR",
+      manufacturerName: "Victaulic",
+      deliveryTimeDays: 5,
+      unitPrice: 1250.5,
+      currency: "NOK"
+    }
+  });
+
+  const mapping = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
+    entryMethod: "manual",
+    productNumber: draft.data.productNumber,
+    manufacturerArticleNumber: draft.data.manufacturerArticleNumber,
+    manufacturerName: draft.data.manufacturerName,
+    deliveryTimeDays: draft.data.deliveryTimeDays,
+    unitPrice: draft.data.unitPrice,
+    currency: draft.data.currency
+  });
+  assert.ok("data" in mapping);
+  if (!("data" in mapping)) return;
+  assert.equal(mapping.data.entryMethod, "manual");
+  assert.equal(mapping.data.manufacturerArticleNumber, "V2704-QR");
+  assert.equal(mapping.data.deliveryTimeDays, 5);
+  assert.equal(mapping.data.unitPrice, 1250.5);
+  assert.equal(mapping.data.currency, "NOK");
+});
+
+test("manual products require identity, delivery time and price", () => {
+  assert.deepEqual(validateManualDistributorProduct({
+    productNumber: "9254043",
+    manufacturerArticleNumber: "",
+    manufacturerName: "Victaulic",
+    deliveryTimeDays: "5",
+    unitPrice: "100",
+    currency: "NOK"
+  }), { error: "Fyll i artikelnummer." });
+
+  const invalidDelivery = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
+    entryMethod: "manual",
+    productNumber: "9254043",
+    manufacturerArticleNumber: "V2704-QR",
+    manufacturerName: "Victaulic",
+    deliveryTimeDays: "2.5",
+    unitPrice: "100",
+    currency: "NOK"
+  });
+  assert.deepEqual(invalidDelivery, {
+    error: "Leveranstiden måste anges som ett helt antal dagar."
+  });
+
+  const negativePrice = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
+    entryMethod: "manual",
+    productNumber: "9254043",
+    manufacturerArticleNumber: "V2704-QR",
+    manufacturerName: "Victaulic",
+    deliveryTimeDays: "2",
+    unitPrice: "-1",
+    currency: "NOK"
+  });
+  assert.deepEqual(negativePrice, {
+    error: "Priset måste vara ett giltigt positivt belopp."
+  });
+
+  const unknownEntryMethod = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111",
+    userApproved: true,
+    entryMethod: "other",
+    productNumber: "9254043"
+  });
+  assert.deepEqual(unknownEntryMethod, {
+    error: "Ogiltigt sätt att lägga till produkten."
+  });
+
+  for (const entryMethod of [undefined, null, ""] as const) {
+    const missingEntryMethod = validateDistributorProductMapping({
+      requirementId: "11111111-1111-4111-8111-111111111111",
+      userApproved: true,
+      entryMethod,
+      productNumber: "9254043"
+    });
+    assert.deepEqual(missingEntryMethod, {
+      error: "Ogiltigt sätt att lägga till produkten."
+    });
+  }
+});
+
 test("rejects duplicate accessories before they can duplicate exported quantities", () => {
   const duplicateNrf = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: true,
+    entryMethod: "catalog",
     productName: "Sprinkler",
     productNumber: "123",
     accessories: [
@@ -88,6 +197,7 @@ test("rejects duplicate accessories before they can duplicate exported quantitie
   const duplicateName = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: true,
+    entryMethod: "catalog",
     productName: "Sprinkler",
     productNumber: "123",
     accessories: [
@@ -100,6 +210,7 @@ test("rejects duplicate accessories before they can duplicate exported quantitie
   const emptyNormalizedNrf = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: true,
+    entryMethod: "catalog",
     productName: "Sprinkler",
     productNumber: "123",
     accessories: [
@@ -113,6 +224,7 @@ test("rejects duplicate accessories before they can duplicate exported quantitie
 test("never accepts a product without explicit user approval", () => {
   const missingApproval = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
+    entryMethod: "catalog",
     productName: "Sprinkler",
     productNumber: "123"
   });
@@ -123,6 +235,7 @@ test("never accepts a product without explicit user approval", () => {
   const rejectedApproval = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111",
     userApproved: false,
+    entryMethod: "catalog",
     productName: "Sprinkler",
     productNumber: "123"
   });

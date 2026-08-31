@@ -1,6 +1,7 @@
 export const PRODUCT_TABLE_COLUMN_IDS = [
   "control",
   "post",
+  "nsCode",
   "requirement",
   "category",
   "quantity",
@@ -22,14 +23,19 @@ export const DEFAULT_PRODUCT_TABLE_LAYOUT: ProductTableLayout = {
 };
 
 const PRODUCT_TABLE_COLUMN_ID_SET = new Set<string>(PRODUCT_TABLE_COLUMN_IDS);
-const LOCKED_VISIBLE_COLUMNS = new Set<ProductTableColumnId>(["control", "post", "requirement"]);
+const LOCKED_VISIBLE_COLUMNS = new Set<ProductTableColumnId>(["control", "post", "nsCode", "requirement"]);
 
 export function normalizeProductTableLayout(value: unknown): ProductTableLayout {
   if (!value || typeof value !== "object" || Array.isArray(value)) return cloneDefaultLayout();
   const candidate = value as { order?: unknown; hidden?: unknown };
   const order = uniqueProductTableColumnIds(candidate.order);
   for (const columnId of PRODUCT_TABLE_COLUMN_IDS) {
-    if (!order.includes(columnId)) order.push(columnId);
+    if (order.includes(columnId)) continue;
+    if (columnId === "nsCode" && order.includes("post")) {
+      order.splice(order.indexOf("post") + 1, 0, columnId);
+    } else {
+      order.push(columnId);
+    }
   }
   const hidden = uniqueProductTableColumnIds(candidate.hidden).filter(
     (columnId) => !LOCKED_VISIBLE_COLUMNS.has(columnId)

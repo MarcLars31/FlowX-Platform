@@ -8,14 +8,17 @@ import { rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
 import { classifyAhlsellCatalogCandidates } from "@/lib/ahlsell-match-groups";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isUuid } from "@/lib/distributor-product-mapping";
-import { requireOrganizationApi } from "@/lib/organization-api-authorization";
-import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
-import { loadSprsokTechnicalCatalog } from "@/lib/sprsok-technical-catalog";
+import { loadDistributorProductMemoryCandidates } from "@/lib/distributor-product-memory";
 import {
-  mergeSprsokAssistedAhlsellQueries,
-  rankSprsokTechnicalReferences
-} from "@/lib/sprsok-technical-match";
-import { selectUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
+  applyLearnedProductEvidence,
+  learnedProductSearchQueries,
+  rankDistributorProductMemoryHints
+} from "@/lib/distributor-product-memory-match";
+import { requireOrganizationApi } from "@/lib/organization-api-authorization";
+import { productLearningCandidateSnapshots } from "@/lib/product-learning-feedback";
+import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
+import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
+import { callUserRpc, selectUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
 
 export const runtime = "nodejs";
 
@@ -52,7 +55,7 @@ export async function GET(request: Request, context: RouteContext) {
         id: `eq.${requirementId}`,
         project_id: `eq.${id}`,
         organization_id: `eq.${authorization.context.organization.id}`,
-        select: "id,category,requirement_key,display_name,value_text,value_json,source_excerpt",
+        select: "id,category,requirement_key,display_name,value_text,value_json,source_excerpt,mapping_fingerprint",
         limit: "1"
       }
     );
@@ -61,16 +64,20 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const guide = buildAhlsellRequirementGuide(requirement);
-    const references = await technicalReferencesOrEmpty(requirement);
-    const assisted = mergeSprsokAssistedAhlsellQueries(
-      guide.searchQueries,
-      references
-    );
-    const searchQueries = assisted.queries.length > 0
-      ? assisted.queries
-      : guide.searchQueries;
+    const learnedHints = classificationMode
+      || guide.directCandidates.length > 0
+      || hasProjectRequirementDataWarning(requirement)
+      ? []
+      : await learnedMemoryHintsOrEmpty(
+          authorization.context.organization.id,
+          requirement
+        );
+    const searchQueries = uniqueQueries([
+      ...learnedProductSearchQueries(learnedHints),
+      ...guide.searchQueries
+    ]);
     const queries = classificationMode
-      ? searchQueries.slice(0, assisted.used ? 3 : 2)
+      ? searchQueries.slice(0, 2)
       : searchQueries;
     const result = await searchAhlsellPublicCatalogQueries({
       market: ahlsellMarketFromSearchUrl(guide.searchUrl),
@@ -84,7 +91,10 @@ export async function GET(request: Request, context: RouteContext) {
     });
     const rankedResult = {
       ...result,
-      candidates: rankAhlsellCandidates(requirement, result.candidates)
+      candidates: applyLearnedProductEvidence(
+        rankAhlsellCandidates(requirement, result.candidates),
+        learnedHints
+      )
     };
 
     if (classificationMode) {
@@ -94,16 +104,20 @@ export async function GET(request: Request, context: RouteContext) {
       });
     }
 
+    await recordCandidateImpression({
+      projectId: id,
+      requirementId,
+      candidates: rankedResult.candidates
+    });
+
     return NextResponse.json({
       ...rankedResult,
-      technicalAssistance: {
-        source: "sprsok",
-        used: assisted.used && queries.some((query) =>
-          references.some((reference) =>
-            reference.queryEligible && normalizeQuery(reference.ahlsellSearchQuery) === normalizeQuery(query)
-          )
+      learningAssistance: {
+        source: "confirmed_product_history",
+        used: learnedProductSearchQueries(learnedHints).some((query) =>
+          queries.some((usedQuery) => normalizeQuery(usedQuery) === normalizeQuery(query))
         ),
-        referenceCount: references.length
+        candidateCount: learnedHints.length
       }
     }, {
       headers: { "Cache-Control": "private, no-store" }
@@ -129,18 +143,53 @@ export async function GET(request: Request, context: RouteContext) {
   }
 }
 
-async function technicalReferencesOrEmpty(requirement: Record<string, unknown>) {
+async function learnedMemoryHintsOrEmpty(
+  organizationId: string,
+  requirement: Record<string, unknown>
+) {
   try {
-    return rankSprsokTechnicalReferences(
+    return rankDistributorProductMemoryHints(
       requirement,
-      await loadSprsokTechnicalCatalog()
+      await loadDistributorProductMemoryCandidates(organizationId, requirement)
     );
   } catch {
-    // SPRSÖK is advisory. Ahlsell search must remain available if it is down.
+    // Confirmed history is advisory. Ahlsell search must remain available if
+    // the organization memory cannot be read during a deployment.
     return [];
   }
 }
 
 function normalizeQuery(value: string) {
   return value.toLocaleLowerCase("sv-SE").replace(/\s+/g, " ").trim();
+}
+
+function uniqueQueries(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = normalizeQuery(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function recordCandidateImpression({
+  projectId,
+  requirementId,
+  candidates
+}: {
+  projectId: string;
+  requirementId: string;
+  candidates: Parameters<typeof productLearningCandidateSnapshots>[0];
+}) {
+  try {
+    await callUserRpc("record_product_candidate_impression", {
+      requested_project_id: projectId,
+      requested_requirement_id: requirementId,
+      requested_candidates: productLearningCandidateSnapshots(candidates)
+    });
+  } catch {
+    // Learning telemetry must never prevent the reviewer from seeing products.
+    // This also keeps the route deployment-safe while the migration rolls out.
+  }
 }

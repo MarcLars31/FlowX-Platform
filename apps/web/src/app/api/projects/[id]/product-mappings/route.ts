@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import {
   isUuid,
-  validateDistributorProductMapping
+  validateDistributorProductMapping,
+  type DistributorProductMappingInput
 } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
@@ -22,6 +23,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 type RequirementValueRow = { value_json: unknown; updated_at: string };
 
 const REQUIREMENT_VALUE_UPDATE_ATTEMPTS = 3;
+const MANUAL_PRODUCT_APPROVAL_UNAVAILABLE = "MANUAL_PRODUCT_APPROVAL_UNAVAILABLE";
 
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -42,13 +44,18 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const input = validation.data;
-    await callUserRpc<string>(
-      "prepare_requirement_for_direct_product_mapping",
-      {
-        requested_project_id: id,
-        requested_requirement_id: input.requirementId
-      }
-    );
+    // Manual preparation is part of the v2 database transaction. Keeping it
+    // out of this preflight means an unavailable or failed v2 RPC leaves no
+    // promoted requirement or partially approved product behind.
+    if (input.entryMethod === "catalog") {
+      await callUserRpc<string>(
+        "prepare_requirement_for_direct_product_mapping",
+        {
+          requested_project_id: id,
+          requested_requirement_id: input.requirementId
+        }
+      );
+    }
     const result = await saveExplicitlyApprovedMapping(
       id,
       authorization.user.id,
@@ -70,13 +77,16 @@ export async function POST(request: Request, context: RouteContext) {
     if (error instanceof UserSupabaseError) {
       const denied =
         error.status === 401 || error.status === 403 || error.code === "42501";
+      const unavailable = error.code === MANUAL_PRODUCT_APPROVAL_UNAVAILABLE;
       return NextResponse.json(
         {
-          error: denied
+          error: unavailable
+            ? error.message
+            : denied
             ? "Du har inte behörighet att registrera produktval i projektet."
             : readableDatabaseError(error.message)
         },
-        { status: denied ? 403 : 400 }
+        { status: denied ? 403 : unavailable ? 503 : 400 }
       );
     }
     return NextResponse.json(
@@ -145,16 +155,7 @@ function isRequirementValueConflict(error: unknown) {
 async function saveExplicitlyApprovedMapping(
   projectId: string,
   actorId: string,
-  input: {
-    requirementId: string;
-    userApproved: true;
-    productName: string;
-    productSubtitle: string;
-    productNumber: string;
-    manufacturerName: string;
-    notes: string;
-    accessories: unknown[];
-  }
+  input: DistributorProductMappingInput
 ) {
   const mappingPayload = {
     requested_project_id: projectId,
@@ -166,6 +167,43 @@ async function saveExplicitlyApprovedMapping(
     requested_accessories: input.accessories
   };
 
+  const approveWithProductDetails = () =>
+    callUserRpc<Record<string, unknown>>(
+      "approve_distributor_product_mapping_v2",
+      {
+        ...mappingPayload,
+        requested_user_approved: input.userApproved,
+        requested_entry_method: input.entryMethod,
+        requested_product_subtitle: input.productSubtitle || null,
+        requested_manufacturer_article_number: input.manufacturerArticleNumber || null,
+        requested_delivery_time_days: input.deliveryTimeDays,
+        requested_unit_price: input.unitPrice,
+        requested_currency: input.currency || null
+      }
+    );
+
+  if (input.entryMethod === "manual") {
+    try {
+      return await approveWithProductDetails();
+    } catch (error) {
+      if (!isMissingProductDetailsApprovalRpc(error)) throw error;
+      // Manual details are required data, not optional enrichment. Never fall
+      // through to either legacy approval path because those commit approval
+      // before the commercial snapshot is attached.
+      throw new UserSupabaseError(
+        "Manuell produktsparning är tillfälligt otillgänglig. Försök igen när databasen är uppdaterad.",
+        503,
+        MANUAL_PRODUCT_APPROVAL_UNAVAILABLE
+      );
+    }
+  }
+
+  try {
+    return await approveWithProductDetails();
+  } catch (error) {
+    if (!isMissingProductDetailsApprovalRpc(error)) throw error;
+  }
+
   try {
     const result = await callUserRpc<Record<string, unknown>>(
       "approve_distributor_product_mapping",
@@ -174,11 +212,16 @@ async function saveExplicitlyApprovedMapping(
         requested_user_approved: input.userApproved
       }
     );
-    return attachProductSubtitle({
+    return attachProductDetails({
       projectId,
       requirementId: input.requirementId,
       actorId,
+      entryMethod: "catalog",
       productSubtitle: input.productSubtitle,
+      manufacturerArticleNumber: input.manufacturerArticleNumber,
+      deliveryTimeDays: input.deliveryTimeDays,
+      unitPrice: input.unitPrice,
+      currency: input.currency,
       result
     });
   } catch (error) {
@@ -233,11 +276,16 @@ async function saveExplicitlyApprovedMapping(
     throw new Error("The approved product assignment could not be marked approved.");
   }
 
-  return attachProductSubtitle({
+  return attachProductDetails({
     projectId,
     requirementId: input.requirementId,
     actorId,
+    entryMethod: "catalog",
     productSubtitle: input.productSubtitle,
+    manufacturerArticleNumber: input.manufacturerArticleNumber,
+    deliveryTimeDays: input.deliveryTimeDays,
+    unitPrice: input.unitPrice,
+    currency: input.currency,
     result: {
       ...result,
       approvedByUser: true,
@@ -247,20 +295,37 @@ async function saveExplicitlyApprovedMapping(
   });
 }
 
-async function attachProductSubtitle({
+async function attachProductDetails({
   projectId,
   requirementId,
   actorId,
+  entryMethod,
   productSubtitle,
+  manufacturerArticleNumber,
+  deliveryTimeDays,
+  unitPrice,
+  currency,
   result
 }: {
   projectId: string;
   requirementId: string;
   actorId: string;
+  entryMethod: "catalog";
   productSubtitle: string;
+  manufacturerArticleNumber: string;
+  deliveryTimeDays: number | null;
+  unitPrice: number | null;
+  currency: string;
   result: Record<string, unknown>;
 }) {
-  if (!productSubtitle) return result;
+  const productDetails = {
+    entryMethod,
+    ...(productSubtitle ? { subtitle: productSubtitle } : {}),
+    ...(manufacturerArticleNumber ? { manufacturerArticleNumber } : {}),
+    ...(deliveryTimeDays !== null ? { deliveryTimeDays } : {}),
+    ...(unitPrice !== null ? { unitPrice, currency: currency || "NOK" } : {})
+  };
+  if (Object.keys(productDetails).length === 0) return result;
   try {
     const assignmentId = result.assignmentId;
     if (!isUuid(assignmentId)) return result;
@@ -290,18 +355,23 @@ async function attachProductSubtitle({
       {
         product_snapshot: {
           ...record(assignment.product_snapshot),
-          subtitle: productSubtitle
+          ...productDetails
         }
       }
     );
-    return updatedRows.length === 1
-      ? { ...result, productSubtitle }
-      : result;
+    return updatedRows.length === 1 ? { ...result, ...productDetails } : result;
   } catch {
-    // Mapping approval is authoritative. A temporary subtitle enrichment failure
+    // Mapping approval is authoritative. A temporary detail enrichment failure
     // must not turn a completed approval into a retryable 500 response.
     return result;
   }
+}
+
+function isMissingProductDetailsApprovalRpc(error: unknown) {
+  if (!(error instanceof UserSupabaseError)) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return error.status === 404 &&
+    /could not find the function public\.approve_distributor_product_mapping_v2\b/i.test(error.message);
 }
 
 function isMissingApprovalRpc(error: unknown) {

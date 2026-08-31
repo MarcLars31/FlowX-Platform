@@ -5,6 +5,9 @@ export type DistributorProductMemoryRow = Record<string, unknown> & {
   id: string;
   organization_id: string;
   requirement_fingerprint: string;
+  requirement_category: string;
+  requirement_key: string;
+  requirement_snapshot: Record<string, unknown>;
   product_name: string;
   product_number: string;
   usage_count: number;
@@ -70,6 +73,31 @@ export async function loadDistributorProductMemory(
   const mappingAccessories = accessoryBatches.flat();
 
   return { mappingMemories: relevantMemories, mappingAccessories };
+}
+
+export async function loadDistributorProductMemoryCandidates(
+  organizationId: string,
+  requirement: Record<string, unknown>,
+  limit = 100
+) {
+  const category = typeof requirement.category === "string"
+    ? requirement.category.trim()
+    : "";
+  if (!/^[a-z0-9_-]{1,80}$/i.test(category) || category.toLowerCase() === "unknown") return [];
+
+  const safeLimit = Math.max(1, Math.min(250, Math.floor(limit)));
+  return selectUserRows<DistributorProductMemoryRow>(
+    "distributor_product_memories",
+    {
+      organization_id: `eq.${organizationId}`,
+      distributor_name: "eq.Ahlsell",
+      requirement_category: `eq.${category}`,
+      deleted_at: "is.null",
+      select: "id,organization_id,requirement_fingerprint,requirement_category,requirement_key,requirement_snapshot,product_name,product_number,manufacturer_name,usage_count,last_used_at",
+      order: "usage_count.desc,last_used_at.desc",
+      limit: String(safeLimit)
+    }
+  );
 }
 
 function chunkValues<T>(values: T[], size: number) {

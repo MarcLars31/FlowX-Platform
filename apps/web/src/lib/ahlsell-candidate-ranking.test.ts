@@ -118,6 +118,97 @@ test("prefers the V2704 QR quick-response sprinkler when another attribute says 
   assert.ok(standardResponse?.matchWarnings?.some((warning) => warning.includes("responstid")));
 });
 
+test("prioritizes recessed pendent V2762 over a conventional opp/ned head for an infellt ceiling post", () => {
+  const requirement = {
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Innfelt, synlig montasje i tak",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "80",
+      trykk: "PN16",
+      "gjengedimensjon (dn)": "DN15 / 1/2\"",
+      overflatebehandling: "Som standard for produkt",
+      "dekkskive/pyntering (ved innfelling)": "Ja",
+      beskyttelse: "Ja"
+    } }
+  };
+  const ranked = rankAhlsellCandidates(requirement, [
+    {
+      ...candidate(
+        "9254111",
+        "Sprinklerhoder Modell V2726 QR Victaulic Firelock - Konvensjonell opp/ned",
+        "Konvensjonell sprinkler som fordeler vann både oppover og nedover.",
+        "/sprinkler/9254111/"
+      ),
+      specifications: [
+        "Modell: V2726",
+        "Utløsningstemperatur: 68°C",
+        "Sprinklertype: Konv. SP/SSU",
+        "K-faktor: 80",
+        "Utvendig gjenge: 1/2\"",
+        "Respons: Quick"
+      ]
+    },
+    {
+      ...candidate(
+        "9257423",
+        "Sprinklerhoder Modell V2762 QR Victaulic FireLock - Ned",
+        "Standard spraysprinkler for kommersielle bruksområder.",
+        "/sprinkler/9257423/"
+      ),
+      specifications: [
+        "Modell: V2762",
+        "Responstid: Hurtig respons",
+        "Responstemperatur: 68 °C",
+        "Farge: Hvit",
+        "K-faktor: 80",
+        "Tilkobling: Utvendige gjenger, gass, konisk (BSPT)",
+        "Utvendig gjenge: 1/2\""
+      ]
+    }
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "9257423");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("infällt pendentmontage")));
+  assert.ok(ranked[0].matchWarnings?.every((warning) => !warning.includes("tillbehör")));
+
+  const conventional = ranked.find((candidate) => candidate.articleNumber === "9254111");
+  assert.notEqual(conventional?.recommendation, "recommended");
+  assert.equal(conventional?.exactMatch, false);
+  assert.ok(conventional?.matchWarnings?.some((warning) => warning.includes("konventionell upp/ned")));
+});
+
+test("keeps a conventional V2726 candidate preferred when the post does not require recessed mounting", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Synlig opp/ned-montasje",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15"
+    } }
+  }, [
+    {
+      ...candidate("9257423", "Sprinklerhoder Modell V2762 QR - Ned", "Standard spraysprinkler", "/sprinkler/9257423/"),
+      specifications: ["K-faktor: 80", "DN15", "68 °C", "Hurtig respons"]
+    },
+    {
+      ...candidate("9254111", "Sprinklerhoder Modell V2726 QR - Konvensjonell opp/ned", "Konvensjonell sprinkler", "/sprinkler/9254111/"),
+      specifications: ["K-faktor: 80", "DN15", "68 °C", "Hurtig respons"]
+    }
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "9254111");
+});
+
 test("does not recommend K115 when the raw PDF source says K1145", () => {
   const [ranked] = rankAhlsellCandidates({
     category: "sprinkler_head",
@@ -197,6 +288,47 @@ test("always places Scipx most likely product first without mutating the input",
   assert.deepEqual(input.map((item) => item.articleNumber), ["2", "1", "3"]);
 });
 
+test("learning evidence only breaks ties between candidates with equal technical scores", () => {
+  const learnedEvidence = {
+    kind: "similar_confirmed" as const,
+    supportCount: 2,
+    similarityScore: 90
+  };
+  const higherTechnicalScore = {
+    ...candidate("high", "Högre teknisk träff", "", "/high/"),
+    matchScore: 99,
+    recommendation: "recommended" as const
+  };
+  const learnedLowerScore = {
+    ...candidate("learned-low", "Inlärd lägre träff", "", "/learned-low/"),
+    matchScore: 75,
+    recommendation: "recommended" as const,
+    learningEvidence: learnedEvidence
+  };
+  const unlearnedTie = {
+    ...candidate("tie", "Oinlärd likvärdig träff", "", "/tie/"),
+    matchScore: 90,
+    recommendation: "recommended" as const
+  };
+  const learnedTie = {
+    ...candidate("learned-tie", "Inlärd likvärdig träff", "", "/learned-tie/"),
+    matchScore: 90,
+    recommendation: "recommended" as const,
+    learningEvidence: learnedEvidence
+  };
+
+  assert.deepEqual(
+    orderAhlsellCandidatesForDisplay([learnedLowerScore, higherTechnicalScore])
+      .map((item) => item.articleNumber),
+    ["high", "learned-low"]
+  );
+  assert.deepEqual(
+    orderAhlsellCandidatesForDisplay([unlearnedTie, learnedTie])
+      .map((item) => item.articleNumber),
+    ["learned-tie", "tie"]
+  );
+});
+
 test("reserves exact-match presentation for a complete 100-point match without warnings", () => {
   const exact = { ...candidate("exact", "Exakt produkt", "", "/exact/"), matchScore: 100, recommendation: "recommended" as const, matchWarnings: [], exactMatch: true };
   const strong = { ...candidate("strong", "Stark produkt", "", "/strong/"), matchScore: 95, recommendation: "recommended" as const, matchWarnings: [] };
@@ -220,6 +352,72 @@ test("ranks a dimensionally matching sprinkler pipe above a tee from the same br
   assert.equal(ranked[0].articleNumber, "pipe");
   assert.equal(ranked[0].recommendation, "recommended");
   assert.equal(ranked[1].recommendation, "unlikely");
+});
+
+test("flags a grooved pipe when the PDF requires a threaded joint", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "pipe",
+    value_text: "SPRINKLERRØR AV STÅL",
+    value_json: {
+      unit: "m",
+      attributes: {
+        materiale: "Stål — varmforsinket",
+        skjøt: "Gjenget skjøt",
+        dimensjon: "DN40",
+        trykk: "PN16"
+      }
+    }
+  }, [candidate(
+    "1118743",
+    "Galvaniserte rillede rør, 6 m lengder",
+    "Stålrør DN40 PN16 med rillet skjøt",
+    "/pipe/1118743/"
+  )]);
+
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.equal(ranked.exactMatch, false);
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("skarv")));
+});
+
+test("does not treat a PP-R sprinkler pipe as a steel pipe", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "pipe",
+    value_text: "SPRINKLERRØR AV STÅL",
+    value_json: {
+      unit: "m",
+      attributes: { materiale: "Stål", dimensjon: "DN65", trykk: "PN16" }
+    }
+  }, [candidate(
+    "8755089",
+    "Rør for sprinkling, Red pipe",
+    "PP-R sprinklerør DN65 PN16",
+    "/pipe/8755089/"
+  )]);
+
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.equal(ranked.exactMatch, false);
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("material")));
+});
+
+test("requires explicit extended-coverage evidence for an extended-coverage sprinkler", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      "type sprinkler": "Tørrsprinkler med utvidet dekning",
+      plassering: "Stående",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "115.5",
+      "gjengedimensjon (dn)": "DN20"
+    } }
+  }, [{
+    ...candidate("9254379", "Sprinklerhoder Modell V3402 QR - Opp", "Tørrsprinkler", "/sprinkler/9254379/"),
+    specifications: ["K-faktor: 115.5", "DN20", "68 °C", "Hurtig respons"]
+  }]);
+
+  assert.equal(ranked.exactMatch, false);
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("extended coverage")));
 });
 
 test("recognizes common Ahlsell fitting and valve families", () => {

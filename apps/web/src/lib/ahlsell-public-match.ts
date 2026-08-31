@@ -21,6 +21,11 @@ export type AhlsellPublicCandidate = {
   exactMatch?: boolean;
   familyCode?: string;
   variantCount?: number;
+  learningEvidence?: {
+    kind: "similar_confirmed";
+    supportCount: number;
+    similarityScore: number;
+  };
 };
 
 export type AhlsellRequirementGuide = {
@@ -36,6 +41,7 @@ export type AhlsellRequirementGuide = {
 type Orientation = "pendent" | "upright" | "sidewall";
 type Response = "quick" | "standard";
 type Finish = "brass" | "white" | "black" | "chrome";
+type SprinklerMount = "recessed" | "concealed";
 type AhlsellProductIntent =
   | "foam_extinguisher"
   | "portable_fire_extinguisher"
@@ -162,12 +168,15 @@ export function buildAhlsellRequirementGuide(
       ?? numberFromText(combined, /(-?\d+(?:[.,]\d+)?)\s*(?:°\s*)?c\b/i)
     : null;
   const placement = firstAttribute(attributes, ["plassering", "placering", "orientation", "sprinklertype", "type"]);
+  const deckPlate = firstAttribute(attributes, ["dekkskive", "pyntering", "rosett", "escutcheon", "cover plate"]);
   const responseText = firstAttribute(attributes, ["folsomhetsgrad", "respons", "response"]);
   const finishText = `${firstAttribute(attributes, ["overflatebehandling", "farge", "farg", "finish", "colour", "color"]) ?? ""} ${description}`;
+  const mount = sprinklerMount(placement, deckPlate);
   const orientationResult = sprinklerOrientation(`${placement ?? ""} ${description}`);
+  const orientation = orientationResult.orientation
+    ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
   const responseResult = sprinklerResponse(responseText, technicalSpecification);
   const finish = sprinklerFinish(finishText);
-  const concealed = /\b(innfelt|inf[aä]llt|concealed|dold|flat cover|plate)\b/i.test(combined);
   const specialApplication = /\b(torrsprinkler|torrorssprinkler|dry sprinkler)\b/i.test(combined)
     || /\b(residential|boende|bolig(?:sprinkler)?)\b/i.test(combined)
     || /\b(extended coverage|qrec|ec hsw|flat spray)\b/i.test(combined);
@@ -180,8 +189,8 @@ export function buildAhlsellRequirementGuide(
     dn === null ? null : `DN${formatNumber(dn)}`,
     temperatureC === null ? null : `${formatNumber(temperatureC)}°C`,
     responseResult.response === "quick" ? "Quick" : responseResult.response === "standard" ? "Standard" : null,
-    orientationResult.orientation === "pendent" ? "Pendent" : orientationResult.orientation === "upright" ? "Upright" : orientationResult.orientation === "sidewall" ? "HSW" : null,
-    concealed ? "Concealed" : null,
+    orientation === "pendent" ? "Pendent" : orientation === "upright" ? "Upright" : orientation === "sidewall" ? "HSW" : null,
+    mount === "recessed" ? "Recessed" : mount === "concealed" ? "Concealed" : null,
     finish ? finishSearchLabel(finish) : null,
     specialSearchTerm(combined)
   ]);
@@ -207,7 +216,7 @@ export function buildAhlsellRequirementGuide(
         kFactor,
         dn,
         temperatureC,
-        orientation: orientationResult.orientation,
+        orientation,
         response: responseResult.response,
         finish,
         isSprinklerAccessory,
@@ -240,19 +249,19 @@ export function buildAhlsellRequirementGuide(
     && intent === "sprinkler_head"
     && !orientationResult.mixed
     && !responseResult.conflict
-    && !concealed
+    && mount === null
     && !specialApplication
     && !isSprinklerAccessory
     && kFactor !== null
     && dn !== null
     && temperatureC !== null
-    && orientationResult.orientation
+    && orientation
     && responseResult.response
       ? sprinklerCandidates.filter((item) =>
           closeEnough(item.kFactor, kFactor)
           && item.dn === dn
           && closeEnough(item.temperatureC, temperatureC)
-          && item.orientation === orientationResult.orientation
+          && item.orientation === orientation
           && item.response === responseResult.response
           && (!finish || item.finish === finish)
         )
@@ -273,6 +282,9 @@ export function buildAhlsellRequirementGuide(
       : null,
     intent === "sprinkler_head" && !isSprinklerAccessory
       ? "Scipx kontrollerar Ahlsells exakta variantvärden för K-faktor, temperatur, respons och färg."
+      : null,
+    intent === "sprinkler_head" && mount === "recessed" && /\bkonvensjonell\b/.test(primaryCombined)
+      ? "Infällt takmontage behandlas som ett pendentkrav; den generella typetiketten konvensjonell får inte ensam styra produktvalet."
       : null,
     /\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/.test(combined)
       ? "Posten verkar vara specialtillverkad. En katalogprodukt får bara väljas efter manuell kontroll eller offert."
@@ -565,6 +577,16 @@ function sprinklerOrientation(value: string): { orientation: Orientation | null;
     hasSidewall ? "sidewall" : null
   ]);
   return { orientation: orientations.length === 1 ? orientations[0] : null, mixed: orientations.length > 1 };
+}
+
+function sprinklerMount(placement: string | null, deckPlate: string | null): SprinklerMount | null {
+  const normalizedPlacement = normalize(placement ?? "");
+  if (/\b(skjult|concealed|dold)\b/.test(normalizedPlacement)) return "concealed";
+  const normalizedDeckPlate = normalize(deckPlate ?? "");
+  const affirmativeDeckPlate = /\b(ja|yes|true|inkludert|required)\b/.test(normalizedDeckPlate)
+    && !/\b(nei|no|false)\b/.test(normalizedDeckPlate);
+  if (/\b(innfelt|infalld|recessed)\b/.test(normalizedPlacement) || affirmativeDeckPlate) return "recessed";
+  return null;
 }
 
 function sprinklerResponse(attributeValue: string | null, sourceText: string) {

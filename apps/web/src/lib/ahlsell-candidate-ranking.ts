@@ -25,9 +25,14 @@ type TechnicalProfile = {
   temperatureC: number | null;
   response: "standard" | "quick" | null;
   orientation: "upright" | "pendent" | "sidewall" | null;
+  mount: "recessed" | "concealed" | null;
+  visibleMount: boolean;
   drySystem: boolean;
   wetSystem: boolean;
   expectsSteel: boolean;
+  material: "steel" | "ppr" | "brass" | "ductile_iron" | null;
+  joint: "threaded" | "grooved" | "fusion" | "flanged" | null;
+  extendedCoverage: boolean;
   finish: "white" | "black" | "chrome" | "brass" | null;
 };
 
@@ -42,6 +47,8 @@ export function orderAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandid
   return [...candidates].sort((left, right) =>
     confidenceTier(left) - confidenceTier(right)
     || (right.matchScore ?? 0) - (left.matchScore ?? 0)
+    || (right.learningEvidence?.supportCount ?? 0) - (left.learningEvidence?.supportCount ?? 0)
+    || (right.learningEvidence?.similarityScore ?? 0) - (left.learningEvidence?.similarityScore ?? 0)
     || left.productName.localeCompare(right.productName, "sv")
   );
 }
@@ -71,6 +78,7 @@ function confidenceTier(candidate: AhlsellPublicCandidate) {
 
 function requirementProfile(requirement: Record<string, unknown>): TechnicalProfile {
   const value = record(requirement.value_json);
+  const attributes = record(value.attributes);
   const semanticText = normalize(flattenText({
     category: requirement.category,
     description: requirement.value_text,
@@ -82,6 +90,20 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   const text = normalize(flattenText(requirement));
   const outsideDiameter = extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
   const dn = extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
+  const placementText = normalize(attributeText(attributes, /\b(?:plassering|placering|orientation|montasje|montering|mounting)\b/));
+  const deckPlateText = normalize(attributeText(attributes, /\b(?:dekkskive|pyntering|rosett|escutcheon|cover plate)\b/));
+  const materialText = normalize(attributeText(attributes, /\b(?:materiale|materialkvalitet|material|ror material)\b/));
+  const jointText = normalize(attributeText(attributes, /\b(?:skjot|joint|tilkoblingstype|forbindelse)\b/));
+  const sprinklerTypeText = normalize(attributeText(attributes, /\b(?:type sprinkler|sprinklertype|dekning|coverage)\b/));
+  const mount = requirementSprinklerMount(placementText, deckPlateText);
+  const orientationText = placementText || primaryText;
+  const explicitOrientation = /\b(staende|upright|oppover|opp)\b/.test(orientationText)
+    ? "upright" as const
+    : /\b(hengende|pendent|nedover|ned)\b/.test(orientationText)
+      ? "pendent" as const
+      : /\b(horisontal|sidewall|hsw|vegg)\b/.test(orientationText) ? "sidewall" as const : null;
+  const orientation = explicitOrientation
+    ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(placementText) ? "pendent" : null);
   return {
     text,
     intent: detectIntent(semanticText, text, String(requirement.category ?? "")),
@@ -93,14 +115,15 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
       ?? extractKFactor(text),
     temperatureC: extractTemperature(primaryText) ?? extractTemperature(text),
     response: extractSprinklerResponse(primaryText),
-    orientation: /\b(staende|upright|oppover|opp)\b/.test(primaryText)
-      ? "upright"
-      : /\b(hengende|pendent|nedover|ned)\b/.test(primaryText)
-        ? "pendent"
-        : /\b(horisontal|sidewall|hsw|vegg)\b/.test(primaryText) ? "sidewall" : null,
+    orientation,
+    mount,
+    visibleMount: /\b(synlig|visible|eksponert)\b/.test(placementText),
     drySystem: /\b(torrsprinkler|torrorssprinkler|dry sprinkler|torrt system)\b/.test(primaryText),
     wetSystem: /\b(vatanlegg|vatt anlegg|wet system|vat alarmventil)\b/.test(primaryText),
     expectsSteel: /\b(stalror|stal ror|materiale stal|ror av stal|stal fittings?)\b/.test(primaryText),
+    material: extractMaterial(materialText),
+    joint: extractJointTypes(jointText)[0] ?? null,
+    extendedCoverage: /\b(extended coverage|utvidet dekning|qrec|ec hsw)\b/.test(`${sprinklerTypeText} ${primaryText}`),
     finish: extractFinish(primaryText)
   };
 }
@@ -250,6 +273,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
 
   score += scoreDimension(candidateText, requirement, reasons, warnings);
   score += scorePressure(candidateText, requirement, reasons, warnings);
+  score += scoreMaterialAndJoint(candidateText, requirement, reasons, warnings);
 
   const matchScore = Math.max(0, Math.min(100, score));
   const recommendation = matchScore >= 75 && warnings.length === 0
@@ -290,8 +314,13 @@ function hasCompleteTechnicalEvidence(
   }
   if (requirement.response && extractSprinklerResponse(candidateText) !== requirement.response) return false;
   if (requirement.orientation && candidateOrientation(candidateName, candidateText) !== requirement.orientation) return false;
+  if (requirement.mount !== null && candidateSprinklerMount(candidateText) !== requirement.mount) return false;
+  if (requirement.visibleMount && candidateSprinklerMount(candidateText) === "concealed") return false;
   if (requirement.finish && extractFinish(candidateText) !== requirement.finish) return false;
   if (requirement.drySystem && !/\b(torr|dry)\b/.test(candidateText)) return false;
+  if (requirement.material && extractMaterial(candidateText) !== requirement.material) return false;
+  if (requirement.joint && !extractJointTypes(candidateText).includes(requirement.joint)) return false;
+  if (requirement.extendedCoverage && !hasExtendedCoverage(candidateText)) return false;
   return true;
 }
 
@@ -402,6 +431,7 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
       warnings.push("Sprinklerns monteringsriktning stämmer inte med PDF-kravet.");
     }
   }
+  score += scoreSprinklerMount(candidateText, requirement, reasons, warnings);
   if (requirement.drySystem && !/\b(torr|dry)\b/.test(candidateText)) {
     score -= 50;
     warnings.push("PDF-kravet anger torrsprinkler, men träffen är inte markerad som torr modell.");
@@ -409,6 +439,15 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
   if (!requirement.drySystem && requirement.wetSystem && /\b(torr|dry)\b/.test(candidateText)) {
     score -= 60;
     warnings.push("PDF-kravet anger vått system, men träffen är en torrsprinkler.");
+  }
+  if (requirement.extendedCoverage) {
+    if (hasExtendedCoverage(candidateText)) {
+      score += 10;
+      reasons.push("Produktens extended-coverage-utförande stämmer med PDF-kravet.");
+    } else {
+      score -= 35;
+      warnings.push("PDF-kravet anger extended coverage, men produktinformationen bekräftar inte det utförandet.");
+    }
   }
   if (requirement.dn === 15 && (requirement.kFactor ?? 0) >= 115) {
     score -= 25;
@@ -442,6 +481,61 @@ function candidateOrientation(productName: string, candidateText: string): Techn
   return null;
 }
 
+type CandidateSprinklerMount = "recessed" | "concealed" | "surface" | null;
+
+function scoreSprinklerMount(
+  candidateText: string,
+  requirement: TechnicalProfile,
+  reasons: string[],
+  warnings: string[]
+) {
+  if (requirement.mount === null) return 0;
+  const candidateMount = candidateSprinklerMount(candidateText);
+
+  if (requirement.visibleMount && candidateMount === "concealed") {
+    warnings.push("PDF-kravet anger synligt infällt montage, men träffen är en dold sprinkler med täcklock.");
+    return -70;
+  }
+  if (candidateMount === requirement.mount) {
+    reasons.push(requirement.mount === "recessed"
+      ? "Produkten är dokumenterad för infällt pendentmontage."
+      : "Produkten är dokumenterad för dolt montage med täcklock.");
+    return 30;
+  }
+  if (candidateMount === "surface") {
+    warnings.push(requirement.mount === "recessed"
+      ? "PDF-kravet anger infällt pendentmontage, men träffen är en konventionell upp/ned-modell utan dokumenterat infällt montage."
+      : "PDF-kravet anger dolt montage, men träffen är inte en concealed-modell.");
+    return -65;
+  }
+  if (candidateMount !== null) {
+    warnings.push(requirement.mount === "recessed"
+      ? "PDF-kravet anger infällt montage, men produktens montageutförande stämmer inte."
+      : "PDF-kravet anger dolt montage, men produktens montageutförande stämmer inte.");
+    return -60;
+  }
+
+  warnings.push(requirement.mount === "recessed"
+    ? "Produktinformationen bekräftar inte att sprinklern får monteras infälld."
+    : "Produktinformationen bekräftar inte att sprinklern är avsedd för dolt montage.");
+  return -20;
+}
+
+function candidateSprinklerMount(candidateText: string): CandidateSprinklerMount {
+  if (/\b(concealed|skjult|dold)\b/.test(candidateText)) {
+    return "concealed";
+  }
+  if (/\b(recessed|innfelt|infalld)\b/.test(candidateText)
+    || /\bv2762\b/.test(candidateText)) {
+    return "recessed";
+  }
+  if (/\b(konvensjonell|konventionell|conventional|konv)\b/.test(candidateText)
+    || /\bv2726\b/.test(candidateText)) {
+    return "surface";
+  }
+  return null;
+}
+
 function scoreDimension(candidateText: string, requirement: TechnicalProfile, reasons: string[], warnings: string[]) {
   if (requirement.dn === null) return 0;
   const candidateDn = extractDn(candidateText);
@@ -471,6 +565,37 @@ function scorePressure(candidateText: string, requirement: TechnicalProfile, rea
     return -20;
   }
   return 0;
+}
+
+function scoreMaterialAndJoint(
+  candidateText: string,
+  requirement: TechnicalProfile,
+  reasons: string[],
+  warnings: string[]
+) {
+  let score = 0;
+  if (requirement.material) {
+    const candidateMaterial = extractMaterial(candidateText);
+    if (candidateMaterial === requirement.material) {
+      score += 10;
+      reasons.push("Materialet stämmer med PDF-kravet.");
+    } else if (candidateMaterial) {
+      score -= 55;
+      warnings.push("Produktens material stämmer inte med PDF-kravet.");
+    }
+  }
+
+  if (requirement.joint) {
+    const candidateJoints = extractJointTypes(candidateText);
+    if (candidateJoints.includes(requirement.joint)) {
+      score += 10;
+      reasons.push("Skarvtypen stämmer med PDF-kravet.");
+    } else if (candidateJoints.length > 0) {
+      score -= 55;
+      warnings.push("Produktens skarv- eller anslutningstyp stämmer inte med PDF-kravet.");
+    }
+  }
+  return score;
 }
 
 function detectIntent(primaryValue: string, combinedValue: string, category: string): ProductIntent {
@@ -511,7 +636,11 @@ function extractDn(value: string) {
   const explicit = value.match(/\bdn\s*(\d{1,3})\b/)?.[1];
   if (explicit) return Number(explicit);
   const labelled = value.match(/\bdimensjon(?: dn)?\s*(\d{1,3})\b/)?.[1];
-  return labelled ? Number(labelled) : null;
+  if (labelled) return Number(labelled);
+  if (/\b(?:nominell diameter|utvendig gjenge|gjengedimensjon)\s+1\s+2\b/.test(value)) return 15;
+  if (/\b(?:nominell diameter|utvendig gjenge|gjengedimensjon)\s+3\s+4\b/.test(value)) return 20;
+  const connection = value.match(/\butvendig rordiameter tilkobling\s*(\d{1,3})\s*(?:mm)?\b/)?.[1];
+  return connection ? Number(connection) : null;
 }
 
 function extractOutsideDiameter(value: string) {
@@ -551,6 +680,27 @@ function extractFinish(value: string): TechnicalProfile["finish"] {
   return null;
 }
 
+function extractMaterial(value: string): TechnicalProfile["material"] {
+  if (/\b(pp\s*r|polypropylen|red pipe)\b/.test(value)) return "ppr";
+  if (/\b(duktil|stopejern|gjutjarn)\b/.test(value)) return "ductile_iron";
+  if (/\b(messing|massing|brass)\b/.test(value)) return "brass";
+  if (/\b(stal|steel|galvanis(?:ert|erte|erad|ed))\b/.test(value)) return "steel";
+  return null;
+}
+
+function extractJointTypes(value: string): Array<NonNullable<TechnicalProfile["joint"]>> {
+  const joints: Array<NonNullable<TechnicalProfile["joint"]>> = [];
+  if (/\b(gjenget|gjenger|threaded|skrudd|skruforbindelse)\b/.test(value)) joints.push("threaded");
+  if (/\b(rillet|rillede|rillekobling|grooved)\b/.test(value)) joints.push("grooved");
+  if (/\b(sveis|sveist|sveising|muffesveis|heat fusion|fusion)\b/.test(value)) joints.push("fusion");
+  if (/\b(flens|flanged)\b/.test(value)) joints.push("flanged");
+  return joints;
+}
+
+function hasExtendedCoverage(value: string) {
+  return /\b(extended coverage|utvidet dekning|qrec|ec hsw)\b/.test(value);
+}
+
 function numberAfterLabel(value: string, pattern: RegExp) {
   const raw = value.match(pattern)?.[1];
   if (!raw) return null;
@@ -567,6 +717,24 @@ function flattenText(value: unknown): string {
       .join(" ");
   }
   return "";
+}
+
+function attributeText(attributes: Record<string, unknown>, keyPattern: RegExp) {
+  return Object.entries(attributes)
+    .filter(([key]) => keyPattern.test(normalize(key)))
+    .map(([, value]) => flattenText(value))
+    .join(" ");
+}
+
+function requirementSprinklerMount(
+  placementText: string,
+  deckPlateText: string
+): TechnicalProfile["mount"] {
+  if (/\b(skjult|concealed|dold)\b/.test(placementText)) return "concealed";
+  const affirmativeDeckPlate = /\b(ja|yes|true|inkludert|required)\b/.test(deckPlateText)
+    && !/\b(nei|no|false)\b/.test(deckPlateText);
+  if (/\b(innfelt|infalld|recessed)\b/.test(placementText) || affirmativeDeckPlate) return "recessed";
+  return null;
 }
 
 function record(value: unknown): Record<string, unknown> {

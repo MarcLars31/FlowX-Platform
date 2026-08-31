@@ -6,7 +6,10 @@ import { Button } from "@/components/Button";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
-import { resolveDistributorProductName } from "@/lib/distributor-product-mapping";
+import {
+  resolveDistributorProductName,
+  validateManualDistributorProduct
+} from "@/lib/distributor-product-mapping";
 import {
   isProductRequirementResolvedWithoutProduct,
   productRequirementResolution,
@@ -60,7 +63,19 @@ type ProductSelection = {
   productName: string;
   productSubtitle: string;
   productNumber: string;
+  manufacturerArticleNumber: string;
   manufacturerName: string;
+  deliveryTimeDays: string;
+  unitPrice: string;
+  currency: string;
+};
+type ManualProductDraft = {
+  productNumber: string;
+  manufacturerArticleNumber: string;
+  manufacturerName: string;
+  deliveryTimeDays: string;
+  unitPrice: string;
+  currency: string;
 };
 type RequirementAttachment = {
   id: string;
@@ -74,14 +89,6 @@ type RequirementAttachment = {
 };
 type ProductTableSortKey = ProductTableColumnId;
 type ProductTableSort = { key: ProductTableSortKey; direction: "asc" | "desc" };
-type SprsokAssistedCatalogResult = AhlsellCatalogResult & {
-  technicalAssistance?: {
-    source: "sprsok";
-    used: boolean;
-    referenceCount: number;
-  };
-};
-
 type ProductTableColumnDefinition = {
   label: string;
   className: string;
@@ -92,6 +99,7 @@ type ProductTableColumnDefinition = {
 const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefinition> = {
   control: { label: "Kontroll", className: "w-16 text-center", align: "center", minimumWidth: 72 },
   post: { label: "PDF-post", className: "w-28", minimumWidth: 120 },
+  nsCode: { label: "NS-kod", className: "w-40", minimumWidth: 176 },
   requirement: { label: "Produktkrav", className: "min-w-64", minimumWidth: 320 },
   category: { label: "Produktgrupp", className: "w-36", minimumWidth: 160 },
   quantity: { label: "Mängd", className: "w-24", minimumWidth: 104 },
@@ -100,8 +108,9 @@ const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefi
 
 const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
-export function DistributorMappingPanel({ projectId, requirements, assignments, memories, sourcePdfLookup, onReload, onGoToDocuments, onFinish, finishing = false }: {
+export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories, sourcePdfLookup, onReload, onGoToDocuments, onFinish, finishing = false }: {
   projectId: string;
+  currency?: string;
   requirements: Row[];
   assignments: Row[];
   memories: Row[];
@@ -572,6 +581,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
             body: JSON.stringify({
               requirementId: requirement.id,
               userApproved: true,
+              entryMethod: "catalog",
               productName: label.productName || selection.productName,
               productSubtitle: label.subtitle,
               productNumber: selection.productNumber,
@@ -929,6 +939,7 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
                     <RequirementProductMappingCard
                       key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
                       projectId={projectId}
+                      currency={currency}
                       requirement={requirement}
                       assignment={assignment}
                       sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
@@ -1021,8 +1032,9 @@ export function DistributorMappingPanel({ projectId, requirements, assignments, 
   );
 }
 
-function RequirementProductMappingCard({ projectId, requirement, assignment, sourcePdfHref, position, totalPosts, memories, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, totalPosts, memories, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
+  currency: string;
   requirement: Row;
   assignment?: Row;
   sourcePdfHref: string | null;
@@ -1035,10 +1047,32 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   onError: (message: string) => void;
 }) {
   const currentSnapshot = record(assignment?.product_snapshot);
+  const defaultCurrency = normalizeCurrencyCode(currency) || "NOK";
   const [productName, setProductName] = useState(String(currentSnapshot.name ?? ""));
   const [productSubtitle, setProductSubtitle] = useState(String(currentSnapshot.subtitle ?? ""));
   const [productNumber, setProductNumber] = useState(String(currentSnapshot.productNumber ?? ""));
+  const [manufacturerArticleNumber, setManufacturerArticleNumber] = useState(String(currentSnapshot.manufacturerArticleNumber ?? ""));
   const [manufacturerName, setManufacturerName] = useState(String(currentSnapshot.manufacturer ?? ""));
+  const [deliveryTimeDays, setDeliveryTimeDays] = useState(String(currentSnapshot.deliveryTimeDays ?? ""));
+  const [unitPrice, setUnitPrice] = useState(String(currentSnapshot.unitPrice ?? ""));
+  const [priceCurrency, setPriceCurrency] = useState(normalizeCurrencyCode(String(currentSnapshot.currency ?? "")) || defaultCurrency);
+  const [manualProductSelected, setManualProductSelected] = useState(Boolean(
+    currentSnapshot.manufacturerArticleNumber != null
+    || currentSnapshot.deliveryTimeDays != null
+    || currentSnapshot.unitPrice != null
+  ));
+  const [manualProductRequired, setManualProductRequired] = useState(false);
+  const [manualProductOpen, setManualProductOpen] = useState(false);
+  const [manualProductDraftDirty, setManualProductDraftDirty] = useState(false);
+  const [manualProductError, setManualProductError] = useState<string | null>(null);
+  const [manualProductDraft, setManualProductDraft] = useState<ManualProductDraft>(() => ({
+    productNumber: String(currentSnapshot.productNumber ?? ""),
+    manufacturerArticleNumber: String(currentSnapshot.manufacturerArticleNumber ?? ""),
+    manufacturerName: String(currentSnapshot.manufacturer ?? ""),
+    deliveryTimeDays: String(currentSnapshot.deliveryTimeDays ?? ""),
+    unitPrice: String(currentSnapshot.unitPrice ?? ""),
+    currency: normalizeCurrencyCode(String(currentSnapshot.currency ?? "")) || defaultCurrency
+  }));
   const [accessories, setAccessories] = useState<ProductAccessoryDraft[]>(() => readProductAccessoryDrafts(currentSnapshot.accessories));
   const [accessoryOwnerProductNumber, setAccessoryOwnerProductNumber] = useState(() => accessories.length > 0 ? productNumber : "");
   const [accessoriesExpanded, setAccessoriesExpanded] = useState(() => accessories.length > 0);
@@ -1059,7 +1093,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   const quantity = projectRequirementQuantity(requirement.value_json);
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
-  const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft;
+  const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty;
   const selectedProductAccessories = accessoriesForSelectedProduct({
     currentProductNumber: accessoryOwnerProductNumber,
     nextProductNumber: productNumber,
@@ -1119,11 +1153,15 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       productName: resolved?.productName || String(memory.product_name ?? ""),
       productSubtitle: resolved?.productSubtitle || String(memory.product_subtitle ?? ""),
       productNumber: String(memory.product_number ?? ""),
-      manufacturerName: String(memory.manufacturer_name ?? "")
+      manufacturerArticleNumber: "",
+      manufacturerName: String(memory.manufacturer_name ?? ""),
+      deliveryTimeDays: "",
+      unitPrice: "",
+      currency: defaultCurrency
     };
   }
 
-  function showSelection(selection: ProductSelection, notice: string) {
+  function showSelection(selection: ProductSelection, notice: string, manual = false) {
     const nextAccessories = accessoriesForSelectedProduct({
       currentProductNumber: accessoryOwnerProductNumber,
       nextProductNumber: selection.productNumber,
@@ -1132,7 +1170,16 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setProductName(selection.productName);
     setProductSubtitle(selection.productSubtitle);
     setProductNumber(selection.productNumber);
+    setManufacturerArticleNumber(selection.manufacturerArticleNumber);
     setManufacturerName(selection.manufacturerName);
+    setDeliveryTimeDays(selection.deliveryTimeDays);
+    setUnitPrice(selection.unitPrice);
+    setPriceCurrency(normalizeCurrencyCode(selection.currency) || defaultCurrency);
+    setManualProductSelected(manual);
+    setManualProductRequired(false);
+    setManualProductOpen(false);
+    setManualProductDraftDirty(false);
+    setManualProductError(null);
     setAccessories(nextAccessories);
     setAccessoryOwnerProductNumber(nextAccessories.length > 0 ? selection.productNumber : "");
     setAccessoriesExpanded(nextAccessories.length > 0);
@@ -1153,7 +1200,11 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       productName: candidate.productName,
       productSubtitle: resolvedSubtitle,
       productNumber: candidate.articleNumber,
-      manufacturerName: candidate.manufacturer
+      manufacturerArticleNumber: "",
+      manufacturerName: candidate.manufacturer,
+      deliveryTimeDays: "",
+      unitPrice: "",
+      currency: defaultCurrency
     }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`);
     onError("");
   }
@@ -1162,7 +1213,13 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setProductName("");
     setProductSubtitle("");
     setProductNumber("");
+    setManufacturerArticleNumber("");
     setManufacturerName("");
+    setDeliveryTimeDays("");
+    setUnitPrice("");
+    setPriceCurrency(defaultCurrency);
+    setManualProductSelected(false);
+    setManualProductRequired(false);
     setDraftNotice(null);
     setHasUnapprovedChanges(true);
   }
@@ -1171,13 +1228,82 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
     setProductNumber(nextProductNumber);
     setProductName("");
     setProductSubtitle("");
+    setManufacturerArticleNumber("");
+    setManufacturerName("");
+    setDeliveryTimeDays("");
+    setUnitPrice("");
+    setPriceCurrency(defaultCurrency);
+    setManualProductSelected(false);
+    setManualProductRequired(true);
+    setManualProductDraft({
+      productNumber: nextProductNumber,
+      manufacturerArticleNumber: "",
+      manufacturerName: "",
+      deliveryTimeDays: "",
+      unitPrice: "",
+      currency: defaultCurrency
+    });
+    setManualProductOpen(true);
+    setManualProductDraftDirty(true);
+    setManualProductError(null);
     setDraftNotice(null);
     setHasUnapprovedChanges(true);
   }
 
-  function startManualProductEntry() {
-    if (productNumber.trim()) clearSelectedProduct();
-    window.requestAnimationFrame(() => document.getElementById(`product-number-${requirement.id}`)?.focus());
+  function openManualProductCard() {
+    setManualProductDraft({
+      productNumber,
+      manufacturerArticleNumber,
+      manufacturerName,
+      deliveryTimeDays,
+      unitPrice,
+      currency: priceCurrency
+    });
+    setManualProductDraftDirty(false);
+    setManualProductError(null);
+    setManualProductOpen(true);
+    window.requestAnimationFrame(() => document.getElementById(`manual-product-nrf-${requirement.id}`)?.focus());
+  }
+
+  function closeManualProductCard() {
+    setManualProductOpen(false);
+    setManualProductDraftDirty(false);
+    setManualProductError(null);
+    window.requestAnimationFrame(() => document.getElementById(`manual-product-trigger-${requirement.id}`)?.focus());
+  }
+
+  function updateManualProductDraft(key: keyof ManualProductDraft, value: string) {
+    setManualProductDraft((current) => ({ ...current, [key]: value }));
+    setManualProductDraftDirty(true);
+    setManualProductError(null);
+  }
+
+  function applyManualProduct() {
+    const validation = validateManualDistributorProduct({
+      ...manualProductDraft
+    }, defaultCurrency);
+    if ("error" in validation) {
+      setManualProductError(validation.error);
+      return;
+    }
+    const manualProduct = validation.data;
+    const preservesSelectedProduct = Boolean(normalizeNrfNumber(productNumber))
+      && normalizeNrfNumber(productNumber) === normalizeNrfNumber(manualProduct.productNumber);
+    showSelection({
+      productName: preservesSelectedProduct ? productName : "",
+      productSubtitle: preservesSelectedProduct ? productSubtitle : "",
+      productNumber: manualProduct.productNumber,
+      manufacturerArticleNumber: manualProduct.manufacturerArticleNumber,
+      manufacturerName: manualProduct.manufacturerName,
+      deliveryTimeDays: String(manualProduct.deliveryTimeDays),
+      unitPrice: String(manualProduct.unitPrice),
+      currency: manualProduct.currency
+    }, `Produkten med NRF-nummer ${manualProduct.productNumber} har lagts till för kontroll.`, true);
+    setManualProductOpen(false);
+    setManualProductDraftDirty(false);
+    setManualProductError(null);
+    onError("");
+    window.requestAnimationFrame(() => document.getElementById(`manual-product-trigger-${requirement.id}`)?.focus());
   }
 
   function showAllProductAlternatives() {
@@ -1233,6 +1359,35 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
   }
 
   async function save() {
+    if (manualProductRequired || manualProductDraftDirty) {
+      setManualProductOpen(true);
+      setManualProductError("Lägg till produkten från kortet innan du godkänner och sparar.");
+      return;
+    }
+    if (manualProductSelected) {
+      const manualValidation = validateManualDistributorProduct({
+        productNumber,
+        manufacturerArticleNumber,
+        manufacturerName,
+        deliveryTimeDays,
+        unitPrice,
+        currency: priceCurrency
+      }, priceCurrency || defaultCurrency);
+      if ("error" in manualValidation) {
+        setManualProductDraft({
+          productNumber,
+          manufacturerArticleNumber,
+          manufacturerName,
+          deliveryTimeDays,
+          unitPrice,
+          currency: priceCurrency
+        });
+        setManualProductOpen(true);
+        setManualProductError(manualValidation.error);
+        window.requestAnimationFrame(() => document.getElementById(`manual-product-nrf-${requirement.id}`)?.focus());
+        return;
+      }
+    }
     if (hasAttachmentDraft) {
       setAttachmentExpanded(true);
       setAttachmentError("Spara vedlegget eller töm fälten innan du godkänner produkten.");
@@ -1251,7 +1406,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
       let resolvedProductName = productName;
       let resolvedProductSubtitle = productSubtitle;
       let resolvedManufacturerName = manufacturerName;
-      if (productNumber.trim() && !resolvedProductSubtitle.trim()) {
+      if (productNumber.trim() && !resolvedProductSubtitle.trim() && !manualProductSelected) {
         try {
           const labels = await fetchAhlsellProductLabels(projectId, [{
             requirementId: requirement.id,
@@ -1271,6 +1426,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
         }
       }
       const chosen = {
+        entryMethod: manualProductSelected ? "manual" as const : "catalog" as const,
         productName: resolveDistributorProductName({
           productName: resolvedProductName,
           requirementName: requirement.value_text,
@@ -1278,7 +1434,11 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
         }),
         productSubtitle: resolvedProductSubtitle,
         productNumber,
+        manufacturerArticleNumber,
         manufacturerName: resolvedManufacturerName,
+        deliveryTimeDays,
+        unitPrice,
+        currency: priceCurrency,
         notes:
           sameApprovedProduct && typeof currentSnapshot.notes === "string"
             ? currentSnapshot.notes
@@ -1439,7 +1599,7 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               <h4 className="mt-0.5 text-base font-bold text-ink-950">Ahlsellprodukter för PDF-post {details.postNumber ?? position}</h4>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
             </div>
-            <Button aria-label="Godkänn och spara produkt" title={hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || hasAttachmentDraft || Boolean(accessoryError)}>
+            <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
               {saving ? "Sparar…" : "Godkänn och spara"}
             </Button>
@@ -1453,21 +1613,28 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
                 <ProductFormInput id={`product-number-${requirement.id}`} label="NRF-nummer" value={productNumber} onChange={changeProductNumber} required />
               </div>
               <div className="min-w-0 flex-1">
-                <ProductFormInput id={`manufacturer-${requirement.id}`} label="Tillverkare" optional value={manufacturerName} onChange={(value) => { setManufacturerName(value); setHasUnapprovedChanges(true); }} />
+                <ProductFormInput id={`manufacturer-${requirement.id}`} label="Tillverkare" optional={!manualProductSelected} readOnly={manualProductSelected} value={manufacturerName} onChange={(value) => { setManufacturerName(value); setHasUnapprovedChanges(true); }} />
               </div>
             </div>
-            <p className="mt-2 text-xs leading-5 text-ink-600">Skriv ett NRF-nummer manuellt eller välj en produkt nedan. När ett nummer är ifyllt visas bara matchande produkter.</p>
+            <p className="mt-2 text-xs leading-5 text-ink-600">Skriv ett NRF-nummer för att lägga till en egen produkt eller välj en produkt nedan. En egen produkt kompletteras med artikelnummer, tillverkare, leveranstid och pris innan den kan godkännas.</p>
             {draftNotice && hasUnapprovedChanges && (
               <div className="mt-3 flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5" role="status" aria-live="polite">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
                 <p className="text-xs font-semibold leading-5 text-emerald-900">{draftNotice} Kontrollera NRF-numret och godkänn sedan produkten.</p>
               </div>
             )}
+            {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
+              <dl className="mt-3 grid overflow-hidden rounded-md border border-ink-200 bg-white sm:grid-cols-3">
+                {manufacturerArticleNumber && <CompactProductDetail label="Artikelnummer" value={manufacturerArticleNumber} />}
+                {deliveryTimeDays && <CompactProductDetail label="Leveranstid" value={`${deliveryTimeDays} dagar`} />}
+                {unitPrice && <CompactProductDetail label="Pris" value={formatUnitPrice(unitPrice, priceCurrency)} />}
+              </dl>
+            )}
           </section>
 
           <nav aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={startManualProductEntry}>
-              <Plus className="h-4 w-4" aria-hidden="true" />Lägg till manuellt
+            <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
+              <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
             </Button>
             <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={!productNumber.trim() || selectedProductAccessories.length >= 20} title={!productNumber.trim() ? "Välj en huvudprodukt först" : selectedProductAccessories.length >= 20 ? "Högst 20 tillbehör" : "Lägg till tillbehör på den valda produkten"}>
               <PackagePlus className="h-4 w-4" aria-hidden="true" />Lägg till tillbehör
@@ -1487,6 +1654,35 @@ function RequirementProductMappingCard({ projectId, requirement, assignment, sou
               <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
             </Button>
           </nav>
+
+          {manualProductOpen && (
+            <section id={`manual-product-card-${requirement.id}`} aria-labelledby={`manual-product-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border-2 border-flow-300 bg-white shadow-sm">
+              <div className="flex items-start justify-between gap-4 border-b border-flow-200 bg-flow-50 px-4 py-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Manuellt produktval</p>
+                  <h5 id={`manual-product-title-${requirement.id}`} className="mt-0.5 text-base font-bold text-ink-950">Lägg till produkt</h5>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">Fyll i produktens identitet, pris och leveranstid. Uppgifterna sparas när produkten godkänns.</p>
+                </div>
+                <button type="button" aria-label="Stäng Lägg till produkt" title="Stäng" onClick={closeManualProductCard} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-ink-600 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+              <form className="space-y-4 p-4" onSubmit={(event) => { event.preventDefault(); applyManualProduct(); }}>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ProductFormInput id={`manual-product-nrf-${requirement.id}`} label="NRF-nummer" value={manualProductDraft.productNumber} onChange={(value) => updateManualProductDraft("productNumber", value)} required />
+                  <ProductFormInput id={`manual-product-article-${requirement.id}`} label="Artikelnummer" value={manualProductDraft.manufacturerArticleNumber} onChange={(value) => updateManualProductDraft("manufacturerArticleNumber", value)} required />
+                  <ProductFormInput id={`manual-product-manufacturer-${requirement.id}`} label="Tillverkare" value={manualProductDraft.manufacturerName} onChange={(value) => updateManualProductDraft("manufacturerName", value)} required />
+                  <ProductFormInput id={`manual-product-delivery-${requirement.id}`} label="Leveranstid (dagar)" type="number" min="0" max="3650" step="1" inputMode="numeric" value={manualProductDraft.deliveryTimeDays} onChange={(value) => updateManualProductDraft("deliveryTimeDays", value)} required />
+                  <ProductFormInput id={`manual-product-price-${requirement.id}`} label={`Pris per enhet (${normalizeCurrencyCode(manualProductDraft.currency) || defaultCurrency})`} inputMode="decimal" placeholder="0,00" value={manualProductDraft.unitPrice} onChange={(value) => updateManualProductDraft("unitPrice", value)} required />
+                </div>
+                {manualProductError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900">{manualProductError}</p>}
+                <div className="flex flex-col-reverse gap-2 border-t border-ink-100 pt-4 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="secondary" className="justify-center" onClick={closeManualProductCard}>Avbryt</Button>
+                  <Button type="submit" className="justify-center"><Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt</Button>
+                </div>
+              </form>
+            </section>
+          )}
 
           <div id={`ahlsell-products-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
             <AhlsellPublicMatchPanel
@@ -1640,7 +1836,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
   onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string }) => void;
 }) {
-  const [catalogResult, setCatalogResult] = useState<SprsokAssistedCatalogResult | null>(null);
+  const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [candidateSubtitles, setCandidateSubtitles] = useState<Record<string, string | null>>({});
@@ -1654,7 +1850,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       headers: { Accept: "application/json" }
     })
       .then(async (response) => {
-        const payload = (await response.json().catch(() => null)) as (SprsokAssistedCatalogResult & { error?: string }) | null;
+        const payload = (await response.json().catch(() => null)) as (AhlsellCatalogResult & { error?: string }) | null;
         if (!response.ok) throw new Error(payload?.error ?? "Ahlsell-sökningen misslyckades.");
         if (!payload) throw new Error("Ahlsell-sökningen gav inget läsbart svar.");
         setCatalogResult(payload);
@@ -1926,6 +2122,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                   <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
                   {matchState === "exact" ? (
                     <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Exakt match</p>
+                  ) : candidate.learningEvidence ? (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Tidigare bekräftad för liknande krav · kontroll krävs</p>
                   ) : matchState === "review" && candidate.recommendation === "recommended" ? (
                     <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Stark träff · kontroll krävs</p>
                   ) : null}
@@ -1965,36 +2163,6 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         </div>
       )}
 
-      {(guide.recognitionNotes.length > 0 || guide.warnings.length > 0 || (catalogResult?.queries ?? guide.searchQueries ?? [guide.searchQuery]).length > 0) && (
-        <details className="border-t border-ink-200 bg-ink-50/70">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-ink-700 hover:bg-ink-100 sm:px-4">Sök- och kontrolluppgifter</summary>
-          <div className="space-y-2 border-t border-ink-200 px-3 py-3 text-xs text-ink-700 sm:px-4">
-            {catalogResult?.technicalAssistance?.used && (
-              <p className="rounded border border-cyan-200 bg-cyan-50 px-2.5 py-2 font-semibold leading-5 text-cyan-950">
-                Sökningen förfinades med tekniska referenser från SPRSÖK. Det visar inte Ahlsells sortiment eller lager.
-              </p>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {(catalogResult?.queries ?? guide.searchQueries ?? [guide.searchQuery]).map((query) => (
-                <span key={query} className="rounded border border-ink-200 bg-white px-2 py-1 font-semibold">{query}</span>
-              ))}
-            </div>
-            {guide.recognitionNotes.length > 0 && (
-              <ul className="list-disc space-y-1 pl-5 leading-5">
-                {guide.recognitionNotes.map((note) => <li key={note}>{note}</li>)}
-              </ul>
-            )}
-            {guide.warnings.length > 0 && (
-              <ul className="list-disc space-y-1 pl-5 font-semibold leading-5 text-amber-900">
-                {guide.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-              </ul>
-            )}
-            <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-bold text-flow-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-              Sök på Ahlsell<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            </a>
-          </div>
-        </details>
-      )}
     </section>
   );
 }
@@ -2179,7 +2347,13 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
               {details.postNumber ?? position}
             </button>
           )}
-          {details.nsCode && <span className="block text-[10px] text-ink-500">{details.nsCode}</span>}
+        </td>
+      );
+    }
+    if (columnId === "nsCode") {
+      return (
+        <td key={columnId} className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">
+          <span className="block break-words" title={details.nsCode ?? "NS-kod saknas"}>{details.nsCode ?? "—"}</span>
         </td>
       );
     }
@@ -2245,6 +2419,7 @@ function productTableSortValue(
     return group === "red" ? 0 : 1;
   }
   if (key === "post") return projectRequirementDetails(requirement).postNumber;
+  if (key === "nsCode") return projectRequirementDetails(requirement).nsCode;
   if (key === "requirement") return String(requirement.value_text ?? "Tekniskt produktkrav");
   if (key === "category") return productRequirementCategoryLabel(productRequirementCategory(requirement));
   if (key === "quantity") return projectRequirementQuantity(requirement.value_json).quantity;
@@ -2348,6 +2523,10 @@ function SpecificationRow({ label, value }: { label: string; value: string }) {
   return <div className="border-b border-ink-100 px-4 py-3 sm:border-r"><dt className="text-xs font-bold uppercase tracking-wide text-ink-500">{label}</dt><dd className="mt-1 break-words text-sm leading-6 text-ink-900">{value}</dd></div>;
 }
 
+function CompactProductDetail({ label, value }: { label: string; value: string }) {
+  return <div className="border-b border-ink-100 px-3 py-2.5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"><dt className="text-[10px] font-bold uppercase tracking-wide text-ink-500">{label}</dt><dd className="mt-0.5 break-words text-xs font-bold leading-5 text-ink-900">{value}</dd></div>;
+}
+
 function AccessoryInput({ id, label, value, onChange, type = "text", min, max, step, required = false }: {
   id: string;
   label: string;
@@ -2367,22 +2546,50 @@ function AccessoryInput({ id, label, value, onChange, type = "text", min, max, s
   );
 }
 
-function ProductFormInput({ id, label, value, onChange, required = false, optional = false }: {
+function ProductFormInput({ id, label, value, onChange, required = false, optional = false, readOnly = false, type = "text", min, max, step, inputMode, placeholder }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
   optional?: boolean;
+  readOnly?: boolean;
+  type?: string;
+  min?: string;
+  max?: string;
+  step?: string;
+  inputMode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
+  placeholder?: string;
 }) {
   return (
     <label className="block" htmlFor={id}>
       <span className="mb-1 block text-xs font-semibold text-ink-600">
         {label}{required && <span className="ml-1 font-black text-rose-600">*</span>}{optional && <span className="ml-1 font-normal text-ink-500">(valfritt)</span>}
       </span>
-      <input id={id} required={required} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-ink-50 text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
+      <input id={id} type={type} min={min} max={max} step={step} inputMode={inputMode} placeholder={placeholder} required={required} readOnly={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-ink-50 text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500 read-only:cursor-default read-only:bg-ink-100" />
     </label>
   );
+}
+
+function normalizeCurrencyCode(value: string) {
+  const normalized = value.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(normalized) ? normalized : "";
+}
+
+function formatUnitPrice(value: string, currency: string) {
+  const amount = Number(value.replace(/[\s ]/g, "").replace(",", "."));
+  const currencyCode = normalizeCurrencyCode(currency) || "NOK";
+  if (!Number.isFinite(amount)) return `${value} ${currencyCode}`.trim();
+  try {
+    return new Intl.NumberFormat("sv-SE", {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${currencyCode}`;
+  }
 }
 
 async function fetchAhlsellProductLabels(

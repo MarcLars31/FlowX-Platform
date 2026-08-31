@@ -662,6 +662,7 @@ export function ProjectWorkspace({
           )}
           <DistributorMappingPanel
             projectId={data.project.id}
+            currency={data.project.currency ?? "NOK"}
             requirements={data.requirements}
             assignments={data.suggestions}
             memories={data.mappingMemories}

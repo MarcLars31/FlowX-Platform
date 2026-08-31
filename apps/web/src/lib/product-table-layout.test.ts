@@ -14,6 +14,10 @@ test("uses the default product table layout for missing or malformed storage", (
   assert.deepEqual(parseProductTableLayout(null), DEFAULT_PRODUCT_TABLE_LAYOUT);
   assert.deepEqual(parseProductTableLayout("not-json"), DEFAULT_PRODUCT_TABLE_LAYOUT);
   assert.deepEqual(normalizeProductTableLayout([]), DEFAULT_PRODUCT_TABLE_LAYOUT);
+  assert.equal(
+    DEFAULT_PRODUCT_TABLE_LAYOUT.order.indexOf("nsCode"),
+    DEFAULT_PRODUCT_TABLE_LAYOUT.order.indexOf("post") + 1
+  );
 });
 
 test("normalizes saved columns and appends new or missing columns", () => {
@@ -24,6 +28,12 @@ test("normalizes saved columns and appends new or missing columns", () => {
   assert.deepEqual(layout.order.slice(0, 2), ["product", "post"]);
   assert.equal(new Set(layout.order).size, DEFAULT_PRODUCT_TABLE_LAYOUT.order.length);
   assert.deepEqual(layout.hidden, ["category"]);
+
+  const legacyLayout = normalizeProductTableLayout({
+    order: ["control", "post", "requirement", "category", "quantity", "product"],
+    hidden: []
+  });
+  assert.equal(legacyLayout.order.indexOf("nsCode"), legacyLayout.order.indexOf("post") + 1);
 });
 
 test("moves columns without mutating the saved layout", () => {
@@ -46,6 +56,7 @@ test("hides optional columns but keeps core columns visible", () => {
   assert.deepEqual(setProductTableColumnVisible(hiddenCategory, "category", true).hidden, []);
   assert.deepEqual(setProductTableColumnVisible(DEFAULT_PRODUCT_TABLE_LAYOUT, "control", false).hidden, []);
   assert.deepEqual(setProductTableColumnVisible(DEFAULT_PRODUCT_TABLE_LAYOUT, "post", false).hidden, []);
+  assert.deepEqual(setProductTableColumnVisible(DEFAULT_PRODUCT_TABLE_LAYOUT, "nsCode", false).hidden, []);
   assert.deepEqual(setProductTableColumnVisible(DEFAULT_PRODUCT_TABLE_LAYOUT, "requirement", false).hidden, []);
 });
 

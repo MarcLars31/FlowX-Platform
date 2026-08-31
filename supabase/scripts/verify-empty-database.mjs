@@ -103,6 +103,7 @@ const expectedTables = [
   "product_families",
   "price_lists",
   "matching_decisions",
+  "product_learning_events",
 ];
 
 const database = new PGlite({ extensions: { pgcrypto } });
@@ -225,6 +226,93 @@ try {
     "PASS demo catalog contains 50 sprinkler heads, 10 K-factors, and 5 fictional approval types\n",
   );
 
+  await database.exec(`
+    do $verification$
+    declare
+      target_requirement public.project_requirements%rowtype;
+      verification_time timestamptz := now();
+    begin
+      select * into target_requirement
+      from public.project_requirements
+      order by created_at, id
+      limit 1;
+      if not found then
+        raise exception 'A seeded requirement is needed to verify learning feedback.';
+      end if;
+
+      delete from public.product_learning_events
+      where requirement_id = target_requirement.id;
+
+      insert into public.product_learning_events (
+        organization_id, project_id, requirement_id, event_type,
+        requirement_snapshot, candidate_snapshot, event_key, occurred_at
+      ) values (
+        target_requirement.organization_id,
+        target_requirement.project_id,
+        target_requirement.id,
+        'not_in_assortment',
+        jsonb_build_object('verificationCase', 'latest-label'),
+        '[{"articleNumber":"A","rank":1},{"articleNumber":"B","rank":2}]'::jsonb,
+        'verification:not-in-assortment',
+        verification_time
+      );
+
+      insert into public.product_learning_events (
+        organization_id, project_id, requirement_id, event_type,
+        requirement_snapshot, candidate_snapshot, selected_product,
+        event_key, occurred_at
+      ) values (
+        target_requirement.organization_id,
+        target_requirement.project_id,
+        target_requirement.id,
+        'product_selected',
+        jsonb_build_object('verificationCase', 'latest-label'),
+        '[{"articleNumber":"A","rank":1},{"articleNumber":"B","rank":2}]'::jsonb,
+        '{"articleNumber":"B"}'::jsonb,
+        'verification:selected',
+        verification_time + interval '1 second'
+      );
+
+      -- Clearing an earlier assortment marker happens after product approval.
+      -- It must not erase the newly confirmed product training example.
+      insert into public.product_learning_events (
+        organization_id, project_id, requirement_id, event_type,
+        requirement_snapshot, event_key, occurred_at
+      ) values (
+        target_requirement.organization_id,
+        target_requirement.project_id,
+        target_requirement.id,
+        'resolution_cleared',
+        jsonb_build_object('verificationCase', 'latest-label'),
+        'verification:resolution-cleared',
+        verification_time + interval '2 seconds'
+      );
+    end
+    $verification$;
+  `);
+
+  const learningRows = await database.query(`
+    select
+      count(*)::integer as candidate_count,
+      count(*) filter (where is_positive)::integer as positive_count,
+      count(*) filter (where outcome = 'not_in_assortment')::integer
+        as assortment_negative_count
+    from public.product_candidate_training_examples
+    where requirement_snapshot ->> 'verificationCase' = 'latest-label'
+  `);
+  const learning = learningRows.rows[0];
+  if (
+    !learning
+    || learning.candidate_count !== 2
+    || learning.positive_count !== 1
+    || learning.assortment_negative_count !== 0
+  ) {
+    throw new Error("Latest product-learning feedback did not produce a clean label set.");
+  }
+  process.stdout.write(
+    "PASS product-learning feedback keeps one current positive label and supersedes stale assortment feedback\n",
+  );
+
   const canonicalRoles = await database.query(`
     select role.slug, count(role_permission.permission_id)::integer as permission_count
     from public.roles role
@@ -341,6 +429,160 @@ try {
     throw new Error("Atomic project creation did not persist exactly one complete project graph.");
   }
   process.stdout.write("PASS atomic project creation persists one complete project graph\n");
+
+  await database.exec(`
+    insert into public.project_requirements (
+      id,
+      organization_id,
+      project_id,
+      category,
+      requirement_key,
+      value_text,
+      value_json,
+      status,
+      created_by
+    )
+    select
+      'd0000000-0000-4000-8000-000000000203',
+      project.organization_id,
+      project.id,
+      'sprinkler_head',
+      'manual-product-verification',
+      'Manual product verification requirement',
+      '{"operation":"install"}'::jsonb,
+      'extracted_unreviewed',
+      'd0000000-0000-4000-8000-000000000201'
+    from public.projects project
+    where project.organization_id = 'd0000000-0000-4000-8000-000000000003'
+      and project.project_number = 'EMPTY-DB-RPC-001';
+
+    select public.approve_distributor_product_mapping_v2(
+      requested_project_id := '${project.id}',
+      requested_requirement_id := 'd0000000-0000-4000-8000-000000000203',
+      requested_user_approved := true,
+      requested_product_name := 'Manuellt verifierad sprinkler',
+      requested_product_number := '9254043',
+      requested_manufacturer_name := 'Victaulic',
+      requested_entry_method := 'manual',
+      requested_product_subtitle := '1/2 tum V2704 sprinklerhuvud',
+      requested_manufacturer_article_number := 'V2704-QR',
+      requested_delivery_time_days := 5,
+      requested_unit_price := 1250.50,
+      requested_currency := 'NOK'
+    );
+  `);
+
+  const manualProductRows = await database.query(`
+    select product_snapshot
+    from public.project_product_suggestions
+    where requirement_id = 'd0000000-0000-4000-8000-000000000203'
+      and status = 'selected'
+  `);
+  const manualProduct = manualProductRows.rows[0]?.product_snapshot;
+  if (
+    manualProductRows.rows.length !== 1
+    || !manualProduct
+    || manualProduct.productNumber !== "9254043"
+    || manualProduct.entryMethod !== "manual"
+    || manualProduct.manufacturerArticleNumber !== "V2704-QR"
+    || manualProduct.manufacturer !== "Victaulic"
+    || manualProduct.deliveryTimeDays !== 5
+    || Number(manualProduct.unitPrice) !== 1250.5
+    || manualProduct.currency !== "NOK"
+    || manualProduct.approvedByUser !== true
+  ) {
+    throw new Error("Manual product approval did not persist the complete product card atomically.");
+  }
+  process.stdout.write("PASS manual product approval persists NRF, article, manufacturer, lead time and price atomically\n");
+
+  const manualApprovalPrivileges = await database.query(`
+    select has_function_privilege(
+      'authenticated',
+      'public.approve_distributor_product_mapping_v2(uuid,uuid,boolean,text,text,text,text,jsonb,text,text,text,integer,numeric,text)',
+      'EXECUTE'
+    ) as authenticated_can_execute
+  `);
+  if (manualApprovalPrivileges.rows[0]?.authenticated_can_execute !== true) {
+    throw new Error("Authenticated users cannot execute manual product approval v2.");
+  }
+  process.stdout.write("PASS authenticated users can execute manual product approval v2\n");
+
+  await database.exec(`
+    insert into public.project_requirements (
+      id, organization_id, project_id, category, requirement_key,
+      value_text, value_json, status, created_by
+    )
+    select
+      'd0000000-0000-4000-8000-000000000204',
+      project.organization_id,
+      project.id,
+      'sprinkler_head',
+      'manual-product-rollback-verification',
+      'Manual product rollback verification requirement',
+      '{"operation":"install"}'::jsonb,
+      'extracted_unreviewed',
+      'd0000000-0000-4000-8000-000000000201'
+    from public.projects project
+    where project.id = '${project.id}';
+
+    create or replace function public.reject_manual_detail_snapshot_for_verification()
+    returns trigger
+    language plpgsql
+    set search_path = pg_catalog
+    as $verification_trigger$
+    begin
+      if new.product_snapshot ? 'entryMethod' then
+        raise exception 'Forced failure after base product approval.';
+      end if;
+      return new;
+    end
+    $verification_trigger$;
+
+    create trigger reject_manual_detail_snapshot_for_verification
+    before update on public.project_product_suggestions
+    for each row execute function public.reject_manual_detail_snapshot_for_verification();
+  `);
+  await expectDatabaseRejection(
+    "failure after base manual approval rolls the complete selection back",
+    `select public.approve_distributor_product_mapping_v2(
+       requested_project_id := '${project.id}',
+       requested_requirement_id := 'd0000000-0000-4000-8000-000000000204',
+       requested_user_approved := true,
+       requested_product_name := 'Invalid manual product',
+       requested_product_number := '9999999',
+       requested_manufacturer_name := 'Verification manufacturer',
+       requested_entry_method := 'manual',
+       requested_manufacturer_article_number := 'VERIFY-999',
+       requested_delivery_time_days := 2,
+       requested_unit_price := 100,
+       requested_currency := 'NOK'
+     )`,
+  );
+  await database.exec(`
+    drop trigger reject_manual_detail_snapshot_for_verification
+      on public.project_product_suggestions;
+    drop function public.reject_manual_detail_snapshot_for_verification();
+  `);
+  const manualRollbackRows = await database.query(`
+    select
+      (select count(*)::integer
+       from public.project_product_suggestions
+       where requirement_id = 'd0000000-0000-4000-8000-000000000204') as assignment_count,
+      (select count(*)::integer
+       from public.distributor_product_memories
+       where product_number = '9999999') as memory_count,
+      (select status::text
+       from public.project_requirements
+       where id = 'd0000000-0000-4000-8000-000000000204') as requirement_status
+  `);
+  if (
+    manualRollbackRows.rows[0]?.assignment_count !== 0
+    || manualRollbackRows.rows[0]?.memory_count !== 0
+    || manualRollbackRows.rows[0]?.requirement_status !== "extracted_unreviewed"
+  ) {
+    throw new Error("Failed atomic manual approval left a partial assignment or memory row.");
+  }
+  process.stdout.write("PASS failure after base manual approval rolls back assignment and product memory\n");
 
   await expectDatabaseRejection(
     "duplicate project numbers remain blocked",
