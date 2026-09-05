@@ -27,7 +27,7 @@ test("uses the confirmed Vågå V2704 choice for a technically equivalent quick-
   assert.ok((hints[0]?.matchScore ?? 0) >= 75);
 });
 
-test("uses the confirmed recessed V2762 choice despite changed location and quantity wording", () => {
+test("does not reuse a confirmed recessed head when its cover plate still requires compatibility review", () => {
   const requirement = {
     ...sprinklerRequirement({
       fingerprint: "new-recessed",
@@ -54,7 +54,7 @@ test("uses the confirmed recessed V2762 choice despite changed location and quan
     })
   })]);
 
-  assert.equal(hints[0]?.productNumber, "9257423");
+  assert.deepEqual(hints, []);
 });
 
 test("does not borrow the confirmed K80 sidewall product for the unconfirmed K160 post", () => {
@@ -145,7 +145,7 @@ test("learned history only breaks ties and never changes technical classificatio
   assert.equal(assisted.exactMatch, ranked[0].exactMatch);
   assert.equal(assisted.source, ranked[0].source);
   assert.equal(assisted.learningEvidence?.kind, "similar_confirmed");
-  assert.ok(assisted.matchReasons?.some((reason) => reason.includes("tidigare bekräftats")));
+  assert.ok(assisted.matchReasons?.some((reason) => reason.includes("valts tidigare")));
 });
 
 function sprinklerRequirement({

@@ -1,6 +1,8 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import { ahlsellCandidateMatchState, type AhlsellCandidateMatchState } from "@/lib/ahlsell-candidate-ranking";
 
 export const MAX_RECORDED_PRODUCT_CANDIDATES = 3;
+export const PRODUCT_MATCHING_ENGINE_VERSION = "technical-rules-2026-09-04.2";
 
 export type ProductLearningCandidateSnapshot = {
   rank: number;
@@ -15,6 +17,13 @@ export type ProductLearningCandidateSnapshot = {
   matchReasons: string[];
   matchWarnings: string[];
   exactMatch: boolean;
+  matchState: AhlsellCandidateMatchState;
+  familyCode: string | null;
+  learningEvidence: {
+    kind: "similar_confirmed";
+    supportCount: number;
+    similarityScore: number;
+  } | null;
 };
 
 /**
@@ -39,7 +48,10 @@ export function productLearningCandidateSnapshots(
       matchScore: finiteScore(candidate.matchScore),
       matchReasons: cleanTextList(candidate.matchReasons, 20, 500),
       matchWarnings: cleanTextList(candidate.matchWarnings, 20, 500),
-      exactMatch: candidate.exactMatch === true
+      exactMatch: candidate.exactMatch === true,
+      matchState: ahlsellCandidateMatchState(candidate),
+      familyCode: cleanOptionalText(candidate.familyCode, 120),
+      learningEvidence: cleanLearningEvidence(candidate.learningEvidence)
     }))
     .filter((candidate) => candidate.articleNumber.length > 0);
 }
@@ -65,4 +77,13 @@ function cleanTextList(value: unknown, maxItems: number, maxLength: number) {
 function finiteScore(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return Math.max(0, Math.min(100, value));
+}
+
+function cleanLearningEvidence(value: AhlsellPublicCandidate["learningEvidence"]) {
+  if (!value) return null;
+  return {
+    kind: value.kind,
+    supportCount: Math.max(0, Math.floor(value.supportCount)),
+    similarityScore: finiteScore(value.similarityScore) ?? 0
+  };
 }

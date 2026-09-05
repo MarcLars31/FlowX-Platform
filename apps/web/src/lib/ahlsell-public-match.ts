@@ -3,6 +3,12 @@ import {
   projectRequirementDataWarnings,
   projectRequirementKFactorDisplayValue
 } from "@/lib/project-requirement-data-warnings";
+import { resolvedSprinklerOrientation } from "@/lib/sprinkler-orientation-lexicon";
+import { findVictaulicSprinklerCandidates } from "@/lib/victaulic-sprinkler-catalog";
+import {
+  sprinklerCoverageFromText,
+  sprinklerRequiresAccessoryReview
+} from "@/lib/sprinkler-technical-rules";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -12,7 +18,7 @@ export type AhlsellPublicCandidate = {
   description?: string;
   imageUrl?: string;
   specifications: string[];
-  source: "public_verified" | "pdf_reference" | "catalog_search";
+  source: "public_verified" | "verified_database" | "pdf_reference" | "catalog_search" | "confirmed_history";
   verifiedAt?: string;
   matchScore?: number;
   matchReasons?: string[];
@@ -42,6 +48,8 @@ type Orientation = "pendent" | "upright" | "sidewall";
 type Response = "quick" | "standard";
 type Finish = "brass" | "white" | "black" | "chrome";
 type SprinklerMount = "recessed" | "concealed";
+type SprinklerSystem = "wet" | "dry";
+type SprinklerHeadType = "standard" | "dry" | "open";
 type AhlsellProductIntent =
   | "foam_extinguisher"
   | "portable_fire_extinguisher"
@@ -146,6 +154,7 @@ export function buildAhlsellRequirementGuide(
   // Norwegian descriptions frequently write K-80. The hyphen is a separator,
   // not a negative hydraulic value.
   const kFactor = rawKFactor === null ? null : Math.abs(rawKFactor);
+  const sprinklerModel = combined.match(/\bv\d{3,4}\b/i)?.[0]?.toUpperCase() ?? null;
   const explicitOutsideDiameters = outsideDiametersFromText(`${description} ${rowSourceText}`);
   const dnValues = uniqueNumbers([
     ...dnValuesFromText(description),
@@ -171,20 +180,34 @@ export function buildAhlsellRequirementGuide(
   const deckPlate = firstAttribute(attributes, ["dekkskive", "pyntering", "rosett", "escutcheon", "cover plate"]);
   const responseText = firstAttribute(attributes, ["folsomhetsgrad", "respons", "response"]);
   const finishText = `${firstAttribute(attributes, ["overflatebehandling", "farge", "farg", "finish", "colour", "color"]) ?? ""} ${description}`;
+  const sprinklerSystem = sprinklerSystemType(
+    firstAttribute(attributes, ["sprinkleranlegg", "anleggstype", "systemtype", "sprinkler system"])
+      ?? combined
+  );
+  const sprinklerHeadType = requiredSprinklerHeadType(
+    firstAttribute(attributes, ["type sprinkler", "sprinklertype", "sprinkler type"])
+      ?? combined
+  );
+  const sprinklerCoverage = sprinklerCoverageFromText(combined);
+  const requiresAccessoryReview = sprinklerRequiresAccessoryReview(
+    attributes,
+    `${description} ${rowSourceText} ${technicalSpecification}`
+  );
   const mount = sprinklerMount(placement, deckPlate);
   const orientationResult = sprinklerOrientation(`${placement ?? ""} ${description}`);
   const orientation = orientationResult.orientation
     ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
   const responseResult = sprinklerResponse(responseText, technicalSpecification);
   const finish = sprinklerFinish(finishText);
-  const specialApplication = /\b(torrsprinkler|torrorssprinkler|dry sprinkler)\b/i.test(combined)
-    || /\b(residential|boende|bolig(?:sprinkler)?)\b/i.test(combined)
-    || /\b(extended coverage|qrec|ec hsw|flat spray)\b/i.test(combined);
+  const specialApplication = sprinklerHeadType === "dry" || sprinklerHeadType === "open"
+    || (sprinklerCoverage !== null && sprinklerCoverage !== "standard");
   const pn = numberFromAttribute(attributes, ["trykk", "arbeidstrykk", "trykklasse", "pressure"])
     ?? numberFromText(primaryCombined, /\bpn\s*(\d{1,3})\b/i);
 
   const criteria = compact([
     intentLabel(intent, category, description),
+    sprinklerSystem === "wet" ? "Våtanlegg" : sprinklerSystem === "dry" ? "Tørranlegg" : null,
+    sprinklerHeadType === "dry" ? "Tørrsprinkler" : sprinklerHeadType === "open" ? "Öppen sprinkler" : sprinklerHeadType === "standard" ? "Konventionell sprinkler" : null,
     kFactor === null ? null : `K${formatNumber(kFactor)}`,
     dn === null ? null : `DN${formatNumber(dn)}`,
     temperatureC === null ? null : `${formatNumber(temperatureC)}°C`,
@@ -219,6 +242,7 @@ export function buildAhlsellRequirementGuide(
         orientation,
         response: responseResult.response,
         finish,
+        sprinklerHeadType,
         isSprinklerAccessory,
         outsideDiameters,
         pn
@@ -236,15 +260,25 @@ export function buildAhlsellRequirementGuide(
     intent === "sprinkler_head" && kFactor !== null && dn !== null && dn === 15 && kFactor >= 115
       ? `K${formatNumber(kFactor)} tillsammans med DN15 avviker från de offentliga Ahlsell-familjer som hittades. Ingen artikel föreslås automatiskt.`
       : null,
-    intent === "sprinkler_head" && /\b(torrsprinkler|dry sprinkler)\b/i.test(combined) && dn !== null && dn !== 25
+    intent === "sprinkler_head" && sprinklerHeadType === "dry" && dn !== null && dn !== 25
       ? "Ahlsells offentliga torrsprinklerfamiljer som hittades använder DN25. Kontrollera PDF-postens DN innan val."
       : null,
-    intent === "sprinkler_head" && !isSprinklerAccessory && [kFactor, dn, temperatureC].some((value) => value === null)
+    intent === "sprinkler_head" && sprinklerHeadType === "standard" && kFactor !== null && closeEnough(kFactor, 80) && dn === 25
+      ? "PDF-posten anger konventionell K80 med DN25. Ahlsells konventionella K80-familj använder DN15; Scipx behandlar därför DN15 som ett korrigeringsförslag som måste bekräftas."
+      : null,
+    intent === "sprinkler_head" && sprinklerHeadType === null && kFactor !== null && closeEnough(kFactor, 80) && dn === 25
+      ? "K80 och DN25 kräver kontroll av sprinklerhuvudets konstruktion: torrsprinkler kan vara DN25, medan konventionell K80 normalt är DN15."
+      : null,
+    intent === "sprinkler_head" && !isSprinklerAccessory && (
+      sprinklerHeadType === "open"
+        ? [kFactor, dn].some((value) => value === null)
+        : [kFactor, dn, temperatureC].some((value) => value === null)
+    )
       ? "Ett eller flera huvudvärden (K-faktor, DN eller temperatur) saknas. Använd sökningen men välj inte produkt utan manuell kontroll."
       : null
   ]);
 
-  const verifiedCandidates = !isNorwegianSource
+  const reliableCandidates = !isNorwegianSource
     && dataWarnings.length === 0
     && intent === "sprinkler_head"
     && !orientationResult.mixed
@@ -266,11 +300,34 @@ export function buildAhlsellRequirementGuide(
           && (!finish || item.finish === finish)
         )
       : [];
+  const victaulicCandidates = isNorwegianSource
+    && dataWarnings.length === 0
+    && intent === "sprinkler_head"
+    && !orientationResult.mixed
+    && !responseResult.conflict
+    && !isSprinklerAccessory
+      ? findVictaulicSprinklerCandidates({
+          market: isNorwegianSource ? "no" : "se",
+          model: sprinklerModel,
+          kFactor,
+          dn,
+          temperatureC,
+          orientation,
+          response: responseResult.response,
+          finish,
+          mount,
+          sprinklerSystem,
+          sprinklerHeadType,
+          coverage: sprinklerCoverage,
+          requiresAccessoryReview
+        })
+      : [];
   const directCandidates: AhlsellPublicCandidate[] = dataWarnings.length > 0
     ? []
     : compact([
-        pdfReferenceCandidate,
-        ...verifiedCandidates
+         pdfReferenceCandidate,
+        ...victaulicCandidates,
+        ...reliableCandidates
       ]);
 
   const searchUrl = new URL(ahlsellSearchUrl);
@@ -281,7 +338,10 @@ export function buildAhlsellRequirementGuide(
       ? `Scipx provar ${searchQueries.length} Ahlsell-anpassade sökningar och slår ihop träffarna.`
       : null,
     intent === "sprinkler_head" && !isSprinklerAccessory
-      ? "Scipx kontrollerar Ahlsells exakta variantvärden för K-faktor, temperatur, respons och färg."
+      ? "Scipx kontrollerar den verifierade Victaulic-databasen samt Ahlsells variantvärden för K-faktor, DN, temperatur, respons, riktning, montage, systemvillkor och färg."
+      : null,
+    intent === "sprinkler_head" && sprinklerSystem && sprinklerHeadType
+      ? `Scipx skiljer på anläggningstyp (${sprinklerSystem === "wet" ? "Våtanlegg" : "Tørranlegg"}) och sprinklerhuvudets konstruktion (${sprinklerHeadType === "dry" ? "Tørrsprinkler" : sprinklerHeadType === "open" ? "öppen sprinkler" : "konventionell sprinkler"}).`
       : null,
     intent === "sprinkler_head" && mount === "recessed" && /\bkonvensjonell\b/.test(primaryCombined)
       ? "Infällt takmontage behandlas som ett pendentkrav; den generella typetiketten konvensjonell får inte ensam styra produktvalet."
@@ -315,6 +375,7 @@ function buildCatalogQueries({
   orientation,
   response,
   finish,
+  sprinklerHeadType,
   isSprinklerAccessory,
   outsideDiameters,
   pn
@@ -331,6 +392,7 @@ function buildCatalogQueries({
   orientation: Orientation | null;
   response: Response | null;
   finish: Finish | null;
+  sprinklerHeadType: SprinklerHeadType | null;
   isSprinklerAccessory: boolean;
   outsideDiameters: number[];
   pn: number | null;
@@ -446,14 +508,17 @@ function buildCatalogQueries({
   if (intent === "sprinkler_head" && kFactor !== null) {
     const responseCode = response === "standard" ? "SR" : response === "quick" ? "QR" : null;
     const orientationCode = orientation === "upright" ? "Opp" : orientation === "pendent" ? "Ned" : orientation === "sidewall" ? "HSW" : null;
-    const dry = /\b(torrsprinkler|torrorssprinkler|dry sprinkler)\b/.test(combined) ? "Tørr" : null;
-    const exact = compact(["Sprinkler", `K${formatNumber(kFactor)}`, responseCode, orientationCode, dry]).join(" ");
+    const headTypeTerm = sprinklerHeadType === "dry" ? "Tørr" : sprinklerHeadType === "open" ? "Åpen" : null;
+    const exact = compact(["Sprinkler", `K${formatNumber(kFactor)}`, responseCode, orientationCode, headTypeTerm]).join(" ");
     const temperatureQuery = temperatureC === null
       ? null
       : compact(["Sprinklerhode", `K${formatNumber(kFactor)}`, responseCode, formatNumber(temperatureC)]).join(" ");
     const finishQuery = finish
       ? compact(["Sprinklerhode", `K${formatNumber(kFactor)}`, finishSearchLabel(finish)]).join(" ")
       : null;
+    if (sprinklerHeadType === "open") {
+      return [`Åpen sprinkler K${formatNumber(kFactor)}`, exact, `Window sprinkler K${formatNumber(kFactor)}`];
+    }
     return [`Sprinklerhode K${formatNumber(kFactor)}`, exact, temperatureQuery ?? finishQuery];
   }
 
@@ -567,16 +632,7 @@ function numberFromText(value: string, pattern: RegExp) {
 }
 
 function sprinklerOrientation(value: string): { orientation: Orientation | null; mixed: boolean } {
-  const normalized = normalize(value);
-  const hasUpright = /\b(staende|upright|ssu|oppover)\b/.test(normalized);
-  const hasPendent = /\b(hengende|pendent|pendel|ssp|nedover)\b/.test(normalized);
-  const hasSidewall = /\b(vegg|sidewall|hsw|horisontal)\b/.test(normalized);
-  const orientations = compact<Orientation>([
-    hasUpright ? "upright" : null,
-    hasPendent ? "pendent" : null,
-    hasSidewall ? "sidewall" : null
-  ]);
-  return { orientation: orientations.length === 1 ? orientations[0] : null, mixed: orientations.length > 1 };
+  return resolvedSprinklerOrientation(value);
 }
 
 function sprinklerMount(placement: string | null, deckPlate: string | null): SprinklerMount | null {
@@ -740,6 +796,21 @@ function specialSearchTerm(value: string) {
   if (/\b(residential|boende|bolig(?:sprinkler)?)\b/i.test(value)) return "Residential";
   if (/\b(extended coverage|qrec|ec hsw)\b/i.test(value)) return "Extended Coverage";
   if (/\bflat spray\b/i.test(value)) return "Flat Spray";
+  return null;
+}
+
+function sprinklerSystemType(value: string): SprinklerSystem | null {
+  const normalized = normalize(value);
+  if (/\b(torranlegg|torrt anlegg|dry pipe system|dry system)\b/.test(normalized)) return "dry";
+  if (/\b(vatanlegg|vatt anlegg|wet pipe system|wet system)\b/.test(normalized)) return "wet";
+  return null;
+}
+
+function requiredSprinklerHeadType(value: string): SprinklerHeadType | null {
+  const normalized = normalize(value);
+  if (/\b(torrsprinkler|torrorssprinkler|dry sprinkler|dry type sprinkler)\b/.test(normalized)) return "dry";
+  if (/\b(window sprinkler|vindussprinkler|vindu sprinkler|apen sprinkler|open sprinkler|uten termisk element)\b/.test(normalized)) return "open";
+  if (/\b(konvensjonell|konventionell|conventional|spraysprinkler|standard spray|utvidet dekning|extended coverage)\b/.test(normalized)) return "standard";
   return null;
 }
 

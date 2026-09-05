@@ -91,6 +91,88 @@ test("keeps a genuinely hidden sprinkler with cover plate classified as conceale
   assert.ok(!guide.criteria.includes("Recessed"));
 });
 
+test("reports wet installation and dry sprinkler head as separate requirements", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Tørrsprinkler",
+      plassering: "Hengende i tak",
+      følsomhetsgrad: "Standard-respons",
+      utløsningstemperatur: "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN25"
+    } }
+  });
+
+  assert.ok(guide.criteria.includes("Våtanlegg"));
+  assert.ok(guide.criteria.includes("Tørrsprinkler"));
+  assert.ok(guide.recognitionNotes.some((note) =>
+    note.includes("anläggningstyp (Våtanlegg)") && note.includes("Tørrsprinkler")
+  ));
+  assert.ok(guide.searchQueries.some((query) => /Tørr/.test(query)));
+});
+
+test("does not turn a conventional head into a dry sprinkler because the installation is dry", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Tørranlegg",
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Stående",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15"
+    } }
+  });
+
+  assert.ok(guide.criteria.includes("Tørranlegg"));
+  assert.ok(guide.criteria.includes("Konventionell sprinkler"));
+  assert.ok(!guide.criteria.includes("Tørrsprinkler"));
+  assert.ok(guide.searchQueries.every((query) => !/Tørr/.test(query)));
+});
+
+test("keeps an open window sprinkler separate from thermally activated heads", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "VINDUSSPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Åpen vindussprinkler uten termisk element",
+      plassering: "Sidewall",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15"
+    } }
+  });
+
+  assert.ok(guide.criteria.includes("Öppen sprinkler"));
+  assert.ok(guide.recognitionNotes.some((note) => note.includes("öppen sprinkler")));
+  assert.ok(guide.searchQueries.some((query) => /Åpen|Window/.test(query)));
+  assert.ok(guide.searchQueries.every((query) => !/\bQR\b|\bSR\b/.test(query)));
+  assert.ok(guide.warnings.every((warning) => !warning.includes("temperatur") && !warning.includes("huvudvärden")));
+});
+
+test("flags conventional K80 DN25 as a correction case instead of an exact family match", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Stående",
+      følsomhetsgrad: "Standard-respons",
+      utløsningstemperatur: "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN25"
+    } }
+  });
+
+  assert.equal(guide.directCandidates.length, 0);
+  assert.ok(guide.warnings.some((warning) => warning.includes("konventionell K80") && warning.includes("DN15")));
+});
+
 test("blocks direct matching and warns about K115 combined with DN15", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head",
@@ -260,12 +342,37 @@ test("treats Norwegian K-80 notation as K80 and searches protection grids as acc
     value_json: { attributes: {} }
   });
 
-  assert.equal(sprinkler.directCandidates.length, 0);
+  assert.ok(sprinkler.directCandidates.some((candidate) => candidate.source === "verified_database"));
+  assert.ok(sprinkler.directCandidates.every((candidate) => candidate.exactMatch !== true));
   assert.match(sprinkler.searchQuery, /K80/);
   assert.match(sprinkler.searchUrl, /^https:\/\/www\.ahlsell\.no\/search/);
   assert.equal(guard.searchQuery, "Sprinklergitter");
   assert.deepEqual(guard.searchQueries, ["Sprinklergitter", "Gitter sprinklerhode"]);
   assert.equal(guard.warnings.length, 0);
+});
+
+test("uses the verified Victaulic database for a fully specified Norwegian sprinkler row", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "1/2 V2762 sprinklerhode K80 SSP 68C QR hvit",
+    value_json: {
+      attributes: {
+        sprinkleranlegg: "Våtanlegg",
+        "type sprinkler": "Konvensjonell sprinkler",
+        plassering: "Hengende",
+        "følsomhetsgrad": "Kvikk respons",
+        "utløsningstemperatur": "68 C",
+        "k-faktor": "K80",
+        "gjengedimensjon (dn)": "DN15",
+        overflatebehandling: "Hvit"
+      }
+    }
+  });
+
+  const candidate = guide.directCandidates.find((item) => item.articleNumber === "9257423");
+  assert.equal(candidate?.source, "verified_database");
+  assert.equal(candidate?.exactMatch, true);
+  assert.equal(candidate?.manufacturer, "Victaulic");
 });
 
 test("translates procurement language into Ahlsell product terminology", () => {
@@ -307,6 +414,24 @@ test("uses Ahlsell orientation and response abbreviations for Norwegian sprinkle
   assert.ok(guide.searchQueries.includes("Sprinkler K80 SR Opp"));
   assert.ok(guide.searchQueries.includes("Sprinklerhode K80 SR 68"));
   assert.ok(guide.recognitionNotes.some((note) => note.includes("variantvärden")));
+});
+
+test("translates Norwegian wall-mounted wording to an HSW catalog search", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      plassering: "Montert på sidevegg, horisontalt",
+      "type sprinkler": "Konvensjonell sprinkler",
+      følsomhetsgrad: "Standard-respons",
+      utløsningstemperatur: "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15"
+    } }
+  });
+
+  assert.ok(guide.criteria.includes("HSW"));
+  assert.ok(guide.searchQueries.some((query) => /\bHSW\b/.test(query)));
 });
 
 test("uses Ahlsell's Norwegian family terms and pipe outside diameters", () => {

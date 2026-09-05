@@ -22,6 +22,7 @@ import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-
 import { bulkProductApprovalSelection, type BulkProductApprovalSelection } from "@/lib/bulk-product-approval";
 import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import { mergeAhlsellCandidates } from "@/lib/ahlsell-candidate-merge";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "@/lib/product-card-candidates";
 import {
@@ -1878,21 +1879,15 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const memoryArticleNumbers = new Set(usableMemories.map((memory) =>
     normalizeNrfNumber(String(memory.product_number))
   ));
-  const candidatesByArticle = new Map<string, AhlsellPublicCandidate>();
-  for (const candidate of catalogResult?.candidates ?? []) {
-    candidatesByArticle.set(normalizeNrfNumber(candidate.articleNumber), candidate);
-  }
-  for (const directCandidate of guide.directCandidates) {
-    const key = normalizeNrfNumber(directCandidate.articleNumber);
-    const catalogCandidate = candidatesByArticle.get(key);
-    candidatesByArticle.set(key, catalogCandidate ? {
-      ...directCandidate,
-      ...catalogCandidate,
-      source: directCandidate.source,
-      exactMatch: isExactAhlsellCandidate(directCandidate) || isExactAhlsellCandidate(catalogCandidate)
-    } : directCandidate);
-  }
-  const candidates = orderAhlsellCandidatesForDisplay([...candidatesByArticle.values()])
+  const mergedCandidates = mergeAhlsellCandidates(
+    guide.directCandidates,
+    catalogResult?.candidates ?? []
+  );
+  const candidatesByArticle = new Map(mergedCandidates.map((candidate) => [
+    normalizeNrfNumber(candidate.articleNumber),
+    candidate
+  ]));
+  const candidates = orderAhlsellCandidatesForDisplay(mergedCandidates)
     .filter((candidate) => !memoryArticleNumbers.has(normalizeNrfNumber(candidate.articleNumber)));
   const filteredCandidates = filterAhlsellCandidatesByNrf(candidates, selectedArticleNumber);
   const filteredMemories = usableMemories.filter((memory) => {
@@ -2194,6 +2189,8 @@ function ahlsellSubtitleItem(candidate: AhlsellPublicCandidate) {
 
 function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {
   if (source === "pdf_reference") return "NRF-numret står i den uppladdade PDF-filen";
+  if (source === "verified_database") return "Träff i Scipx verifierade Victaulic-databas";
+  if (source === "confirmed_history") return "Tidigare bekräftad produkt i organisationen";
   if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog";
   return "Verifierad i Ahlsells offentliga katalog";
 }

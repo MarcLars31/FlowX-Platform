@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, pg_catalog;
-select plan(8);
+select plan(12);
 
 select has_table(
   'public',
@@ -14,6 +14,18 @@ select has_view(
   'public',
   'product_candidate_training_examples',
   'candidate labels are exposed through a training view'
+);
+
+select has_view(
+  'public',
+  'product_match_outcome_examples',
+  'versioned reviewer outcomes are exposed for evaluation'
+);
+
+select has_view(
+  'public',
+  'product_match_quality_daily',
+  'daily product matching quality is measurable'
 );
 
 select has_view(
@@ -36,6 +48,25 @@ select ok(
       and proname = 'record_product_candidate_impression'
   ),
   'candidate impression RPC is present'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_proc
+    where pronamespace = 'public'::regnamespace
+      and proname = 'record_product_candidate_impression_v2'
+  ),
+  'versioned candidate impression RPC is present'
+);
+
+select function_privs_are(
+  'public',
+  'record_product_candidate_impression_v2',
+  array['uuid', 'uuid', 'jsonb', 'jsonb'],
+  'authenticated',
+  array['EXECUTE'],
+  'authenticated reviewers can record versioned candidate impressions'
 );
 
 select function_privs_are(

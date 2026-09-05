@@ -61,7 +61,7 @@ test("does not recommend a dry valve for a wet alarm requirement", () => {
   assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("torrt system")));
 });
 
-test("recommends the exact K80 68C standard upright sprinkler variant", () => {
+test("ranks K80 68C upright highest but requires system and construction before exact match", () => {
   const [ranked] = rankAhlsellCandidates({
     category: "sprinkler_head",
     value_text: "SPRINKLER",
@@ -78,7 +78,7 @@ test("recommends the exact K80 68C standard upright sprinkler variant", () => {
   }]);
 
   assert.equal(ranked.recommendation, "recommended");
-  assert.equal(isExactAhlsellCandidate(ranked), true);
+  assert.equal(isExactAhlsellCandidate(ranked), false);
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("K80")));
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("68")));
 });
@@ -173,9 +173,10 @@ test("prioritizes recessed pendent V2762 over a conventional opp/ned head for an
   ]);
 
   assert.equal(ranked[0].articleNumber, "9257423");
-  assert.equal(ranked[0].recommendation, "recommended");
+  assert.equal(ranked[0].recommendation, "possible");
+  assert.equal(ranked[0].exactMatch, false);
   assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("infällt pendentmontage")));
-  assert.ok(ranked[0].matchWarnings?.every((warning) => !warning.includes("tillbehör")));
+  assert.ok(ranked[0].matchWarnings?.some((warning) => warning.includes("Täckbricka")));
 
   const conventional = ranked.find((candidate) => candidate.articleNumber === "9254111");
   assert.notEqual(conventional?.recommendation, "recommended");
@@ -207,6 +208,55 @@ test("keeps a conventional V2726 candidate preferred when the post does not requ
   ]);
 
   assert.equal(ranked[0].articleNumber, "9254111");
+});
+
+test("treats K115 and K115.5 as the same nominal sprinkler family", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Konvensjonell standard coverage sprinkler",
+      plassering: "Hengende",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "115.5",
+      "gjengedimensjon (dn)": "DN20"
+    } }
+  }, [{
+    ...candidate("1364601", "Sprinklerhode V3702 QR - Ned", "Standard spray sprinkler", "/sprinkler/1364601/"),
+    specifications: ["K-faktor: 115", "DN20", "68 °C", "Quick response", "Pendent"]
+  }]);
+
+  assert.ok(ranked.matchReasons?.some((reason) => reason.includes("K115")));
+  assert.ok(ranked.matchWarnings?.every((warning) => !warning.includes("Fel K-faktor")));
+});
+
+test("rejects an explicitly wet-only sprinkler for a dry system without requiring a dry-type head", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Tørranlegg",
+      "type sprinkler": "Konvensjonell standard coverage sprinkler",
+      plassering: "Stående",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15"
+    } }
+  }, [
+    {
+      ...candidate("wet", "Sprinklerhode V2704 - Opp", "Standard spray. Wet system only.", "/wet/"),
+      specifications: ["K80", "DN15", "Upright"]
+    },
+    {
+      ...candidate("normal", "Sprinklerhode V2704 - Opp", "Standard automatic sprinkler", "/normal/"),
+      specifications: ["K80", "DN15", "Upright"]
+    }
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "normal");
+  assert.ok(ranked.find((item) => item.articleNumber === "wet")?.matchWarnings?.some((warning) => warning.includes("våtanläggning")));
+  assert.ok(ranked.find((item) => item.articleNumber === "normal")?.matchWarnings?.every((warning) => !warning.includes("torrsprinkler")));
 });
 
 test("does not recommend K115 when the raw PDF source says K1145", () => {
@@ -492,6 +542,123 @@ test("ranks a submersible drainage pump above a groundwater pump", () => {
   assert.equal(ranked[0].articleNumber, "drainage");
   assert.equal(ranked[0].recommendation, "recommended");
   assert.ok(ranked[1].matchWarnings?.some((warning) => warning.includes("grundvattenpump")));
+});
+
+test("separates a wet installation from its required dry sprinkler head", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Tørrsprinkler",
+      plassering: "Hengende i tak",
+      følsomhetsgrad: "Standard-respons",
+      utløsningstemperatur: "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN25"
+    } }
+  }, [
+    candidate("dry", "1\" V3613 sprinklerhode K80 SSP tørr 68C SR", "Tørrsprinkler", "/dry/"),
+    candidate("wet", "1\" V9999 sprinklerhode K80 SSP 68C SR", "Konvensjonell sprinkler", "/wet/")
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "dry");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("Torrsprinklerutförandet")));
+  assert.ok(ranked[1].matchWarnings?.some((warning) => warning.includes("konventionell sprinkler")));
+});
+
+test("keeps a conventional sprinkler head for a dry pipe installation", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Tørranlegg",
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Stående",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15"
+    } }
+  }, [
+    candidate("standard", "1/2\" V2704 sprinklerhode K80 SSU 68C QR", "Konvensjonell sprinkler", "/standard/"),
+    candidate("dry", "1/2\" V9999 sprinklerhode K80 SSU tørr 68C QR", "Tørrsprinkler", "/dry/")
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "standard");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.ok(ranked[1].matchWarnings?.some((warning) => warning.includes("konventionellt sprinklerhuvud")));
+});
+
+test("recognizes 1/2 inch as DN15 and rejects it for a DN25 sprinkler requirement", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Stående",
+      følsomhetsgrad: "Standard-respons",
+      utløsningstemperatur: "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN25"
+    } }
+  }, [candidate(
+    "9254042",
+    "1/2\" V2703 sprinklerhode K80 SSU 68C SR",
+    "Konvensjonell sprinkler",
+    "/9254042/"
+  )]);
+
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("DN25") && warning.includes("DN15")));
+});
+
+test("does not recommend a thermal sprinkler for an open window-sprinkler requirement", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SWV Vindu sprinkler Åpen",
+    value_json: { attributes: {
+      sprinkleranlegg: "Delugeanlegg",
+      "type sprinkler": "Spesial - Window Sprinkler",
+      følsomhetsgrad: "Uten termisk element",
+      utløsningstemperatur: "Uten termisk element",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15"
+    } }
+  }, [candidate(
+    "9257423",
+    "1/2\" V2762 sprinklerhode K80 SSP 68C QR hvit",
+    "Temperaturutløst sprinklerhode",
+    "/9257423/"
+  )]);
+
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("öppen sprinkler")));
+});
+
+test("matches Norwegian compound sidewall wording to an HSW product", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      plassering: "Veggmontert, horisontalt montert sprinklerhode",
+      "type sprinkler": "Konvensjonell sprinkler",
+      følsomhetsgrad: "Standard-respons",
+      utløsningstemperatur: "68 C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "DN15"
+    } }
+  }, [
+    candidate("hsw", "1/2\" V2709 sprinklerhode K80 HSW 68C SR", "", "/hsw/"),
+    candidate("ssu", "1/2\" V2703 sprinklerhode K80 SSU 68C SR", "", "/ssu/")
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "hsw");
+  assert.equal(ranked[0].recommendation, "possible");
+  assert.ok(ranked[0].matchWarnings?.some((warning) => warning.includes("täcknings-/applikationsklass")));
+  assert.ok(ranked[1].matchWarnings?.some((warning) => warning.includes("monteringsriktning")));
 });
 
 function candidate(articleNumber: string, productName: string, description: string, path: string): AhlsellPublicCandidate {
