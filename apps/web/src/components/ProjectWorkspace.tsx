@@ -35,6 +35,7 @@ import {
   type GuidedProjectTab
 } from "@/lib/guided-project-workflow";
 import { buildProjectSourcePdfLookup } from "@/lib/project-source-pdf";
+import { uploadTechnicalDescriptionWithOcr } from "@/lib/technical-description-upload";
 
 export type ProjectModuleData = {
   project: OrganizationProject;
@@ -87,6 +88,7 @@ export function ProjectWorkspace({
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -276,7 +278,11 @@ export function ProjectWorkspace({
     setMessage(null);
     try {
       form.set("projectId", data.project.id);
-      const response = await fetch("/api/technical-descriptions", { method: "POST", body: form });
+      const response = await uploadTechnicalDescriptionWithOcr(
+        form,
+        selectedFile,
+        (progress) => setAnalysisProgress(progress.label)
+      );
       const payload = (await response.json().catch(() => null)) as { error?: string; persistedRequirementCount?: number } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Underlaget kunde inte extraheras.");
       const refreshedData = await reload();
@@ -303,6 +309,7 @@ export function ProjectWorkspace({
       setError(uploadError instanceof Error ? uploadError.message : "Underlaget kunde inte extraheras.");
     } finally {
       setUploading(false);
+      setAnalysisProgress(null);
     }
   }
 
@@ -600,7 +607,7 @@ export function ProjectWorkspace({
                 />
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm font-medium text-slate-300">Endast en PDF kan kopplas till projektet.</p>
-                  <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="submit" disabled={uploading || !selectedFile}><Upload className="h-5 w-5" aria-hidden="true" />{uploading ? "Läser PDF och skapar poster..." : "Läs PDF och fortsätt"}</Button>
+                  <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="submit" disabled={uploading || !selectedFile}><Upload className="h-5 w-5" aria-hidden="true" />{uploading ? analysisProgress ?? "Läser PDF och skapar poster..." : "Läs PDF och fortsätt"}</Button>
                 </div>
               </form>
             </section>

@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/Button";
 import { PdfDropzone } from "@/components/PdfDropzone";
 import { ScipxPageHeader } from "@/components/ScipxPageHeader";
+import { uploadTechnicalDescriptionWithOcr } from "@/lib/technical-description-upload";
 
 type CreationResponse = {
   error?: string;
@@ -24,6 +25,7 @@ export default function CreateProjectPage() {
   const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function createFromTechnicalDescription(
@@ -42,10 +44,11 @@ export default function CreateProjectPage() {
     form.set("createProject", "true");
 
     try {
-      const response = await fetch("/api/technical-descriptions", {
-        method: "POST",
-        body: form
-      });
+      const response = await uploadTechnicalDescriptionWithOcr(
+        form,
+        selectedFile,
+        (progress) => setAnalysisProgress(progress.label)
+      );
       const payload = (await response.json().catch(() => null)) as
         | CreationResponse
         | null;
@@ -69,6 +72,7 @@ export default function CreateProjectPage() {
           : "Scipx kunde inte skapa projektet från dokumentet."
       );
       setCreating(false);
+      setAnalysisProgress(null);
     }
   }
 
@@ -138,7 +142,9 @@ export default function CreateProjectPage() {
               ) : (
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               )}
-              {creating ? "Läser och skapar projekt…" : "Ladda upp och skapa projekt"}
+              {creating
+                ? analysisProgress ?? "Läser och skapar projekt…"
+                : "Ladda upp och skapa projekt"}
             </Button>
           </div>
         </div>

@@ -21,6 +21,11 @@ import {
   hasTechnicalDescriptionConflict,
   nextAvailableProjectNumber
 } from "@/lib/technical-description-project";
+import {
+  ClientOcrPayloadError,
+  mergeClientOcrPages,
+  parseClientOcrPages
+} from "@/lib/technical-description-ocr-payload";
 
 export const runtime = "nodejs";
 
@@ -94,8 +99,15 @@ export async function POST(request: Request) {
       );
     }
 
+    const hasClientOcrPayload = formData.has("ocrPages");
     const limit = consumeRateLimit(
-      requestRateLimitKey(request, "technical-description", authorization.user.id),
+      requestRateLimitKey(
+        request,
+        hasClientOcrPayload
+          ? "technical-description-ocr-retry"
+          : "technical-description",
+        authorization.user.id
+      ),
       5,
       60_000
     );
@@ -113,7 +125,8 @@ export async function POST(request: Request) {
     // responses JSON instead of falling back to an HTML 500 page.
     const {
       extractTechnicalDescriptionFromPages,
-      extractTechnicalDescriptionPages
+      extractTechnicalDescriptionPages,
+      pagesRequiringOcr
     } = await import("@/modules/technical-description-extractor");
 
     const projectIdValue = formData.get("projectId");
@@ -146,11 +159,48 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Filen är inte en giltig PDF." }, { status: 415 });
     }
     const fileSha256 = createHash("sha256").update(buffer).digest("hex");
-    const pages = await extractTechnicalDescriptionPages(buffer);
+    const serverPages = await extractTechnicalDescriptionPages(buffer);
+    let clientOcrPages;
+    try {
+      clientOcrPages = parseClientOcrPages(
+        formData.get("ocrPages"),
+        serverPages.length
+      );
+    } catch (error) {
+      if (error instanceof ClientOcrPayloadError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
+    }
+    const pages = mergeClientOcrPages(serverPages, clientOcrPages);
+    const unreadablePageNumbers = pagesRequiringOcr(pages);
+    if (!clientOcrPages && unreadablePageNumbers.length > 0) {
+      return NextResponse.json(
+        {
+          code: "OCR_REQUIRED",
+          error:
+            "Dokumentet innehåller skannade sidor. OCR startar automatiskt i webbläsaren.",
+          pageCount: pages.length,
+          pageNumbers: unreadablePageNumbers
+        },
+        { status: 422 }
+      );
+    }
+    if (clientOcrPages && pages.every((page) => page.text.trim().length === 0)) {
+      return NextResponse.json(
+        {
+          code: "OCR_FAILED",
+          error:
+            "OCR kunde inte läsa dokumentet. Kontrollera bildkvaliteten och försök igen."
+        },
+        { status: 422 }
+      );
+    }
     const result = extractTechnicalDescriptionFromPages(pages, {
       fileName: file.name
     });
     let createdProjectName: string | null = null;
+    let reusedExistingEmptyProject = false;
     if (!projectId) {
       const [existingSourceDocument] =
         await selectUserRows<ExistingSourceDocumentRow>(
@@ -185,87 +235,93 @@ export async function POST(request: Request) {
               deleted_at: "is.null"
             })
           ]);
-          return NextResponse.json({
-            projectId: existingProject.id,
-            projectName: existingProject.name,
-            projectCreated: false,
-            reusedExistingProject: true,
-            documentId: existingSourceDocument.id,
-            persistedLineCount: persistedLines.length,
-            persistedRequirementCount: persistedRequirements.length,
-            duplicate: true,
-            ...clientTechnicalDescriptionResult(result)
-          });
+          if (persistedLines.length > 0 || persistedRequirements.length > 0) {
+            return NextResponse.json({
+              projectId: existingProject.id,
+              projectName: existingProject.name,
+              projectCreated: false,
+              reusedExistingProject: true,
+              documentId: existingSourceDocument.id,
+              persistedLineCount: persistedLines.length,
+              persistedRequirementCount: persistedRequirements.length,
+              duplicate: true,
+              ...clientTechnicalDescriptionResult(result)
+            });
+          }
+          projectId = existingProject.id;
+          reusedExistingEmptyProject = true;
         }
       }
 
-      const details = automaticProjectDetails({
-        extractedName: result.project.name,
-        extractedProjectNumber: result.project.projectNumber,
-        extractedStandards: result.standards,
-        fileName: file.name
-      });
-      const existingProjectNumbers = await selectUserRows<{
-        project_number: string | null;
-      }>("projects", {
-        select: "project_number",
-        organization_id: `eq.${authorization.context.organization.id}`,
-        deleted_at: "is.null"
-      });
-      const availableProjectNumber = nextAvailableProjectNumber(
-        details.projectNumber,
-        existingProjectNumbers.map((project) => project.project_number)
-      );
-      const automaticProjectPayload = {
-        requested_organization_id: authorization.context.organization.id,
-        requested_project_number: availableProjectNumber,
-        requested_name: details.name,
-        requested_description: details.description,
-        requested_customer_name: authorization.context.organization.name,
-        requested_project_type: "Teknisk beskrivningsanalys",
-        requested_country_code: "Sweden",
-        requested_language_code: "sv",
-        requested_currency_code: "SEK",
-        requested_owner_user_id: authorization.user.id,
-        requested_module_code: "sprinkler",
-        requested_standard: details.standard,
-        requested_system_type: details.systemType,
-        requested_supplier: null,
-        requested_delivery_country: "Sweden",
-        requested_access_level: "own",
-        requested_team_id: null,
-        requested_details: {
-          procurement_strategy: "Ahlsell specialist selection",
-          preferred_distributor: "Ahlsell",
-          source_file_name: file.name.slice(0, 255),
-          automatically_created: true
-        }
-      };
-      let rpcResult: unknown;
-      try {
-        rpcResult = await callUserRpc<unknown>(
-          "create_project_with_details",
-          automaticProjectPayload
-        );
-      } catch (projectError) {
-        if (
-          !(projectError instanceof UserSupabaseError) ||
-          projectError.code !== "23505" ||
-          !details.projectNumber
-        ) {
-          throw projectError;
-        }
-        const collisionSafeNumber = `${details.projectNumber.slice(0, 93)}-${randomUUID().slice(0, 6)}`;
-        rpcResult = await callUserRpc<unknown>("create_project_with_details", {
-          ...automaticProjectPayload,
-          requested_project_number: collisionSafeNumber
-        });
-      }
-      projectId = rpcProjectId(rpcResult);
       if (!projectId) {
-        throw new Error("Supabase returned no project id after automatic creation.");
+        const details = automaticProjectDetails({
+          extractedName: result.project.name,
+          extractedProjectNumber: result.project.projectNumber,
+          extractedStandards: result.standards,
+          fileName: file.name
+        });
+        const existingProjectNumbers = await selectUserRows<{
+          project_number: string | null;
+        }>("projects", {
+          select: "project_number",
+          organization_id: `eq.${authorization.context.organization.id}`,
+          deleted_at: "is.null"
+        });
+        const availableProjectNumber = nextAvailableProjectNumber(
+          details.projectNumber,
+          existingProjectNumbers.map((project) => project.project_number)
+        );
+        const automaticProjectPayload = {
+          requested_organization_id: authorization.context.organization.id,
+          requested_project_number: availableProjectNumber,
+          requested_name: details.name,
+          requested_description: details.description,
+          requested_customer_name: authorization.context.organization.name,
+          requested_project_type: "Teknisk beskrivningsanalys",
+          requested_country_code: "Sweden",
+          requested_language_code: "sv",
+          requested_currency_code: "SEK",
+          requested_owner_user_id: authorization.user.id,
+          requested_module_code: "sprinkler",
+          requested_standard: details.standard,
+          requested_system_type: details.systemType,
+          requested_supplier: null,
+          requested_delivery_country: "Sweden",
+          requested_access_level: "own",
+          requested_team_id: null,
+          requested_details: {
+            procurement_strategy: "Ahlsell specialist selection",
+            preferred_distributor: "Ahlsell",
+            source_file_name: file.name.slice(0, 255),
+            automatically_created: true
+          }
+        };
+        let rpcResult: unknown;
+        try {
+          rpcResult = await callUserRpc<unknown>(
+            "create_project_with_details",
+            automaticProjectPayload
+          );
+        } catch (projectError) {
+          if (
+            !(projectError instanceof UserSupabaseError) ||
+            projectError.code !== "23505" ||
+            !details.projectNumber
+          ) {
+            throw projectError;
+          }
+          const collisionSafeNumber = `${details.projectNumber.slice(0, 93)}-${randomUUID().slice(0, 6)}`;
+          rpcResult = await callUserRpc<unknown>("create_project_with_details", {
+            ...automaticProjectPayload,
+            requested_project_number: collisionSafeNumber
+          });
+        }
+        projectId = rpcProjectId(rpcResult);
+        if (!projectId) {
+          throw new Error("Supabase returned no project id after automatic creation.");
+        }
+        createdProjectName = details.name;
       }
-      createdProjectName = details.name;
     }
 
     const projects = await selectUserRows<ProjectRow>("projects", {
@@ -410,15 +466,17 @@ export async function POST(request: Request) {
             deleted_at: "is.null"
           })
         ]);
-        return NextResponse.json({
-          projectId,
-          projectName: projects[0].name,
-          documentId: document.id,
-          persistedLineCount: persistedLines.length,
-          persistedRequirementCount: persistedRequirements.length,
-          duplicate: true,
-          ...clientTechnicalDescriptionResult(result)
-        });
+        if (persistedLines.length > 0 || persistedRequirements.length > 0) {
+          return NextResponse.json({
+            projectId,
+            projectName: projects[0].name,
+            documentId: document.id,
+            persistedLineCount: persistedLines.length,
+            persistedRequirementCount: persistedRequirements.length,
+            duplicate: true,
+            ...clientTechnicalDescriptionResult(result)
+          });
+        }
       }
 
       if (!projectDocument) {
@@ -487,31 +545,50 @@ export async function POST(request: Request) {
           limit: "1"
         }
       );
-      extractionRun = existingExtractionRun ??
-        await insertUserRowReturning<ExtractionRunRow>("extraction_runs", {
-          organization_id: authorization.context.organization.id,
-          project_id: projectId,
-          document_id: projectDocument.id,
-          status: status === "review_required" ? "requires_review" : "completed",
-          extraction_provider: "flowx-technical-description-extractor",
-          model_name: "deterministic-pdf-parser",
-          model_version: "1",
-          prompt_version: null,
-          started_at: result.document.extractedAt,
-          completed_at: result.document.extractedAt,
-          raw_result: {
-            document: result.document,
-            project: result.project,
-            standards: result.standards,
-            warnings: result.warnings
-          },
-          created_by: authorization.user.id
-        });
+      const extractionRunPayload = {
+        organization_id: authorization.context.organization.id,
+        project_id: projectId,
+        document_id: projectDocument.id,
+        status: status === "review_required" ? "requires_review" : "completed",
+        extraction_provider: "flowx-technical-description-extractor",
+        model_name:
+          result.document.extractionMethod === "text"
+            ? "deterministic-pdf-parser"
+            : "browser-tesseract+deterministic-pdf-parser",
+        model_version: result.document.extractionMethod === "text" ? "1" : "2",
+        prompt_version: null,
+        started_at: result.document.extractedAt,
+        completed_at: result.document.extractedAt,
+        raw_result: {
+          document: result.document,
+          project: result.project,
+          standards: result.standards,
+          warnings: result.warnings
+        },
+        created_by: authorization.user.id
+      };
+      extractionRun = existingExtractionRun
+        ? await updateUserRowsReturning<ExtractionRunRow>(
+            "extraction_runs",
+            {
+              id: `eq.${existingExtractionRun.id}`,
+              organization_id: `eq.${authorization.context.organization.id}`,
+              project_id: `eq.${projectId}`
+            },
+            extractionRunPayload
+          )
+        : await insertUserRowReturning<ExtractionRunRow>(
+            "extraction_runs",
+            extractionRunPayload
+          );
 
-      const existingPages = await selectUserRows<{ page_number: number }>(
+      const existingPages = await selectUserRows<{
+        id: string;
+        page_number: number;
+      }>(
         "document_pages",
         {
-          select: "page_number",
+          select: "id,page_number",
           organization_id: `eq.${authorization.context.organization.id}`,
           project_id: `eq.${projectId}`,
           document_id: `eq.${projectDocument.id}`
@@ -520,7 +597,30 @@ export async function POST(request: Request) {
       const existingPageNumbers = new Set(
         existingPages.map((page) => page.page_number)
       );
+      const existingPageByNumber = new Map(
+        existingPages.map((page) => [page.page_number, page] as const)
+      );
       const projectDocumentId = projectDocument.id;
+      await Promise.all(
+        result.pages
+          .filter((page) => existingPageNumbers.has(page.pageNumber))
+          .map((page) =>
+            updateUserRowsReturning<{ id: string }>(
+              "document_pages",
+              {
+                id: `eq.${existingPageByNumber.get(page.pageNumber)?.id}`,
+                organization_id: `eq.${authorization.context.organization.id}`,
+                project_id: `eq.${projectId}`,
+                document_id: `eq.${projectDocumentId}`
+              },
+              {
+                extracted_text: page.text,
+                extraction_method: page.method,
+                metadata: { confidence: page.confidence }
+              }
+            )
+          )
+      );
       await insertUserRows(
         "document_pages",
         result.pages
@@ -689,7 +789,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (createdProjectName) {
+    if (createdProjectName || reusedExistingEmptyProject) {
       await updateUserRowsReturning<ProjectRow>(
         "projects",
         {
@@ -710,6 +810,7 @@ export async function POST(request: Request) {
         projectId,
         projectName: projects[0].name,
         projectCreated: Boolean(createdProjectName),
+        reusedExistingProject: reusedExistingEmptyProject,
         documentId: document.id,
         persistedLineCount: result.materialLines.length,
         persistedRequirementCount,

@@ -12,6 +12,9 @@ export default defineConfig([
     "node_modules/**",
     "out/**",
     "dist/**",
+    "dist-old-*/**",
+    "public/ocr/**",
+    "tmp/**",
     "next-env.d.ts"
   ])
 ]);

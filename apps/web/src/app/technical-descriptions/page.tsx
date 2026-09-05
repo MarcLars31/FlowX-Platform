@@ -10,6 +10,7 @@ import type {
   TechnicalDescriptionExtractionResult,
   TechnicalDescriptionMaterialLine
 } from "@/modules/technical-description-extractor";
+import { uploadTechnicalDescriptionWithOcr } from "@/lib/technical-description-upload";
 
 type ExtractionResponse = TechnicalDescriptionExtractionResult & {
   documentId: string;
@@ -49,6 +50,7 @@ export default function TechnicalDescriptionsPage() {
   const [headsPerM2, setHeadsPerM2] = useState("");
   const [reservePercentage, setReservePercentage] = useState("0");
   const [isExtracting, setIsExtracting] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
   const [isEstimating, setIsEstimating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [estimateError, setEstimateError] = useState<string | null>(null);
@@ -87,10 +89,11 @@ export default function TechnicalDescriptionsPage() {
       const formData = new FormData();
       formData.set("file", file);
       formData.set("createProject", "true");
-      const response = await fetch("/api/technical-descriptions", {
-        method: "POST",
-        body: formData
-      });
+      const response = await uploadTechnicalDescriptionWithOcr(
+        formData,
+        file,
+        (progress) => setAnalysisProgress(progress.label)
+      );
       const payload = (await readJsonPayload(response)) as
         | ExtractionResponse
         | { error?: string; detail?: string };
@@ -111,6 +114,7 @@ export default function TechnicalDescriptionsPage() {
       );
     } finally {
       setIsExtracting(false);
+      setAnalysisProgress(null);
     }
   }
 
@@ -184,7 +188,9 @@ export default function TechnicalDescriptionsPage() {
           <div className="mt-4 flex justify-end">
             <Button type="submit" disabled={isExtracting || !file}>
               <Upload className="h-4 w-4" aria-hidden="true" />
-              {isExtracting ? "Extraherar..." : "Extrahera och spara"}
+              {isExtracting
+                ? analysisProgress ?? "Extraherar..."
+                : "Extrahera och spara"}
             </Button>
           </div>
         </form>
