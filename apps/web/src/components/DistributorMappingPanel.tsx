@@ -19,7 +19,7 @@ import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
-import { bulkProductApprovalSelection, previousBulkProductApprovals, type BulkProductApprovalSelection, type PreviousBulkProductApproval } from "@/lib/bulk-product-approval";
+import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProductApprovals, type BulkProductApprovalSelection, type PreviousBulkProductApproval } from "@/lib/bulk-product-approval";
 import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { mergeAhlsellCandidates } from "@/lib/ahlsell-candidate-merge";
@@ -275,6 +275,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const [productTableLayoutAnnouncement, setProductTableLayoutAnnouncement] = useState("");
   const [selectedRequirementIds, setSelectedRequirementIds] = useState<Set<string>>(() => new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
+  const [bulkApprovalProgress, setBulkApprovalProgress] = useState<{ completed: number; total: number } | null>(null);
   const [productLabelsByRequirementId, setProductLabelsByRequirementId] = useState<Record<string, AhlsellProductLabel>>({});
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
@@ -568,14 +569,21 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     if (selectedProducts.length === 0 || bulkApproving) return;
 
     setBulkApproving(true);
+    setBulkApprovalProgress({ completed: 0, total: selectedProducts.length });
     setMessage(null);
     setError(null);
     try {
-      const labelItems = selectedProducts.map(({ requirement, selection }) => ({
-        requirementId: requirement.id,
-        articleNumber: selection.productNumber
-      }));
-      const fetchedLabels = await fetchAhlsellProductLabels(projectId, labelItems);
+      const labelItems = selectedProducts.flatMap(({ requirement, selection }) => {
+        const loadedLabel = productLabelsByRequirementId[requirement.id];
+        return loadedLabel
+          && normalizeNrfNumber(loadedLabel.articleNumber) === normalizeNrfNumber(selection.productNumber)
+          && loadedLabel.subtitle.trim()
+          ? []
+          : [{ requirementId: requirement.id, articleNumber: selection.productNumber }];
+      });
+      const fetchedLabels = labelItems.length > 0
+        ? await fetchAhlsellProductLabels(projectId, labelItems)
+        : {};
       const labels = { ...productLabelsByRequirementId, ...fetchedLabels };
       setProductLabelsByRequirementId(labels);
       const unresolved = selectedProducts.filter(({ requirement, selection }) => {
@@ -592,11 +600,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
         throw new Error(`Ahlsells tekniska produkttext kunde inte hämtas för ${posts}. Inga produkter godkändes.`);
       }
 
-      const approvedIds: string[] = [];
-      const failed: Array<{ requirementId: string; message: string }> = [];
-      for (const { requirement, selection } of selectedProducts) {
+      const approvalResults = await mapBulkProductApprovals(selectedProducts, async ({ requirement, selection }) => {
         const label = labels[requirement.id];
-        if (!label) continue;
+        if (!label) {
+          return { requirementId: requirement.id, message: "Ahlsells produkttext saknas." };
+        }
         try {
           const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
             method: "POST",
@@ -615,14 +623,24 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
           });
           const payload = (await response.json().catch(() => null)) as { error?: string } | null;
           if (!response.ok) throw new Error(payload?.error ?? "Produkten kunde inte godkännas.");
-          approvedIds.push(requirement.id);
+          return { requirementId: requirement.id, message: null };
         } catch (approvalError) {
-          failed.push({
+          return {
             requirementId: requirement.id,
             message: approvalError instanceof Error ? approvalError.message : "Produkten kunde inte godkännas."
-          });
+          };
+        } finally {
+          setBulkApprovalProgress((current) => current
+            ? { ...current, completed: Math.min(current.completed + 1, current.total) }
+            : current);
         }
-      }
+      });
+      const approvedIds = approvalResults
+        .filter((result) => result.message === null)
+        .map((result) => result.requirementId);
+      const failed = approvalResults.filter((result): result is { requirementId: string; message: string } =>
+        typeof result.message === "string"
+      );
 
       await onReload();
       setSelectedRequirementIds(new Set(failed.map((item) => item.requirementId)));
@@ -635,6 +653,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       setError(approvalError instanceof Error ? approvalError.message : "Produkterna kunde inte godkännas.");
     } finally {
       setBulkApproving(false);
+      setBulkApprovalProgress(null);
     }
   }
 
@@ -745,7 +764,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                   : "Det finns inga säkra tidigare produktval att godkänna"}
               >
                 {bulkApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />}
-                {bulkApproving ? "Godkänner…" : `Godkänn alla tidigare valda (${previouslySelectedProducts.length})`}
+                {bulkApproving
+                  ? bulkApprovalProgress && bulkApprovalProgress.completed > 0
+                    ? `Godkänner ${bulkApprovalProgress.completed}/${bulkApprovalProgress.total}…`
+                    : `Förbereder ${bulkApprovalProgress?.total ?? ""}…`
+                  : `Godkänn alla tidigare valda (${previouslySelectedProducts.length})`}
               </Button>
               <Button
                 type="button"
@@ -756,7 +779,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                 title="Godkänner endast gröna poster med ett otvetydigt tidigare val eller en exakt direktträff"
               >
                 {bulkApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
-                {bulkApproving ? "Godkänner…" : `Godkänn markerade${selectedVisibleRequirements.length > 0 ? ` (${selectedVisibleRequirements.length})` : ""}`}
+                {bulkApproving
+                  ? bulkApprovalProgress && bulkApprovalProgress.completed > 0
+                    ? `Godkänner ${bulkApprovalProgress.completed}/${bulkApprovalProgress.total}…`
+                    : `Förbereder ${bulkApprovalProgress?.total ?? ""}…`
+                  : `Godkänn markerade${selectedVisibleRequirements.length > 0 ? ` (${selectedVisibleRequirements.length})` : ""}`}
               </Button>
               <Button
                 type="button"

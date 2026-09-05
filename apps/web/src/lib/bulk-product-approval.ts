@@ -16,6 +16,32 @@ export type PreviousBulkProductApproval<TRequirement extends Record<string, unkn
   selection: BulkProductApprovalSelection;
 };
 
+export const BULK_PRODUCT_APPROVAL_CONCURRENCY = 5;
+
+export async function mapBulkProductApprovals<TItem, TResult>(
+  items: ReadonlyArray<TItem>,
+  worker: (item: TItem, index: number) => Promise<TResult>,
+  concurrency = BULK_PRODUCT_APPROVAL_CONCURRENCY
+): Promise<TResult[]> {
+  if (items.length === 0) return [];
+  const results = new Array<TResult>(items.length);
+  const workerCount = Math.min(items.length, Math.max(1, Math.floor(concurrency)));
+  let nextIndex = 0;
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      if (item === undefined) return;
+      results[index] = await worker(item, index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return results;
+}
+
 export function previousBulkProductApprovals<TRequirement extends Record<string, unknown> & { id: string }>(
   requirements: ReadonlyArray<TRequirement>,
   selectionsByRequirementId: ReadonlyMap<string, BulkProductApprovalSelection>

@@ -6,7 +6,7 @@ import {
   validateDistributorProductMapping,
   validateManualDistributorProduct
 } from "./distributor-product-mapping";
-import { bulkProductApprovalSelection, previousBulkProductApprovals } from "./bulk-product-approval";
+import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProductApprovals } from "./bulk-product-approval";
 
 test("accepts canonical project UUIDs used by product mapping routes", () => {
   assert.equal(isUuid("5bc86407-0c26-43b7-b302-e65ad1a881fe"), true);
@@ -312,6 +312,21 @@ test("approve-all includes only unambiguous previous product selections", () => 
     productNumber: selection.productNumber
   })), [{ requirementId: "previous", productNumber: "9254043" }]);
   assert.deepEqual(requirements.map((requirement) => requirement.id), ["previous", "direct", "missing"]);
+});
+
+test("bulk product approvals run concurrently with a safe upper limit", async () => {
+  let activeWorkers = 0;
+  let maximumActiveWorkers = 0;
+  const results = await mapBulkProductApprovals([1, 2, 3, 4, 5, 6, 7], async (item) => {
+    activeWorkers += 1;
+    maximumActiveWorkers = Math.max(maximumActiveWorkers, activeWorkers);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    activeWorkers -= 1;
+    return item * 2;
+  }, 3);
+
+  assert.deepEqual(results, [2, 4, 6, 8, 10, 12, 14]);
+  assert.equal(maximumActiveWorkers, 3);
 });
 
 test("bulk approval uses brass for one unambiguous direct match without an explicit finish", () => {
