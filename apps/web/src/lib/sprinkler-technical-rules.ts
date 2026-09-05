@@ -88,6 +88,11 @@ export function sprinklerRequiresAccessoryReview(
   return /\b(med|inkludert|inkluderer|krever|required|with)\s+(?:en\s+)?(?:dekkskive|pyntering|rosett|escutcheon|cover plate|coverplate|beskyttelsesgitter|vannskjerm|watershield|water shield|guard)\b/.test(normalizedFreeText);
 }
 
+export function sprinklerExplicitlyExcludesCoverPlate(value: string | null | undefined) {
+  const normalized = normalize(value ?? "");
+  return /^(nei|no|false|ingen|ikke aktuelt|ikke relevant|ej relevant|icke relevant|not applicable|not required|none)$/.test(normalized);
+}
+
 function normalize(value: string) {
   return value
     .toLowerCase()

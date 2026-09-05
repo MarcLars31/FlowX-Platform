@@ -6,6 +6,7 @@ export type AhlsellMldlProduct = (typeof catalogData.products)[number];
 
 export const AHLSELL_MLDL_CATALOG_VERSION = catalogData.catalogVersion;
 export const AHLSELL_MLDL_PRODUCT_COUNT = catalogData.productCount;
+const PREFERRED_MLDL_LOCATION = "LC Eidsvoll";
 
 const productsByArticle = new Map(
   catalogData.products.map((product) => [normalizeArticle(product.articleNumber), product])
@@ -61,6 +62,7 @@ function catalogCandidate(product: AhlsellMldlProduct): AhlsellPublicCandidate {
   const searchUrl = new URL("https://www.ahlsell.no/search");
   searchUrl.searchParams.set("parameters.SearchPhrase", product.articleNumber);
   const verifiedEvidence = verifiedVictaulicEvidence(product);
+  const preferredAssortment = product.locations.includes(PREFERRED_MLDL_LOCATION);
   return {
     articleNumber: product.articleNumber,
     productName: product.productName,
@@ -94,6 +96,7 @@ function catalogCandidate(product: AhlsellMldlProduct): AhlsellPublicCandidate {
     ]),
     source: "structured_database",
     exactMatch: false,
+    assortmentPriority: preferredAssortment ? 1 : 0,
     evidenceSources: verifiedEvidence
       ? ["mldl_database", "victaulic_verified"]
       : ["mldl_database"],
@@ -155,6 +158,9 @@ function boostStructuredCatalogEvidence(
     if (tokenMatches >= 2) {
       score += Math.min(12, tokenMatches * 2);
       reasons.push("Flera tekniska sökord stämmer med MLDL-beskrivningen.");
+    }
+    if (product.locations.includes(PREFERRED_MLDL_LOCATION)) {
+      reasons.push(`Produkten finns i det prioriterade MLDL-sortimentet för ${PREFERRED_MLDL_LOCATION}.`);
     }
   }
 

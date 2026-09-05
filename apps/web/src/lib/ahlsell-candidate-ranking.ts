@@ -8,6 +8,7 @@ import { sprinklerOrientationSignals } from "@/lib/sprinkler-orientation-lexicon
 import {
   sprinklerCoverageFromText,
   sprinklerCoverageMatches,
+  sprinklerExplicitlyExcludesCoverPlate,
   sprinklerKFactorMatches,
   sprinklerMountCapabilities,
   sprinklerNeedsHydraulicReview,
@@ -65,6 +66,8 @@ export function orderAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandid
   return [...candidates].sort((left, right) =>
     confidenceTier(left) - confidenceTier(right)
     || (right.matchScore ?? 0) - (left.matchScore ?? 0)
+    || (left.matchWarnings?.length ?? 0) - (right.matchWarnings?.length ?? 0)
+    || (right.assortmentPriority ?? 0) - (left.assortmentPriority ?? 0)
     || (right.learningEvidence?.supportCount ?? 0) - (left.learningEvidence?.supportCount ?? 0)
     || (right.learningEvidence?.similarityScore ?? 0) - (left.learningEvidence?.similarityScore ?? 0)
     || left.productName.localeCompare(right.productName, "sv")
@@ -144,7 +147,8 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     response: extractSprinklerResponse(primaryText),
     orientation,
     mount,
-    visibleMount: /\b(synlig|visible|eksponert)\b/.test(placementText),
+    visibleMount: /\b(synlig|visible|eksponert)\b/.test(placementText)
+      || sprinklerExplicitlyExcludesCoverPlate(deckPlateText),
     sprinklerSystem: extractSprinklerSystem(sprinklerSystemText),
     sprinklerHeadType: extractRequiredSprinklerHeadType(sprinklerTypeText),
     expectsSteel: /\b(stalror|stal ror|materiale stal|ror av stal|stal fittings?)\b/.test(primaryText),

@@ -74,3 +74,30 @@ test("selects NRF 9253499 for the supervised-open DN100 handwheel valve", () => 
   assert.ok(candidates[0]?.matchReasons?.some((reason) => reason.includes("övervakad i öppet")));
   assert.ok(candidates.slice(1, 4).every((candidate) => candidate.recommendation !== "recommended"));
 });
+
+test("selects the LC Eidsvoll V2763 brass head for PDF post 33.500.2", () => {
+  const candidates = findAhlsellMldlCandidates({
+    category: "sprinkler_head",
+    requirement_key: "UE2.11111232",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Hengende i tak",
+      følsomhetsgrad: "Standard-respons A",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "80",
+      trykk: "PN10",
+      "gjengedimensjon (dn)": "DN25",
+      overflatebehandling: "Som standard for produkt",
+      "dekkskive/pyntering (ved innfelling)": "Ingen",
+      beskyttelse: "Ingen"
+    } }
+  });
+
+  assert.equal(candidates[0]?.articleNumber, "9257387");
+  assert.equal(candidates[0]?.assortmentPriority, 1);
+  assert.ok(candidates[0]?.matchReasons?.some((reason) => reason.includes("LC Eidsvoll")));
+  assert.ok(candidates[0]?.matchWarnings?.some((warning) => warning.includes("DN25") && warning.includes("DN15")));
+  assert.ok(candidates.slice(0, 3).every((candidate) => !/skjult|concealed/i.test(`${candidate.productName} ${candidate.description}`)));
+});

@@ -7,6 +7,7 @@ import { resolvedSprinklerOrientation } from "@/lib/sprinkler-orientation-lexico
 import { findVictaulicSprinklerCandidates } from "@/lib/victaulic-sprinkler-catalog";
 import {
   sprinklerCoverageFromText,
+  sprinklerExplicitlyExcludesCoverPlate,
   sprinklerRequiresAccessoryReview
 } from "@/lib/sprinkler-technical-rules";
 import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
@@ -34,6 +35,7 @@ export type AhlsellPublicCandidate = {
     supportCount: number;
     similarityScore: number;
   };
+  assortmentPriority?: number;
   suggestedAccessories?: AhlsellAccessorySuggestion[];
 };
 
@@ -227,7 +229,8 @@ export function buildAhlsellRequirementGuide(
     `${description} ${rowSourceText} ${technicalSpecification}`
   );
   const mount = sprinklerMount(placement, deckPlate);
-  const visibleMount = /\b(synlig|visible|eksponert)\b/.test(normalize(placement ?? ""));
+  const visibleMount = /\b(synlig|visible|eksponert)\b/.test(normalize(placement ?? ""))
+    || sprinklerExplicitlyExcludesCoverPlate(deckPlate);
   const orientationResult = sprinklerOrientation(`${placement ?? ""} ${description}`);
   const orientation = orientationResult.orientation
     ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
@@ -391,7 +394,7 @@ export function buildAhlsellRequirementGuide(
       ? "Infällt takmontage behandlas som ett pendentkrav; den generella typetiketten konvensjonell får inte ensam styra produktvalet."
       : null,
     intent === "sprinkler_head" && visibleMount
-      ? "Synligt montage utesluter concealed/skjult sprinkler; Scipx prioriterar pendent-/ned-utföranden utan täcklock."
+      ? "Synligt montage eller uttryckligen ingen täckbricka utesluter concealed/skjult sprinkler; Scipx prioriterar pendent-/ned-utföranden utan täcklock."
       : null,
     nsCodeIntent === "sprinkler_hose"
       ? `NS 3420-koden ${nsCode} identifierar produkten som sprinklerslang. Ordet rörledning beskriver systemet och används inte som rörprodukt.`
