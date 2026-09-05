@@ -1,17 +1,37 @@
-let runtimePromise: Promise<void> | undefined;
+type PdfTextItem = {
+  str?: unknown;
+  hasEOL?: unknown;
+};
 
 /**
- * PDF.js expects browser canvas globals even when it runs in Node. Vercel's
- * server runtime does not provide them, so install the native canvas
- * implementations before importing pdf-parse/pdfjs-dist.
+ * Opens the serverless PDF.js build shipped by unpdf. It avoids native Canvas
+ * addons, so the same text extraction path runs in Node and Cloudflare Workers.
  */
-export function ensurePdfCanvasRuntime() {
-  runtimePromise ??= import("@napi-rs/canvas").then((canvas) => {
-    const globals = globalThis as unknown as Record<string, unknown>;
-    globals.DOMMatrix ??= canvas.DOMMatrix;
-    globals.ImageData ??= canvas.ImageData;
-    globals.Path2D ??= canvas.Path2D;
+export async function openPdfTextDocument(data: Buffer | Uint8Array) {
+  const { getDocumentProxy } = await import("unpdf");
+  return getDocumentProxy(new Uint8Array(data), {
+    disableFontFace: true,
+    maxImageSize: 16_777_216,
+    stopAtErrors: false
   });
+}
 
-  return runtimePromise;
+export async function closePdfTextDocument(document: unknown) {
+  const destroy = (document as { destroy?: () => Promise<void> }).destroy;
+  if (destroy) await destroy.call(document);
+}
+
+export function plainTextFromPdfItems(items: readonly unknown[]) {
+  let text = "";
+  for (const value of items) {
+    if (!value || typeof value !== "object") continue;
+    const item = value as PdfTextItem;
+    if (typeof item.str !== "string") continue;
+    text += item.str;
+    text += item.hasEOL === true ? "\n" : " ";
+  }
+  return text
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
