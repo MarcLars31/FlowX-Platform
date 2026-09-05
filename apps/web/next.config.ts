@@ -13,9 +13,13 @@ const nextConfig: NextConfig = {
       ]
     }];
   },
-  serverExternalPackages: [
-    "exceljs"
-  ]
+  // The browser bundle supports writeBuffer() without pulling ExcelJS' legacy
+  // filesystem readers (fstream/mkdirp) into the Cloudflare Worker startup.
+  turbopack: {
+    resolveAlias: {
+      exceljs: "exceljs/dist/exceljs.min.js"
+    }
+  }
 };
 
 export default nextConfig;
