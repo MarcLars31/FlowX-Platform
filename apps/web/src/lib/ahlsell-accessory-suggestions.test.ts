@@ -57,6 +57,29 @@ test("understands I.R. as not relevant and ignores the accessory field heading",
   assert.deepEqual(suggestions, []);
 });
 
+test("links the DN15 sprinkler guard to V2710 when protection requires a guard", () => {
+  const suggestions = suggestedAccessories({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Spraysprinkler",
+      plassering: "Horisontalt på vegg",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k faktor": "80",
+      "gjengedimensjon (DN)": "15",
+      overflatebehandling: "Messing",
+      "dekkskive/pyntering (ved innfelling)": "Nei",
+      beskyttelse: "Gitter"
+    } }
+  }, candidate("9254157N5"));
+
+  assert.equal(suggestions[0]?.articleNumber, "9254088");
+  assert.equal(suggestions[0]?.required, true);
+  assert.equal(suggestions[0]?.compatibility, "review");
+});
+
 function candidate(articleNumber: string): AhlsellPublicCandidate {
   return {
     articleNumber,

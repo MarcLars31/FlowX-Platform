@@ -59,7 +59,7 @@ function sprinklerAccessories(main: AhlsellMldlProduct, requirementText: string)
   const accessories = ahlsellMldlProducts().filter((product) => product.productType === "sprinkler_accessory");
   const ranked = accessories.flatMap((accessory) => {
     const text = normalize(`${accessory.productName} ${accessory.model ?? ""}`);
-    const isGuard = /\bgitter\b/.test(text);
+    const isGuard = /\b(?:sprinklergitter|gitter|beskyttelsesgitter|skyddskorg)\b/.test(text);
     const isCover = /\b(lokk|skjult)\b/.test(text);
     const isEscutcheon = /\b(dekkskiv(?:e)?|pyntering|rosett|escutcheon)\b/.test(text);
     if (asksForGuard && !isGuard) return [];
