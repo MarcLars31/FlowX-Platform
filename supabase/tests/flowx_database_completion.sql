@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, pg_catalog;
-select plan(20);
+select plan(21);
 
 select has_table('public', 'document_pages', 'document pages are present');
 select has_table('public', 'extraction_runs', 'extraction runs are present');
@@ -29,6 +29,16 @@ select ok(
       and policyname = 'requirement_candidates_select'
   ),
   'requirement candidates have an explicit RLS select policy'
+);
+select ok(
+  exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'document_pages'
+      and policyname = 'document_pages_update_technical_description'
+      and cmd = 'UPDATE'
+  ),
+  'technical-description retries can update existing document pages'
 );
 select ok(
   exists (select 1 from storage.buckets where id = 'project-files' and public = false),
