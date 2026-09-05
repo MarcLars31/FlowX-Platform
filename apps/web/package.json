@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "prepare:ocr": "node scripts/prepare-ocr-assets.mjs",
+    "postinstall": "npm run prepare:ocr",
     "predev": "npm run prepare:ocr",
     "prebuild": "npm run prepare:ocr",
     "prebuild:cloudflare": "npm run prepare:ocr",
