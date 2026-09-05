@@ -19,7 +19,7 @@ import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
-import { bulkProductApprovalSelection, type BulkProductApprovalSelection } from "@/lib/bulk-product-approval";
+import { bulkProductApprovalSelection, previousBulkProductApprovals, type BulkProductApprovalSelection, type PreviousBulkProductApproval } from "@/lib/bulk-product-approval";
 import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { mergeAhlsellCandidates } from "@/lib/ahlsell-candidate-merge";
@@ -429,6 +429,10 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const selectedVisibleRequirements = bulkEligibleVisibleRequirements.filter((requirement) =>
     selectedRequirementIds.has(requirement.id)
   );
+  const previouslySelectedProducts = useMemo(
+    () => previousBulkProductApprovals(productRequirements, bulkApprovalSelectionByRequirementId),
+    [bulkApprovalSelectionByRequirementId, productRequirements]
+  );
   const allVisibleRequirementsSelected = bulkEligibleVisibleRequirements.length > 0
     && selectedVisibleRequirements.length === bulkEligibleVisibleRequirements.length;
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
@@ -545,6 +549,22 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       const selection = bulkApprovalSelectionByRequirementId.get(requirement.id);
       return selection ? [{ requirement, selection }] : [];
     });
+    await approveBulkProducts(selectedProducts, "markerade produkter");
+  }
+
+  async function approveAllPreviouslySelectedProducts() {
+    if (previouslySelectedProducts.length === 0 || bulkApproving) return;
+    const approved = window.confirm(
+      `Godkänn ${previouslySelectedProducts.length} tidigare valda produkter i den här specifikationen? Endast oförändrade poster med ett entydigt tidigare val tas med.`
+    );
+    if (!approved) return;
+    await approveBulkProducts(previouslySelectedProducts, "tidigare valda produkter");
+  }
+
+  async function approveBulkProducts(
+    selectedProducts: Array<PreviousBulkProductApproval<Row>>,
+    successLabel: string
+  ) {
     if (selectedProducts.length === 0 || bulkApproving) return;
 
     setBulkApproving(true);
@@ -609,7 +629,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       if (failed.length > 0) {
         setError(`${approvedIds.length} produkter godkändes. ${failed.length} kunde inte sparas och är fortfarande markerade: ${failed[0].message}`);
       } else {
-        setMessage(`${approvedIds.length} gröna produkter godkändes och sparades.`);
+        setMessage(`${approvedIds.length} ${successLabel} godkändes och sparades.`);
       }
     } catch (approvalError) {
       setError(approvalError instanceof Error ? approvalError.message : "Produkterna kunde inte godkännas.");
@@ -718,12 +738,25 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               <Button
                 type="button"
                 className="min-h-9 px-3 py-1.5 text-sm"
+                disabled={previouslySelectedProducts.length === 0 || bulkApproving}
+                onClick={() => void approveAllPreviouslySelectedProducts()}
+                title={previouslySelectedProducts.length > 0
+                  ? "Godkänn alla otvetydiga tidigare produktval i den här specifikationen"
+                  : "Det finns inga säkra tidigare produktval att godkänna"}
+              >
+                {bulkApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />}
+                {bulkApproving ? "Godkänner…" : `Godkänn alla tidigare valda (${previouslySelectedProducts.length})`}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-9 px-3 py-1.5 text-sm"
                 disabled={selectedVisibleRequirements.length === 0 || bulkApproving}
                 onClick={() => void approveSelectedGreenProducts()}
                 title="Godkänner endast gröna poster med ett otvetydigt tidigare val eller en exakt direktträff"
               >
                 {bulkApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
-                {bulkApproving ? "Godkänner…" : `Godkänn valda gröna${selectedVisibleRequirements.length > 0 ? ` (${selectedVisibleRequirements.length})` : ""}`}
+                {bulkApproving ? "Godkänner…" : `Godkänn markerade${selectedVisibleRequirements.length > 0 ? ` (${selectedVisibleRequirements.length})` : ""}`}
               </Button>
               <Button
                 type="button"

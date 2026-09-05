@@ -11,6 +11,21 @@ export type BulkProductApprovalSelection = {
   source: "memory" | "direct";
 };
 
+export type PreviousBulkProductApproval<TRequirement extends Record<string, unknown> & { id: string }> = {
+  requirement: TRequirement;
+  selection: BulkProductApprovalSelection;
+};
+
+export function previousBulkProductApprovals<TRequirement extends Record<string, unknown> & { id: string }>(
+  requirements: ReadonlyArray<TRequirement>,
+  selectionsByRequirementId: ReadonlyMap<string, BulkProductApprovalSelection>
+): Array<PreviousBulkProductApproval<TRequirement>> {
+  return requirements.flatMap((requirement) => {
+    const selection = selectionsByRequirementId.get(requirement.id);
+    return selection?.source === "memory" ? [{ requirement, selection }] : [];
+  });
+}
+
 export function bulkProductApprovalSelection({
   requirement,
   memories = [],

@@ -6,7 +6,7 @@ import {
   validateDistributorProductMapping,
   validateManualDistributorProduct
 } from "./distributor-product-mapping";
-import { bulkProductApprovalSelection } from "./bulk-product-approval";
+import { bulkProductApprovalSelection, previousBulkProductApprovals } from "./bulk-product-approval";
 
 test("accepts canonical project UUIDs used by product mapping routes", () => {
   assert.equal(isUuid("5bc86407-0c26-43b7-b302-e65ad1a881fe"), true);
@@ -278,6 +278,40 @@ test("bulk approval accepts only an exact historical product for the same finger
     memories: [memory, { ...memory, id: "andra-raden" }],
     handled: false
   })?.productNumber, "9254043");
+});
+
+test("approve-all includes only unambiguous previous product selections", () => {
+  const requirements = [
+    { id: "previous", value_text: "Tidigare vald produkt" },
+    { id: "direct", value_text: "Ny direktträff" },
+    { id: "missing", value_text: "Saknar säker träff" }
+  ];
+  const selections = new Map([
+    ["previous", {
+      requirementId: "previous",
+      productName: "Tidigare sprinkler",
+      productNumber: "9254043",
+      manufacturerName: "Victaulic",
+      productUrl: null,
+      source: "memory" as const
+    }],
+    ["direct", {
+      requirementId: "direct",
+      productName: "Ny direktträff",
+      productNumber: "9257387",
+      manufacturerName: "Victaulic",
+      productUrl: null,
+      source: "direct" as const
+    }]
+  ]);
+
+  const approvals = previousBulkProductApprovals(requirements, selections);
+
+  assert.deepEqual(approvals.map(({ requirement, selection }) => ({
+    requirementId: requirement.id,
+    productNumber: selection.productNumber
+  })), [{ requirementId: "previous", productNumber: "9254043" }]);
+  assert.deepEqual(requirements.map((requirement) => requirement.id), ["previous", "direct", "missing"]);
 });
 
 test("bulk approval uses brass for one unambiguous direct match without an explicit finish", () => {
