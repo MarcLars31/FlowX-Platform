@@ -49,6 +49,9 @@ type TechnicalProfile = {
   requiresAccessoryReview: boolean;
   requiresHydraulicReview: boolean;
   finish: "white" | "black" | "chrome" | "brass" | null;
+  requiresSupervisedOpenValve: boolean;
+  requiresHandwheelValve: boolean;
+  requiresSoftClosingValve: boolean;
 };
 
 export function rankAhlsellCandidates(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
@@ -148,7 +151,10 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     coverage: sprinklerCoverageFromText(coverageText),
     requiresAccessoryReview: sprinklerRequiresAccessoryReview(attributes, sourceOnlyText),
     requiresHydraulicReview: sprinklerNeedsHydraulicReview(coverageText),
-    finish: extractFinish(primaryText)
+    finish: extractFinish(primaryText),
+    requiresSupervisedOpenValve: /\b(signal (?:ved|nar) stengt ventil|tilkobling for signal|overvaket|overvakning|supervised open|supervisory switch)\b/.test(primaryText),
+    requiresHandwheelValve: /\b(manuell med ratt|med ratt|handratt|handwheel|gear operated|girbetjent)\b/.test(primaryText),
+    requiresSoftClosingValve: /\b(myk stenging|mjuk stangning|soft clos|slow clos)\b/.test(primaryText)
   };
 }
 
@@ -214,6 +220,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     }
   } else if (requirement.intent === "butterfly_valve") {
     score += scoreNamedProductFamily(candidateName, /\b(spjeldventil|butterfly valve)\b/, "Produkttypen är en spjällventil.", reasons);
+    score += scoreButterflyValveOperation(candidateText, requirement, reasons, warnings);
   } else if (requirement.intent === "check_valve") {
     score += scoreNamedProductFamily(candidateName, /\b(tilbakeslagsventil|backventil|check valve)\b/, "Produkttypen är en backventil.", reasons);
     if (/\bfjaerbelastet\b/.test(requirement.text)) {
@@ -652,6 +659,57 @@ function scorePressure(candidateText: string, requirement: TechnicalProfile, rea
     return -20;
   }
   return 0;
+}
+
+function scoreButterflyValveOperation(
+  candidateText: string,
+  requirement: TechnicalProfile,
+  reasons: string[],
+  warnings: string[]
+) {
+  let score = 0;
+  const isSeries705 = /\b(?:vic(?:tualic)?\s*)?(?:series\s*)?705\b/.test(candidateText);
+  const supervisedOpen = isSeries705
+    || /\b(supervised open|overvaket apen|apen overvaking|apen overvakning)\b/.test(candidateText);
+  const supervisedClosed = /\b(?:series\s*)?707c\b|\bsupervised closed\b|\bovervaket stengt\b/.test(candidateText);
+  const handwheelOrGear = isSeries705
+    || /\b(ratt|handratt|handwheel|gear operator|gear operated|girbetjent|snekkegear)\b/.test(candidateText);
+  const lever = /\b(spak|handtak|lever)\b/.test(candidateText);
+
+  if (requirement.requiresSupervisedOpenValve) {
+    if (supervisedOpen) {
+      score += 30;
+      reasons.push("Ventilen är övervakad i öppet normalläge och signalerar när den lämnar öppet läge.");
+    } else if (supervisedClosed) {
+      score -= 70;
+      warnings.push("PDF-kravet avser övervakad öppen ventil, men träffen är övervakad stängd.");
+    } else {
+      score -= 35;
+      warnings.push("PDF-kravet kräver signal/övervakning vid stängning, vilket inte framgår för träffen.");
+    }
+  }
+
+  if (requirement.requiresHandwheelValve) {
+    if (handwheelOrGear) {
+      score += 15;
+      reasons.push("Manövrering med handratt/växel motsvarar PDF-kravet.");
+    } else if (lever) {
+      score -= 35;
+      warnings.push("PDF-kravet anger manuell betjäning med ratt, men träffen har spak/handtag.");
+    }
+  }
+
+  if (requirement.requiresSoftClosingValve) {
+    if (handwheelOrGear) {
+      score += 10;
+      reasons.push("Växlad handratt ger den kontrollerade stängning som posten kräver.");
+    } else if (lever) {
+      score -= 25;
+      warnings.push("Spak/handtag verifierar inte kravet på mjuk, kontrollerad stängning.");
+    }
+  }
+
+  return score;
 }
 
 function scoreMaterialAndJoint(

@@ -60,13 +60,15 @@ export function findAhlsellMldlCandidates(
 function catalogCandidate(product: AhlsellMldlProduct): AhlsellPublicCandidate {
   const searchUrl = new URL("https://www.ahlsell.no/search");
   searchUrl.searchParams.set("parameters.SearchPhrase", product.articleNumber);
+  const verifiedEvidence = verifiedVictaulicEvidence(product);
   return {
     articleNumber: product.articleNumber,
     productName: product.productName,
     manufacturer: product.manufacturer,
     productUrl: product.sourceUrl || searchUrl.toString(),
-    description: product.productName,
+    description: verifiedEvidence?.description ?? product.productName,
     specifications: compact([
+      ...(verifiedEvidence?.specifications ?? []),
       `Produkttyp ${product.productTypeLabel}`,
       product.model ? `Modell ${product.model}` : null,
       product.nominalSize ? `Nominell dimension ${product.nominalSize}` : null,
@@ -92,7 +94,30 @@ function catalogCandidate(product: AhlsellMldlProduct): AhlsellPublicCandidate {
     ]),
     source: "structured_database",
     exactMatch: false,
-    evidenceSources: ["mldl_database"]
+    evidenceSources: verifiedEvidence
+      ? ["mldl_database", "victaulic_verified"]
+      : ["mldl_database"],
+    verifiedAt: verifiedEvidence?.verifiedAt
+  };
+}
+
+function verifiedVictaulicEvidence(product: AhlsellMldlProduct) {
+  if (product.productType !== "butterfly_valve" || !/\bspjeldventil 705 - fire\b/i.test(product.productName)) {
+    return null;
+  }
+  return {
+    description: "Victaulic FireLock Series 705 spjällventil, övervakad i öppet läge, med växlad handratt och OGS-rillanslutning.",
+    specifications: [
+      "Victaulic Series 705",
+      "Supervised open / övervakad öppen",
+      "Manuell växlad handratt",
+      "Mjuk, kontrollerad stängning",
+      "Hus och spjällskiva av duktilt gjutjärn",
+      "Victaulic OGS rillanslutning",
+      "Maximalt arbetstryck 21 bar",
+      "Avsedd för brandskyddssystem"
+    ],
+    verifiedAt: "2026-09-05"
   };
 }
 

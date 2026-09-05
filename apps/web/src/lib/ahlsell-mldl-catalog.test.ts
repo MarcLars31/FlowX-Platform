@@ -53,3 +53,24 @@ test("uses UB1.3311 to exclude rigid pipes and fittings from the MLDL pool", () 
   ));
   assert.ok(candidates.every((candidate) => !/konstruksjonsrør|t-rør|bend t\/sprinklerslange|nippel f\/.*sprinklerslange/i.test(candidate.productName)));
 });
+
+test("selects NRF 9253499 for the supervised-open DN100 handwheel valve", () => {
+  const candidates = findAhlsellMldlCandidates({
+    category: "valve",
+    requirement_key: "UC1.9111118A",
+    value_text: "INNENDØRS STENGEVENTIL",
+    value_json: { attributes: {
+      ventiltype: "Dreiespjeldventil med tilkobling for signal ved stengt ventil, myk stenging.",
+      betjening: "Manuell med ratt",
+      materiale: "Støpejern",
+      skjøt: "Rilleskjøt",
+      "dimensjon, tilkoblinger": "DN100"
+    } }
+  });
+
+  assert.equal(candidates[0]?.articleNumber, "9253499");
+  assert.equal(candidates[0]?.recommendation, "recommended");
+  assert.ok(candidates[0]?.evidenceSources?.includes("victaulic_verified"));
+  assert.ok(candidates[0]?.matchReasons?.some((reason) => reason.includes("övervakad i öppet")));
+  assert.ok(candidates.slice(1, 4).every((candidate) => candidate.recommendation !== "recommended"));
+});

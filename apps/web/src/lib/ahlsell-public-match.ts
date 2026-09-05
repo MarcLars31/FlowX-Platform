@@ -216,6 +216,12 @@ export function buildAhlsellRequirementGuide(
       ?? combined
   );
   const sprinklerCoverage = sprinklerCoverageFromText(combined);
+  const requiresSupervisedOpenValve = intent === "butterfly_valve"
+    && /\b(signal (?:ved|nar) stengt ventil|tilkobling for signal|overvaket|overvakning|supervised open|supervisory switch)\b/.test(primaryCombined);
+  const requiresHandwheelValve = intent === "butterfly_valve"
+    && /\b(manuell med ratt|med ratt|handratt|handwheel|gear operated|girbetjent)\b/.test(primaryCombined);
+  const requiresSoftClosingValve = intent === "butterfly_valve"
+    && /\b(myk stenging|mjuk stangning|soft clos|slow clos)\b/.test(primaryCombined);
   const requiresAccessoryReview = sprinklerRequiresAccessoryReview(
     attributes,
     `${description} ${rowSourceText} ${technicalSpecification}`
@@ -234,6 +240,9 @@ export function buildAhlsellRequirementGuide(
 
   const criteria = compact([
     intentLabel(intent, category, description),
+    requiresSupervisedOpenValve ? "Övervakad öppen" : null,
+    requiresHandwheelValve ? "Manuell med handratt" : null,
+    requiresSoftClosingValve ? "Mjuk stängning" : null,
     sprinklerSystem === "wet" ? "Våtanlegg" : sprinklerSystem === "dry" ? "Tørranlegg" : null,
     sprinklerHeadType === "dry" ? "Tørrsprinkler" : sprinklerHeadType === "open" ? "Öppen sprinkler" : sprinklerHeadType === "standard" ? "Konventionell sprinkler" : null,
     kFactor === null ? null : `K${formatNumber(kFactor)}`,
@@ -381,6 +390,9 @@ export function buildAhlsellRequirementGuide(
     nsCodeIntent === "sprinkler_hose"
       ? `NS 3420-koden ${nsCode} identifierar produkten som sprinklerslang. Ordet rörledning beskriver systemet och används inte som rörprodukt.`
       : null,
+    requiresSupervisedOpenValve
+      ? "Signal vid stängd ventil tolkas som en spjällventil som övervakas i normalt öppet läge; kandidater utan dokumenterad övervakning prioriteras ned."
+      : null,
     /\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/.test(combined)
       ? "Posten verkar vara specialtillverkad. En katalogprodukt får bara väljas efter manuell kontroll eller offert."
       : null
@@ -473,6 +485,13 @@ function buildCatalogQueries({
     return [compact(["Kuleventil", dnTerm, pressureTerm]).join(" "), compact(["Kuleventil", dnTerm]).join(" ")];
   }
   if (intent === "butterfly_valve") {
+    if (/\b(signal (?:ved|nar) stengt ventil|tilkobling for signal|overvaket|overvakning|supervised open|supervisory switch)\b/.test(combined)) {
+      return [
+        compact(["Spjeldventil overvåket åpen", outsideDiameterTerm ?? dnTerm]).join(" "),
+        compact(["Vic 705 Fire", outsideDiameterTerm ?? dnTerm]).join(" "),
+        compact(["Spjeldventil signal", dnTerm]).join(" ")
+      ];
+    }
     return ["Spjeldventil sprinkler", compact(["Spjeldventil", dnTerm]).join(" "), "Spjeldventil rillede tilkoblinger"];
   }
   if (intent === "check_valve") {

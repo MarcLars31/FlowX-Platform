@@ -531,3 +531,28 @@ test("uses UB1.3311 as authoritative product evidence for a sprinkler hose", () 
   assert.ok(guide.searchQueries.every((query) => !/rør sprinkler|33[.,]7mm/i.test(query)));
   assert.ok(guide.recognitionNotes.some((note) => note.includes("UB1.33114699900A")));
 });
+
+test("searches supervised-open Series 705 wording for UC1.9111118A", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "valve",
+    requirement_key: "UC1.9111118A",
+    value_text: "INNENDØRS STENGEVENTIL",
+    value_json: { attributes: {
+      ventiltype: "Dreiespjeldventil med tilkobling for signal ved stengt ventil, myk stenging.",
+      betjening: "Manuell med ratt",
+      materiale: "Støpejern",
+      skjøt: "Rilleskjøt",
+      "dimensjon, tilkoblinger": "DN100"
+    } }
+  });
+
+  assert.deepEqual(guide.criteria.slice(0, 4), [
+    "Spjällventil",
+    "Övervakad öppen",
+    "Manuell med handratt",
+    "Mjuk stängning"
+  ]);
+  assert.equal(guide.searchQuery, "Spjeldventil overvåket åpen 114.3mm");
+  assert.ok(guide.searchQueries.some((query) => /Vic 705 Fire 114[.,]3mm/.test(query)));
+  assert.ok(guide.recognitionNotes.some((note) => note.includes("Signal vid stängd ventil")));
+});

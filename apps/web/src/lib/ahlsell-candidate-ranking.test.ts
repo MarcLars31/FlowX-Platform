@@ -717,6 +717,35 @@ test("uses UB1.3311 to rank sprinkler hoses and reject rigid pipes", () => {
   ));
 });
 
+test("prioritizes Series 705 for a supervised soft-closing DN100 butterfly valve", () => {
+  const requirement = {
+    category: "valve",
+    requirement_key: "UC1.9111118A",
+    value_text: "INNENDØRS STENGEVENTIL",
+    value_json: { attributes: {
+      ventiltype: "Dreiespjeldventil med tilkobling for signal ved stengt ventil, myk stenging.",
+      betjening: "Manuell med ratt",
+      materiale: "Støpejern",
+      skjøt: "Rilleskjøt",
+      "dimensjon, tilkoblinger": "DN100"
+    } }
+  };
+  const ranked = rankAhlsellCandidates(requirement, [
+    candidate("1466224", "Spjeldventil AVI 1485 m/spak, m/rillede tilkoblinger DN100", "", "/1466224/"),
+    candidate("9255924", "Spjeldventil rillet, E125, Victaulic m/håndtak 114.3mm", "", "/9255924/"),
+    candidate("9253207", "114.3mm spjeldventil sort V761 rillet PN20 - VKS", "", "/9253207/"),
+    candidate("9253499", "Spjeldventil VIC 705, åpen overvåkning, Victaulic FireLock", "114.3mm spjeldventil 705 - Fire", "/9253499/")
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "9253499");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("övervakad i öppet")));
+  assert.ok(ranked.slice(1).every((candidate) => candidate.recommendation !== "recommended"));
+  assert.ok(ranked.slice(1).every((candidate) =>
+    candidate.matchWarnings?.some((warning) => warning.includes("övervakning"))
+  ));
+});
+
 function candidate(articleNumber: string, productName: string, description: string, path: string): AhlsellPublicCandidate {
   return {
     articleNumber,
