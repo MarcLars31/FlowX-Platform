@@ -346,6 +346,30 @@ test("does not confuse a standard surface treatment with standard response", () 
   assert.ok(guide.searchQueries.some((query) => /\bQR\b/.test(query)));
   assert.ok(guide.searchQueries.every((query) => !/\bSR\b/.test(query)));
   assert.ok(guide.warnings.every((warning) => !warning.includes("standard- och quick-respons")));
+  assert.ok(guide.criteria.includes("Mässing"));
+  assert.equal(guide.directCandidates[0]?.articleNumber, "9254043");
+  assert.ok(guide.recognitionNotes.some((note) => note.includes("mässing som standardval")));
+});
+
+test("keeps an explicitly specified sprinkler colour instead of the brass default", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Hengende",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "15",
+      overflatebehandling: "Hvit"
+    } }
+  });
+
+  assert.ok(guide.criteria.includes("Vit"));
+  assert.ok(!guide.criteria.includes("Mässing"));
+  assert.ok(guide.recognitionNotes.every((note) => !note.includes("mässing som standardval")));
 });
 
 test("treats Norwegian K-80 notation as K80 and searches protection grids as accessories", () => {

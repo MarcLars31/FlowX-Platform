@@ -280,7 +280,7 @@ test("bulk approval accepts only an exact historical product for the same finger
   })?.productNumber, "9254043");
 });
 
-test("bulk approval accepts one unambiguous direct match and blocks warnings or alternatives", () => {
+test("bulk approval uses brass for one unambiguous direct match without an explicit finish", () => {
   const exactRequirement = {
     id: "22222222-2222-4222-8222-222222222222",
     category: "sprinkler_head",
@@ -316,6 +316,6 @@ test("bulk approval accepts one unambiguous direct match and blocks warnings or 
   };
 
   assert.equal(bulkProductApprovalSelection({ requirement: exactRequirement, handled: false })?.productNumber, "19045188");
-  assert.equal(bulkProductApprovalSelection({ requirement: ambiguousRequirement, handled: false }), null);
+  assert.equal(bulkProductApprovalSelection({ requirement: ambiguousRequirement, handled: false })?.productNumber, "19045185");
   assert.equal(bulkProductApprovalSelection({ requirement: warningRequirement, handled: false }), null);
 });

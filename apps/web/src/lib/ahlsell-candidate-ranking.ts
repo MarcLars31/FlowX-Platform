@@ -129,9 +129,11 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     nsCode: value.nsCode,
     requirementKey: requirement.requirement_key
   }));
+  const intent = codeIntent ?? detectIntent(semanticText, text, String(requirement.category ?? ""));
+  const explicitFinish = extractFinish(primaryText);
   return {
     text,
-    intent: codeIntent ?? detectIntent(semanticText, text, String(requirement.category ?? "")),
+    intent,
     dn,
     outsideDiameter: outsideDiameter ?? (dn === null ? null : PIPE_OUTSIDE_DIAMETER_BY_DN[dn] ?? null),
     pn: numberAfterLabel(primaryText, /\bpn\s*(\d{1,3})\b/) ?? numberAfterLabel(text, /\bpn\s*(\d{1,3})\b/),
@@ -151,7 +153,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     coverage: sprinklerCoverageFromText(coverageText),
     requiresAccessoryReview: sprinklerRequiresAccessoryReview(attributes, sourceOnlyText),
     requiresHydraulicReview: sprinklerNeedsHydraulicReview(coverageText),
-    finish: extractFinish(primaryText),
+    finish: explicitFinish ?? (intent === "sprinkler_head" ? "brass" : null),
     requiresSupervisedOpenValve: /\b(signal (?:ved|nar) stengt ventil|tilkobling for signal|overvaket|overvakning|supervised open|supervisory switch)\b/.test(primaryText),
     requiresHandwheelValve: /\b(manuell med ratt|med ratt|handratt|handwheel|gear operated|girbetjent)\b/.test(primaryText),
     requiresSoftClosingValve: /\b(myk stenging|mjuk stangning|soft clos|slow clos)\b/.test(primaryText)

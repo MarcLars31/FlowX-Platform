@@ -232,7 +232,10 @@ export function buildAhlsellRequirementGuide(
   const orientation = orientationResult.orientation
     ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
   const responseResult = sprinklerResponse(responseText, technicalSpecification);
-  const finish = sprinklerFinish(finishText);
+  // Unspecified sprinkler finishes use the catalogue's standard brass variant.
+  // An explicit colour or finish in the PDF always takes precedence.
+  const finish = sprinklerFinish(finishText)
+    ?? (intent === "sprinkler_head" ? "brass" : null);
   const specialApplication = sprinklerHeadType === "dry" || sprinklerHeadType === "open"
     || (sprinklerCoverage !== null && sprinklerCoverage !== "standard");
   const pn = numberFromAttribute(attributes, ["trykk", "arbeidstrykk", "trykklasse", "pressure"])
@@ -377,6 +380,9 @@ export function buildAhlsellRequirementGuide(
       : null,
     intent === "sprinkler_head" && !isSprinklerAccessory
       ? "Scipx kontrollerar den verifierade Victaulic-databasen samt Ahlsells variantvärden för K-faktor, DN, temperatur, respons, riktning, montage, systemvillkor och färg."
+      : null,
+    intent === "sprinkler_head" && sprinklerFinish(finishText) === null
+      ? "Ingen färg eller ytfinish anges i PDF-posten. Scipx använder därför mässing som standardval."
       : null,
     intent === "sprinkler_head" && sprinklerSystem && sprinklerHeadType
       ? `Scipx skiljer på anläggningstyp (${sprinklerSystem === "wet" ? "Våtanlegg" : "Tørranlegg"}) och sprinklerhuvudets konstruktion (${sprinklerHeadType === "dry" ? "Tørrsprinkler" : sprinklerHeadType === "open" ? "öppen sprinkler" : "konventionell sprinkler"}).`

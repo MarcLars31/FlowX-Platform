@@ -104,7 +104,11 @@ test("prefers the V2704 QR quick-response sprinkler when another attribute says 
     },
     {
       ...candidate("9254043", "Sprinklerhoder Modell V2704 QR Victaulic FireLock - Opp", "Standard spraysprinkler", "/sprinkler/9254043/"),
-      specifications: ["K-faktor: 80", "Gjengedimensjon: DN15", "Responstemperatur: 68 °C", "Responstid: Hurtig respons"]
+      specifications: ["K-faktor: 80", "Gjengedimensjon: DN15", "Responstemperatur: 68 °C", "Responstid: Hurtig respons", "Farge: Messing"]
+    },
+    {
+      ...candidate("9254178N5", "Sprinklerhoder Modell V2704 QR Victaulic FireLock - Opp", "Standard spraysprinkler", "/sprinkler/9254178N5/"),
+      specifications: ["K-faktor: 80", "Gjengedimensjon: DN15", "Responstemperatur: 68 °C", "Responstid: Hurtig respons", "Farge: Hvit"]
     }
   ]);
 
@@ -112,10 +116,15 @@ test("prefers the V2704 QR quick-response sprinkler when another attribute says 
   assert.equal(ranked[0].recommendation, "recommended");
   assert.equal(ranked[0].exactMatch, true);
   assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("Quick response")));
+  assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("Ytfinish/färg")));
   const standardResponse = ranked.find((candidate) => candidate.articleNumber === "9254042");
   assert.notEqual(standardResponse?.recommendation, "recommended");
   assert.equal(standardResponse?.exactMatch, false);
   assert.ok(standardResponse?.matchWarnings?.some((warning) => warning.includes("responstid")));
+  const whiteQuickResponse = ranked.find((candidate) => candidate.articleNumber === "9254178N5");
+  assert.notEqual(whiteQuickResponse?.recommendation, "recommended");
+  assert.equal(whiteQuickResponse?.exactMatch, false);
+  assert.ok(whiteQuickResponse?.matchWarnings?.some((warning) => warning.includes("ytfinish")));
 });
 
 test("prioritizes recessed pendent V2762 over a conventional opp/ned head for an infellt ceiling post", () => {
