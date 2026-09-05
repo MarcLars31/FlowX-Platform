@@ -18,7 +18,8 @@ export type AhlsellPublicCandidate = {
   description?: string;
   imageUrl?: string;
   specifications: string[];
-  source: "public_verified" | "verified_database" | "pdf_reference" | "catalog_search" | "confirmed_history";
+  source: "public_verified" | "verified_database" | "structured_database" | "pdf_reference" | "catalog_search" | "confirmed_history";
+  evidenceSources?: AhlsellCandidateEvidenceSource[];
   verifiedAt?: string;
   matchScore?: number;
   matchReasons?: string[];
@@ -32,6 +33,27 @@ export type AhlsellPublicCandidate = {
     supportCount: number;
     similarityScore: number;
   };
+  suggestedAccessories?: AhlsellAccessorySuggestion[];
+};
+
+export type AhlsellCandidateEvidenceSource =
+  | "mldl_database"
+  | "ahlsell_public"
+  | "victaulic_verified"
+  | "pdf_reference"
+  | "confirmed_history";
+
+export type AhlsellAccessorySuggestion = {
+  articleNumber: string;
+  productName: string;
+  manufacturer: string;
+  productUrl: string;
+  quantity: number;
+  unit: string;
+  reason: string;
+  required: boolean;
+  compatibility: "compatible" | "review";
+  source: "structured_database" | "catalog_search";
 };
 
 export type AhlsellRequirementGuide = {

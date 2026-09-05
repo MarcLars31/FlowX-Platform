@@ -31,6 +31,18 @@ test("returns one ranked candidate per normalized article number", () => {
   assert.equal(merged.filter((item) => item.articleNumber.replace(/\D/g, "") === "9257423").length, 1);
 });
 
+test("marks the same NRF in MLDL and the public catalogue as stronger evidence", () => {
+  const [merged] = mergeAhlsellCandidates(
+    [candidate("9253207", "MLDL V761", "structured_database", false)],
+    [candidate("9253207", "Ahlsell V761", "catalog_search", false)]
+  );
+
+  assert.deepEqual(merged.evidenceSources, ["mldl_database", "ahlsell_public"]);
+  assert.match(merged.matchReasons?.join(" ") ?? "", /både Ahlsells MLDL-databas och den aktuella offentliga katalogen/);
+  assert.equal(merged.matchScore, 88);
+  assert.equal(merged.recommendation, "recommended");
+});
+
 function candidate(
   articleNumber: string,
   productName: string,

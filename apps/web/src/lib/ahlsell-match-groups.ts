@@ -11,7 +11,7 @@ export function isAhlsellCatalogMatchStatus(value: unknown): value is AhlsellCat
 
 export function classifyAhlsellCatalogCandidates(
   candidates: ReadonlyArray<{
-    source?: "public_verified" | "verified_database" | "pdf_reference" | "catalog_search" | "confirmed_history";
+    source?: "public_verified" | "verified_database" | "structured_database" | "pdf_reference" | "catalog_search" | "confirmed_history";
     recommendation?: "recommended" | "possible" | "unlikely";
     matchScore?: number;
     matchWarnings?: string[];

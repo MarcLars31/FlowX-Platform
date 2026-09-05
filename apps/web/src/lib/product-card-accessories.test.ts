@@ -5,7 +5,9 @@ import {
   newProductAccessoryDraft,
   productAccessoryDraftError,
   productAccessoryPayload,
-  readProductAccessoryDrafts
+  readProductAccessoryDrafts,
+  hasSuggestedProductAccessory,
+  toggleSuggestedProductAccessory
 } from "./product-card-accessories";
 
 test("reads saved accessories and supplies safe defaults", () => {
@@ -73,4 +75,24 @@ test("builds the exact accessory payload saved with the selected product", () =>
     unit: "st",
     notes: "Vit"
   }]);
+});
+
+test("adds and removes a database-suggested accessory as a separate selection", () => {
+  const suggestion = {
+    articleNumber: "9254009",
+    productName: "V27 dekkskive hvit",
+    manufacturer: "Victaulic",
+    productUrl: "https://www.ahlsell.no/search",
+    quantity: 1,
+    unit: "st",
+    reason: "Krävs för infällt montage.",
+    required: true,
+    compatibility: "compatible" as const,
+    source: "structured_database" as const
+  };
+  const selected = toggleSuggestedProductAccessory([], suggestion, true);
+  assert.equal(hasSuggestedProductAccessory(selected, suggestion), true);
+  assert.equal(selected[0]?.productNumber, "9254009");
+  assert.match(selected[0]?.notes ?? "", /ScipX-förslag/);
+  assert.deepEqual(toggleSuggestedProductAccessory(selected, suggestion, false), []);
 });

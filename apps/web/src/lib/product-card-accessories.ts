@@ -1,4 +1,5 @@
 import type { DistributorAccessoryInput } from "./distributor-product-mapping";
+import type { AhlsellAccessorySuggestion } from "./ahlsell-public-match";
 import { normalizeNrfNumber } from "./product-card-candidates";
 
 export type ProductAccessoryDraft = Omit<DistributorAccessoryInput, "quantity"> & {
@@ -71,6 +72,38 @@ export function productAccessoryPayload(accessories: ProductAccessoryDraft[]): D
     unit: accessory.unit.trim() || "st",
     notes: accessory.notes.trim()
   }));
+}
+
+export function hasSuggestedProductAccessory(
+  accessories: readonly ProductAccessoryDraft[],
+  suggestion: AhlsellAccessorySuggestion
+) {
+  const suggestedNrf = normalizeNrfNumber(suggestion.articleNumber);
+  return accessories.some((accessory) => suggestedNrf
+    ? normalizeNrfNumber(accessory.productNumber) === suggestedNrf
+    : normalizeIdentity(accessory.name) === normalizeIdentity(suggestion.productName));
+}
+
+export function toggleSuggestedProductAccessory(
+  accessories: readonly ProductAccessoryDraft[],
+  suggestion: AhlsellAccessorySuggestion,
+  selected: boolean
+): ProductAccessoryDraft[] {
+  const alreadySelected = hasSuggestedProductAccessory(accessories, suggestion);
+  if (!selected) {
+    const suggestedNrf = normalizeNrfNumber(suggestion.articleNumber);
+    return accessories.filter((accessory) => suggestedNrf
+      ? normalizeNrfNumber(accessory.productNumber) !== suggestedNrf
+      : normalizeIdentity(accessory.name) !== normalizeIdentity(suggestion.productName));
+  }
+  if (alreadySelected || accessories.length >= 20) return [...accessories];
+  return [...accessories, {
+    name: suggestion.productName,
+    productNumber: suggestion.articleNumber,
+    quantity: String(suggestion.quantity),
+    unit: suggestion.unit || "st",
+    notes: `ScipX-förslag: ${suggestion.reason}`
+  }];
 }
 
 function positiveNumber(value: unknown, fallback: number) {

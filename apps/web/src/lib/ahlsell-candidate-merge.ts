@@ -21,7 +21,9 @@ export function mergeAhlsellCandidates(
     const live = candidatesByArticle.get(key);
     candidatesByArticle.set(key, live ? mergeCandidate(verified, live) : verified);
   }
-  return orderAhlsellCandidatesForDisplay([...candidatesByArticle.values()]);
+  return orderAhlsellCandidatesForDisplay(
+    [...candidatesByArticle.values()].map(withInferredEvidence)
+  );
 }
 
 function mergeCandidate(
@@ -32,6 +34,24 @@ function mergeCandidate(
     || verified.matchScore !== undefined
     || verified.matchReasons !== undefined
     || verified.matchWarnings !== undefined;
+  const evidenceSources = uniqueEvidence([
+    ...(verified.evidenceSources ?? inferredEvidence(verified.source)),
+    ...(live.evidenceSources ?? inferredEvidence(live.source))
+  ]);
+  const databaseAndPublic = evidenceSources.includes("mldl_database")
+    && evidenceSources.includes("ahlsell_public");
+  const warnings = hasVerifiedAssessment ? verified.matchWarnings : live.matchWarnings;
+  const baseScore = hasVerifiedAssessment ? verified.matchScore : live.matchScore;
+  const boostedScore = databaseAndPublic && typeof baseScore === "number"
+    ? Math.min(100, baseScore + 8)
+    : baseScore;
+  const reasons = hasVerifiedAssessment ? verified.matchReasons : live.matchReasons;
+  const matchReasons = databaseAndPublic
+    ? uniqueText([...(reasons ?? []), "Artikeln finns i både Ahlsells MLDL-databas och den aktuella offentliga katalogen."])
+    : reasons;
+  const recommendation = boostedScore !== undefined && boostedScore >= 75 && (warnings?.length ?? 0) === 0
+    ? "recommended" as const
+    : hasVerifiedAssessment ? verified.recommendation : live.recommendation;
   return {
     ...live,
     ...verified,
@@ -41,13 +61,32 @@ function mergeCandidate(
     description: live.description ?? verified.description,
     specifications: uniqueText([...verified.specifications, ...live.specifications]),
     source: verified.source,
+    evidenceSources,
     exactMatch: hasVerifiedAssessment ? verified.exactMatch : live.exactMatch,
-    matchScore: hasVerifiedAssessment ? verified.matchScore : live.matchScore,
-    matchReasons: hasVerifiedAssessment ? verified.matchReasons : live.matchReasons,
-    matchWarnings: hasVerifiedAssessment ? verified.matchWarnings : live.matchWarnings,
-    recommendation: hasVerifiedAssessment ? verified.recommendation : live.recommendation,
+    matchScore: boostedScore,
+    matchReasons,
+    matchWarnings: warnings,
+    recommendation,
     familyCode: verified.familyCode ?? live.familyCode
   };
+}
+
+function withInferredEvidence(candidate: AhlsellPublicCandidate): AhlsellPublicCandidate {
+  return candidate.evidenceSources?.length
+    ? candidate
+    : { ...candidate, evidenceSources: inferredEvidence(candidate.source) };
+}
+
+function inferredEvidence(source: AhlsellPublicCandidate["source"]): NonNullable<AhlsellPublicCandidate["evidenceSources"]> {
+  if (source === "structured_database") return ["mldl_database"];
+  if (source === "verified_database") return ["mldl_database", "victaulic_verified"];
+  if (source === "pdf_reference") return ["pdf_reference"];
+  if (source === "confirmed_history") return ["confirmed_history"];
+  return ["ahlsell_public"];
+}
+
+function uniqueEvidence(values: NonNullable<AhlsellPublicCandidate["evidenceSources"]>) {
+  return [...new Set(values)];
 }
 
 function normalizedArticle(value: string) {

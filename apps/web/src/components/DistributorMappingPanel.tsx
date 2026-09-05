@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
-import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
+import { buildAhlsellRequirementGuide, type AhlsellAccessorySuggestion, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
 import {
@@ -27,10 +27,12 @@ import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type Ahlsell
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "@/lib/product-card-candidates";
 import {
   accessoriesForSelectedProduct,
+  hasSuggestedProductAccessory,
   newProductAccessoryDraft,
   productAccessoryDraftError,
   productAccessoryPayload,
   readProductAccessoryDrafts,
+  toggleSuggestedProductAccessory,
   type ProductAccessoryDraft
 } from "@/lib/product-card-accessories";
 import {
@@ -1077,6 +1079,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [accessories, setAccessories] = useState<ProductAccessoryDraft[]>(() => readProductAccessoryDrafts(currentSnapshot.accessories));
   const [accessoryOwnerProductNumber, setAccessoryOwnerProductNumber] = useState(() => accessories.length > 0 ? productNumber : "");
   const [accessoriesExpanded, setAccessoriesExpanded] = useState(() => accessories.length > 0);
+  const [suggestedAccessories, setSuggestedAccessories] = useState<AhlsellAccessorySuggestion[]>([]);
   const [saving, setSaving] = useState(false);
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
@@ -1162,7 +1165,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     };
   }
 
-  function showSelection(selection: ProductSelection, notice: string, manual = false) {
+  function showSelection(
+    selection: ProductSelection,
+    notice: string,
+    manual = false,
+    accessorySuggestions: AhlsellAccessorySuggestion[] = []
+  ) {
     const nextAccessories = accessoriesForSelectedProduct({
       currentProductNumber: accessoryOwnerProductNumber,
       nextProductNumber: selection.productNumber,
@@ -1184,6 +1192,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setAccessories(nextAccessories);
     setAccessoryOwnerProductNumber(nextAccessories.length > 0 ? selection.productNumber : "");
     setAccessoriesExpanded(nextAccessories.length > 0);
+    setSuggestedAccessories(accessorySuggestions);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
   }
@@ -1206,7 +1215,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       deliveryTimeDays: "",
       unitPrice: "",
       currency: defaultCurrency
-    }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`);
+    }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`, false, candidate.suggestedAccessories ?? []);
     onError("");
   }
 
@@ -1221,6 +1230,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setPriceCurrency(defaultCurrency);
     setManualProductSelected(false);
     setManualProductRequired(false);
+    setSuggestedAccessories([]);
     setDraftNotice(null);
     setHasUnapprovedChanges(true);
   }
@@ -1236,6 +1246,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setPriceCurrency(defaultCurrency);
     setManualProductSelected(false);
     setManualProductRequired(true);
+    setSuggestedAccessories([]);
     setManualProductDraft({
       productNumber: nextProductNumber,
       manufacturerArticleNumber: "",
@@ -1342,6 +1353,15 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       setAccessoriesExpanded(false);
       setAccessoryOwnerProductNumber("");
     }
+    setHasUnapprovedChanges(true);
+    onError("");
+  }
+
+  function toggleSuggestedAccessory(suggestion: AhlsellAccessorySuggestion, selected: boolean) {
+    const next = toggleSuggestedProductAccessory(selectedProductAccessories, suggestion, selected);
+    setAccessories(next);
+    setAccessoryOwnerProductNumber(next.length > 0 ? productNumber : "");
+    setAccessoriesExpanded(next.length > 0);
     setHasUnapprovedChanges(true);
     onError("");
   }
@@ -1699,6 +1719,49 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               onUseMemory={applyMemory}
             />
           </div>
+
+          {productNumber.trim() && suggestedAccessories.length > 0 && (
+            <section aria-labelledby={`suggested-accessories-title-${requirement.id}`} className="overflow-hidden rounded-md border border-cyan-300 bg-white">
+              <div className="border-b border-cyan-200 bg-cyan-50 px-3 py-3 sm:px-4">
+                <h5 id={`suggested-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Tillbehör som kan behövas</h5>
+                <p className="mt-0.5 text-xs leading-5 text-ink-600">ScipX har sökt i hela MLDL-databasen efter tillbehör till NRF {productNumber.trim()}. Markera de tillbehör som ska sparas tillsammans med huvudprodukten.</p>
+              </div>
+              <div className="divide-y divide-ink-200">
+                {suggestedAccessories.map((suggestion) => {
+                  const checked = hasSuggestedProductAccessory(selectedProductAccessories, suggestion);
+                  return (
+                    <article key={suggestion.articleNumber} className={checked ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4"}>
+                      <div className="flex items-start gap-3">
+                        <label className="mt-0.5 flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-flow-800">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={saving || (!checked && selectedProductAccessories.length >= 20)}
+                            onChange={(event) => toggleSuggestedAccessory(suggestion, event.target.checked)}
+                            aria-label={`Välj tillbehör ${suggestion.productName}, NRF-nummer ${suggestion.articleNumber}`}
+                            className="h-5 w-5 rounded border-ink-300 text-flow-700 focus:ring-flow-600 disabled:cursor-not-allowed"
+                          />
+                          <span aria-hidden="true">{checked ? "Valt" : "Välj"}</span>
+                        </label>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold leading-5 text-ink-950">{suggestion.productName}</p>
+                          <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {suggestion.articleNumber}</p>
+                          <p className="mt-1 text-xs leading-5 text-ink-600">{suggestion.reason}</p>
+                          <p className={suggestion.compatibility === "compatible" ? "mt-1 text-xs font-bold text-emerald-800" : "mt-1 text-xs font-bold text-amber-900"}>
+                            {suggestion.required ? "Tillbehör krävs enligt montage/krav · " : "Möjligt tillbehör · "}
+                            {suggestion.compatibility === "compatible" ? "stark katalogkoppling" : "kompatibilitet måste kontrolleras"}
+                          </p>
+                        </div>
+                        <a href={suggestion.productUrl} target="_blank" rel="noreferrer" aria-label={`Sök Ahlsell tillbehör ${suggestion.articleNumber}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+                          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                        </a>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {accessoriesExpanded && selectedProductAccessories.length > 0 && (
             <section id={`product-accessories-${requirement.id}`} aria-labelledby={`product-accessories-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border border-flow-300 bg-white">
@@ -2122,7 +2185,12 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                   ) : matchState === "review" && candidate.recommendation === "recommended" ? (
                     <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Stark träff · kontroll krävs</p>
                   ) : null}
-                  <p className="mt-1 text-xs leading-5 text-ink-600">{candidateSourceLabel(candidate.source)}</p>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">{candidateSourceLabel(candidate)}</p>
+                  {candidate.suggestedAccessories && candidate.suggestedAccessories.length > 0 && (
+                    <p className="mt-1.5 rounded-sm border border-cyan-200 bg-cyan-50 px-2 py-1.5 text-xs font-semibold leading-4 text-cyan-950">
+                      {candidate.suggestedAccessories.length} {candidate.suggestedAccessories.length === 1 ? "tillbehör" : "tillbehör"} hittades i MLDL och visas för separat val när huvudprodukten markeras.
+                    </p>
+                  )}
                   {candidate.matchWarnings && candidate.matchWarnings.length > 0 && (
                     <div className="mt-1.5 rounded-sm border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs leading-4 text-rose-900">
                       <p className="font-bold">Matchar inte PDF-kravet:</p>
@@ -2187,9 +2255,14 @@ function ahlsellSubtitleItem(candidate: AhlsellPublicCandidate) {
   }
 }
 
-function candidateSourceLabel(source: AhlsellPublicCandidate["source"]) {
+function candidateSourceLabel(candidate: AhlsellPublicCandidate) {
+  const source = candidate.source;
+  if (candidate.evidenceSources?.includes("mldl_database") && candidate.evidenceSources.includes("ahlsell_public")) {
+    return "Stark kandidat: samma NRF finns i både Ahlsells MLDL-databas och den offentliga katalogen";
+  }
   if (source === "pdf_reference") return "NRF-numret står i den uppladdade PDF-filen";
   if (source === "verified_database") return "Träff i Scipx verifierade Victaulic-databas";
+  if (source === "structured_database") return "Träff i hela den strukturerade Ahlsell MLDL-databasen";
   if (source === "confirmed_history") return "Tidigare bekräftad produkt i organisationen";
   if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog";
   return "Verifierad i Ahlsells offentliga katalog";

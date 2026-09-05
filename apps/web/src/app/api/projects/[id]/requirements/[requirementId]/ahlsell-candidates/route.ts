@@ -7,6 +7,12 @@ import {
 } from "@/lib/ahlsell-public-catalog";
 import { mergeAhlsellCandidates } from "@/lib/ahlsell-candidate-merge";
 import { rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
+import { attachAhlsellAccessorySuggestions } from "@/lib/ahlsell-accessory-suggestions";
+import {
+  AHLSELL_MLDL_CATALOG_VERSION,
+  AHLSELL_MLDL_PRODUCT_COUNT,
+  findAhlsellMldlCandidates
+} from "@/lib/ahlsell-mldl-catalog";
 import { classifyAhlsellCatalogCandidates } from "@/lib/ahlsell-match-groups";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isUuid } from "@/lib/distributor-product-mapping";
@@ -70,6 +76,10 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const guide = buildAhlsellRequirementGuide(requirement);
+    const databaseCandidates = findAhlsellMldlCandidates(
+      requirement,
+      classificationMode ? 30 : 50
+    );
     const learnedHints = classificationMode
       || hasProjectRequirementDataWarning(requirement)
       ? []
@@ -98,7 +108,7 @@ export async function GET(request: Request, context: RouteContext) {
         maxVariantFamilies: classificationMode ? 5 : 8
       });
     } catch (error) {
-      if (!(error instanceof AhlsellCatalogError) || guide.directCandidates.length === 0) throw error;
+      if (!(error instanceof AhlsellCatalogError) || (guide.directCandidates.length === 0 && databaseCandidates.length === 0)) throw error;
       publicSearchAvailable = false;
       result = {
         query: queries[0] ?? guide.searchQuery,
@@ -114,9 +124,17 @@ export async function GET(request: Request, context: RouteContext) {
       rankAhlsellCandidates(requirement, result.candidates),
       learnedHints
     );
+    const databaseAndPublicCandidates = mergeAhlsellCandidates(
+      databaseCandidates,
+      rankedPublicCandidates
+    );
+    const mergedCandidates = mergeAhlsellCandidates(
+      guide.directCandidates,
+      databaseAndPublicCandidates
+    );
     const rankedResult = {
       ...result,
-      candidates: mergeAhlsellCandidates(guide.directCandidates, rankedPublicCandidates)
+      candidates: attachAhlsellAccessorySuggestions(requirement, mergedCandidates)
     };
 
     if (classificationMode) {
@@ -138,6 +156,8 @@ export async function GET(request: Request, context: RouteContext) {
         publicSearchAvailable,
         queryCount: queries.length,
         directCandidateCount: guide.directCandidates.length,
+        databaseCandidateCount: databaseCandidates.length,
+        databaseProductCount: AHLSELL_MLDL_PRODUCT_COUNT,
         publicCandidateCount: result.candidates.length,
         historyCandidateCount: learnedHints.length,
         shownCandidateCount: Math.min(telemetryCandidates.length, 3),
@@ -156,7 +176,9 @@ export async function GET(request: Request, context: RouteContext) {
       },
       matchingEngine: {
         version: PRODUCT_MATCHING_ENGINE_VERSION,
-        catalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
+        catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
+        sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
+        catalogProductCount: AHLSELL_MLDL_PRODUCT_COUNT,
         publicSearchAvailable
       }
     }, {
@@ -272,8 +294,9 @@ async function recordCandidateImpression({
         requested_metadata: {
           ...metadata,
           matchingEngineVersion: PRODUCT_MATCHING_ENGINE_VERSION,
-          catalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
-          rankingMode: "technical_rules_with_confirmed_history"
+          catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
+          sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
+          rankingMode: "technical_rules_with_mldl_public_overlap_accessories_and_confirmed_history"
         }
       });
     } catch (error) {
