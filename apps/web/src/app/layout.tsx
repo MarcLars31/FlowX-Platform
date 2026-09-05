@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FlowX Platform",
-  description: "Prototype web experience for mechanical contractors"
+  title: "Scipx för Ahlsell – Produktvalsflöde",
+  description:
+    "Konceptflöde där tekniska beskrivningar kopplas till distributörsvalda produkter och tillbehör."
 };
 
 export default function RootLayout({
@@ -12,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="sv">
       <body>{children}</body>
     </html>
   );

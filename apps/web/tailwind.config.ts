@@ -2,7 +2,10 @@ import type { Config } from "tailwindcss";
 import forms from "@tailwindcss/forms";
 
 const config: Config = {
-  content: ["./src/**/*.{ts,tsx}"],
+  content: [
+    "./src/app/**/*.{ts,tsx}",
+    "./src/components/**/*.{ts,tsx}"
+  ],
   theme: {
     extend: {
       colors: {

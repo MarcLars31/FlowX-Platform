@@ -3,13 +3,29 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  AlertTriangle,
+  BarChart3,
   ClipboardCheck,
   FileJson,
-  PackageSearch
+  FileText,
+  FolderKanban,
+  Handshake,
+  History,
+  Home,
+  PackageSearch,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
 
-const navigation = [
+type SidebarItem = {
+  name: string;
+  href: string;
+  icon: typeof Home;
+  exact?: boolean;
+};
+
+const adminNavigation: SidebarItem[] = [
   { name: "JSON Import", href: "/admin", icon: FileJson, exact: true },
   {
     name: "Till godkännande",
@@ -17,26 +33,60 @@ const navigation = [
     icon: ClipboardCheck,
     exact: true
   },
+  {
+    name: "Olästa datablad",
+    href: "/admin/documents/failed",
+    icon: AlertTriangle
+  },
+  { name: "Sprsok-synk", href: "/admin/sprsok", icon: RefreshCw },
   { name: "Products", href: "/products", icon: PackageSearch }
 ];
 
-export function Sidebar() {
+const organizationIcons = {
+  home: Home,
+  products: PackageSearch,
+  projects: FolderKanban,
+  history: History,
+  statistics: BarChart3,
+  crm: Handshake,
+  technical_description: FileText
+} satisfies Record<OrganizationNavigationItem["icon"], typeof Home>;
+
+export function Sidebar({
+  navigation,
+  workspaceName = "Scipx",
+  workspaceLabel = "Platform"
+}: {
+  navigation?: readonly OrganizationNavigationItem[];
+  workspaceName?: string;
+  workspaceLabel?: string;
+}) {
   const pathname = usePathname();
+  const items: SidebarItem[] = navigation
+    ? navigation.map((item) => ({
+        name: item.name,
+        href: item.href,
+        icon: organizationIcons[item.icon]
+      }))
+    : adminNavigation;
 
   return (
-    <aside className="flex h-full w-full flex-col bg-ink-950 text-white">
+    <aside className="flex h-full w-full flex-col bg-[#020e20] text-white [background-image:linear-gradient(rgba(66,173,217,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(66,173,217,0.045)_1px,transparent_1px)] [background-size:28px_28px]">
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-flow-400 text-sm font-black text-ink-950">
-          FX
+        <div className="flex h-10 w-[92px] items-center justify-center rounded-lg bg-white px-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/ahlsell-logo.svg" alt="Ahlsell" className="w-full" />
         </div>
         <div>
-          <p className="text-base font-semibold leading-5">FlowX</p>
-          <p className="text-xs text-ink-400">Platform</p>
+          <p className="max-w-40 truncate text-base font-semibold leading-5">
+            Scipx
+          </p>
+          <p className="text-xs text-ink-400">Koncept för Ahlsell</p>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navigation.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const hrefPath = item.href.split("#")[0];
           const isActive = item.exact
@@ -48,8 +98,8 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-300 transition hover:bg-white/8 hover:text-white",
-                isActive && "bg-white/10 text-white"
+                "flex min-h-11 items-center gap-3 rounded-lg border border-transparent px-3 text-sm font-medium text-slate-300 transition hover:bg-white/[0.08] hover:text-white",
+                isActive && "border-cyan-300/15 bg-cyan-300/10 font-bold text-cyan-200"
               )}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -61,8 +111,10 @@ export function Sidebar() {
 
       <div className="border-t border-white/10 p-4">
         <div className="rounded-lg bg-white/6 p-3">
-          <p className="text-sm font-medium text-white">Demo VVS AS</p>
-          <p className="mt-1 text-xs text-ink-400">Prototype workspace</p>
+          <p className="truncate text-sm font-medium text-white">
+            {workspaceName}
+          </p>
+          <p className="mt-1 text-xs text-ink-400">{workspaceLabel}</p>
         </div>
       </div>
     </aside>

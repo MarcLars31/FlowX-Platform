@@ -3,10 +3,11 @@ import { cn } from "@/lib/utils";
 
 type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   label: string;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
+  placeholder?: string;
 };
 
-export function Select({ className, id, label, options, ...props }: SelectProps) {
+export function Select({ className, id, label, options, placeholder, ...props }: SelectProps) {
   return (
     <label className="block" htmlFor={id}>
       <span className="mb-2 block text-sm font-medium text-ink-700">{label}</span>
@@ -18,8 +19,13 @@ export function Select({ className, id, label, options, ...props }: SelectProps)
         )}
         {...props}
       >
+        {placeholder && <option value="">{placeholder}</option>}
         {options.map((option) => (
-          <option key={option}>{option}</option>
+          typeof option === "string" ? (
+            <option key={option} value={option}>{option}</option>
+          ) : (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          )
         ))}
       </select>
     </label>

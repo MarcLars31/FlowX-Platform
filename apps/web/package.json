@@ -3,35 +3,68 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prepare:ocr": "node scripts/prepare-ocr-assets.mjs",
+    "postinstall": "npm run prepare:ocr",
+    "predev": "npm run prepare:ocr",
+    "prebuild": "npm run prepare:ocr",
+    "prebuild:cloudflare": "npm run prepare:ocr",
+    "accounts": "node --env-file-if-exists=.env.test.local --import tsx scripts/accounts.ts",
     "dev": "next dev",
     "build": "next build",
+    "build:cloudflare": "opennextjs-cloudflare build",
     "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test:authz": "node --import tsx --test src/lib/platform-role.test.ts src/lib/administration-access.test.ts src/lib/backend-route-guards.test.ts src/lib/supabase-auth-config.test.ts src/lib/supabase-headers.test.ts",
+    "test:security": "node --import tsx --test src/lib/request-rate-limit.test.ts src/lib/pdf-security.test.ts src/lib/request-body.test.ts src/lib/demo-data.test.ts",
+    "test:rbac": "node --import tsx --test src/lib/organization-rbac.test.ts",
+    "test:technical-description": "node --import tsx --test src/modules/technical-description-extractor/extractor.test.ts src/modules/technical-description-extractor/pdf.test.ts src/modules/technical-description-extractor/pdf-layout.test.ts src/lib/technical-description-project.test.ts src/lib/technical-description-ocr-payload.test.ts src/lib/project-requirement-data-warnings.test.ts src/lib/project-requirement-details.test.ts src/lib/project-requirement-order.test.ts src/lib/product-requirement-resolution.test.ts src/lib/pdf-dropzone.test.ts src/lib/technical-description-client-result.test.ts",
+    "test:distributor-mapping": "node --import tsx --test src/lib/approved-product-assignment.test.ts src/lib/distributor-product-mapping.test.ts src/lib/distributor-product-memory-match.test.ts src/lib/distributor-requirement-lines.test.ts src/lib/product-requirement-category.test.ts src/lib/product-table-layout.test.ts src/lib/product-card-candidates.test.ts src/lib/product-card-accessories.test.ts src/lib/product-learning-feedback.test.ts src/lib/ahlsell-candidate-merge.test.ts src/lib/ahlsell-public-match.test.ts src/lib/ahlsell-public-catalog.test.ts src/lib/ahlsell-product-subtitle.test.ts src/lib/ahlsell-candidate-ranking.test.ts src/lib/ahlsell-mldl-normalizer.test.ts src/lib/ahlsell-mldl-catalog.test.ts src/lib/ahlsell-accessory-suggestions.test.ts src/lib/sprinkler-orientation-lexicon.test.ts src/lib/victaulic-sprinkler-catalog.test.ts src/lib/ahlsell-match-groups.test.ts src/lib/product-requirement-attachment.test.ts",
     "test:extractor": "node --import tsx --test src/modules/pdf-extractor/extractor.test.ts",
-    "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts"
+    "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts",
+    "test:product-pdf": "node --import tsx --test src/lib/product-document-pages.test.ts src/lib/product-pdf-processing.test.ts src/lib/product-pdf-staging.test.ts",
+    "test:project-governance": "node --import tsx --test src/lib/project-governance.test.ts src/lib/guided-project-workflow.test.ts",
+    "test:material-list-export": "node --import tsx --test src/lib/project-material-list-export.test.ts src/lib/project-material-list-pdf.test.ts",
+    "test:test-accounts": "node --import tsx --test scripts/test-account-fixtures.test.ts scripts/demo-account-fixture.test.ts src/lib/test-account-e2e-readiness.test.ts",
+    "test:e2e:test-accounts": "node --import tsx --env-file-if-exists=.env.test.local --test scripts/test-account-http-e2e.test.ts",
+    "test:sprsok": "node --import tsx --test src/lib/sprsok-sync-core.test.ts src/lib/sprsok-source-client.test.ts src/lib/sprsok-reconcile.test.ts src/lib/sprsok-search.test.ts",
+    "product-sync": "node --import tsx src/cli/product-sync.ts"
   },
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/nor": "1.0.0",
     "clsx": "^2.1.1",
+    "exceljs": "4.4.0",
     "lucide-react": "^0.468.0",
-    "next": "^15.1.3",
-    "pdf-parse": "^2.4.5",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.6.0"
+    "next": "^16.2.12",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "5.4.296",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^2.6.0",
+    "tesseract.js": "7.0.0",
+    "unpdf": "1.8.0"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "exceljs": {
+      "uuid": "11.1.1"
+    },
+    "nanoid": "3.3.18",
+    "postcss": "8.5.25",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.2",
     "@types/node": "^22.10.2",
-    "@types/react": "^19.0.2",
-    "@types/react-dom": "^19.0.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
-    "eslint-config-next": "^15.1.3",
-    "postcss": "^8.5.10",
+    "eslint-config-next": "^16.2.12",
+    "postcss": "8.5.25",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^4.118.0"
   }
 }

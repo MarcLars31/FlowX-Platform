@@ -1,9 +1,13 @@
-import { AppShell } from "@/components/AppShell";
+import { AuthenticatedAppShell } from "@/components/AuthenticatedAppShell";
 
 export default function ProductsLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AuthenticatedAppShell anyPermissions={["product.search", "product.view"]}>
+      {children}
+    </AuthenticatedAppShell>
+  );
 }

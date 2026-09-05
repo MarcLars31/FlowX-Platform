@@ -1,0 +1,228 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "sprinkler-head-ahlsell-victaulic-2026-09-04-v1",
+  "createdAt": "2026-09-04",
+  "purpose": "Human-review baseline for evaluating ScipX sprinkler-head extraction and product matching without changing production matching behavior.",
+  "inputs": {
+    "documents": [
+      {
+        "id": "1403",
+        "fileName": "1403 AB - 33 Rev03.pdf",
+        "sha256": "C54F18098345E00F2147574960C75E065E32BDDEBC7DACEEF32A5C360B01836A"
+      },
+      {
+        "id": "vaga",
+        "fileName": "Sprinkler_Vågå svømmehall.pdf",
+        "sha256": "664A7383CD1EFAA617E1F04E9F9CF5501E9FA0E97591546E303FE883C1C67DF3"
+      }
+    ],
+    "catalog": {
+      "fileName": "Ahlsell_sprinkler_head_Victaulic_verified.xlsx",
+      "sha256": "D9F69655499977F53726831BA735776497326E6E8C3DC99F54005E75CE9CE58D"
+    },
+    "reviewWorkbook": {
+      "fileName": "1403_Vaga_matchning_regler.xlsx",
+      "sha256": "6457A1A32249748C653254C8827512E2DF0F7956B079AAFC71E0136323CED2C2"
+    }
+  },
+  "expectedSummary": {
+    "1403": {
+      "positions": 12,
+      "quantifiedUnits": 835,
+      "candidatePositions": 8,
+      "candidateUnits": 813,
+      "noExactMatchPositions": 3,
+      "noExactMatchUnits": 22,
+      "unreviewablePositions": 1
+    },
+    "vaga": {
+      "positions": 6,
+      "quantifiedUnits": 138,
+      "candidatePositions": 4,
+      "candidateUnits": 130,
+      "noExactMatchPositions": 2,
+      "noExactMatchUnits": 8,
+      "unreviewablePositions": 0
+    }
+  },
+  "reasonCodes": {
+    "ACCESSORY_REQUIRED": "A compatible escutcheon, coverplate, guard or shield must be selected.",
+    "CONNECTION_CHECK": "NPT, BSPT or IGS connection must be confirmed.",
+    "DATABASE_GAP": "The verified Ahlsell sprinkler-head catalog has no exact orderable article.",
+    "DN_MISMATCH": "Required and candidate nominal connection sizes differ.",
+    "DRY_TYPE_REQUIRED": "The requirement explicitly calls for a dry-type sprinkler.",
+    "FINISH_CHECK": "The requirement does not identify an exact finish.",
+    "FINISH_MISMATCH": "Required and available finishes differ.",
+    "HYDRAULIC_CHECK": "Coverage, spacing and minimum pressure must be checked against the exact listing.",
+    "LENGTH_REQUIRED": "The required dry-sprinkler barrel length is missing.",
+    "MOUNT_UNCLEAR": "Exposed, recessed or concealed mounting is not unambiguous.",
+    "REQUIREMENT_CONFLICT": "The source specification contains mutually inconsistent signals.",
+    "SPEC_MISSING": "The position exists but its technical specification is missing.",
+    "SPECIAL_APPLICATION_REQUIRED": "A specific-application/open window sprinkler is required.",
+    "SYSTEM_DESIGN_CHECK": "System type and sprinkler construction must be evaluated separately."
+  },
+  "cases": [
+    {
+      "id": "1403-12",
+      "documentId": "1403",
+      "position": "1403.33.332.12",
+      "quantity": 306,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "pendent", "mount": "recessed", "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 15, "finish": "white" },
+      "baseline": { "state": "candidate", "articleNumber": "9257423", "sin": "V2762", "reasonCodes": ["ACCESSORY_REQUIRED", "CONNECTION_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-13",
+      "documentId": "1403",
+      "position": "1403.33.332.13",
+      "quantity": 220,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "upright", "mount": "exposed", "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 15, "finish": "white", "trimSpecified": true },
+      "baseline": { "state": "candidate", "articleNumber": "9254178N5", "sin": "V2704", "reasonCodes": ["REQUIREMENT_CONFLICT"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-14",
+      "documentId": "1403",
+      "position": "1403.33.332.14",
+      "quantity": 118,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "pendent", "mount": null, "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 15, "finish": "white", "trimSpecified": true },
+      "baseline": { "state": "candidate", "articleNumber": "9257423", "sin": "V2762", "reasonCodes": ["MOUNT_UNCLEAR", "CONNECTION_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-15",
+      "documentId": "1403",
+      "position": "1403.33.332.15",
+      "quantity": 62,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "pendent", "mount": null, "response": "quick", "temperatureC": 68, "kFactor": 115, "dn": 20, "finish": "white", "trimSpecified": true },
+      "baseline": { "state": "candidate", "articleNumber": "1364601", "sin": "V3702", "reasonCodes": ["MOUNT_UNCLEAR", "ACCESSORY_REQUIRED", "CONNECTION_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-16",
+      "documentId": "1403",
+      "position": "1403.33.332.16",
+      "quantity": null,
+      "requirement": null,
+      "baseline": { "state": "unreviewable", "articleNumber": null, "sin": null, "reasonCodes": ["SPEC_MISSING"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-17",
+      "documentId": "1403",
+      "position": "1403.33.332.17",
+      "quantity": 10,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "pendent", "mount": null, "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 15, "finish": "white", "accessory": "water_shield" },
+      "baseline": { "state": "candidate", "articleNumber": "9257423", "sin": "V2762", "reasonCodes": ["MOUNT_UNCLEAR", "ACCESSORY_REQUIRED", "CONNECTION_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-18",
+      "documentId": "1403",
+      "position": "1403.33.332.18",
+      "quantity": 2,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "pendent", "mount": null, "response": "quick", "temperatureC": 141, "kFactor": 80, "dn": 15, "finish": "white" },
+      "baseline": { "state": "no_exact_match", "articleNumber": null, "sin": null, "reasonCodes": ["DATABASE_GAP", "FINISH_MISMATCH", "MOUNT_UNCLEAR"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-19",
+      "documentId": "1403",
+      "position": "1403.33.332.19",
+      "quantity": 80,
+      "requirement": { "system": "wet", "coverage": "extended_light_hazard", "orientation": "pendent", "mount": "recessed", "response": "quick", "temperatureC": 68, "kFactor": 161, "dn": 20, "finish": "white" },
+      "baseline": { "state": "candidate", "articleNumber": "9254075", "sin": "V3412", "reasonCodes": ["ACCESSORY_REQUIRED", "HYDRAULIC_CHECK", "CONNECTION_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-20",
+      "documentId": "1403",
+      "position": "1403.33.332.20",
+      "quantity": 4,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "sidewall", "mount": null, "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 15, "finish": "white", "trimSpecified": true },
+      "baseline": { "state": "candidate", "articleNumber": "9254065", "sin": "V2710", "reasonCodes": ["MOUNT_UNCLEAR", "ACCESSORY_REQUIRED", "CONNECTION_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-21",
+      "documentId": "1403",
+      "position": "1403.33.332.21",
+      "quantity": 13,
+      "requirement": { "system": "wet", "coverage": "extended_light_hazard", "orientation": "sidewall", "mount": null, "response": "quick", "temperatureC": 68, "kFactor": 115, "dn": 20, "finish": "white", "trimSpecified": true },
+      "baseline": { "state": "candidate", "articleNumber": "9254051", "sin": "V3416", "reasonCodes": ["MOUNT_UNCLEAR", "ACCESSORY_REQUIRED", "HYDRAULIC_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-22",
+      "documentId": "1403",
+      "position": "1403.33.332.22",
+      "quantity": 17,
+      "requirement": { "system": "deluge", "coverage": "specific_application_window", "orientation": "window", "mount": "exposed", "response": "open", "temperatureC": null, "kFactor": 80, "dn": 15, "finish": "brass" },
+      "baseline": { "state": "no_exact_match", "articleNumber": null, "sin": "V2752", "reasonCodes": ["DATABASE_GAP", "SPECIAL_APPLICATION_REQUIRED", "HYDRAULIC_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "1403-23",
+      "documentId": "1403",
+      "position": "1403.33.332.23",
+      "quantity": 3,
+      "requirement": { "system": "wet_supply_cold_space", "coverage": "standard", "orientation": "pendent", "mount": "recessed", "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 25, "finish": "chrome", "construction": "dry_type", "accessory": "guard" },
+      "baseline": { "state": "no_exact_match", "articleNumber": null, "sin": "V3614", "reasonCodes": ["DATABASE_GAP", "DRY_TYPE_REQUIRED", "FINISH_MISMATCH", "LENGTH_REQUIRED", "ACCESSORY_REQUIRED"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "vaga-2-4-1",
+      "documentId": "vaga",
+      "position": "33.332.2.4.1",
+      "quantity": 5,
+      "requirement": { "system": "wet", "coverage": "conventional", "orientation": "pendent", "mount": "concealed", "response": "quick", "temperatureC": 68, "kFactor": 160, "dn": 20, "finish": null, "coverplateSpecified": false, "protectionSpecified": true },
+      "baseline": { "state": "no_exact_match", "articleNumber": null, "sin": "V1106", "reasonCodes": ["DATABASE_GAP", "REQUIREMENT_CONFLICT", "ACCESSORY_REQUIRED", "FINISH_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "vaga-2-4-2",
+      "documentId": "vaga",
+      "position": "33.332.2.4.2",
+      "quantity": 95,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "upright", "mount": "exposed", "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 15, "finish": null, "protectionSpecified": true },
+      "baseline": { "state": "candidate", "articleNumber": "9254043", "sin": "V2704", "reasonCodes": ["ACCESSORY_REQUIRED", "FINISH_CHECK", "SYSTEM_DESIGN_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "vaga-2-4-3",
+      "documentId": "vaga",
+      "position": "33.332.2.4.3",
+      "quantity": 5,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "pendent", "mount": "concealed", "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 15, "finish": null, "coverplateSpecified": true, "protectionSpecified": true },
+      "baseline": { "state": "candidate", "articleNumber": "9254074", "sin": "V3802", "reasonCodes": ["REQUIREMENT_CONFLICT", "ACCESSORY_REQUIRED", "FINISH_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "vaga-2-4-4",
+      "documentId": "vaga",
+      "position": "33.332.2.4.4",
+      "quantity": 3,
+      "requirement": { "system": "wet", "coverage": "standard", "orientation": "sidewall", "mount": "exposed", "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 20, "finish": null, "protectionSpecified": true },
+      "baseline": { "state": "no_exact_match", "articleNumber": null, "sin": "V2710", "reasonCodes": ["DN_MISMATCH", "ACCESSORY_REQUIRED", "FINISH_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "vaga-2-7",
+      "documentId": "vaga",
+      "position": "33.332.2.7",
+      "quantity": 15,
+      "requirement": { "system": "dry", "coverage": "extended_light_hazard", "orientation": "sidewall", "mount": "exposed", "response": "quick", "temperatureC": 68, "kFactor": 115.5, "dn": 20, "finish": null, "minimumPressureBar": 1.5 },
+      "baseline": { "state": "candidate", "articleNumber": "9254355", "sin": "V3416", "reasonCodes": ["HYDRAULIC_CHECK", "FINISH_CHECK", "SYSTEM_DESIGN_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    },
+    {
+      "id": "vaga-2-8",
+      "documentId": "vaga",
+      "position": "33.332.2.8",
+      "quantity": 15,
+      "requirement": { "system": "dry", "coverage": "standard", "orientation": "upright", "mount": "exposed", "response": "quick", "temperatureC": 68, "kFactor": 80, "dn": 15, "finish": null, "minimumPressureBar": 1.0 },
+      "baseline": { "state": "candidate", "articleNumber": "9254043", "sin": "V2704", "reasonCodes": ["FINISH_CHECK", "SYSTEM_DESIGN_CHECK"] },
+      "review": { "status": "pending", "outcome": null, "selectedArticleNumber": null, "comment": null }
+    }
+  ]
+}
