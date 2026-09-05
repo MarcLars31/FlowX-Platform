@@ -1235,33 +1235,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setHasUnapprovedChanges(true);
   }
 
-  function changeProductNumber(nextProductNumber: string) {
-    setProductNumber(nextProductNumber);
-    setProductName("");
-    setProductSubtitle("");
-    setManufacturerArticleNumber("");
-    setManufacturerName("");
-    setDeliveryTimeDays("");
-    setUnitPrice("");
-    setPriceCurrency(defaultCurrency);
-    setManualProductSelected(false);
-    setManualProductRequired(true);
-    setSuggestedAccessories([]);
-    setManualProductDraft({
-      productNumber: nextProductNumber,
-      manufacturerArticleNumber: "",
-      manufacturerName: "",
-      deliveryTimeDays: "",
-      unitPrice: "",
-      currency: defaultCurrency
-    });
-    setManualProductOpen(true);
-    setManualProductDraftDirty(true);
-    setManualProductError(null);
-    setDraftNotice(null);
-    setHasUnapprovedChanges(true);
-  }
-
   function openManualProductCard() {
     setManualProductDraft({
       productNumber,
@@ -1628,30 +1601,23 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         </div>
 
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
-          <section id={`product-selection-${requirement.id}`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1">
-                <ProductFormInput id={`product-number-${requirement.id}`} label="NRF-nummer" value={productNumber} onChange={changeProductNumber} required />
-              </div>
-              <div className="min-w-0 flex-1">
-                <ProductFormInput id={`manufacturer-${requirement.id}`} label="Tillverkare" optional={!manualProductSelected} readOnly={manualProductSelected} value={manufacturerName} onChange={(value) => { setManufacturerName(value); setHasUnapprovedChanges(true); }} />
-              </div>
-            </div>
-            <p className="mt-2 text-xs leading-5 text-ink-600">Skriv ett NRF-nummer för att lägga till en egen produkt eller välj en produkt nedan. En egen produkt kompletteras med artikelnummer, tillverkare, leveranstid och pris innan den kan godkännas.</p>
-            {draftNotice && hasUnapprovedChanges && (
-              <div className="mt-3 flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5" role="status" aria-live="polite">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
-                <p className="text-xs font-semibold leading-5 text-emerald-900">{draftNotice} Kontrollera NRF-numret och godkänn sedan produkten.</p>
-              </div>
-            )}
-            {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
-              <dl className="mt-3 grid overflow-hidden rounded-md border border-ink-200 bg-white sm:grid-cols-3">
-                {manufacturerArticleNumber && <CompactProductDetail label="Artikelnummer" value={manufacturerArticleNumber} />}
-                {deliveryTimeDays && <CompactProductDetail label="Leveranstid" value={`${deliveryTimeDays} dagar`} />}
-                {unitPrice && <CompactProductDetail label="Pris" value={formatUnitPrice(unitPrice, priceCurrency)} />}
-              </dl>
-            )}
-          </section>
+          {((draftNotice && hasUnapprovedChanges) || manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
+            <section id={`product-selection-${requirement.id}`}>
+              {draftNotice && hasUnapprovedChanges && (
+                <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5" role="status" aria-live="polite">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+                  <p className="text-xs font-semibold leading-5 text-emerald-900">{draftNotice} Kontrollera produktvalet och godkänn sedan produkten.</p>
+                </div>
+              )}
+              {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
+                <dl className="mt-3 grid overflow-hidden rounded-md border border-ink-200 bg-white sm:grid-cols-3">
+                  {manufacturerArticleNumber && <CompactProductDetail label="Artikelnummer" value={manufacturerArticleNumber} />}
+                  {deliveryTimeDays && <CompactProductDetail label="Leveranstid" value={`${deliveryTimeDays} dagar`} />}
+                  {unitPrice && <CompactProductDetail label="Pris" value={formatUnitPrice(unitPrice, priceCurrency)} />}
+                </dl>
+              )}
+            </section>
+          )}
 
           <nav aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
             <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
