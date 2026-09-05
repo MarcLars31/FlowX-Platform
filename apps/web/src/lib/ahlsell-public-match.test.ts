@@ -91,6 +91,33 @@ test("keeps a genuinely hidden sprinkler with cover plate classified as conceale
   assert.ok(!guide.criteria.includes("Recessed"));
 });
 
+test("treats visible pendent mounting and I.R. cover plate as a surface head without accessories", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Spraysprinkler",
+      plassering: "Hengende synlig i tak og over systemhimling",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "15",
+      overflatebehandling: "Messing",
+      "dekkskive/pyntering (ved innfelling)": "I.R.",
+      beskyttelse: "Nei"
+    } }
+  });
+
+  assert.ok(guide.directCandidates.some((candidate) => candidate.articleNumber === "9257392"));
+  assert.ok(guide.directCandidates.every((candidate) => !/skjult/i.test(candidate.productName)));
+  assert.ok(guide.directCandidates.every((candidate) =>
+    !candidate.matchWarnings?.some((warning) => /tillbehör eller skydd/i.test(warning))
+  ));
+  assert.ok(!guide.criteria.includes("Recessed"));
+  assert.ok(!guide.criteria.includes("Concealed"));
+});
+
 test("reports wet installation and dry sprinkler head as separate requirements", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head",

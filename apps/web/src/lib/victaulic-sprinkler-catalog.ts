@@ -19,6 +19,7 @@ export type VictaulicSprinklerCatalogQuery = {
   response: "quick" | "standard" | null;
   orientation: "pendent" | "upright" | "sidewall" | null;
   mount: "recessed" | "concealed" | null;
+  visibleMount: boolean;
   sprinklerSystem: "wet" | "dry" | null;
   sprinklerHeadType: "standard" | "dry" | "open" | null;
   coverage: VictaulicSprinklerCoverage;
@@ -80,6 +81,7 @@ function evaluateCatalogProduct(
 
   const candidateHeadType = headType(product);
   if (query.sprinklerHeadType && candidateHeadType !== query.sprinklerHeadType) return null;
+  if (query.visibleMount && productIsConcealed(product)) return null;
   if (!coverageMatches(product, query.coverage)) return null;
   if (!systemMatches(product, query.sprinklerSystem)) return null;
 
@@ -177,6 +179,12 @@ function evaluateCatalogProduct(
       familyCode: product.model
     }
   };
+}
+
+function productIsConcealed(product: CatalogProduct) {
+  return /\b(concealed|skjult|dold)\b/.test(normalize(
+    `${product.mount ?? ""} ${product.headConstruction ?? ""} ${product.productDescription}`
+  ));
 }
 
 function kFactorMatches(product: CatalogProduct, required: number) {

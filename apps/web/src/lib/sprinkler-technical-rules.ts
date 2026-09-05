@@ -81,7 +81,7 @@ export function sprinklerRequiresAccessoryReview(
   for (const [key, rawValue] of entries) {
     if (!accessoryKey.test(normalize(key))) continue;
     const value = normalize(scalarText(rawValue));
-    if (!value || /^(nei|no|false|ingen|ikke aktuelt|not applicable|n a)$/.test(value)) continue;
+    if (!value || /^(nei|no|false|ingen|i r|ir|ikke aktuelt|ikke relevant|ej relevant|icke relevant|not applicable|not required|n a)$/.test(value)) continue;
     return true;
   }
   const normalizedFreeText = normalize(freeText);

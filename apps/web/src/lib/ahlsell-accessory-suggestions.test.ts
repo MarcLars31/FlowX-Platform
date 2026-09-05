@@ -43,6 +43,20 @@ test("does not invent an accessory for an ordinary surface-mounted head", () => 
   assert.deepEqual(suggestions, []);
 });
 
+test("understands I.R. as not relevant and ignores the accessory field heading", () => {
+  const suggestions = suggestedAccessories({
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      plassering: "Hengende synlig i tak og over systemhimling",
+      "dekkskive/pyntering (ved innfelling)": "I.R.",
+      beskyttelse: "Nei"
+    } }
+  }, candidate("9257392"));
+
+  assert.deepEqual(suggestions, []);
+});
+
 function candidate(articleNumber: string): AhlsellPublicCandidate {
   return {
     articleNumber,

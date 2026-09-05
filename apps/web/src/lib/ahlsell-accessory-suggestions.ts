@@ -24,7 +24,7 @@ export function suggestedAccessories(
 ): AhlsellAccessorySuggestion[] {
   const main = ahlsellMldlProduct(candidate.articleNumber);
   if (!main) return [];
-  const requirementText = normalize(flatten(requirement));
+  const requirementText = accessoryRequirementText(requirement);
 
   if (main.productType === "sprinkler_head") {
     return sprinklerAccessories(main, requirementText);
@@ -205,6 +205,34 @@ function flatten(value: unknown): string {
   if (Array.isArray(value)) return value.map(flatten).join(" ");
   if (value && typeof value === "object") return Object.values(value as Record<string, unknown>).map(flatten).join(" ");
   return "";
+}
+
+function accessoryRequirementText(requirement: Record<string, unknown>) {
+  const value = objectRecord(requirement.value_json);
+  const attributes = objectRecord(value.attributes);
+  const placement = attributeValues(attributes, /\b(plassering|placering|orientation|montasje|montering|mounting)\b/);
+  const accessoryValue = attributeValues(attributes, /\b(dekkskive|pyntering|rosett|escutcheon|cover plate|beskyttelse|gitter|guard)\b/);
+  const normalizedAccessoryValue = normalize(accessoryValue);
+  const accessoryIsNotRelevant = /^(nei|no|false|ingen|i r|ir|ikke aktuelt|ikke relevant|ej relevant|icke relevant|not applicable|not required|n a)$/.test(normalizedAccessoryValue);
+  return normalize([
+    flatten(requirement.value_text),
+    flatten(requirement.display_name),
+    placement,
+    accessoryIsNotRelevant ? "" : accessoryValue
+  ].join(" "));
+}
+
+function attributeValues(attributes: Record<string, unknown>, pattern: RegExp) {
+  return Object.entries(attributes)
+    .filter(([key]) => pattern.test(normalize(key)))
+    .map(([, value]) => flatten(value))
+    .join(" ");
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function normalize(value: string) {

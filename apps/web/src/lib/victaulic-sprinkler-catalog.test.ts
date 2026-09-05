@@ -88,6 +88,24 @@ test("does not auto-select when several articles satisfy an incomplete variant",
   assert.ok(candidates.some((candidate) => candidate.matchWarnings?.some((warning) => warning.includes("Flera verifierade artiklar"))));
 });
 
+test("excludes concealed heads when the specification explicitly requires visible mounting", () => {
+  const candidates = findVictaulicSprinklerCandidates(query({
+    kFactor: 80,
+    dn: 15,
+    temperatureC: 68,
+    response: "quick",
+    orientation: "pendent",
+    sprinklerSystem: "wet",
+    sprinklerHeadType: "standard",
+    coverage: "standard",
+    finish: "brass",
+    visibleMount: true
+  }));
+
+  assert.ok(candidates.some((candidate) => candidate.articleNumber === "9257392"));
+  assert.ok(candidates.every((candidate) => !/skjult/i.test(candidate.productName)));
+});
+
 test("returns no database candidate for the invalid conventional K80 DN20 combination", () => {
   const candidates = findVictaulicSprinklerCandidates(query({
     kFactor: 80,
@@ -200,6 +218,7 @@ function query(overrides: Partial<VictaulicSprinklerCatalogQuery>): VictaulicSpr
     response: null,
     orientation: null,
     mount: null,
+    visibleMount: false,
     sprinklerSystem: null,
     sprinklerHeadType: null,
     coverage: null,

@@ -216,6 +216,7 @@ export function buildAhlsellRequirementGuide(
     `${description} ${rowSourceText} ${technicalSpecification}`
   );
   const mount = sprinklerMount(placement, deckPlate);
+  const visibleMount = /\b(synlig|visible|eksponert)\b/.test(normalize(placement ?? ""));
   const orientationResult = sprinklerOrientation(`${placement ?? ""} ${description}`);
   const orientation = orientationResult.orientation
     ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
@@ -338,6 +339,7 @@ export function buildAhlsellRequirementGuide(
           response: responseResult.response,
           finish,
           mount,
+          visibleMount,
           sprinklerSystem,
           sprinklerHeadType,
           coverage: sprinklerCoverage,
@@ -367,6 +369,9 @@ export function buildAhlsellRequirementGuide(
       : null,
     intent === "sprinkler_head" && mount === "recessed" && /\bkonvensjonell\b/.test(primaryCombined)
       ? "Infällt takmontage behandlas som ett pendentkrav; den generella typetiketten konvensjonell får inte ensam styra produktvalet."
+      : null,
+    intent === "sprinkler_head" && visibleMount
+      ? "Synligt montage utesluter concealed/skjult sprinkler; Scipx prioriterar pendent-/ned-utföranden utan täcklock."
       : null,
     /\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/.test(combined)
       ? "Posten verkar vara specialtillverkad. En katalogprodukt får bara väljas efter manuell kontroll eller offert."

@@ -210,6 +210,40 @@ test("keeps a conventional V2726 candidate preferred when the post does not requ
   assert.equal(ranked[0].articleNumber, "9254111");
 });
 
+test("ranks a visible V2762 pendent head above concealed heads for visible ceiling placement", () => {
+  const requirement = {
+    category: "sprinkler_head",
+    value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg",
+      "type sprinkler": "Spraysprinkler",
+      plassering: "Hengende synlig i tak og over systemhimling",
+      følsomhetsgrad: "Kvikk respons",
+      utløsningstemperatur: "68 °C",
+      "k-faktor": "80",
+      "gjengedimensjon (dn)": "15",
+      overflatebehandling: "Messing",
+      "dekkskive/pyntering (ved innfelling)": "I.R.",
+      beskyttelse: "Nei"
+    } }
+  };
+  const ranked = rankAhlsellCandidates(requirement, [
+    {
+      ...candidate("9254074", "Sprinklerhoder Modell V3802 QR Victaulic FireLock - Skjult", "1/2 V3802 K80 SSP/skjult 68C QR mess", "/sprinkler/9254074/"),
+      specifications: ["DN15", "K80", "68 °C", "Quick response", "Pendent", "Concealed", "Messing"]
+    },
+    {
+      ...candidate("9257392", "Sprinklerhoder Modell V2762 QR Victaulic FireLock - Ned", "1/2 V2762 sprinklerhode K80 SSP 68C QR mess", "/sprinkler/9257392/"),
+      specifications: ["DN15", "K80", "68 °C", "Quick response", "Pendent", "Standard spray", "Messing", "not a dry-type sprinkler"]
+    }
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "9257392");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.ok(!ranked[0].matchWarnings?.some((warning) => /tillbehör/i.test(warning)));
+  assert.ok(ranked[1].matchWarnings?.some((warning) => /synligt montage.*dold sprinkler/i.test(warning)));
+});
+
 test("treats K115 and K115.5 as the same nominal sprinkler family", () => {
   const [ranked] = rankAhlsellCandidates({
     category: "sprinkler_head",

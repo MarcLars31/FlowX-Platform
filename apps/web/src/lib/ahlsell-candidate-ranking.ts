@@ -458,6 +458,16 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
       warnings.push("Sprinklerns monteringsriktning stämmer inte med PDF-kravet.");
     }
   }
+  if (requirement.mount === null && requirement.visibleMount) {
+    const candidateMounts = sprinklerMountCapabilities(candidateText);
+    if (candidateMounts.has("concealed")) {
+      score -= 70;
+      warnings.push("PDF-kravet anger synligt montage, men träffen är en dold sprinkler med täcklock.");
+    } else if (isSprinklerHeadText(candidateText)) {
+      score += 15;
+      reasons.push("Sprinklerhuvudet är ett synligt pendent-/standardutförande.");
+    }
+  }
   score += scoreSprinklerMount(candidateText, requirement, reasons, warnings);
   score += scoreSprinklerHeadType(candidateText, requirement, reasons, warnings);
   score += scoreSprinklerSystem(candidateText, requirement, reasons, warnings);
@@ -757,7 +767,8 @@ function extractRequiredSprinklerHeadType(value: string): TechnicalProfile["spri
 }
 
 function candidateSprinklerHeadType(value: string): TechnicalProfile["sprinklerHeadType"] {
-  if (/\b(torrsprinkler|torr sprinkler|torr|dry sprinkler|dry type)\b/.test(value)) return "dry";
+  const explicitlyNotDry = /\b(not|ikke|ej|inte)\s+(?:a\s+)?(?:dry|torr)(?:\s*type)?\s+sprinkler\b/.test(value);
+  if (!explicitlyNotDry && /\b(torrsprinkler|torr sprinkler|torr|dry sprinkler|dry type)\b/.test(value)) return "dry";
   if (/\b(window sprinkler|vindussprinkler|vindu sprinkler|apen sprinkler|open sprinkler|apen sprededyse|open nozzle)\b/.test(value)) return "open";
   if (isSprinklerHeadText(value)) return "standard";
   return null;
