@@ -9,6 +9,7 @@ import {
   sprinklerCoverageFromText,
   sprinklerRequiresAccessoryReview
 } from "@/lib/sprinkler-technical-rules";
+import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -77,6 +78,7 @@ type AhlsellProductIntent =
   | "portable_fire_extinguisher"
   | "sprinkler_head"
   | "sprinkler_guard"
+  | "sprinkler_hose"
   | "pipe"
   | "coupling"
   | "bend"
@@ -166,7 +168,10 @@ export function buildAhlsellRequirementGuide(
     ? AHLSELL_NORWAY_SEARCH_URL
     : AHLSELL_SWEDEN_SEARCH_URL;
   const unit = normalize(text(value.unit) ?? "");
-  const intent = detectAhlsellProductIntent(primaryCombined, combined, category, unit);
+  const nsCode = text(value.nsCode) ?? text(requirement.requirement_key);
+  const nsCodeIntent = ns3420ProductFamily(nsCode);
+  const intent = nsCodeIntent
+    ?? detectAhlsellProductIntent(primaryCombined, combined, category, unit);
   const isSprinklerAccessory = intent === "sprinkler_guard";
   const dataWarnings = projectRequirementDataWarnings(requirement);
 
@@ -373,6 +378,9 @@ export function buildAhlsellRequirementGuide(
     intent === "sprinkler_head" && visibleMount
       ? "Synligt montage utesluter concealed/skjult sprinkler; Scipx prioriterar pendent-/ned-utföranden utan täcklock."
       : null,
+    nsCodeIntent === "sprinkler_hose"
+      ? `NS 3420-koden ${nsCode} identifierar produkten som sprinklerslang. Ordet rörledning beskriver systemet och används inte som rörprodukt.`
+      : null,
     /\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/.test(combined)
       ? "Posten verkar vara specialtillverkad. En katalogprodukt får bara väljas efter manuell kontroll eller offert."
       : null
@@ -441,6 +449,13 @@ function buildCatalogQueries({
   }
   if (intent === "portable_fire_extinguisher") return ["Brannslukker", "Håndslukker"];
   if (isSprinklerAccessory) return ["Sprinklergitter", "Gitter sprinklerhode"];
+  if (intent === "sprinkler_hose") {
+    return [
+      compact(["Sprinklerslange", dnTerm]).join(" "),
+      compact(["Fleksibelslange sprinkler", dnTerm]).join(" "),
+      compact(["VicFlex sprinklerslange", dnTerm]).join(" ")
+    ];
+  }
 
   if (intent === "pressure_switch") {
     return ["Pressostat", "Pressostat vann", "PS10 pressostat"];
@@ -705,6 +720,7 @@ function categoryLabel(category: string, description: string) {
   if (/beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg/i.test(description)) return "Sprinkler skyddskorg";
   return ({
     sprinkler_head: "Sprinkler",
+    sprinkler_hose: "Flexibel sprinklerslang",
     pipe: "Sprinklerrör",
     fitting: "Sprinklerrördel",
     valve: "Sprinklerventil",
@@ -719,6 +735,7 @@ function intentLabel(intent: AhlsellProductIntent, category: string, description
     portable_fire_extinguisher: "Handbrandsläckare",
     sprinkler_head: "Sprinkler",
     sprinkler_guard: "Sprinkler skyddskorg",
+    sprinkler_hose: "Flexibel sprinklerslang",
     pipe: "Sprinklerrör",
     coupling: "Rillkoppling",
     bend: "Rörböj",
@@ -762,6 +779,10 @@ function detectAhlsellProductIntent(
     return has(/\bskum\b|\bfoam\b/) ? "foam_extinguisher" : "portable_fire_extinguisher";
   }
   if (has(/\b(beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg)\b/)) return "sprinkler_guard";
+  if (
+    has(/\b(sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b/)
+    || has(/\bbrannslokking\s+slange\b/)
+  ) return "sprinkler_hose";
   if (has(/\b(pumpe innendors|sprinklerpumpe|lensepumpe|type pumpe|pumpedrift)\b/)) return "pump";
   if (has(/\b(partikkelutskiller|grovfilter|y filter|sil netting|type partikkelutskiller)\b/)) return "strainer";
   if (has(/\b(torr.*(?:alarmventil|sprinklersentral)|dry (?:alarm )?valve|d769n)\b/)) return "dry_alarm_valve";

@@ -211,7 +211,7 @@ function reviewRow(row: AhlsellMldlRow) {
 
 function classifyCategory(value: string): AhlsellMldlCategory {
   if (/\b(dekkskiv|pyntering|cover plate|lokk.*sprinkler|nokkel.*sprinkler|sprinklerskap|sprinklergitter|gitter.*sprinkler|beskytt.*sprinkler)\b/.test(value)) return "sprinkler_accessory";
-  if (/\b(sprinklerslange|sprinkler slange|flexible sprinkler)\b/.test(value)) return "sprinkler_hose";
+  if (/\b(sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler|braided hose|vicflex|dryflex)\b/.test(value)) return "sprinkler_hose";
   if (isSprinklerHeadText(value)) return "sprinkler_head";
   if (/\b(?:[a-z]+)?ventil\b|\bvalve\b/.test(value)) return "valve";
   if (/\b(kupling|kobling|coupling)\b/.test(value)) return "coupling";

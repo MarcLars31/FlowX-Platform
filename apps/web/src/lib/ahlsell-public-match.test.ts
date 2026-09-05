@@ -508,3 +508,26 @@ test("uses fitting subtype and both dimensions for reductions", () => {
 
   assert.equal(guide.searchQuery, "Reduksjon rillet 60.3mm 88.9mm");
 });
+
+test("uses UB1.3311 as authoritative product evidence for a sprinkler hose", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "pipe",
+    requirement_key: "technical-material-1-30-332-6",
+    value_text: "INNENDØRS RØRLEDNING - BRANNSLOKKING - SLANGE",
+    value_json: {
+      nsCode: "UB1.33114699900A",
+      unit: "st",
+      attributes: {
+        "slokkeanlegg/ medium": "Sprinkler",
+        materiale: "Stål - rustfritt",
+        dimensjon: "DN25",
+        trykk: "12 bar"
+      }
+    }
+  });
+
+  assert.equal(guide.criteria[0], "Flexibel sprinklerslang");
+  assert.equal(guide.searchQuery, "Sprinklerslange DN25");
+  assert.ok(guide.searchQueries.every((query) => !/rør sprinkler|33[.,]7mm/i.test(query)));
+  assert.ok(guide.recognitionNotes.some((note) => note.includes("UB1.33114699900A")));
+});

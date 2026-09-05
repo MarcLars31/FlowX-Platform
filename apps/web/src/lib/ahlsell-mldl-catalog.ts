@@ -152,8 +152,12 @@ function boostStructuredCatalogEvidence(
 function expectedCatalogTypes(value: string) {
   const types = new Set<string>();
   const add = (...values: string[]) => values.forEach((item) => types.add(item));
+  if (/\bub1[.]3311[a-z0-9]*\b/.test(value)) {
+    add("sprinkler_hose");
+    return types;
+  }
   if (/\b(dekkskiv|dekkplate|pyntering|rosett|escutcheon|cover plate|sprinklergitter|sprinklerskap|nokkel)\b/.test(value)) add("sprinkler_accessory");
-  else if (/\b(sprinklerslange|sprinkler slange|vicflex|dryflex)\b/.test(value)) add("sprinkler_hose");
+  else if (/\b(sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b/.test(value)) add("sprinkler_hose");
   else if (/\b(sprinklerhode|sprinkler head|sprinklerhuvud|sprinkelhode|k faktor)\b/.test(value)) add("sprinkler_head");
   if (/\b(anboringsklammer|anboring|avstikk|branch outlet)\b/.test(value)) add("branch_outlet");
   if (/\b(reduksjonskupling|reducing coupling)\b/.test(value)) add("reducer_coupling");

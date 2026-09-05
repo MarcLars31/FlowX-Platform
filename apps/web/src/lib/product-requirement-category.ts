@@ -1,5 +1,6 @@
 export type ProductRequirementCategory =
   | "sprinkler_head"
+  | "sprinkler_hose"
   | "pipe"
   | "fitting"
   | "valve"
@@ -13,6 +14,7 @@ export const PRODUCT_REQUIREMENT_CATEGORIES: ReadonlyArray<{
   shortLabel: string;
 }> = [
   { id: "sprinkler_head", label: "Sprinklerhuvuden och galler", shortLabel: "Sprinklerhuvuden" },
+  { id: "sprinkler_hose", label: "Sprinklerslangar", shortLabel: "Sprinklerslangar" },
   { id: "pipe", label: "Rör", shortLabel: "Rör" },
   { id: "fitting", label: "Rördelar och kopplingar", shortLabel: "Rördelar" },
   { id: "valve", label: "Ventiler", shortLabel: "Ventiler" },
@@ -29,8 +31,6 @@ export function productRequirementCategory(
   requirement: Record<string, unknown>
 ): ProductRequirementCategory {
   const category = String(requirement.category ?? "").toLowerCase();
-  if (isProductRequirementCategory(category)) return category;
-
   const searchable = normalize(flattenText({
     requirementKey: requirement.requirement_key,
     displayName: requirement.display_name,
@@ -39,6 +39,12 @@ export function productRequirementCategory(
     value: requirement.value_json
   }));
 
+  if (/\bub1 3311[a-z0-9]*\b/.test(searchable)
+    || /\b(?:sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b/.test(searchable)
+    || /\bbrannslokking slange\b/.test(searchable)) {
+    return "sprinkler_hose";
+  }
+  if (isProductRequirementCategory(category)) return category;
   if (/\b(?:sprinklerhode|sprinkler head|sprinklergitter|beskyttelsesgitter|skyddskorg)\b/.test(searchable)) {
     return "sprinkler_head";
   }
@@ -84,6 +90,7 @@ function productCategoryOrder(category: ProductRequirementCategory) {
 
 function isProductRequirementCategory(value: string): value is ProductRequirementCategory {
   return value === "sprinkler_head"
+    || value === "sprinkler_hose"
     || value === "pipe"
     || value === "fitting"
     || value === "valve"

@@ -34,3 +34,22 @@ test("uses Norwegian product words to restrict the database to the right family"
   assert.ok(candidates.length > 0);
   assert.ok(candidates.every((candidate) => /kupling|kobling|coupling/i.test(candidate.productName)));
 });
+
+test("uses UB1.3311 to exclude rigid pipes and fittings from the MLDL pool", () => {
+  const candidates = findAhlsellMldlCandidates({
+    category: "pipe",
+    value_text: "INNENDØRS RØRLEDNING - BRANNSLOKKING - SLANGE",
+    value_json: {
+      nsCode: "UB1.33114699900A",
+      unit: "st",
+      attributes: { dimensjon: "DN25" }
+    }
+  });
+
+  assert.ok(candidates.length > 0);
+  assert.equal(candidates[0]?.articleNumber, "9255525");
+  assert.ok(candidates.every((candidate) =>
+    /sprinklerslange|sprinkler slange|vicflex|dryflex|fleksibelslange/i.test(candidate.productName)
+  ));
+  assert.ok(candidates.every((candidate) => !/konstruksjonsrør|t-rør|bend t\/sprinklerslange|nippel f\/.*sprinklerslange/i.test(candidate.productName)));
+});

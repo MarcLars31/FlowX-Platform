@@ -695,6 +695,28 @@ test("matches Norwegian compound sidewall wording to an HSW product", () => {
   assert.ok(ranked[1].matchWarnings?.some((warning) => warning.includes("monteringsriktning")));
 });
 
+test("uses UB1.3311 to rank sprinkler hoses and reject rigid pipes", () => {
+  const ranked = rankAhlsellCandidates({
+    category: "pipe",
+    value_text: "INNENDØRS RØRLEDNING - BRANNSLOKKING - SLANGE",
+    value_json: {
+      nsCode: "UB1.33114699900A",
+      attributes: { dimensjon: "DN25", materiale: "Stål - rustfritt" }
+    }
+  }, [
+    candidate("hose", "VicFlex sprinklerslange DN25 braided", "Fleksibel sprinklerslange i rustfritt stål", "/hose/"),
+    candidate("pipe", "Konstruksjonsrør 33.7 mm galvanisert", "Stålrör i längder", "/pipe/"),
+    candidate("tee", "T-rør galvanisert 33.7 mm", "Rørdel", "/tee/")
+  ]);
+
+  assert.equal(ranked[0].articleNumber, "hose");
+  assert.equal(ranked[0].recommendation, "recommended");
+  assert.ok(ranked.slice(1).every((candidate) => candidate.recommendation === "unlikely"));
+  assert.ok(ranked.slice(1).every((candidate) =>
+    candidate.matchWarnings?.some((warning) => warning.includes("inte en flexibel sprinklerslang"))
+  ));
+});
+
 function candidate(articleNumber: string, productName: string, description: string, path: string): AhlsellPublicCandidate {
   return {
     articleNumber,

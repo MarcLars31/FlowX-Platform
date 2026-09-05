@@ -10,6 +10,7 @@ import {
   MAX_SUPPORTED_SPRINKLER_K_FACTOR,
   parseSprinklerKFactor
 } from "@/lib/project-requirement-data-warnings";
+import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 
 type ExtractOptions = {
   fileName?: string;
@@ -468,7 +469,9 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         )
       );
       const parent = findTableParent(parentContexts, fullPostNumber);
-      const ownCategory = inferStructuredCategory(description, sourceText);
+      const effectiveNsCode = nsCode ?? parent?.nsCode;
+      const ownCategory = ns3420ProductFamily(effectiveNsCode)
+        ?? inferStructuredCategory(description, sourceText);
       const inheritedCategory = parent?.category === "unknown"
         ? inferCategory(parent.sourceText.toLocaleLowerCase())
         : parent?.category;
@@ -484,7 +487,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         const context = {
           postNumber: fullPostNumber,
           sourcePage: page.pageNumber,
-          nsCode: nsCode ?? parent?.nsCode,
+          nsCode: effectiveNsCode,
           category,
           attributes: {
             ...(parent?.attributes ?? {}),
@@ -534,7 +537,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         id: `technical-material-${page.pageNumber}-${fullPostNumber.replace(/[^a-zA-Z0-9]+/g, "-")}`,
         postNumber: fullPostNumber,
         parentPostNumber: parent?.postNumber,
-        nsCode: nsCode ?? parent?.nsCode,
+        nsCode: effectiveNsCode,
         category,
         description: description
           || (attributes.dimensjon ? `Dimensjon: ${attributes.dimensjon}` : categoryLabel(category)),
@@ -1181,7 +1184,7 @@ function buildMaterialLine(
 ): TechnicalDescriptionMaterialLine | null {
   const sourceText = block.lines.join("\n");
   const normalizedText = sourceText.toLocaleLowerCase();
-  const category = inferCategory(normalizedText);
+  const category = ns3420ProductFamily(block.nsCode) ?? inferCategory(normalizedText);
   const description =
     block.title.replace(/\bSPRINKLER\b/gi, "").trim() ||
     block.attributes["type sprinkler"] ||
@@ -1276,10 +1279,16 @@ function inferCategory(text: string): TechnicalDescriptionCategory {
   if (/fitting|bend|muffe|kobling|kupling|t-r[øo]r|t-klave|r[øo]rdel|overgang|endebunn|anborring|blindflens|filter|partikkelutskiller/.test(text)) {
     return "fitting";
   }
+  if (
+    /sprinklerslange|sprinkler\s*slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose/.test(text)
+    || /brannsl[ou]kking\s*[—-]\s*slange/.test(text)
+  ) {
+    return "sprinkler_hose";
+  }
   if (/innendørs r[øo]rledning|r[øo]rledningsanlegg|r[øo]rledning\s*[—-]\s*brannslokking/.test(text)) {
     return "pipe";
   }
-  if (/r[øo]r\b|r[øo]rledning|vannledning|st[åa]lr[øo]r|riller[øo]r|rillede r[øo]r|sprinklerslange|\bpipe\b|red pipe/.test(text)) {
+  if (/r[øo]r\b|r[øo]rledning|vannledning|st[åa]lr[øo]r|riller[øo]r|rillede r[øo]r|\bpipe\b|red pipe/.test(text)) {
     return "pipe";
   }
   if (/oppheng|støtte|support/.test(text)) return "support";
@@ -1304,7 +1313,7 @@ function resolveStructuredCategory(
   if (ownCategory === "unknown") return parentCategory;
   if (
     parentCategory === "pipe"
-    && !/ventil|sprinkler|h[åa]ndsl[ou]kker|bend|kobling|kupling/i.test(description)
+    && !/ventil|sprinkler|slange|hose|h[åa]ndsl[ou]kker|bend|kobling|kupling/i.test(description)
   ) {
     return "pipe";
   }
@@ -1324,6 +1333,7 @@ function inferOperation(text: string, hasQuantity: boolean) {
 function categoryLabel(category: TechnicalDescriptionCategory) {
   return {
     sprinkler_head: "Sprinklerhode",
+    sprinkler_hose: "Sprinklerslange",
     pipe: "Rør",
     fitting: "Fitting",
     valve: "Ventil",

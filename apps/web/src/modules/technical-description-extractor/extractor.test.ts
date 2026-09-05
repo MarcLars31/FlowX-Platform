@@ -346,11 +346,45 @@ test("keeps all quantified rows when full and split post formats are mixed", () 
     [
       { postNumber: "33.332.9.1", quantity: 8, unit: "st", category: "sprinkler_head" },
       { postNumber: "33.332.9.2", quantity: 19, unit: "st", category: "sprinkler_head" },
-      { postNumber: "33.332.11.1", quantity: 28, unit: "st", category: "pipe" }
+      { postNumber: "33.332.11.1", quantity: 28, unit: "st", category: "sprinkler_hose" }
     ]
   );
   assert.equal(result.materialLines[0].attributes["k-faktor"], "80");
   assert.equal(result.warnings.length, 0);
+});
+
+test("uses UB1.3311 to classify a sprinkler hose instead of rigid pipe", () => {
+  const pages: TechnicalDescriptionPage[] = [{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.99,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "30.332.6 UB1.33114699900A",
+      "INNENDØRS RØRLEDNING - BRANNSLOKKING - SLANGE",
+      "Slokkeanlegg/-medium: Sprinkler",
+      "Materiale: Stål - rustfritt",
+      "Plassering: Over systemhimling",
+      "Montasje: Festes i systemhimling",
+      "Skjøt: Valgfri",
+      "Dimensjon: DN25",
+      "Trykk: 12 bar",
+      "Omfatter også: Flexislanger skal være av typen braided-utførelse.",
+      "Antall stk 132",
+      "Sum denne side:"
+    ].join("\n")
+  }];
+
+  const result = extractTechnicalDescriptionFromPages(pages, {
+    fileName: "Sprinkler_Vågå svømmehall.pdf"
+  });
+
+  assert.equal(result.materialLines.length, 1);
+  assert.equal(result.materialLines[0].nsCode, "UB1.33114699900A");
+  assert.equal(result.materialLines[0].category, "sprinkler_hose");
+  assert.equal(result.materialLines[0].attributes.dimensjon, "DN25");
+  assert.equal(result.materialLines[0].quantity, 132);
+  assert.equal(result.materialLines[0].reviewFlags.includes("pipe-unit-not-length"), false);
 });
 
 test("joins project-prefixed post numbers split across lines", () => {

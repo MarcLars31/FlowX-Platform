@@ -10,6 +10,7 @@ export type TechnicalDescriptionPage = {
 
 export type TechnicalDescriptionCategory =
   | "sprinkler_head"
+  | "sprinkler_hose"
   | "pipe"
   | "fitting"
   | "valve"

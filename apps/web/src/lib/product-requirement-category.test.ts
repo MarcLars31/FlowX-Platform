@@ -55,3 +55,11 @@ test("keeps explicitly extracted miscellaneous fire-protection products separate
     value_text: "Håndslokker med skum"
   }), "other");
 });
+
+test("groups UB1.3311 as a sprinkler hose even when an older row says pipe", () => {
+  assert.equal(productRequirementCategory({
+    category: "pipe",
+    value_text: "INNENDØRS RØRLEDNING - BRANNSLOKKING - SLANGE",
+    value_json: { nsCode: "UB1.33114699900A" }
+  }), "sprinkler_hose");
+});

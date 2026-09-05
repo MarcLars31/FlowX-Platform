@@ -3,6 +3,7 @@ import {
   rankAhlsellCandidates
 } from "@/lib/ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 
 export const MIN_LEARNED_PRODUCT_MATCH_SCORE = 75;
 export const MIN_LEARNED_PRODUCT_MATCH_REASONS = 2;
@@ -42,7 +43,8 @@ export function rankDistributorProductMemoryHints(
   requirement: Record<string, unknown>,
   memories: readonly DistributorProductMemoryEvidence[]
 ): LearnedProductSearchHint[] {
-  const targetCategory = normalizedCategory(requirement.category);
+  const targetCategory = ns3420ProductFamily(flattenText(requirement))
+    ?? normalizedCategory(requirement.category);
   const targetFingerprint = cleanText(requirement.mapping_fingerprint);
   if (!targetCategory || targetCategory === "unknown") return [];
 
@@ -175,6 +177,7 @@ function historicalRequirementLabel(
 ) {
   const family = ({
     sprinkler_head: "Sprinklerhode",
+    sprinkler_hose: "Sprinklerslange",
     pipe: "Sprinklerrør",
     fitting: "Rørdel",
     valve: "Ventil",
@@ -193,6 +196,15 @@ function scalarText(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) return value.map(scalarText).filter(Boolean).join(" ");
+  return "";
+}
+
+function flattenText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(flattenText).join(" ");
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).map(flattenText).join(" ");
+  }
   return "";
 }
 

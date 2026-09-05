@@ -3,6 +3,7 @@ import {
   parseSprinklerKFactor,
   projectRequirementKFactorDisplayValue
 } from "@/lib/project-requirement-data-warnings";
+import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 import { sprinklerOrientationSignals } from "@/lib/sprinkler-orientation-lexicon";
 import {
   sprinklerCoverageFromText,
@@ -24,7 +25,8 @@ type ProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "manometer" | "pres
   | "flow_switch" | "ball_valve" | "butterfly_valve" | "shutoff_valve" | "check_valve"
   | "pressure_reducing_valve" | "pipe" | "coupling" | "flanged_bend" | "bend" | "tee"
   | "reducer" | "cap" | "branch" | "flange_adapter" | "pump" | "strainer" | "support"
-  | "test_drain" | "sprinkler_head" | "sprinkler_guard" | "custom_fabrication" | "generic";
+  | "test_drain" | "sprinkler_head" | "sprinkler_guard" | "sprinkler_hose"
+  | "custom_fabrication" | "generic";
 
 type TechnicalProfile = {
   text: string;
@@ -120,9 +122,13 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
       : orientationSignals.hasSidewall ? "sidewall" as const : null;
   const orientation = explicitOrientation
     ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(placementText) ? "pendent" : null);
+  const codeIntent = ns3420ProductFamily(flattenText({
+    nsCode: value.nsCode,
+    requirementKey: requirement.requirement_key
+  }));
   return {
     text,
-    intent: detectIntent(semanticText, text, String(requirement.category ?? "")),
+    intent: codeIntent ?? detectIntent(semanticText, text, String(requirement.category ?? "")),
     dn,
     outsideDiameter: outsideDiameter ?? (dn === null ? null : PIPE_OUTSIDE_DIAMETER_BY_DN[dn] ?? null),
     pn: numberAfterLabel(primaryText, /\bpn\s*(\d{1,3})\b/) ?? numberAfterLabel(text, /\bpn\s*(\d{1,3})\b/),
@@ -227,6 +233,33 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
       score -= 65;
       warnings.push("Träffen är ett tillbehör eller en reservdel, inte en komplett ventil.");
     }
+  } else if (requirement.intent === "sprinkler_hose") {
+    const isHose = /\b(sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b/.test(candidateText);
+    const isHoseAccessory = /\b(bend|nippel|stuss)\b.{0,40}\b(?:t|f|for)\b.{0,20}\b(sprinklersl|sprinklerslange|vicflex)\b/.test(candidateName);
+    if (isHose && !isHoseAccessory) {
+      score += 65;
+      reasons.push("Produkttypen är en flexibel sprinklerslang.");
+    }
+    if (isHoseAccessory) {
+      score -= 70;
+      warnings.push("Träffen är ett tillbehör till en sprinklerslang, inte en komplett slang.");
+    }
+    if (/\bsprinkler\b/.test(candidateText)) {
+      score += 10;
+      reasons.push("Produkten är avsedd för sprinklerinstallation.");
+    }
+    if (!isHose) {
+      score -= wrongFamilyPenalty(
+        candidateName,
+        /\b(konstruksjonsror|rillede ror|stalror|t ror|tee|kupling|kobling|bend|ventil)\b/,
+        "Träffen är ett rör eller en rördel och inte en flexibel sprinklerslang.",
+        warnings
+      );
+    }
+    if (requirement.dn !== null && extractDnValues(candidateText).length === 0) {
+      score -= 25;
+      warnings.push(`Slangens anslutningsdimension saknas; PDF-kravet anger DN${requirement.dn}.`);
+    }
   } else if (requirement.intent === "pipe") {
     score += scoreNamedProductFamily(candidateName, /\b(rillede ror|stalror|sprinklerror|ror[^.]{0,30}lengder|red pipe)\b/, "Produkten är ett rör för sprinkler/rillesystem.", reasons);
     score -= wrongFamilyPenalty(candidateName, /\b(bend|t ror|kupling|ventil|flensadapter|anboringsklammer)\b/, "Träffen är en rördel och inte en rörlängd.", warnings);
@@ -312,10 +345,10 @@ function hasCompleteTechnicalEvidence(
   requirement: TechnicalProfile
 ) {
   if (requirement.dn !== null) {
-    const candidateDn = extractDn(candidateText);
+    const candidateDns = extractDnValues(candidateText);
     const diameterMatches = requirement.outsideDiameter !== null
       && new RegExp(`\\b${String(requirement.outsideDiameter).replace(".", "[.,]")}\\s*(?:mm)?\\b`).test(candidateText);
-    if (candidateDn !== requirement.dn && !diameterMatches) return false;
+    if (!candidateDns.includes(requirement.dn) && !diameterMatches) return false;
   }
   if (requirement.pn !== null) {
     const candidatePn = numberAfterLabel(candidateText, /\bpn\s*(\d{1,3})\b/);
@@ -587,10 +620,11 @@ function scoreSprinklerSystem(
 
 function scoreDimension(candidateText: string, requirement: TechnicalProfile, reasons: string[], warnings: string[]) {
   if (requirement.dn === null) return 0;
-  const candidateDn = extractDn(candidateText);
+  const candidateDns = extractDnValues(candidateText);
+  const candidateDn = candidateDns[0] ?? null;
   const diameterMatches = requirement.outsideDiameter !== null
     && new RegExp(`\\b${String(requirement.outsideDiameter).replace(".", "[.,]")}\\s*(?:mm)?\\b`).test(candidateText);
-  if (candidateDn === requirement.dn || diameterMatches) {
+  if (candidateDns.includes(requirement.dn) || diameterMatches) {
     reasons.push(`Dimensionen motsvarar DN${requirement.dn}${requirement.outsideDiameter ? ` (${String(requirement.outsideDiameter).replace(".", ",")} mm)` : ""}.`);
     return 25;
   }
@@ -655,6 +689,10 @@ function detectIntent(primaryValue: string, combinedValue: string, category: str
   const source = primaryValue || combinedValue;
   const has = (pattern: RegExp) => pattern.test(source);
   if (has(/\b(beskyttelsesgit(?:ter|re)|skyddskorg|sprinklerkorg)\b/)) return "sprinkler_guard";
+  if (
+    has(/\b(sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b/)
+    || has(/\bbrannslokking\s+slange\b/)
+  ) return "sprinkler_hose";
   if (has(/\b(pumpe innendors|sprinklerpumpe|lensepumpe|type pumpe|pumpedrift)\b/)) return "pump";
   if (has(/\b(partikkelutskiller|grovfilter|y filter|sil netting|type partikkelutskiller)\b/)) return "strainer";
   if (has(/\b(torr.*(?:alarmventil|sprinklersentral)|dry (?:alarm )?valve|d769n)\b/)) return "dry_alarm_valve";
@@ -697,6 +735,14 @@ function extractDn(value: string) {
   if (/\b1\s+(?:v\d+|sprinkler)/.test(value)) return 25;
   const connection = value.match(/\butvendig rordiameter tilkobling\s*(\d{1,3})\s*(?:mm)?\b/)?.[1];
   return connection ? Number(connection) : null;
+}
+
+function extractDnValues(value: string) {
+  const explicit = [...value.matchAll(/\bdn\s*(\d{1,3})\b/g)]
+    .map((match) => Number(match[1]));
+  if (explicit.length > 0) return [...new Set(explicit)];
+  const inferred = extractDn(value);
+  return inferred === null ? [] : [inferred];
 }
 
 function extractOutsideDiameter(value: string) {
