@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
+import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 
 test("builds a verified but unapproved Ahlsell candidate from an exact PDF requirement", () => {
   const guide = buildAhlsellRequirementGuide({
@@ -91,32 +92,39 @@ test("keeps a genuinely hidden sprinkler with cover plate classified as conceale
   assert.ok(!guide.criteria.includes("Recessed"));
 });
 
-test("treats visible pendent mounting and I.R. cover plate as a surface head without accessories", () => {
-  const guide = buildAhlsellRequirementGuide({
-    category: "sprinkler_head",
-    value_text: "SPRINKLER",
-    value_json: { attributes: {
-      sprinkleranlegg: "Våtanlegg",
-      "type sprinkler": "Spraysprinkler",
-      plassering: "Hengende synlig i tak og over systemhimling",
-      følsomhetsgrad: "Kvikk respons",
-      utløsningstemperatur: "68 °C",
-      "k-faktor": "80",
-      "gjengedimensjon (dn)": "15",
-      overflatebehandling: "Messing",
-      "dekkskive/pyntering (ved innfelling)": "I.R.",
-      beskyttelse: "Nei"
-    } }
-  });
+for (const coverPlate of ["I.R.", "l.R.", "1.R.", "|.R."]) {
+  test(`treats visible pendent mounting and ${coverPlate} cover plate as a surface head without accessories`, () => {
+    const requirement = {
+      category: "sprinkler_head",
+      value_text: "SPRINKLER",
+      value_json: { attributes: {
+        sprinkleranlegg: "Våtanlegg",
+        "type sprinkler": "Spraysprinkler",
+        plassering: "Hengende synlig i tak og over systemhimling",
+        følsomhetsgrad: "Kvikk respons",
+        utløsningstemperatur: "68 °C",
+        "k-faktor": "80",
+        "gjengedimensjon (dn)": "15",
+        overflatebehandling: "Messing",
+        "dekkskive/pyntering (ved innfelling)": coverPlate,
+        beskyttelse: "Nei"
+      } }
+    };
+    const guide = buildAhlsellRequirementGuide(requirement);
 
-  assert.ok(guide.directCandidates.some((candidate) => candidate.articleNumber === "9257392"));
-  assert.ok(guide.directCandidates.every((candidate) => !/skjult/i.test(candidate.productName)));
-  assert.ok(guide.directCandidates.every((candidate) =>
-    !candidate.matchWarnings?.some((warning) => /tillbehör eller skydd/i.test(warning))
-  ));
-  assert.ok(!guide.criteria.includes("Recessed"));
-  assert.ok(!guide.criteria.includes("Concealed"));
-});
+    assert.ok(guide.directCandidates.some((candidate) => candidate.articleNumber === "9257392"));
+    assert.ok(guide.directCandidates.every((candidate) => !/skjult/i.test(candidate.productName)));
+    assert.ok(guide.directCandidates.every((candidate) =>
+      !candidate.matchWarnings?.some((warning) => /tillbehör eller skydd/i.test(warning))
+    ));
+    const ranked = rankAhlsellCandidates(requirement, guide.directCandidates);
+    assert.ok(ranked.every((candidate) =>
+      !candidate.matchWarnings?.some((warning) => /tillbehör/i.test(warning))
+    ));
+    assert.ok(!guide.criteria.includes("Recessed"));
+    assert.ok(!guide.criteria.includes("Concealed"));
+  });
+}
 
 test("reports wet installation and dry sprinkler head as separate requirements", () => {
   const guide = buildAhlsellRequirementGuide({

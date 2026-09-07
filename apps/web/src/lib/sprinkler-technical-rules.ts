@@ -80,8 +80,12 @@ export function sprinklerRequiresAccessoryReview(
   const entries = attributes instanceof Map ? [...attributes.entries()] : Object.entries(attributes);
   for (const [key, rawValue] of entries) {
     if (!accessoryKey.test(normalize(key))) continue;
-    const value = normalize(scalarText(rawValue));
+    const rawText = scalarText(rawValue).trim();
+    const value = normalize(rawText);
     if (!value || /^(nei|no|false|ingen|i r|ir|ikke aktuelt|ikke relevant|ej relevant|icke relevant|not applicable|not required|n a)$/.test(value)) continue;
+    // OCR can read the I in I.R. (ikke relevant) as l, 1 or |. Match the
+    // entire value before normalization removes |; keep other text for review.
+    if (/^[il1|]\s*\.?\s*r\s*\.?$/i.test(rawText)) continue;
     return true;
   }
   const normalizedFreeText = normalize(freeText);
