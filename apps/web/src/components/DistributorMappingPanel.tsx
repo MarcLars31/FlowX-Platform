@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
+import { NsCodeSpecification, NsCodeTableValue } from "@/components/NsCodeExplanation";
 import { buildAhlsellRequirementGuide, type AhlsellAccessorySuggestion, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
@@ -102,7 +103,7 @@ type ProductTableColumnDefinition = {
 const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefinition> = {
   control: { label: "Kontroll", className: "w-16 text-center", align: "center", minimumWidth: 72 },
   post: { label: "PDF-post", className: "w-28", minimumWidth: 120 },
-  nsCode: { label: "NS-kod", className: "w-40", minimumWidth: 176 },
+  nsCode: { label: "NS-kod / betydelse", className: "min-w-72", minimumWidth: 288 },
   requirement: { label: "Produktkrav", className: "min-w-64", minimumWidth: 320 },
   category: { label: "Produktgrupp", className: "w-36", minimumWidth: 160 },
   quantity: { label: "Mängd", className: "w-24", minimumWidth: 104 },
@@ -1634,7 +1635,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
               {details.chapterPost && <SpecificationRow label="Kapitelpost" value={details.chapterPost} />}
               {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
-              {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
+              {details.nsCode && <NsCodeSpecification code={details.nsCode} />}
               {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
               {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
               {pdfArticleNumber && <SpecificationRow label="NRF-nummer i PDF" value={pdfArticleNumber} />}
@@ -2345,7 +2346,7 @@ function NonProductRequirementCard({ requirement, position, totalPosts, kind }: 
             <SpecificationRow label="Åtgärd" value={operationLabel} />
             <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
             {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
-            {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
+            {details.nsCode && <NsCodeSpecification code={details.nsCode} />}
             {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
             {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
             {details.sourcePage && <SpecificationRow label="Källsida" value={String(details.sourcePage)} />}
@@ -2449,7 +2450,9 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     if (columnId === "nsCode") {
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">
-          <span className="block" title={details.nsCode ?? "NS-kod saknas"}>{details.nsCode ?? "—"}</span>
+          <button type="button" aria-haspopup="dialog" onClick={onOpen} aria-label={`Visa kodförklaring för ${details.nsCode ?? "posten"} i produktkortet`} className="text-left hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+            <NsCodeTableValue code={details.nsCode} />
+          </button>
         </td>
       );
     }

@@ -14,6 +14,7 @@
     "build:cloudflare": "opennextjs-cloudflare build",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
+    "test:ns-codes": "node --import tsx --test src/lib/ns3420-code-catalog.test.ts",
     "test:authz": "node --import tsx --test src/lib/platform-role.test.ts src/lib/administration-access.test.ts src/lib/backend-route-guards.test.ts src/lib/supabase-auth-config.test.ts src/lib/supabase-headers.test.ts",
     "test:security": "node --import tsx --test src/lib/request-rate-limit.test.ts src/lib/pdf-security.test.ts src/lib/request-body.test.ts src/lib/demo-data.test.ts",
     "test:rbac": "node --import tsx --test src/lib/organization-rbac.test.ts",
