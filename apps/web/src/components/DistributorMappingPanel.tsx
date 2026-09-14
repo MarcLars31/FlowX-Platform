@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
+import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
+import type { AhlsellLookupProduct } from "@/lib/ahlsell-product-lookup";
 import { NsCodeSpecification, NsCodeTableValue } from "@/components/NsCodeExplanation";
 import { ns3420CodeInfo } from "@/lib/ns3420-code-catalog";
 import { buildAhlsellRequirementGuide, type AhlsellAccessorySuggestion, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
@@ -1141,6 +1143,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [accessories, setAccessories] = useState<ProductAccessoryDraft[]>(() => readProductAccessoryDrafts(currentSnapshot.accessories));
   const [accessoryOwnerProductNumber, setAccessoryOwnerProductNumber] = useState(() => accessories.length > 0 ? productNumber : "");
   const [accessoriesExpanded, setAccessoriesExpanded] = useState(() => accessories.length > 0);
+  const [accessoryLookupOpen, setAccessoryLookupOpen] = useState(false);
   const [suggestedAccessories, setSuggestedAccessories] = useState<AhlsellAccessorySuggestion[]>([]);
   const [saving, setSaving] = useState(false);
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
@@ -1254,6 +1257,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setAccessories(nextAccessories);
     setAccessoryOwnerProductNumber(nextAccessories.length > 0 ? selection.productNumber : "");
     setAccessoriesExpanded(nextAccessories.length > 0);
+    setAccessoryLookupOpen(false);
     setSuggestedAccessories(accessorySuggestions);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
@@ -1282,6 +1286,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function clearSelectedProduct() {
+    setAccessoryLookupOpen(false);
     setProductName("");
     setProductSubtitle("");
     setProductNumber("");
@@ -1309,7 +1314,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setManualProductDraftDirty(false);
     setManualProductError(null);
     setManualProductOpen(true);
-    window.requestAnimationFrame(() => document.getElementById(`manual-product-nrf-${requirement.id}`)?.focus());
+    window.requestAnimationFrame(() => document.getElementById(`ahlsell-product-lookup-${requirement.id}`)?.focus());
   }
 
   function closeManualProductCard() {
@@ -1360,11 +1365,39 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   function addAccessory() {
     if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
+    setAccessoryLookupOpen(true);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`accessory-lookup-card-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      document.getElementById(`ahlsell-accessory-lookup-${requirement.id}`)?.focus();
+    });
+  }
+
+  function applyAhlsellAccessory(candidate: AhlsellLookupProduct) {
+    if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
+    if (selectedProductAccessories.some((accessory) => normalizeNrfNumber(accessory.productNumber) === normalizeNrfNumber(candidate.articleNumber))) {
+      onError(`Tillbehöret med NRF-nummer ${candidate.articleNumber} är redan tillagt.`);
+      return;
+    }
+    setAccessories([...selectedProductAccessories, {
+      ...newProductAccessoryDraft(), name: candidate.subtitle || candidate.productName,
+      productNumber: candidate.articleNumber, notes: `Valt från Ahlsell: ${candidate.productUrl}`
+    }]);
+    setAccessoryOwnerProductNumber(productNumber);
+    setAccessoriesExpanded(true);
+    setAccessoryLookupOpen(false);
+    setHasUnapprovedChanges(true);
+    setDraftNotice(`Tillbehöret med NRF-nummer ${candidate.articleNumber} har lagts till för kontroll.`);
+    onError("");
+  }
+
+  function addManualAccessory() {
+    if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
     if (accessories.length > 0 && selectedProductAccessories.length === 0 && !window.confirm(`Tillbehören för NRF ${accessoryOwnerProductNumber} ersätts med tillbehör för NRF ${productNumber.trim()}. Vill du fortsätta?`)) return;
     const nextIndex = selectedProductAccessories.length;
     setAccessories([...selectedProductAccessories, newProductAccessoryDraft()]);
     setAccessoryOwnerProductNumber(productNumber);
     setAccessoriesExpanded(true);
+    setAccessoryLookupOpen(false);
     setHasUnapprovedChanges(true);
     onError("");
     window.requestAnimationFrame(() => {
@@ -1708,15 +1741,20 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <section id={`manual-product-card-${requirement.id}`} aria-labelledby={`manual-product-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border-2 border-flow-300 bg-white shadow-sm">
               <div className="flex items-start justify-between gap-4 border-b border-flow-200 bg-flow-50 px-4 py-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Manuellt produktval</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktval från Ahlsell</p>
                   <h5 id={`manual-product-title-${requirement.id}`} className="mt-0.5 text-base font-bold text-ink-950">Lägg till produkt</h5>
-                  <p className="mt-1 text-xs leading-5 text-ink-600">Fyll i produktens identitet, pris och leveranstid. Uppgifterna sparas när produkten godkänns.</p>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">Sök på Ahlsells webbplats eller klistra in produktens länk. Produkten sparas när du godkänner valet.</p>
                 </div>
                 <button type="button" aria-label="Stäng Lägg till produkt" title="Stäng" onClick={closeManualProductCard} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-ink-600 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
-              <form className="space-y-4 p-4" onSubmit={(event) => { event.preventDefault(); applyManualProduct(); }}>
+              <div className="p-4">
+                <AhlsellProductLookup projectId={projectId} requirementId={requirement.id} id={`ahlsell-product-lookup-${requirement.id}`} disabled={saving} onSelect={(candidate) => applyAhlsellCandidate(candidate, candidate.subtitle)} />
+              </div>
+              <details className="border-t border-ink-200">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-flow-800">Registrera produkt manuellt</summary>
+                <form className="space-y-4 p-4" onSubmit={(event) => { event.preventDefault(); applyManualProduct(); }}>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ProductFormInput id={`manual-product-nrf-${requirement.id}`} label="NRF-nummer" value={manualProductDraft.productNumber} onChange={(value) => updateManualProductDraft("productNumber", value)} required />
                   <ProductFormInput id={`manual-product-article-${requirement.id}`} label="Artikelnummer" value={manualProductDraft.manufacturerArticleNumber} onChange={(value) => updateManualProductDraft("manufacturerArticleNumber", value)} required />
@@ -1730,6 +1768,21 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                   <Button type="submit" className="justify-center"><Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt</Button>
                 </div>
               </form>
+              </details>
+            </section>
+          )}
+
+          {accessoryLookupOpen && productNumber.trim() && (
+            <section id={`accessory-lookup-card-${requirement.id}`} aria-label="Lägg till tillbehör från Ahlsell" className="scroll-mt-24 rounded-md border-2 border-flow-300 bg-white p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <h5 className="text-base font-bold text-ink-950">Lägg till tillbehör</h5>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">Välj tillbehör från Ahlsell till NRF {productNumber.trim()}. Kontrollera att tillbehöret passar huvudprodukten.</p>
+                </div>
+                <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => setAccessoryLookupOpen(false)}>Stäng tillbehörssökning</Button>
+              </div>
+              <AhlsellProductLookup key={productNumber} projectId={projectId} requirementId={requirement.id} id={`ahlsell-accessory-lookup-${requirement.id}`} accessory disabled={saving || selectedProductAccessories.length >= 20} onSelect={applyAhlsellAccessory} />
+              <Button type="button" variant="secondary" className="mt-4 min-h-9 px-3 py-1.5 text-xs" onClick={addManualAccessory} disabled={saving || selectedProductAccessories.length >= 20}>Registrera tillbehör manuellt</Button>
             </section>
           )}
 

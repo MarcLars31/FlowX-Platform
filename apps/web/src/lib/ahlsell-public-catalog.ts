@@ -198,6 +198,7 @@ async function fetchAhlsellPageUncached(fetchImpl: typeof fetch, origin: string,
         "User-Agent": "Scipx-Ahlsell-Public-Catalog/1.0 (+https://www.scipx.ai)"
       },
       cache: "no-store",
+      redirect: "error",
       signal: controller.signal
     });
     if (!response.ok) {
@@ -347,26 +348,55 @@ async function fetchBestVariant(
   candidate: AhlsellPublicCandidate,
   query: string
 ) {
-  if (!candidate.familyCode) return null;
+  const variants = await fetchCandidateVariantsDetailed({ candidate, market: origin.endsWith(".se") ? "se" : "no", fetchImpl });
+  if (variants.length === 0) return null;
+  const exactArticle = query.replace(/\s+/g, "");
+  const exact = variants.find((variant) => variant.articleNumber === exactArticle);
+  if (exact) return exact.candidate;
+  // Technical searches retain the existing ranking of variant attributes.
+  return variants.sort((left, right) =>
+    variantMatchScore(right.variant, query) - variantMatchScore(left.variant, query)
+  )[0].candidate;
+}
+
+/** Resolve all variants for explicit article lookup, including families whose
+ * search card under-reports numberOfVariants. Never substitute a different NRF. */
+export async function fetchAhlsellCandidateVariants({ candidate, market, fetchImpl = fetch }: {
+  candidate: AhlsellPublicCandidate;
+  market: AhlsellMarket;
+  fetchImpl?: typeof fetch;
+}) {
+  return (await fetchCandidateVariantsDetailed({ candidate, market, fetchImpl })).map((item) => item.candidate);
+}
+
+async function fetchCandidateVariantsDetailed({ candidate, market, fetchImpl }: {
+  candidate: AhlsellPublicCandidate;
+  market: AhlsellMarket;
+  fetchImpl: typeof fetch;
+}) {
+  const origin = MARKET_ORIGINS[market];
+  if (!candidate.familyCode) return [];
   const url = new URL("/api/search/variants", origin);
   url.searchParams.set("productCode", candidate.familyCode);
   url.searchParams.set("activeVariantNumber", candidate.articleNumber);
   const payload = await fetchVariantPayload(fetchImpl, origin, url);
-  if (!payload || !isRecord(payload.settings) || !Array.isArray(payload.items)) return null;
+  if (!payload || !isRecord(payload.settings) || !Array.isArray(payload.items)) return [];
   const headers = isRecord(payload.settings.headers) ? payload.settings.headers : {};
   const variants = payload.items
     .map((item) => parseVariant(item, headers, origin))
     .filter((item): item is ParsedVariant => item !== null);
-  if (variants.length === 0) return null;
-  const best = variants.sort((left, right) => variantMatchScore(right, query) - variantMatchScore(left, query))[0];
-  return {
-    ...candidate,
+  return variants.map((best) => ({
     articleNumber: best.articleNumber,
-    productName: best.productName || candidate.productName,
-    productUrl: best.productUrl,
-    imageUrl: best.imageUrl ?? candidate.imageUrl,
-    specifications: [...new Set([...candidate.specifications, ...best.specifications])]
-  } satisfies AhlsellPublicCandidate;
+    candidate: {
+      ...candidate,
+      articleNumber: best.articleNumber,
+      productName: best.productName || candidate.productName,
+      productUrl: best.productUrl,
+      imageUrl: best.imageUrl ?? candidate.imageUrl,
+      specifications: [...new Set([...candidate.specifications, ...best.specifications])]
+    } satisfies AhlsellPublicCandidate,
+    variant: best
+  }));
 }
 
 async function fetchVariantPayload(fetchImpl: typeof fetch, origin: string, url: URL) {
@@ -393,6 +423,7 @@ async function fetchVariantPayloadUncached(fetchImpl: typeof fetch, origin: stri
         "User-Agent": "Scipx-Ahlsell-Public-Catalog/1.1 (+https://www.scipx.ai)"
       },
       cache: "no-store",
+      redirect: "error",
       signal: controller.signal
     });
     if (!response.ok || !(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) return null;

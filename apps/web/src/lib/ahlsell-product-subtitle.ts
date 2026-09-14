@@ -185,6 +185,21 @@ async function fetchAhlsellProductSubtitleUncached(
   fetchImpl: typeof fetch,
   externalSignal?: AbortSignal
 ) {
+  const page = await fetchAhlsellProductPage({ productUrl, articleNumber, fetchImpl, signal: externalSignal });
+  return page ? parseAhlsellProductSubtitle(page.html) : null;
+}
+
+/** Public product pages only; every redirect uses the same host/path checks. */
+export async function fetchAhlsellProductPage({
+  productUrl, articleNumber, fetchImpl = fetch, signal: externalSignal
+}: {
+  productUrl: string;
+  articleNumber?: string;
+  fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+}): Promise<{ html: string; url: string } | null> {
+  const safeUrl = safeAhlsellProductUrl(productUrl, articleNumber);
+  if (!safeUrl) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const abortFromExternalSignal = () => controller.abort(externalSignal?.reason);
@@ -194,7 +209,7 @@ async function fetchAhlsellProductSubtitleUncached(
   let releaseOutboundSlot: (() => void) | undefined;
   try {
     releaseOutboundSlot = await acquireOutboundFetchSlot(controller.signal);
-    let currentUrl = productUrl;
+    let currentUrl = safeUrl;
     let redirects = 0;
 
     while (true) {
@@ -212,6 +227,7 @@ async function fetchAhlsellProductSubtitleUncached(
       });
 
       if (isRedirectStatus(response.status)) {
+        await response.body?.cancel();
         if (redirects >= MAX_REDIRECTS) return null;
         const location = response.headers.get("location");
         if (!location) return null;
@@ -232,7 +248,7 @@ async function fetchAhlsellProductSubtitleUncached(
       const contentType = response.headers.get("content-type")?.toLocaleLowerCase("en-US") ?? "";
       if (contentType && !contentType.includes("text/html")) return null;
       const html = await readResponseTextWithinLimit(response, MAX_RESPONSE_BYTES);
-      return html === null ? null : parseAhlsellProductSubtitle(html);
+      return html === null ? null : { html, url: currentUrl };
     }
   } finally {
     releaseOutboundSlot?.();
@@ -241,7 +257,7 @@ async function fetchAhlsellProductSubtitleUncached(
   }
 }
 
-function safeAhlsellProductUrl(value: unknown, articleNumber: string) {
+export function safeAhlsellProductUrl(value: unknown, articleNumber?: string) {
   const rawUrl = text(value, 2_000);
   if (!rawUrl) return null;
   try {
@@ -253,7 +269,9 @@ function safeAhlsellProductUrl(value: unknown, articleNumber: string) {
       || url.port
       || !ALLOWED_AHLSELL_HOSTS.has(url.hostname.toLocaleLowerCase("en-US"))
       || !url.pathname.toLocaleLowerCase("en-US").startsWith("/products/")
-      || !urlPathContainsArticleNumber(url.pathname, articleNumber)
+      || /%2f|%5c/i.test(url.pathname)
+      || rawUrl.includes("\\")
+      || (articleNumber !== undefined && !urlPathContainsArticleNumber(url.pathname, articleNumber))
     ) {
       return null;
     }
