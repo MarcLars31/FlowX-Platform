@@ -3,33 +3,33 @@ import test from "node:test";
 import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
 import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 
-test("keeps accessory review on Swedish direct candidates", () => {
+test("keeps accessory review on MLDL direct candidates", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head", value_text: "SPRINKLER",
     value_json: { attributes: {
-      orientation: "Pendent", response: "Quick", temperature: "68 C",
+      sprinkleranlegg: "Våtanlegg", orientation: "Pendent", response: "Quick", temperature: "68 C",
       "k factor": "80", dimension: "15", finish: "White", guard: "Required"
     } }
   });
-  assert.equal(guide.directCandidates.length, 1);
+  assert.ok(guide.directCandidates.length > 0);
   assert.equal(guide.directCandidates[0].exactMatch, false);
-  assert.match(guide.directCandidates[0].matchWarnings?.join(" ") ?? "", /Tillbehör/);
+  assert.match(guide.directCandidates[0].matchWarnings?.join(" ") ?? "", /tillbehör/i);
 });
 
 test("keeps hydraulic review on otherwise exact direct candidates", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head", value_text: "SPRINKLER",
     value_json: { attributes: {
-      orientation: "Pendent", response: "Quick", temperature: "68 C",
+      sprinkleranlegg: "Våtanlegg", orientation: "Pendent", response: "Quick", temperature: "68 C",
       "k factor": "80", dimension: "15", finish: "White"
     }, sourceText: "Minimum pressure 0.5 bar; hydraulic calculation required" }
   });
-  assert.equal(guide.directCandidates.length, 1);
+  assert.ok(guide.directCandidates.length > 0);
   assert.equal(guide.directCandidates[0].exactMatch, false);
   assert.match(guide.directCandidates[0].matchWarnings?.join(" ") ?? "", /Hydrauliska villkor/);
 });
 
-test("builds a verified but unapproved Ahlsell candidate from an exact PDF requirement", () => {
+test("excludes legacy public articles outside MLDL while retaining manual search terms", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head",
     value_text: "SPRINKLER",
@@ -45,9 +45,7 @@ test("builds a verified but unapproved Ahlsell candidate from an exact PDF requi
     }
   });
 
-  assert.equal(guide.directCandidates.length, 1);
-  assert.equal(guide.directCandidates[0].articleNumber, "19045188");
-  assert.equal(guide.directCandidates[0].source, "public_verified");
+  assert.deepEqual(guide.directCandidates, []);
   assert.match(guide.searchQuery, /K80/);
   assert.ok(guide.searchQueries.some((query) => /QR/.test(query)));
   assert.ok(guide.searchQueries.some((query) => /Ned/.test(query)));
@@ -65,13 +63,10 @@ test("uses an article number printed on the PDF row as the exact Ahlsell search"
   });
 
   assert.equal(guide.searchQuery, "9253497");
-  assert.equal(guide.directCandidates.length, 1);
-  assert.equal(guide.directCandidates[0].articleNumber, "9253497");
-  assert.equal(guide.directCandidates[0].manufacturer, "Victaulic");
-  assert.equal(guide.directCandidates[0].source, "pdf_reference");
+  // A printed NRF is a search hint, never standalone product evidence.
+  assert.deepEqual(guide.directCandidates, []);
   assert.equal(guide.criteria.includes("4°C"), false);
-  assert.match(guide.directCandidates[0].productUrl, /^https:\/\/www\.ahlsell\.no\/search/);
-  assert.match(decodeURIComponent(guide.directCandidates[0].productUrl), /SearchPhrase=9253497/);
+  assert.match(decodeURIComponent(guide.searchUrl), /SearchPhrase=9253497/);
 });
 
 test("treats infellt visible ceiling mounting as recessed pendent, not concealed", () => {
@@ -498,7 +493,7 @@ test("uses Ahlsell orientation and response abbreviations for Norwegian sprinkle
   assert.equal(guide.searchQuery, "Sprinklerhode K80");
   assert.ok(guide.searchQueries.includes("Sprinkler K80 SR Opp"));
   assert.ok(guide.searchQueries.includes("Sprinklerhode K80 SR 68"));
-  assert.ok(guide.recognitionNotes.some((note) => note.includes("variantvärden")));
+  assert.ok(guide.recognitionNotes.some((note) => note.includes("MLDL-artikelns")));
 });
 
 test("translates Norwegian wall-mounted wording to an HSW catalog search", () => {

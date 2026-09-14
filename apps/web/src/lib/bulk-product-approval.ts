@@ -1,6 +1,7 @@
 import { isExactAhlsellCandidate } from "@/lib/ahlsell-candidate-ranking";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
+import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
 
 export type BulkProductApprovalSelection = {
   requirementId: string;
@@ -73,6 +74,7 @@ export function bulkProductApprovalSelection({
       && text(memory.requirement_fingerprint) === requirementFingerprint
       && memoryProductName
       && memoryProductNumber
+      && ahlsellMldlProduct(memoryProductNumber)
     ) {
       exactMemoryProducts.set(normalizeProductNumber(memoryProductNumber), memory);
     }

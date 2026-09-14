@@ -329,7 +329,7 @@ test("bulk product approvals run concurrently with a safe upper limit", async ()
   assert.equal(maximumActiveWorkers, 3);
 });
 
-test("bulk approval uses brass for one unambiguous direct match without an explicit finish", () => {
+test("bulk approval excludes legacy public candidates outside MLDL", () => {
   const exactRequirement = {
     id: "22222222-2222-4222-8222-222222222222",
     category: "sprinkler_head",
@@ -364,7 +364,7 @@ test("bulk approval uses brass for one unambiguous direct match without an expli
     value_json: { attributes: { "k-faktor": "560" } }
   };
 
-  assert.equal(bulkProductApprovalSelection({ requirement: exactRequirement, handled: false })?.productNumber, "19045188");
-  assert.equal(bulkProductApprovalSelection({ requirement: ambiguousRequirement, handled: false })?.productNumber, "19045185");
+  assert.equal(bulkProductApprovalSelection({ requirement: exactRequirement, handled: false }), null);
+  assert.equal(bulkProductApprovalSelection({ requirement: ambiguousRequirement, handled: false }), null);
   assert.equal(bulkProductApprovalSelection({ requirement: warningRequirement, handled: false }), null);
 });

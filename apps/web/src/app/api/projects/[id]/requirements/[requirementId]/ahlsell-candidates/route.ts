@@ -1,33 +1,10 @@
 import { NextResponse } from "next/server";
-import {
-  AhlsellCatalogError,
-  ahlsellMarketFromSearchUrl,
-  searchAhlsellPublicCatalogQueries,
-  type AhlsellCatalogResult
-} from "@/lib/ahlsell-public-catalog";
-import { mergeAhlsellCandidates } from "@/lib/ahlsell-candidate-merge";
-import { rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
-import { attachAhlsellAccessorySuggestions } from "@/lib/ahlsell-accessory-suggestions";
-import {
-  AHLSELL_MLDL_CATALOG_VERSION,
-  AHLSELL_MLDL_PRODUCT_COUNT,
-  findAhlsellMldlCandidates
-} from "@/lib/ahlsell-mldl-catalog";
+import { AHLSELL_MLDL_CATALOG_VERSION, AHLSELL_MLDL_PRODUCT_COUNT } from "@/lib/ahlsell-mldl-catalog";
+import { findMldlOnlyCandidates } from "@/lib/ahlsell-mldl-matching";
 import { classifyAhlsellCatalogCandidates } from "@/lib/ahlsell-match-groups";
-import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isUuid } from "@/lib/distributor-product-mapping";
-import { loadDistributorProductMemoryCandidates } from "@/lib/distributor-product-memory";
-import {
-  applyLearnedProductEvidence,
-  learnedProductSearchQueries,
-  rankDistributorProductMemoryHints
-} from "@/lib/distributor-product-memory-match";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
-import {
-  PRODUCT_MATCHING_ENGINE_VERSION,
-  productLearningCandidateSnapshots
-} from "@/lib/product-learning-feedback";
-import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
+import { PRODUCT_MATCHING_ENGINE_VERSION, productLearningCandidateSnapshots } from "@/lib/product-learning-feedback";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
 import { callUserRpc, selectUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
 import { VICTAULIC_SPRINKLER_CATALOG_VERSION } from "@/lib/victaulic-sprinkler-catalog";
@@ -75,122 +52,28 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404 });
     }
 
-    const guide = buildAhlsellRequirementGuide(requirement);
-    const databaseCandidates = findAhlsellMldlCandidates(
-      requirement,
-      classificationMode ? 30 : 50
-    );
-    const learnedHints = classificationMode
-      || hasProjectRequirementDataWarning(requirement)
-      ? []
-      : await learnedMemoryHintsOrEmpty(
-          authorization.context.organization.id,
-          requirement
-        );
-    const learnedQueries = learnedProductSearchQueries(learnedHints);
-    const searchQueries = uniqueQueries(guide.directCandidates.length > 0
-      ? [...guide.searchQueries, ...learnedQueries]
-      : [...learnedQueries, ...guide.searchQueries]);
-    const queries = classificationMode
-      ? searchQueries.slice(0, 2)
-      : searchQueries;
-    let publicSearchAvailable = true;
-    let result: AhlsellCatalogResult;
-    try {
-      result = await searchAhlsellPublicCatalogQueries({
-        market: ahlsellMarketFromSearchUrl(guide.searchUrl),
-        // The compact group check still needs the second synonym search and a
-        // handful of exact variant families. Otherwise many dimensioned Ahlsell
-        // products remain yellow simply because the correct family was not one
-        // of the first two broad-search cards.
-        queries,
-        maxCandidates: classificationMode ? 50 : 80,
-        maxVariantFamilies: classificationMode ? 5 : 8
-      });
-    } catch (error) {
-      if (!(error instanceof AhlsellCatalogError) || (guide.directCandidates.length === 0 && databaseCandidates.length === 0)) throw error;
-      publicSearchAvailable = false;
-      result = {
-        query: queries[0] ?? guide.searchQuery,
-        queries,
-        searchUrl: guide.searchUrl,
-        searchUrls: [guide.searchUrl],
-        total: 0,
-        candidates: [],
-        truncated: false
-      };
-    }
-    const rankedPublicCandidates = applyLearnedProductEvidence(
-      rankAhlsellCandidates(requirement, result.candidates),
-      learnedHints
-    );
-    const databaseAndPublicCandidates = mergeAhlsellCandidates(
-      databaseCandidates,
-      rankedPublicCandidates
-    );
-    const mergedCandidates = mergeAhlsellCandidates(
-      guide.directCandidates,
-      databaseAndPublicCandidates
-    );
-    const rankedResult = {
-      ...result,
-      candidates: attachAhlsellAccessorySuggestions(requirement, mergedCandidates)
-    };
-
+    const candidates = findMldlOnlyCandidates(requirement, classificationMode ? 30 : 50);
     if (classificationMode) {
-      const classification = classifyAhlsellCatalogCandidates(rankedResult.candidates);
-      return NextResponse.json({ classification }, {
-        headers: { "Cache-Control": "private, max-age=60" }
+      return NextResponse.json({ classification: classifyAhlsellCatalogCandidates(candidates) }, {
+        headers: { "Cache-Control": "private, no-store" }
       });
     }
-
-    const telemetryCandidates = candidatesActuallyPresented(
-      learnedHints,
-      rankedResult.candidates
-    );
     await recordCandidateImpression({
-      projectId: id,
-      requirementId,
-      candidates: telemetryCandidates,
-      metadata: {
-        publicSearchAvailable,
-        queryCount: queries.length,
-        directCandidateCount: guide.directCandidates.length,
-        databaseCandidateCount: databaseCandidates.length,
-        databaseProductCount: AHLSELL_MLDL_PRODUCT_COUNT,
-        publicCandidateCount: result.candidates.length,
-        historyCandidateCount: learnedHints.length,
-        shownCandidateCount: Math.min(telemetryCandidates.length, 3),
-        resultTruncated: result.truncated
-      }
+      projectId: id, requirementId, candidates,
+      metadata: { candidateSource: "mldl", publicSearchAvailable: false,
+        databaseProductCount: AHLSELL_MLDL_PRODUCT_COUNT, shownCandidateCount: Math.min(candidates.length, 3) }
     });
-
     return NextResponse.json({
-      ...rankedResult,
-      learningAssistance: {
-        source: "confirmed_product_history",
-        used: learnedProductSearchQueries(learnedHints).some((query) =>
-          queries.some((usedQuery) => normalizeQuery(usedQuery) === normalizeQuery(query))
-        ),
-        candidateCount: learnedHints.length
-      },
+      query: "MLDL", queries: [], searchUrl: "", searchUrls: [],
+      total: candidates.length, candidates, truncated: false,
       matchingEngine: {
-        version: PRODUCT_MATCHING_ENGINE_VERSION,
+        version: PRODUCT_MATCHING_ENGINE_VERSION, source: "mldl",
         catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
         sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
-        catalogProductCount: AHLSELL_MLDL_PRODUCT_COUNT,
-        publicSearchAvailable
+        catalogProductCount: AHLSELL_MLDL_PRODUCT_COUNT, publicSearchAvailable: false
       }
-    }, {
-      headers: { "Cache-Control": "private, no-store" }
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    if (error instanceof AhlsellCatalogError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 502, headers: { "Cache-Control": "private, no-store" } }
-      );
-    }
     if (error instanceof UserSupabaseError) {
       const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
       return NextResponse.json(
@@ -199,78 +82,10 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
     return NextResponse.json(
-      { error: "Ahlsell-sökningen kunde inte genomföras." },
+      { error: "MLDL-matchningen kunde inte genomföras." },
       { status: 500 }
     );
   }
-}
-
-async function learnedMemoryHintsOrEmpty(
-  organizationId: string,
-  requirement: Record<string, unknown>
-) {
-  try {
-    return rankDistributorProductMemoryHints(
-      requirement,
-      await loadDistributorProductMemoryCandidates(organizationId, requirement)
-    );
-  } catch {
-    // Confirmed history is advisory. Ahlsell search must remain available if
-    // the organization memory cannot be read during a deployment.
-    return [];
-  }
-}
-
-function normalizeQuery(value: string) {
-  return value.toLocaleLowerCase("sv-SE").replace(/\s+/g, " ").trim();
-}
-
-function uniqueQueries(values: string[]) {
-  const seen = new Set<string>();
-  return values.filter((value) => {
-    const key = normalizeQuery(value);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function candidatesActuallyPresented(
-  learnedHints: Awaited<ReturnType<typeof learnedMemoryHintsOrEmpty>>,
-  candidates: Parameters<typeof productLearningCandidateSnapshots>[0]
-) {
-  const historyCandidates = learnedHints.map((hint) => ({
-    articleNumber: hint.productNumber,
-    productName: hint.productName,
-    manufacturer: hint.manufacturerName,
-    productUrl: "",
-    specifications: [],
-    source: "confirmed_history" as const,
-    exactMatch: false,
-    matchScore: hint.matchScore,
-    matchReasons: [
-      ...hint.matchReasons,
-      hint.exactFingerprint
-        ? "Tidigare bekräftad för samma tekniska krav."
-        : "Tidigare bekräftad för ett tekniskt liknande krav."
-    ],
-    matchWarnings: [],
-    recommendation: "recommended" as const,
-    learningEvidence: {
-      kind: "similar_confirmed" as const,
-      supportCount: hint.supportCount,
-      similarityScore: hint.matchScore
-    }
-  }));
-  const historyArticles = new Set(historyCandidates.map((candidate) => normalizeArticle(candidate.articleNumber)));
-  return [
-    ...historyCandidates,
-    ...candidates.filter((candidate) => !historyArticles.has(normalizeArticle(candidate.articleNumber)))
-  ];
-}
-
-function normalizeArticle(value: string) {
-  return value.toLocaleLowerCase("sv-SE").replace(/[^a-z0-9]/g, "");
 }
 
 async function recordCandidateImpression({
@@ -296,7 +111,7 @@ async function recordCandidateImpression({
           matchingEngineVersion: PRODUCT_MATCHING_ENGINE_VERSION,
           catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
           sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
-          rankingMode: "technical_rules_with_mldl_public_overlap_accessories_and_confirmed_history"
+          rankingMode: "technical_rules_mldl_only"
         }
       });
     } catch (error) {

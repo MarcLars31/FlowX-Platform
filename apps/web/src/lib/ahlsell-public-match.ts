@@ -17,6 +17,7 @@ import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
+import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -390,11 +391,9 @@ export function buildAhlsellRequirementGuide(
 
   const recognitionNotes = compact([
     ...(intent === "sprinkler_head" ? installation.notes : []),
-    searchQueries.length > 1
-      ? `Scipx provar ${searchQueries.length} Ahlsell-anpassade sökningar och slår ihop träffarna.`
-      : null,
+    "Automatisk matchning använder endast MLDL-databasen. Ahlsells webbplats används när du själv lägger till en produkt eller ett tillbehör.",
     intent === "sprinkler_head" && !isSprinklerAccessory
-      ? "Scipx kontrollerar den verifierade Victaulic-databasen samt Ahlsells variantvärden för K-faktor, DN, temperatur, respons, riktning, montage, systemvillkor och färg."
+      ? "Scipx kontrollerar MLDL-artikelns K-faktor, DN, temperatur, respons, riktning, montage, systemvillkor och färg med lagrade tekniska uppgifter."
       : null,
     intent === "sprinkler_head" && finish === "brass" && sprinklerFinish(finishText) === null
       ? "Ingen färg eller ytfinish anges i PDF-posten. Scipx använder därför mässing som standardval."
@@ -428,7 +427,8 @@ export function buildAhlsellRequirementGuide(
     recognitionNotes,
     interpretationNotes: intent === "sprinkler_head" ? installation.notes : [],
     interpretationWarnings: intent === "sprinkler_head" ? installation.warnings : [],
-    directCandidates: directCandidates.map(withVerifiedWorkingPressure).map((item) => {
+    directCandidates: directCandidates.filter(item => item.source !== "pdf_reference" && ahlsellMldlProduct(item.articleNumber))
+      .map(withVerifiedWorkingPressure).map((item) => {
       const checks = engineeringRequirementWarnings(requirement, item);
       if (intent === "sprinkler_head") checks.push(...installation.warnings);
       if (requiresAccessoryReview && !(item.matchWarnings ?? []).some((warning) => /tillbehör|skydd/i.test(warning))) {

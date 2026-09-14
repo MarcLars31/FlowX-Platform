@@ -1,6 +1,6 @@
+import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { NextResponse } from "next/server";
 import {
-  fetchAhlsellProductSubtitles,
   validateAhlsellProductSubtitleItems
 } from "@/lib/ahlsell-product-subtitle";
 import { isUuid } from "@/lib/distributor-product-mapping";
@@ -57,10 +57,10 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
     }
 
-    const subtitles = await fetchAhlsellProductSubtitles({
-      items: validated.data,
-      signal: request.signal
-    });
+    // Compatibility for already-open clients: this endpoint also stays local.
+    const subtitles = Object.fromEntries(validated.data.map(item => [
+      item.articleNumber, ahlsellMldlProduct(item.articleNumber)?.productName ?? null
+    ]));
     return NextResponse.json({ subtitles }, {
       headers: { "Cache-Control": "private, no-store" }
     });

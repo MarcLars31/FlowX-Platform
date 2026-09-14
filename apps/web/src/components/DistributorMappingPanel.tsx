@@ -26,6 +26,7 @@ import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-
 import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProductApprovals, type BulkProductApprovalSelection, type PreviousBulkProductApproval } from "@/lib/bulk-product-approval";
 import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { mergeAhlsellCandidates } from "@/lib/ahlsell-candidate-merge";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "@/lib/product-card-candidates";
@@ -115,7 +116,7 @@ const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefi
 
 const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
-export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories, sourcePdfLookup, onReload, onGoToDocuments, onFinish, finishing = false }: {
+export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onFinish, finishing = false }: {
   projectId: string;
   currency?: string;
   requirements: Row[];
@@ -127,6 +128,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   onFinish: () => Promise<void>;
   finishing?: boolean;
 }) {
+  const memories = useMemo(() => allMemories.filter(memory =>
+    ahlsellMldlProduct(String(memory.product_number ?? ""))), [allMemories]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { productRequirements, removalRequirements, workRequirements } = useMemo(
@@ -752,8 +755,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               <h3 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h3>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">
                 {catalogChecksRemaining > 0
-                  ? `Scipx kontrollerar Ahlsell för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
-                  : `Ahlsellträff för ${matchedRequirementCount} av ${productRequirements.length} poster (${ahlsellCoveragePercent} %).`}
+                  ? `Scipx kontrollerar MLDL för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
+                  : `MLDL-träff för ${matchedRequirementCount} av ${productRequirements.length} poster (${ahlsellCoveragePercent} %).`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1695,7 +1698,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Välj produkt</p>
-              <h4 className="mt-0.5 text-base font-bold text-ink-950">Ahlsellprodukter för PDF-post {details.postNumber ?? position}</h4>
+              <h4 className="mt-0.5 text-base font-bold text-ink-950">MLDL-produkter för PDF-post {details.postNumber ?? position}</h4>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
             </div>
             <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
@@ -1977,8 +1980,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   );
 }
 
-const MAX_SUBTITLE_ITEMS_PER_REQUEST = 6;
-
 function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, onClearSelection, onUseCandidate, onUseMemory }: {
   projectId: string;
   requirementId: string;
@@ -1994,8 +1995,6 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
-  const [candidateSubtitles, setCandidateSubtitles] = useState<Record<string, string | null>>({});
-  const [subtitleRetry, setSubtitleRetry] = useState({ requestKey: "", count: 0 });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -2035,7 +2034,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   ));
   const mergedCandidates = mergeAhlsellCandidates(
     guide.directCandidates,
-    catalogResult?.candidates ?? []
+    (catalogResult?.candidates ?? []).filter(candidate =>
+      ["structured_database", "verified_database"].includes(candidate.source) && ahlsellMldlProduct(candidate.articleNumber))
   );
   const candidatesByArticle = new Map(mergedCandidates.map((candidate) => [
     normalizeNrfNumber(candidate.articleNumber),
@@ -2052,78 +2052,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const filteredResultCount = filteredMemories.length + filteredCandidates.length;
   const hasNrfFilter = Boolean(normalizeNrfNumber(selectedArticleNumber));
   const visibleCandidates = topAhlsellCandidates(filteredCandidates);
-  const visibleSubtitleCandidates = [
-    ...filteredMemories.flatMap((memory) => {
-      const candidate = candidatesByArticle.get(normalizeNrfNumber(String(memory.product_number)));
-      return candidate ? [candidate] : [];
-    }),
-    ...visibleCandidates
-  ];
-  const visibleSubtitleRequest = JSON.stringify(
-    [...new Map(visibleSubtitleCandidates.flatMap((candidate) => {
-      const item = ahlsellSubtitleItem(candidate);
-      return item ? [[item.articleNumber, item] as const] : [];
-    })).values()]
-  );
-  const subtitleRetryCount = subtitleRetry.requestKey === visibleSubtitleRequest
-    ? subtitleRetry.count
-    : 0;
-
-  useEffect(() => {
-    const visibleItems = JSON.parse(visibleSubtitleRequest) as Array<{
-      articleNumber: string;
-      productUrl: string;
-    }>;
-    const pendingItems = visibleItems.filter((item) =>
-      !Object.prototype.hasOwnProperty.call(candidateSubtitles, item.articleNumber)
-    ).slice(0, MAX_SUBTITLE_ITEMS_PER_REQUEST);
-    if (pendingItems.length === 0) return;
-
-    const controller = new AbortController();
-    let retryTimeout: ReturnType<typeof setTimeout> | undefined;
-    void fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-subtitles`, {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ items: pendingItems }),
-      signal: controller.signal
-    })
-      .then(async (response) => {
-        const payload = (await response.json().catch(() => null)) as {
-          subtitles?: Record<string, string | null>;
-        } | null;
-        if (!response.ok) throw new Error("Ahlsells produkttext kunde inte hämtas.");
-        const resolved = payload?.subtitles ?? {};
-        setCandidateSubtitles((current) => ({
-          ...current,
-          ...Object.fromEntries(pendingItems.map((item) => [item.articleNumber, null])),
-          ...resolved
-        }));
-        setSubtitleRetry({ requestKey: visibleSubtitleRequest, count: 0 });
-      })
-      .catch((error) => {
-        if (error instanceof Error && error.name === "AbortError") return;
-        if (subtitleRetryCount < 2) {
-          retryTimeout = setTimeout(() => {
-            if (!controller.signal.aborted) {
-              setSubtitleRetry({
-                requestKey: visibleSubtitleRequest,
-                count: subtitleRetryCount + 1
-              });
-            }
-          }, 2_000 * (subtitleRetryCount + 1));
-        }
-      });
-
-    return () => {
-      controller.abort();
-      if (retryTimeout) clearTimeout(retryTimeout);
-    };
-  }, [candidateSubtitles, projectId, requirementId, subtitleRetryCount, visibleSubtitleRequest]);
-
   function selectCandidate(candidate: AhlsellPublicCandidate) {
     onUseCandidate(
       candidate,
-      candidateSubtitles[normalizeNrfNumber(candidate.articleNumber)] ?? ""
+      candidate.description ?? ""
     );
   }
 
@@ -2137,13 +2069,13 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktval</p>
-            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Välj en produkt från Ahlsell</h4>
+            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Välj en produkt från MLDL</h4>
           </div>
           <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
             {!loadingCatalog && (
               <span className="text-ink-600">
                 {filteredCandidates.length > visibleCandidates.length
-                  ? `Visar ${visibleCandidates.length} bästa av ${filteredCandidates.length} Ahlsell-träffar`
+                  ? `Visar ${visibleCandidates.length} bästa av ${filteredCandidates.length} MLDL-träffar`
                   : `${filteredResultCount} ${filteredResultCount === 1 ? "träff" : "träffar"}`}
               </span>
             )}
@@ -2159,14 +2091,14 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 
       {loadingCatalog && (
         <div className="flex min-h-16 items-center justify-center gap-2 border-t border-ink-200 bg-ink-50 px-3 py-3 text-sm font-bold text-ink-800" role="status">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar alla Ahlsell-träffar…
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Kontrollerar MLDL-databasen…
         </div>
       )}
 
       {catalogError && (
         <div className="border-t border-amber-300 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950 sm:px-4" role="alert">
-          <p className="font-bold">Produktlistan kunde inte hämtas automatiskt.</p>
-          <p>{catalogError} Använd knappen ”Sök på Ahlsell” som reserv.</p>
+          <p className="font-bold">MLDL-listan kunde inte hämtas.</p>
+          <p>{catalogError} Du kan söka manuellt via ”Lägg till produkt”.</p>
         </div>
       )}
 
@@ -2187,10 +2119,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 
       {!loadingCatalog && !catalogError && !hasNrfFilter && totalResultCount === 0 && (
         <div className="border-t border-ink-200 bg-ink-50 px-3 py-4 text-sm text-ink-700 sm:px-4">
-          <p className="font-semibold">Ingen produkt hittades med denna sökning.</p>
-          <a href={guide.searchUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-flow-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-            Sök på Ahlsell<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-          </a>
+          <p className="font-semibold">Ingen lämplig produkt hittades i MLDL-databasen.</p>
+          <p className="mt-2 text-xs">Sök på Ahlsells webbplats via ”Lägg till produkt” om du vill lägga till en annan artikel.</p>
         </div>
       )}
 
@@ -2208,8 +2138,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
               const articleNumber = String(memory.product_number);
               const productName = String(memory.product_name);
               const candidate = candidatesByArticle.get(normalizeNrfNumber(articleNumber));
-              const resolvedSubtitle = candidateSubtitles[normalizeNrfNumber(articleNumber)] ?? "";
-              const productSubtitle = resolvedSubtitle || candidate?.description;
+              const resolvedSubtitle = candidate?.description ?? "";
+              const productSubtitle = resolvedSubtitle;
               const isSelected = normalizeNrfNumber(articleNumber) === normalizeNrfNumber(selectedArticleNumber);
               return (
                 <article key={String(memory.id)} className={memoriesAreExact ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-amber-50/50 px-3 py-3 sm:px-4"}>
@@ -2254,7 +2184,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
           {visibleCandidates.map((candidate) => {
             const isSelected = normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber);
             const matchState = memoriesAreExact ? ahlsellCandidateMatchState(candidate) : "review";
-            const candidateSubtitle = candidateSubtitles[normalizeNrfNumber(candidate.articleNumber)] ?? candidate.description;
+            const candidateSubtitle = candidate.description;
             const candidateClass = matchState === "exact"
               ? "bg-emerald-50 px-3 py-3 sm:px-4"
               : matchState === "mismatch"
@@ -2265,7 +2195,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold leading-5 text-ink-950">{candidate.productName}</p>
-                  {candidateSubtitle && (
+                  {candidateSubtitle && candidateSubtitle !== candidate.productName && (
                     <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-ink-700" title={candidateSubtitle}>{candidateSubtitle}</p>
                   )}
                   <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
@@ -2321,42 +2251,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   );
 }
 
-function ahlsellSubtitleItem(candidate: AhlsellPublicCandidate) {
-  try {
-    const url = new URL(candidate.productUrl);
-    const hostname = url.hostname.toLocaleLowerCase("en-US");
-    const articleNumber = normalizeNrfNumber(candidate.articleNumber);
-    const pathTokens = decodeURIComponent(url.pathname)
-      .toLocaleLowerCase("en-US")
-      .split(/[^a-z0-9]+/)
-      .filter(Boolean);
-    if (
-      url.protocol !== "https:"
-      || Boolean(url.port)
-      || !["ahlsell.no", "www.ahlsell.no", "ahlsell.se", "www.ahlsell.se"].includes(hostname)
-      || !url.pathname.toLocaleLowerCase("en-US").startsWith("/products/")
-      || !articleNumber
-      || !pathTokens.includes(articleNumber)
-    ) {
-      return null;
-    }
-    return { articleNumber, productUrl: url.toString() };
-  } catch {
-    return null;
-  }
-}
-
 function candidateSourceLabel(candidate: AhlsellPublicCandidate) {
-  const source = candidate.source;
-  if (candidate.evidenceSources?.includes("mldl_database") && candidate.evidenceSources.includes("ahlsell_public")) {
-    return "Stark kandidat: samma NRF finns i både Ahlsells MLDL-databas och den offentliga katalogen";
-  }
-  if (source === "pdf_reference") return "NRF-numret står i den uppladdade PDF-filen";
-  if (source === "verified_database") return "Träff i Scipx verifierade Victaulic-databas";
-  if (source === "structured_database") return "Träff i hela den strukturerade Ahlsell MLDL-databasen";
-  if (source === "confirmed_history") return "Tidigare bekräftad produkt i organisationen";
-  if (source === "catalog_search") return "Träff i Ahlsells offentliga katalog";
-  return "Verifierad i Ahlsells offentliga katalog";
+  return candidate.source === "verified_database"
+    ? "Träff i MLDL · verifierade Victaulic-uppgifter"
+    : "Träff i MLDL-databasen";
 }
 
 function buildProductPostMailHref({ postNumber, productRequirement, quantity, nsCode, system, attributes, sourceExcerpt }: {
