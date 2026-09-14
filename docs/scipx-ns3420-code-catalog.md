@@ -7,6 +7,11 @@ befintliga produktregister. Första versionen innehåller 73 hela NS-koder och
 norska rubriken och registrets avgränsning finns under ”Om kodförklaringen” i
 produktkortet. Klick på koden i tabellen öppnar produktkortet.
 
+Kolumnen ”Produktkrav” visar samma svenska betydelse som NS-koden när en
+referensträff finns. Sorteringen använder den text som visas. För okända,
+saknade och projektspecifika koder används den ursprungliga PDF-beskrivningen.
+Originaltexten och matchmotorns underlag ändras inte.
+
 Registret är en uppslagstabell över **rubriker i granskade referensunderlag**.
 Det är inte Standard Norges kompletta NS 3420-databas och inte en avkodare
 för siffrornas matriseval. Ingen standardutgåva har fastställts för hela

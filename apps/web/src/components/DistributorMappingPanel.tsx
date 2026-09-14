@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent 
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { NsCodeSpecification, NsCodeTableValue } from "@/components/NsCodeExplanation";
+import { ns3420CodeInfo } from "@/lib/ns3420-code-catalog";
 import { buildAhlsellRequirementGuide, type AhlsellAccessorySuggestion, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
@@ -2459,7 +2460,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     if (columnId === "requirement") {
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle">
-          <button type="button" aria-haspopup="dialog" onClick={onOpen} className="text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
+          <button type="button" aria-haspopup="dialog" onClick={onOpen} className="text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{productTableRequirementLabel(requirement)}</button>
           {dataWarnings.map((warning) => (
             <span key={warning.code} title={warning.message} className="mt-0.5 flex items-center gap-1 text-[10px] font-bold leading-4 text-amber-800">
               <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -2501,6 +2502,13 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
   );
 }
 
+function productTableRequirementLabel(requirement: Row) {
+  const codeInfo = ns3420CodeInfo(projectRequirementDetails(requirement).nsCode);
+  return codeInfo?.kind === "reference"
+    ? codeInfo.label
+    : String(requirement.value_text ?? "Tekniskt produktkrav");
+}
+
 function productTableSortValue(
   requirement: Row,
   key: ProductTableSortKey,
@@ -2519,7 +2527,7 @@ function productTableSortValue(
   }
   if (key === "post") return projectRequirementDetails(requirement).postNumber;
   if (key === "nsCode") return projectRequirementDetails(requirement).nsCode;
-  if (key === "requirement") return String(requirement.value_text ?? "Tekniskt produktkrav");
+  if (key === "requirement") return productTableRequirementLabel(requirement);
   if (key === "category") return productRequirementCategoryLabel(productRequirementCategory(requirement));
   if (key === "quantity") return projectRequirementQuantity(requirement.value_json).quantity;
 
