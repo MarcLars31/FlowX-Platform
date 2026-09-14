@@ -6,6 +6,26 @@ import {
   searchAhlsellPublicCatalogQueries
 } from "./ahlsell-public-catalog";
 
+test("keeps a successful synonym search when another query fails", async () => {
+  const result = await searchAhlsellPublicCatalogQueries({ market: "no", queries: ["failed", "works"], fetchImpl: async input => {
+    const query = new URL(String(input)).searchParams.get("parameters.SearchPhrase");
+    if (query === "failed") throw new Error("offline");
+    return Response.json({ productCount: 1, productCards: [product("9257392", "Sprinklerhode", "Victaulic")] });
+  } });
+  assert.equal(result.candidates[0].articleNumber, "9257392");
+  assert.deepEqual(result.failedQueries, ["failed"]);
+});
+
+test("limits automatic search pagination even if Ahlsell repeats the same result page", async () => {
+  let calls = 0;
+  const result = await searchAhlsellPublicCatalog({ market: "no", query: "Sprinkler", maxPages: 2, fetchImpl: async () => {
+    calls++;
+    return Response.json({ productCount: 1000, productCards: [product("9257392", "Sprinklerhode", "Victaulic")] });
+  } });
+  assert.equal(calls, 2);
+  assert.equal(result.truncated, true);
+});
+
 test("normalizes every public Ahlsell result and follows result pages", async () => {
   const requestedUrls: string[] = [];
   const fetchImpl: typeof fetch = async (input) => {

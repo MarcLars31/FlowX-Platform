@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { AHLSELL_MLDL_CATALOG_VERSION, AHLSELL_MLDL_PRODUCT_COUNT } from "@/lib/ahlsell-mldl-catalog";
 import { findMldlOnlyCandidates } from "@/lib/ahlsell-mldl-matching";
+import { findAhlsellHybridCandidates } from "@/lib/ahlsell-hybrid-matching";
 import { classifyAhlsellCatalogCandidates } from "@/lib/ahlsell-match-groups";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
@@ -10,6 +11,7 @@ import { callUserRpc, selectUserRows, UserSupabaseError } from "@/lib/supabase-u
 import { VICTAULIC_SPRINKLER_CATALOG_VERSION } from "@/lib/victaulic-sprinkler-catalog";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type RouteContext = { params: Promise<{ id: string; requirementId: string }> };
 
@@ -52,25 +54,27 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404 });
     }
 
-    const candidates = findMldlOnlyCandidates(requirement, classificationMode ? 30 : 50);
     if (classificationMode) {
-      return NextResponse.json({ classification: classifyAhlsellCatalogCandidates(candidates) }, {
+      // Keep the whole-table classification local; public search runs when a
+      // product card opens instead of starting dozens of searches on page load.
+      return NextResponse.json({ classification: classifyAhlsellCatalogCandidates(findMldlOnlyCandidates(requirement, 30)) }, {
         headers: { "Cache-Control": "private, no-store" }
       });
     }
+    const result = await findAhlsellHybridCandidates(requirement);
+    const { candidates } = result;
     await recordCandidateImpression({
       projectId: id, requirementId, candidates,
-      metadata: { candidateSource: "mldl", publicSearchAvailable: false,
+      metadata: { candidateSource: "mldl_and_ahlsell", publicSearchStatus: result.publicSearchStatus,
         databaseProductCount: AHLSELL_MLDL_PRODUCT_COUNT, shownCandidateCount: Math.min(candidates.length, 3) }
     });
     return NextResponse.json({
-      query: "MLDL", queries: [], searchUrl: "", searchUrls: [],
-      total: candidates.length, candidates, truncated: false,
+      ...result,
       matchingEngine: {
-        version: PRODUCT_MATCHING_ENGINE_VERSION, source: "mldl",
+        version: PRODUCT_MATCHING_ENGINE_VERSION, source: "mldl_and_ahlsell",
         catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
         sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
-        catalogProductCount: AHLSELL_MLDL_PRODUCT_COUNT, publicSearchAvailable: false
+        catalogProductCount: AHLSELL_MLDL_PRODUCT_COUNT, publicSearchAvailable: result.publicSearchStatus !== "unavailable"
       }
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
@@ -82,7 +86,7 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
     return NextResponse.json(
-      { error: "MLDL-matchningen kunde inte genomföras." },
+      { error: "Produktmatchningen kunde inte genomföras." },
       { status: 500 }
     );
   }
@@ -111,7 +115,7 @@ async function recordCandidateImpression({
           matchingEngineVersion: PRODUCT_MATCHING_ENGINE_VERSION,
           catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
           sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
-          rankingMode: "technical_rules_mldl_only"
+          rankingMode: "technical_rules_mldl_with_ahlsell_complement"
         }
       });
     } catch (error) {

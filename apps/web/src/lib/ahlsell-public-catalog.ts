@@ -10,6 +10,8 @@ export type AhlsellCatalogResult = {
   total: number;
   candidates: AhlsellPublicCandidate[];
   truncated: boolean;
+  failedQueries?: string[];
+  publicSearchStatus?: "available" | "partial" | "unavailable";
 };
 
 type AhlsellSearchPayload = {
@@ -60,12 +62,14 @@ export async function searchAhlsellPublicCatalog({
   market,
   query,
   fetchImpl = fetch,
-  maxCandidates = DEFAULT_MAX_CANDIDATES
+  maxCandidates = DEFAULT_MAX_CANDIDATES,
+  maxPages = MAX_PAGES
 }: {
   market: AhlsellMarket;
   query: string;
   fetchImpl?: typeof fetch;
   maxCandidates?: number;
+  maxPages?: number;
 }): Promise<AhlsellCatalogResult> {
   const cleanQuery = query.replace(/\s+/g, " ").trim().slice(0, 180);
   if (!cleanQuery) throw new AhlsellCatalogError("Ahlsell-sökningen saknar sökord.");
@@ -75,7 +79,7 @@ export async function searchAhlsellPublicCatalog({
   const byArticleNumber = new Map<string, AhlsellPublicCandidate>();
   let total = 0;
 
-  for (let page = 1; page <= MAX_PAGES && byArticleNumber.size < safeMaxCandidates; page += 1) {
+  for (let page = 1; page <= Math.min(MAX_PAGES, Math.max(1, maxPages)) && byArticleNumber.size < safeMaxCandidates; page += 1) {
     const payload = await fetchAhlsellPage(fetchImpl, origin, cleanQuery, page);
     const cards = Array.isArray(payload.productCards) ? payload.productCards : [];
     const parsedTotal = finiteInteger(payload.productCount);
@@ -111,13 +115,15 @@ export async function searchAhlsellPublicCatalogQueries({
   queries,
   fetchImpl = fetch,
   maxCandidates = 80,
-  maxVariantFamilies = MAX_VARIANT_FAMILIES
+  maxVariantFamilies = MAX_VARIANT_FAMILIES,
+  maxPages = MAX_PAGES
 }: {
   market: AhlsellMarket;
   queries: string[];
   fetchImpl?: typeof fetch;
   maxCandidates?: number;
   maxVariantFamilies?: number;
+  maxPages?: number;
 }): Promise<AhlsellCatalogResult> {
   const cleanQueries = [...new Set(
     queries
@@ -128,13 +134,22 @@ export async function searchAhlsellPublicCatalogQueries({
 
   const byArticleNumber = new Map<string, AhlsellPublicCandidate>();
   const results: AhlsellCatalogResult[] = [];
-  for (const query of cleanQueries) {
-    const result = await searchAhlsellPublicCatalog({ market, query, fetchImpl, maxCandidates });
+  const failedQueries: string[] = [];
+  const searches = await Promise.allSettled(cleanQueries.map(query =>
+    searchAhlsellPublicCatalog({ market, query, fetchImpl, maxCandidates, maxPages })
+  ));
+  for (const [index, search] of searches.entries()) {
+    if (search.status === "rejected") {
+      failedQueries.push(cleanQueries[index]);
+      continue;
+    }
+    const result = search.value;
     results.push(result);
     for (const candidate of result.candidates) {
       if (!byArticleNumber.has(candidate.articleNumber)) byArticleNumber.set(candidate.articleNumber, candidate);
     }
   }
+  if (results.length === 0) throw new AhlsellCatalogError("Ahlsells produktsökning kunde inte nås.");
 
   const candidates = await enrichAhlsellVariants(
     [...byArticleNumber.values()],
@@ -151,7 +166,8 @@ export async function searchAhlsellPublicCatalogQueries({
     searchUrls,
     total: results.reduce((sum, result) => sum + result.total, 0),
     candidates,
-    truncated: results.some((result) => result.truncated)
+    truncated: results.some((result) => result.truncated),
+    failedQueries
   };
 }
 

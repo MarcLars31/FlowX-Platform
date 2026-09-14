@@ -3,8 +3,22 @@ import test from "node:test";
 import {
   fetchAhlsellProductSubtitles,
   parseAhlsellProductSubtitle,
+  parseAhlsellProductDetails,
   validateAhlsellProductSubtitleItems
 } from "./ahlsell-product-subtitle";
+
+test("reads exact product technical fields and resolves N5 only with visible page identity", () => {
+  const html = `<h1 data-test="product-name">V2726 QR</h1><div>K80 QR Messing Quick Re</div>
+    <span class="text-card-item-number"><span>9254111</span></span>
+    <div data-test="information-table">Tekniske data<ul><li><span>K-faktor: </span><span>80</span></li>
+    <li><span>Utløsningstemperatur: </span><span>68°C</span></li></ul></div>
+    <h2>Varianter</h2>Tekniske data<ul><li>K-faktor: 115</li></ul>`;
+  const result = parseAhlsellProductDetails(html, "9254111N5")!;
+  assert.equal(result.articleNumber, "9254111");
+  assert.deepEqual(result.specifications, ["K-faktor: 80", "Utløsningstemperatur: 68°C"]);
+  assert.equal(parseAhlsellProductDetails(html, "9254108N5"), null);
+  assert.equal(parseAhlsellProductDetails(html, "9254111N6"), null);
+});
 
 test("extracts Ahlsells technical subtitle directly below the product heading", () => {
   const html = productPage(
@@ -262,11 +276,13 @@ test("limits outbound Ahlsell requests to six across simultaneous batches", asyn
 });
 
 function productPage(productName: string, subtitle: string) {
+  const article = subtitle.match(/\b\d{7}\b/)?.[0] ?? "9257423";
   return `
     <html><body>
       <div class="flex flex-col gap-1">
         <h1 class="heading" data-test="product-name">${productName}</h1>
         <div class="text-body text-gray">${subtitle}</div>
+        <span class="text-card-item-number">${article}</span>
       </div>
       <p>En längre produktbeskrivning.</p>
     </body></html>

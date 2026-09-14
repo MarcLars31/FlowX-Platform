@@ -539,7 +539,7 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
   }
   if (requirement.orientation) {
     const orientation = candidateOrientation(candidateName, candidateText);
-    if (orientation === requirement.orientation) {
+    if (orientation === requirement.orientation || (orientation === "upright_pendent" && requirement.orientation !== "sidewall")) {
       score += 15;
       reasons.push("Monteringsriktningen stämmer med PDF-kravet.");
     } else if (orientation) {
@@ -599,7 +599,7 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
   return score;
 }
 
-function candidateOrientation(productName: string, candidateText: string): TechnicalProfile["orientation"] {
+function candidateOrientation(productName: string, candidateText: string): TechnicalProfile["orientation"] | "upright_pendent" {
   // Ahlsell descriptions often contain phrases such as "opp til 19 mm". Only
   // interpret the short words Opp/Ned as orientation when they occur in the
   // product name. Longer, unambiguous terms may safely come from all fields.
@@ -608,6 +608,10 @@ function candidateOrientation(productName: string, candidateText: string): Techn
   const nameSignals = sprinklerOrientationSignals(productName);
   const candidateSignals = sprinklerOrientationSignals(candidateText);
   if (nameSignals.hasSidewall || candidateSignals.hasSidewall) return "sidewall";
+  // Explicit dual-mount labels describe supported orientations, not missing
+  // evidence. Recessed/concealed mounting is still checked independently.
+  if (/\b(?:opp|upp)\s+(?:og\s+|och\s+)?(?:ned|ner)\b/.test(productName)
+    || /\b(?:ssp|sp)\s+ssu\b/.test(candidateText)) return "upright_pendent";
   if (nameHasUpright !== nameHasPendent) return nameHasUpright ? "upright" : "pendent";
   if (candidateSignals.hasUpright !== candidateSignals.hasPendent) {
     return candidateSignals.hasUpright ? "upright" : "pendent";

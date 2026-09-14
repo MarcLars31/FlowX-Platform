@@ -22,6 +22,11 @@ export function ahlsellMldlProducts() {
   return catalogData.products as readonly AhlsellMldlProduct[];
 }
 
+export function ahlsellMldlCandidate(articleNumber: string) {
+  const product = ahlsellMldlProduct(articleNumber);
+  return product ? catalogCandidate(product) : null;
+}
+
 /**
  * Ranks the complete MLDL assortment with the same technical rules as live
  * Ahlsell results. A narrow catalogue-type filter prevents similarly sized,

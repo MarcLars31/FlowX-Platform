@@ -12,7 +12,7 @@ const requirement = { category: "sprinkler_head", value_text: "SPRINKLER", value
   "gjengedimensjon (dn)": "15", overflatebehandling: "Messing", trykk: "12 bar", beskyttelse: "Nei"
 } } };
 
-test("automatic matching needs no network and returns only MLDL articles and accessories", () => {
+test("the MLDL baseline needs no network and returns only local articles and accessories", () => {
   const original = globalThis.fetch;
   globalThis.fetch = () => { throw new Error("Automatic matching must not fetch public data"); };
   try {
@@ -28,7 +28,7 @@ test("automatic matching needs no network and returns only MLDL articles and acc
   } finally { globalThis.fetch = original; }
 });
 
-test("the two public-only screenshot articles and PDF references cannot become automatic candidates", () => {
+test("public-only screenshot articles and PDF references do not enter the MLDL baseline", () => {
   for (const article of ["9254108N5", "9254111N5", "19045188"]) {
     assert.equal(ahlsellMldlProduct(article), null);
     const req = { ...requirement, value_text: `SPRINKLER NRF ${article}` };
@@ -41,9 +41,8 @@ test("the two public-only screenshot articles and PDF references cannot become a
   }
 });
 
-test("automatic routes and product-card text cannot invoke public Ahlsell retrieval", async () => {
+test("table labels stay local and product cards request the combined server assessment", async () => {
   const routes = [
-    "../app/api/projects/[id]/requirements/[requirementId]/ahlsell-candidates/route.ts",
     "../app/api/projects/[id]/requirements/[requirementId]/ahlsell-subtitles/route.ts",
     "../app/api/projects/[id]/ahlsell-product-labels/route.ts"
   ];
@@ -53,6 +52,10 @@ test("automatic routes and product-card text cannot invoke public Ahlsell retrie
   }
   const panel = await fs.readFile(new URL("../components/DistributorMappingPanel.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(panel, /\/ahlsell-subtitles/);
+  assert.match(panel, /catalogResult\?\.candidates \?\? guide.directCandidates/);
+  const candidateRoute = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-candidates/route.ts", import.meta.url), "utf8");
+  assert.match(candidateRoute, /classifyAhlsellCatalogCandidates\(findMldlOnlyCandidates/);
+  assert.match(candidateRoute, /await findAhlsellHybridCandidates\(requirement\)/);
   const manualLookup = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-lookup/route.ts", import.meta.url), "utf8");
   assert.match(manualLookup, /lookupAhlsellProduct/);
 });

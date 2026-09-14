@@ -27,7 +27,6 @@ import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProd
 import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
-import { mergeAhlsellCandidates } from "@/lib/ahlsell-candidate-merge";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "@/lib/product-card-candidates";
 import {
@@ -1698,7 +1697,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Välj produkt</p>
-              <h4 className="mt-0.5 text-base font-bold text-ink-950">MLDL-produkter för PDF-post {details.postNumber ?? position}</h4>
+              <h4 className="mt-0.5 text-base font-bold text-ink-950">Produkter för PDF-post {details.postNumber ?? position}</h4>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
             </div>
             <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
@@ -2032,11 +2031,9 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const memoryArticleNumbers = new Set(usableMemories.map((memory) =>
     normalizeNrfNumber(String(memory.product_number))
   ));
-  const mergedCandidates = mergeAhlsellCandidates(
-    guide.directCandidates,
-    (catalogResult?.candidates ?? []).filter(candidate =>
-      ["structured_database", "verified_database"].includes(candidate.source) && ahlsellMldlProduct(candidate.articleNumber))
-  );
+  // Server results already contain the combined assessment. Re-merging the
+  // initial guide would restore missing-value warnings resolved by Ahlsell.
+  const mergedCandidates = catalogResult?.candidates ?? guide.directCandidates;
   const candidatesByArticle = new Map(mergedCandidates.map((candidate) => [
     normalizeNrfNumber(candidate.articleNumber),
     candidate
@@ -2069,13 +2066,13 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktval</p>
-            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Välj en produkt från MLDL</h4>
+            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Produktförslag från MLDL och Ahlsell</h4>
           </div>
           <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
             {!loadingCatalog && (
               <span className="text-ink-600">
                 {filteredCandidates.length > visibleCandidates.length
-                  ? `Visar ${visibleCandidates.length} bästa av ${filteredCandidates.length} MLDL-träffar`
+                  ? `Visar ${visibleCandidates.length} bästa av ${filteredCandidates.length} träffar`
                   : `${filteredResultCount} ${filteredResultCount === 1 ? "träff" : "träffar"}`}
               </span>
             )}
@@ -2086,25 +2083,33 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
             )}
           </div>
         </div>
-        <p className="mt-1.5 text-xs leading-5 text-ink-600">Produkterna visas till höger om PDF-specifikationen. Markera en produkt i välj-cirkeln för att fylla NRF-numret.</p>
+        <p className="mt-1.5 text-xs leading-5 text-ink-600">MLDL är första källa. Ahlsells webbplats kompletterar produktuppgifter och sökningen. Markera en produkt för att fylla NRF-numret.</p>
       </header>
 
       {loadingCatalog && (
         <div className="flex min-h-16 items-center justify-center gap-2 border-t border-ink-200 bg-ink-50 px-3 py-3 text-sm font-bold text-ink-800" role="status">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Kontrollerar MLDL-databasen…
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Kompletterar MLDL med Ahlsells webbplats…
         </div>
       )}
 
       {catalogError && (
         <div className="border-t border-amber-300 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950 sm:px-4" role="alert">
-          <p className="font-bold">MLDL-listan kunde inte hämtas.</p>
+          <p className="font-bold">Produktlistan kunde inte hämtas.</p>
           <p>{catalogError} Du kan söka manuellt via ”Lägg till produkt”.</p>
+        </div>
+      )}
+
+      {!loadingCatalog && catalogResult?.publicSearchStatus && catalogResult.publicSearchStatus !== "available" && (
+        <div className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950 sm:px-4" role="status">
+          {catalogResult.publicSearchStatus === "unavailable"
+            ? "Ahlsells webbplats kunde inte nås. Produktförslagen från MLDL finns kvar."
+            : "En del av Ahlsell-sökningen kunde inte slutföras. MLDL och de hämtade webbträffarna visas."}
         </div>
       )}
 
       {!loadingCatalog && !catalogError && catalogResult?.truncated && (
         <div className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-950 sm:px-4">
-          Ahlsell uppgav {catalogResult.total} träffar. Scipx visar endast de tre högst rankade Ahlsell-resultaten.
+          Fler träffar finns hos Ahlsell. Scipx visar de tre högst rankade produkterna från den avgränsade sökningen.
         </div>
       )}
 
@@ -2119,7 +2124,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 
       {!loadingCatalog && !catalogError && !hasNrfFilter && totalResultCount === 0 && (
         <div className="border-t border-ink-200 bg-ink-50 px-3 py-4 text-sm text-ink-700 sm:px-4">
-          <p className="font-semibold">Ingen lämplig produkt hittades i MLDL-databasen.</p>
+          <p className="font-semibold">Ingen lämplig produkt hittades i MLDL eller bland de hämtade Ahlsell-träffarna.</p>
           <p className="mt-2 text-xs">Sök på Ahlsells webbplats via ”Lägg till produkt” om du vill lägga till en annan artikel.</p>
         </div>
       )}
@@ -2252,6 +2257,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 }
 
 function candidateSourceLabel(candidate: AhlsellPublicCandidate) {
+  if (candidate.evidenceSources?.includes("mldl_database") && candidate.evidenceSources.includes("ahlsell_public")) {
+    return "MLDL · samma artikel hittad på Ahlsells webbplats";
+  }
+  if (candidate.source === "catalog_search" || candidate.source === "public_verified") return "Träff på Ahlsells webbplats";
   return candidate.source === "verified_database"
     ? "Träff i MLDL · verifierade Victaulic-uppgifter"
     : "Träff i MLDL-databasen";

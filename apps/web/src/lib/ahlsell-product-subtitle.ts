@@ -7,7 +7,13 @@ export type AhlsellProductSubtitleItem = {
 
 type CachedSubtitle = {
   expiresAt: number;
-  promise: Promise<string | null>;
+  promise: Promise<AhlsellProductDetails | null>;
+};
+
+export type AhlsellProductDetails = {
+  articleNumber: string;
+  subtitle: string | null;
+  specifications: string[];
 };
 
 const ALLOWED_AHLSELL_HOSTS = new Set([
@@ -90,7 +96,27 @@ export function parseAhlsellProductSubtitle(html: string) {
   return subtitle;
 }
 
+/** The visible article beside the product heading identifies the exact variant. */
+export function parseAhlsellProductArticleNumber(html: string) {
+  const visible = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  const heading = /<h1\b(?=[^>]*\bdata-test\s*=\s*["']product-name["'])[^>]*>[\s\S]*?<\/h1>/i.exec(visible);
+  if (!heading) return null;
+  const header = visible.slice(heading.index + heading[0].length, heading.index + heading[0].length + 12_000).split(/<h[12]\b/i)[0];
+  return /<span\b[^>]*class=["'][^"']*\btext-card-item-number\b[^"']*["'][^>]*>\s*(?:<span\b[^>]*>\s*)?([a-z0-9._-]+)\s*<\/span>/i.exec(header)?.[1] ?? null;
+}
+
 export async function fetchAhlsellProductSubtitles({
+  items, fetchImpl = fetch, signal
+}: {
+  items: AhlsellProductSubtitleItem[];
+  fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+}) {
+  const details = await fetchAhlsellProductDetails({ items, fetchImpl, signal });
+  return Object.fromEntries(Object.entries(details).map(([article, detail]) => [article, detail?.subtitle ?? null]));
+}
+
+export async function fetchAhlsellProductDetails({
   items,
   fetchImpl = fetch,
   signal
@@ -99,7 +125,7 @@ export async function fetchAhlsellProductSubtitles({
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
 }) {
-  const subtitles: Record<string, string | null> = {};
+  const subtitles: Record<string, AhlsellProductDetails | null> = {};
   let cursor = 0;
   const workerCount = Math.min(3, items.length);
 
@@ -131,9 +157,10 @@ async function fetchAhlsellProductSubtitle(
     return fetchAhlsellProductSubtitleUncached(articleNumber, safeUrl, fetchImpl, signal);
   }
 
-  const cached = subtitleCache.get(safeUrl);
+  const cacheKey = `${normalizeArticleToken(articleNumber)}:${safeUrl}`;
+  const cached = subtitleCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.promise;
-  if (cached) subtitleCache.delete(safeUrl);
+  if (cached) subtitleCache.delete(cacheKey);
 
   // A disconnected browser request must not poison the shared cache. Let the
   // first connected caller populate it, while later callers still benefit.
@@ -145,11 +172,11 @@ async function fetchAhlsellProductSubtitle(
         fetchImpl,
         signal
       );
-      if (!signal.aborted) cacheResolvedSubtitle(safeUrl, subtitle);
+      if (!signal.aborted) cacheResolvedSubtitle(cacheKey, subtitle);
       return subtitle;
     } catch (error) {
       if (signal.aborted) throw error;
-      cacheResolvedSubtitle(safeUrl, null);
+      cacheResolvedSubtitle(cacheKey, null);
       return null;
     }
   }
@@ -166,12 +193,12 @@ async function fetchAhlsellProductSubtitle(
       );
       return subtitle;
     });
-  subtitleCache.set(safeUrl, cacheEntry);
+  subtitleCache.set(cacheKey, cacheEntry);
   trimCache();
   return cacheEntry.promise;
 }
 
-function cacheResolvedSubtitle(safeUrl: string, subtitle: string | null) {
+function cacheResolvedSubtitle(safeUrl: string, subtitle: AhlsellProductDetails | null) {
   subtitleCache.set(safeUrl, {
     expiresAt: Date.now() + (subtitle ? SUCCESS_CACHE_TTL_MS : NEGATIVE_CACHE_TTL_MS),
     promise: Promise.resolve(subtitle)
@@ -186,7 +213,24 @@ async function fetchAhlsellProductSubtitleUncached(
   externalSignal?: AbortSignal
 ) {
   const page = await fetchAhlsellProductPage({ productUrl, articleNumber, fetchImpl, signal: externalSignal });
-  return page ? parseAhlsellProductSubtitle(page.html) : null;
+  return page ? parseAhlsellProductDetails(page.html, articleNumber) : null;
+}
+
+export function parseAhlsellProductDetails(html: string, requestedArticle: string): AhlsellProductDetails | null {
+  const visible = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  const articleNumber = parseAhlsellProductArticleNumber(visible);
+  if (!articleNumber) return null;
+  const requestedKey = normalizeArticleToken(requestedArticle);
+  const visibleKey = normalizeArticleToken(articleNumber);
+  // Ahlsell search uses e.g. 9254111N5 for a page displaying NRF 9254111.
+  // Accept that known catalogue suffix only with matching visible page identity;
+  // never strip suffixes globally or accept a replacement with different digits.
+  if (requestedKey !== visibleKey && !(/^\d{7}n5$/.test(requestedKey) && requestedKey === `${visibleKey}n5`)) return null;
+  const information = visible.split(/data-test=["']information-table["']/i)[1]?.split(/<h[12]\b/i)[0] ?? "";
+  const technicalList = /Teknisk[ae] data\s*<ul\b[^>]*>([\s\S]*?)<\/ul>/i.exec(information)?.[1] ?? "";
+  const specifications = [...technicalList.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
+    .slice(0, 60).map(match => stripMarkup(match[1]).slice(0, 400)).filter(Boolean);
+  return { articleNumber, subtitle: parseAhlsellProductSubtitle(visible), specifications };
 }
 
 /** Public product pages only; every redirect uses the same host/path checks. */

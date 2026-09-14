@@ -391,7 +391,7 @@ export function buildAhlsellRequirementGuide(
 
   const recognitionNotes = compact([
     ...(intent === "sprinkler_head" ? installation.notes : []),
-    "Automatisk matchning använder endast MLDL-databasen. Ahlsells webbplats används när du själv lägger till en produkt eller ett tillbehör.",
+    "MLDL är första källa. När produktkortet öppnas kompletterar Ahlsells webbplats produktuppgifter och söker efter fler produkter.",
     intent === "sprinkler_head" && !isSprinklerAccessory
       ? "Scipx kontrollerar MLDL-artikelns K-faktor, DN, temperatur, respons, riktning, montage, systemvillkor och färg med lagrade tekniska uppgifter."
       : null,
