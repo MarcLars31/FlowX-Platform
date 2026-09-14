@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
+import { findAhlsellMldlCandidates } from "./ahlsell-mldl-catalog";
+import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
 test("preserves conflicting live evidence for review while enriching verified data", () => {
@@ -42,6 +44,35 @@ test("marks the same NRF in MLDL and the public catalogue as stronger evidence",
   assert.match(merged.matchReasons?.join(" ") ?? "", /både Ahlsells MLDL-databas och den aktuella offentliga katalogen/);
   assert.equal(merged.matchScore, 88);
   assert.equal(merged.recommendation, "recommended");
+});
+
+test("keeps matching brass 68C quick-response heads first after catalog results arrive", () => {
+  const requirement = {
+    category: "sprinkler_head", value_text: "SPRINKLER", requirement_key: "30.332.14",
+    value_json: { nsCode: "UE2.11112912", attributes: {
+      sprinkleranlegg: "Våtanlegg", "type sprinkler": "Spraysprinkler",
+      plassering: "Hengende synlig i tak og over systemhimling",
+      følsomhetsgrad: "Kvikk respons", utløsningstemperatur: "68 °C",
+      "k-faktor": "80", trykk: "12 bar", "gjengedimensjon (dn)": "15",
+      overflatebehandling: "Messing", "dekkskive/pyntering (ved innfelling)": "|.R.",
+      beskyttelse: "Nei"
+    } }
+  };
+  const direct = buildAhlsellRequirementGuide(requirement).directCandidates;
+  const database = findAhlsellMldlCandidates(requirement, 50);
+  const merged = mergeAhlsellCandidates(direct, database);
+
+  // The database also contains 100-point variants with the wrong temperature,
+  // response or finish; source scores must not override those discrepancies.
+  assert.ok(merged.some((item) => item.matchScore === 100 && (item.matchWarnings?.length ?? 0) > 1));
+  assert.deepEqual(merged.slice(0, 2).map((item) => item.articleNumber).sort(), ["9254064", "9257392"]);
+  for (const item of merged.slice(0, 2)) {
+    assert.equal(item.exactMatch, false);
+    assert.equal(item.matchWarnings?.length, 1);
+    assert.match(item.matchWarnings![0], /arbetstryck behöver verifieras/);
+  }
+  // The client merges the same direct assessment again when showing the card.
+  assert.deepEqual(mergeAhlsellCandidates(direct, merged), merged);
 });
 
 function candidate(

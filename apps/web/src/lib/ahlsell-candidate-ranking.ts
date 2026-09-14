@@ -72,8 +72,10 @@ export function rankAhlsellCandidates(requirement: Record<string, unknown>, cand
 export function orderAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandidate[]) {
   return [...candidates].sort((left, right) =>
     confidenceTier(left) - confidenceTier(right)
-    || (right.matchScore ?? 0) - (left.matchScore ?? 0)
+    // Sources score differently. Within a confidence tier, fewer unresolved
+    // technical warnings take precedence over points and catalogue bonuses.
     || (left.matchWarnings?.length ?? 0) - (right.matchWarnings?.length ?? 0)
+    || (right.matchScore ?? 0) - (left.matchScore ?? 0)
     || (right.assortmentPriority ?? 0) - (left.assortmentPriority ?? 0)
     || (right.learningEvidence?.supportCount ?? 0) - (left.learningEvidence?.supportCount ?? 0)
     || (right.learningEvidence?.similarityScore ?? 0) - (left.learningEvidence?.similarityScore ?? 0)
