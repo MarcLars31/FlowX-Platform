@@ -742,7 +742,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       </div>
 
       {productRequirements.length > 0 && (
-        <section id="product-table" aria-labelledby="product-table-heading" className="scroll-mt-5 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
+        <section id="product-table" aria-labelledby="product-table-heading" className="-mx-4 scroll-mt-5 overflow-hidden border-y border-ink-200 bg-white shadow-sm sm:-mx-6 lg:-mx-8">
           <div className="flex flex-col gap-2 border-b border-ink-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h3>

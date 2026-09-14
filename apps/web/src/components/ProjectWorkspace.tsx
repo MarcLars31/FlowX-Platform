@@ -397,7 +397,7 @@ export function ProjectWorkspace({
           };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-12">
+    <div className={`space-y-6 pb-12 ${tab === "products" ? "min-w-0 w-full" : "mx-auto max-w-6xl"}`}>
       {data.project.demo_data_set_id && <DemoBadge />}
       <Link
         href="/projects"
