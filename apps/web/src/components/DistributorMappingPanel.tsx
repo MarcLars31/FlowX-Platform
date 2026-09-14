@@ -869,8 +869,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
 
           {queueRequirements.length > 0 ? (
             productTableLayoutLoaded ? (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
+            <div className="overflow-x-auto" tabIndex={0}>
+              <table className="w-full border-collapse whitespace-nowrap text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
                     <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label="Välj alla synliga gröna produktposter som kan godkännas direkt" checked={allVisibleRequirementsSelected} disabled={bulkEligibleVisibleRequirements.length === 0 || bulkApproving} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-40" /></th>
@@ -2430,7 +2430,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
               className="inline-flex items-center gap-1 text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
             >
               {details.postNumber ?? position}
-              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
             </a>
           ) : (
             <button
@@ -2449,14 +2449,14 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     if (columnId === "nsCode") {
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">
-          <span className="block break-words" title={details.nsCode ?? "NS-kod saknas"}>{details.nsCode ?? "—"}</span>
+          <span className="block" title={details.nsCode ?? "NS-kod saknas"}>{details.nsCode ?? "—"}</span>
         </td>
       );
     }
     if (columnId === "requirement") {
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle">
-          <button type="button" aria-haspopup="dialog" onClick={onOpen} className="line-clamp-1 max-w-xl text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
+          <button type="button" aria-haspopup="dialog" onClick={onOpen} className="text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{String(requirement.value_text ?? "Tekniskt produktkrav")}</button>
           {dataWarnings.map((warning) => (
             <span key={warning.code} title={warning.message} className="mt-0.5 flex items-center gap-1 text-[10px] font-bold leading-4 text-amber-800">
               <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -2471,11 +2471,11 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     return (
       <td key={columnId} className="px-3 py-2.5 align-middle text-xs">
         {productName || productNumber ? (
-          <><span className="line-clamp-2 block font-bold leading-4 text-ink-950" title={productName || selectedProductDisplayName}>{selectedProductDisplayName || `NRF ${productNumber}`}</span>{productNumber && <span className="block text-[10px] text-ink-600">NRF-nummer {productNumber}</span>}</>
+          <><span className="block font-bold leading-4 text-ink-950" title={productName || selectedProductDisplayName}>{selectedProductDisplayName || `NRF ${productNumber}`}</span>{productNumber && <span className="block text-[10px] text-ink-600">NRF-nummer {productNumber}</span>}</>
         ) : bulkSelection ? (
-          <><span className="line-clamp-2 block font-bold leading-4 text-sky-950" title={bulkSelection.productName}>{suggestedProductDisplayName}</span><span className="block text-[10px] text-sky-700">{bulkSelection.source === "memory" ? "Tidigare val" : "Direktträff"} · NRF-nummer {bulkSelection.productNumber}</span></>
+          <><span className="block font-bold leading-4 text-sky-950" title={bulkSelection.productName}>{suggestedProductDisplayName}</span><span className="block text-[10px] text-sky-700">{bulkSelection.source === "memory" ? "Tidigare val" : "Direktträff"} · NRF-nummer {bulkSelection.productNumber}</span></>
         ) : hasReusableMemory ? (
-          <><span className="line-clamp-2 block font-bold leading-4 text-sky-900">{memoryProductSubtitle || memoryProductName}</span><span className="block text-[10px] text-sky-700">Tidigare · NRF-nummer {memoryProductNumber}</span></>
+          <><span className="block font-bold leading-4 text-sky-900">{memoryProductSubtitle || memoryProductName}</span><span className="block text-[10px] text-sky-700">Tidigare · NRF-nummer {memoryProductNumber}</span></>
         ) : (
           <span className="italic text-ink-500">Ingen produkt vald</span>
         )}
