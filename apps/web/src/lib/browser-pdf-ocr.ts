@@ -7,6 +7,7 @@ import {
 } from "@/modules/technical-description-extractor/pdf-layout";
 import type { ClientOcrPage } from "./technical-description-ocr-payload";
 import type { PDFPageProxy } from "pdfjs-dist";
+import type { Worker } from "tesseract.js";
 
 const OCR_SCALE = 2;
 const OCR_RETRY_SCALE = 2.5;
@@ -38,7 +39,10 @@ export async function extractPdfPagesWithBrowserOcr(
     stopAtErrors: false,
     useSystemFonts: true
   });
-  const document = await loadingTask.promise;
+  const document = await loadingTask.promise.catch(async error => {
+    await loadingTask.destroy();
+    throw error;
+  });
   const pageNumbers = [...new Set(requestedPageNumbers)]
     .filter(
       (pageNumber) =>
@@ -55,24 +59,26 @@ export async function extractPdfPagesWithBrowserOcr(
 
   let activePageNumber = pageNumbers[0];
   let activePageIndex = 0;
-  const { createWorker, OEM } = await import("tesseract.js");
-  const worker = await createWorker("nor+eng", OEM.LSTM_ONLY, {
-    workerPath: "/ocr/worker.min.js",
-    corePath: "/ocr/tesseract-core-lstm.wasm.js",
-    langPath: "/ocr",
-    gzip: true,
-    logger(message) {
-      if (message.status !== "recognizing text") return;
-      const percentage = Math.round(Math.min(Math.max(message.progress, 0), 1) * 100);
-      onProgress?.({
-        label: `OCR sida ${activePageNumber} av ${document.numPages} · ${percentage}%`,
-        pageNumber: activePageNumber,
-        totalPages: document.numPages
-      });
-    }
-  });
-
+  let worker: Worker | undefined;
   try {
+    const { createWorker, OEM } = await import("tesseract.js");
+    worker = await createWorker("nor+eng", OEM.LSTM_ONLY, {
+      workerPath: "/ocr/worker.min.js",
+      // Let Tesseract choose the local SIMD/relaxed-SIMD LSTM core when supported.
+      corePath: "/ocr",
+      langPath: "/ocr",
+      gzip: true,
+      logger(message) {
+        if (message.status !== "recognizing text") return;
+        const percentage = Math.round(Math.min(Math.max(message.progress, 0), 1) * 100);
+        onProgress?.({
+          label: `OCR sida ${activePageNumber} av ${document.numPages} · ${percentage}%`,
+          pageNumber: activePageNumber,
+          totalPages: document.numPages
+        });
+      }
+    });
+
     await worker.setParameters({ preserve_interword_spaces: "1" });
     const extractedPages: ClientOcrPage[] = [];
     for (const pageNumber of pageNumbers) {
@@ -88,49 +94,58 @@ export async function extractPdfPagesWithBrowserOcr(
       }
 
       const page = await document.getPage(pageNumber);
-      let canvas = await renderPdfPage(page, OCR_SCALE);
-      let result = await worker.recognize(
-        canvas,
-        {},
-        { text: true, blocks: true }
-      );
-      let text = preferredOcrText(result.data.text, result.data.blocks);
-
-      if (needsHigherResolutionOcr(text)) {
-        canvas.width = 0;
-        canvas.height = 0;
-        canvas = await renderPdfPage(page, OCR_RETRY_SCALE);
-        await worker.reinitialize("nor+eng", OEM.LSTM_ONLY);
-        await worker.setParameters({ preserve_interword_spaces: "1" });
-        const retryResult = await worker.recognize(
+      let canvas: HTMLCanvasElement | undefined;
+      try {
+        canvas = await renderPdfPage(page, OCR_SCALE);
+        let result = await worker.recognize(
           canvas,
           {},
           { text: true, blocks: true }
         );
-        const retryText = preferredOcrText(
-          retryResult.data.text,
-          retryResult.data.blocks
-        );
-        if (isBetterOcrText(retryText, text)) {
-          result = retryResult;
-          text = retryText;
-        }
-      }
+        let text = preferredOcrText(result.data.text, result.data.blocks);
 
-      extractedPages.push({
-        pageNumber,
-        text,
-        confidence: normalizeOcrConfidence(result.data.confidence)
-      });
-      canvas.width = 0;
-      canvas.height = 0;
-      page.cleanup();
+        if (needsHigherResolutionOcr(text)) {
+          canvas.width = 0;
+          canvas.height = 0;
+          canvas = await renderPdfPage(page, OCR_RETRY_SCALE);
+          await worker.reinitialize("nor+eng", OEM.LSTM_ONLY);
+          await worker.setParameters({ preserve_interword_spaces: "1" });
+          const retryResult = await worker.recognize(
+            canvas,
+            {},
+            { text: true, blocks: true }
+          );
+          const retryText = preferredOcrText(
+            retryResult.data.text,
+            retryResult.data.blocks
+          );
+          if (isBetterOcrText(retryText, text)) {
+            result = retryResult;
+            text = retryText;
+          }
+        }
+
+        extractedPages.push({
+          pageNumber,
+          text,
+          confidence: normalizeOcrConfidence(result.data.confidence)
+        });
+      } finally {
+        if (canvas) {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+        page.cleanup();
+      }
       activePageIndex += 1;
     }
     return extractedPages;
   } finally {
-    await worker.terminate();
-    await loadingTask.destroy();
+    try {
+      await worker?.terminate();
+    } finally {
+      await loadingTask.destroy();
+    }
   }
 }
 
@@ -147,8 +162,14 @@ async function renderPdfPage(
   const canvas = document.createElement("canvas");
   canvas.width = Math.ceil(viewport.width);
   canvas.height = Math.ceil(viewport.height);
-  await page.render({ canvas, viewport }).promise;
-  return canvas;
+  try {
+    await page.render({ canvas, viewport }).promise;
+    return canvas;
+  } catch (error) {
+    canvas.width = 0;
+    canvas.height = 0;
+    throw error;
+  }
 }
 
 function preferredOcrText(plainValue: string, blocks: readonly unknown[] | null) {

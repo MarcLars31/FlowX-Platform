@@ -8,9 +8,12 @@ import { findVictaulicSprinklerCandidates } from "@/lib/victaulic-sprinkler-cata
 import {
   sprinklerCoverageFromText,
   sprinklerExplicitlyExcludesCoverPlate,
-  sprinklerRequiresAccessoryReview
+  sprinklerNeedsHydraulicReview,
+  sprinklerRequiresAccessoryReview,
+  sprinklerResponse
 } from "@/lib/sprinkler-technical-rules";
 import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
+import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -414,7 +417,18 @@ export function buildAhlsellRequirementGuide(
     criteria,
     warnings,
     recognitionNotes,
-    directCandidates
+    directCandidates: directCandidates.map((item) => {
+      const checks = engineeringRequirementWarnings(requirement, item);
+      if (requiresAccessoryReview && !(item.matchWarnings ?? []).some((warning) => /tillbehör|skydd/i.test(warning))) {
+        checks.push("Tillbehör eller skydd måste kompatibilitetskontrolleras mot exakt sprinklerutförande.");
+      }
+      if (intent === "sprinkler_head" && sprinklerNeedsHydraulicReview(sourceLanguageText)) {
+        checks.push("Hydrauliska villkor och produktens listning måste verifieras innan slutligt produktval.");
+      }
+      if (checks.length === 0) return item;
+      return { ...item, exactMatch: false, recommendation: "possible" as const,
+        matchWarnings: [...new Set([...(item.matchWarnings ?? []), ...checks])] };
+    })
   };
 }
 
@@ -713,22 +727,6 @@ function sprinklerMount(placement: string | null, deckPlate: string | null): Spr
     && !/\b(nei|no|false)\b/.test(normalizedDeckPlate);
   if (/\b(innfelt|infalld|recessed)\b/.test(normalizedPlacement) || affirmativeDeckPlate) return "recessed";
   return null;
-}
-
-function sprinklerResponse(attributeValue: string | null, sourceText: string) {
-  const attribute = normalize(attributeValue ?? "");
-  const source = normalize(sourceText);
-  const explicitQuick = /\b(?:qr|(?:kvikk|hurtig|snabb)\s*respons|quick(?:\s*response)?|(?:respons|response|folsomhetsgrad)\s*(?:quick|kvikk|hurtig|snabb))\b/;
-  const explicitStandard = /\b(?:sr|(?:standard|normal)\s*(?:respons|response)|(?:respons|response|folsomhetsgrad)\s*(?:standard|normal))\b/;
-  const attributeQuick = explicitQuick.test(attribute) || /\b(?:kvikk|hurtig|quick|snabb|qr)\b/.test(attribute);
-  const attributeStandard = explicitStandard.test(attribute) || /\b(?:standard|normal|sr)\b/.test(attribute);
-  const sourceQuick = explicitQuick.test(source);
-  const sourceStandard = explicitStandard.test(source);
-  const conflict = (attributeQuick || sourceQuick) && (attributeStandard || sourceStandard);
-  if (conflict) return { response: null as Response | null, conflict: true };
-  if (attributeQuick || sourceQuick) return { response: "quick" as Response, conflict: false };
-  if (attributeStandard || sourceStandard) return { response: "standard" as Response, conflict: false };
-  return { response: null as Response | null, conflict: false };
 }
 
 function sprinklerFinish(value: string): Finish | null {

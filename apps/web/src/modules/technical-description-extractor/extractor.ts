@@ -73,6 +73,39 @@ export function extractTechnicalDescriptionFromPages(
   const ruleHints = extractRuleHints(pages);
   const extractionMethod = getExtractionMethod(pages);
 
+  for (const page of pages) {
+    if (page.annotations?.length) {
+      const comments = page.annotations.map((annotation, index) =>
+        `${index + 1}. ${annotation.text}`
+      ).join("\n");
+      warnings.push({
+        id: `pdf-comments-${page.pageNumber}`,
+        code: "PDF_COMMENTS_REQUIRE_REVIEW",
+        message: `PDF-kommentarer på sida ${page.pageNumber} behöver granskas separat från specifikationen: ${comments}`,
+        sourcePage: page.pageNumber,
+        sourceText: comments,
+        severity: "warning"
+      });
+    }
+    if (page.annotationReadFailed) {
+      warnings.push({
+        id: `pdf-comments-failed-${page.pageNumber}`,
+        code: "PDF_COMMENTS_READ_FAILED",
+        message: `PDF-kommentarerna på sida ${page.pageNumber} kunde inte läsas. Kontrollera dem i original-PDF:n.`,
+        sourcePage: page.pageNumber,
+        severity: "warning"
+      });
+    }
+    if (page.status !== "failed" && page.status !== "partial") continue;
+    warnings.push({
+      id: `incomplete-page-${page.pageNumber}`,
+      code: "PAGE_EXTRACTION_INCOMPLETE",
+      message: `Sida ${page.pageNumber} kunde inte läsas fullständigt. Kontrollera original-PDF:n; materialposter eller krav kan saknas.`,
+      sourcePage: page.pageNumber,
+      severity: "warning"
+    });
+  }
+
   if (pages.every((page) => page.text.length === 0)) {
     warnings.push({
       id: "technical-description-no-text",
@@ -247,8 +280,22 @@ function extractMaterialLines(
     structuredUsable >= legacyUsable ||
     materialLineQuality(structuredLines) >= materialLineQuality(legacyLines)
   ) {
-    warnings.push(...structuredExtractionWarnings(structuredLines));
-    return structuredLines;
+    // The structured parser can find complete table rows while a neighbouring
+    // legacy row has lost its quantity during OCR. Never silently drop that row.
+    const retained = legacyLines.filter((line) =>
+      line.postNumber
+      && !line.reviewFlags.includes("inferred-post-number")
+      && !structuredLines.some((item) => item.postNumber === line.postNumber
+        || item.postNumber?.startsWith(`${line.postNumber}.`))
+      && ((line.quantity !== undefined && line.quantity > 0)
+        || (line.quantity === undefined && /\b(?:Antall|Lengde)\b/i.test(line.sourceText)))
+    );
+    const merged = [...structuredLines, ...retained].sort((left, right) =>
+      left.sourcePage - right.sourcePage
+      || (left.postNumber ?? "").localeCompare(right.postNumber ?? "", "nb", { numeric: true })
+    );
+    warnings.push(...structuredExtractionWarnings(merged));
+    return merged;
   }
 
   warnings.push(...legacyWarnings);
@@ -505,7 +552,11 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
       const normalizedText = `${description}\n${sourceText}\n${parent?.sourceText ?? ""}`.toLocaleLowerCase();
       const operation = inferOperation(normalizedText, Boolean(quantity));
-      if ((!quantity && operation !== "remove") || (quantity && quantity.quantity <= 0)) {
+      const hasMissingQuantityMarker = /^\d+(?:\.\d+)+$/.test(fullPostNumber)
+        && blockLines.some(line => new RegExp(
+        String.raw`^(?:Antall|Lengde)(?:\s+${QUANTITY_UNIT_SOURCE}\.?)?\s*$`, "i"
+      ).test(line.trim()));
+      if ((!quantity && operation !== "remove" && !hasMissingQuantityMarker) || (quantity && quantity.quantity <= 0)) {
         continue;
       }
 
@@ -1402,7 +1453,7 @@ function parseLocalizedNumber(value: string) {
 }
 
 function isKnownAttribute(value: string) {
-  const normalized = value.trim().toLocaleLowerCase();
+  const normalized = normalizeAttributeKey(value);
   return normalized === "antall" || ATTRIBUTE_KEYS.includes(normalized);
 }
 
@@ -1410,15 +1461,16 @@ function normalizeAttributeKey(value: string) {
   return value
     .trim()
     .toLocaleLowerCase()
+    .replace(/\s+/g, " ")
     .replace(/(?:folsomhetsgrad|felsomhetsgrad)/g, "følsomhetsgrad")
-    .replace(/utlesningstemperatur/g, "utløsningstemperatur");
+    .replace(/^utl[øoeög]sningstemperatur$/, "utløsningstemperatur");
 }
 
 function normalizeAttributeValue(key: string, value: string) {
   let normalized = normalizeOcrArtifacts(value.trim().replace(/^[|I]\s+/, ""));
   if (key === "dimensjon") {
-    const dimension = normalized.match(/\bDN\s*\d+(?:\s*\/\s*\d+\s*\/\s*\d+\"?)?/i)?.[0];
-    if (dimension) normalized = dimension.replace(/DN\s+/i, "DN");
+    const dimensions = normalized.match(/\bDN\s*\d+(?:\s*[-x×/]\s*(?:DN\s*)?\d+){0,2}/gi);
+    if (dimensions) normalized = dimensions.map((dimension) => dimension.replace(/DN\s+/gi, "DN")).join(", ");
   }
   if (key === "k-faktor") {
     normalized = normalized.replace(/(\d),(\d)/g, "$1.$2");

@@ -3,19 +3,20 @@ import test from "node:test";
 import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
-test("keeps the verified technical assessment and enriches it with live Ahlsell data", () => {
+test("preserves conflicting live evidence for review while enriching verified data", () => {
   const [merged] = mergeAhlsellCandidates([
     candidate("9257423", "V2762", "verified_database", true)
   ], [{
     ...candidate("9257423", "Sprinklerhoder Modell V2762 Victaulic FireLock", "catalog_search", false),
     imageUrl: "https://example.test/image.jpg",
     description: "Aktuell Ahlsell-beskrivning",
-    matchWarnings: ["Live-rankerns osäkra varning"]
+    matchWarnings: ["Fel dimension: PDF kräver DN15, träffen anger DN20."]
   }]);
 
   assert.equal(merged.source, "verified_database");
-  assert.equal(merged.exactMatch, true);
-  assert.equal(merged.matchWarnings?.length, 0);
+  assert.equal(merged.exactMatch, false);
+  assert.equal(merged.matchWarnings?.length, 1);
+  assert.notEqual(merged.recommendation, "recommended");
   assert.equal(merged.imageUrl, "https://example.test/image.jpg");
   assert.equal(merged.description, "Aktuell Ahlsell-beskrivning");
   assert.match(merged.productName, /Sprinklerhoder/);

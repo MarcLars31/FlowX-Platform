@@ -81,20 +81,42 @@ export function sprinklerRequiresAccessoryReview(
   for (const [key, rawValue] of entries) {
     if (!accessoryKey.test(normalize(key))) continue;
     const rawText = scalarText(rawValue).trim();
-    const value = normalize(rawText);
-    if (!value || /^(nei|no|false|ingen|i r|ir|ikke aktuelt|ikke relevant|ej relevant|icke relevant|not applicable|not required|n a)$/.test(value)) continue;
-    // OCR can read the I in I.R. (ikke relevant) as l, 1 or |. Match the
-    // entire value before normalization removes |; keep other text for review.
-    if (/^[il1|]\s*\.?\s*r\s*\.?$/i.test(rawText)) continue;
+    if (sprinklerAccessoryValueIsNotRequired(rawText)) continue;
     return true;
   }
   const normalizedFreeText = normalize(freeText);
-  return /\b(med|inkludert|inkluderer|krever|required|with)\s+(?:en\s+)?(?:dekkskive|pyntering|rosett|escutcheon|cover plate|coverplate|beskyttelsesgitter|vannskjerm|watershield|water shield|guard)\b/.test(normalizedFreeText);
+  const positive = /\b(med|inkludert|inkluderer|krever|required|with)\s+(?:en\s+)?(?:dekkskive|pyntering|rosett|escutcheon|cover plate|coverplate|beskyttelsesgitter|vannskjerm|watershield|water shield|guard)\b/g;
+  return [...normalizedFreeText.matchAll(positive)].some((match) =>
+    !/\b(?:ikke|inte|not|uten|utan|without)\s*$/.test(normalizedFreeText.slice(0, match.index))
+  );
+}
+
+export function sprinklerAccessoryValueIsNotRequired(rawText: string) {
+  const value = normalize(rawText);
+  // Read OCR variants before normalization removes the vertical bar in |.R.
+  return !value || /^(nei|nej|no|false|ingen|none|i r|ir|ikke aktuelt|ikke relevant|inte aktuellt|ej relevant|icke relevant|not applicable|not required|n a)$/.test(value)
+    || /^[il1|]\s*\.?\s*r\s*\.?$/i.test(rawText.trim());
 }
 
 export function sprinklerExplicitlyExcludesCoverPlate(value: string | null | undefined) {
   const normalized = normalize(value ?? "");
   return /^(nei|no|false|ingen|ikke aktuelt|ikke relevant|ej relevant|icke relevant|not applicable|not required|none)$/.test(normalized);
+}
+
+export function sprinklerResponse(attributeValue: string | null, sourceText: string) {
+  const attribute = normalize(attributeValue ?? "");
+  const source = normalize(sourceText);
+  const explicitQuick = /\b(?:qr|(?:kvikk|hurtig|snabb)\s*respons|quick(?:\s*response)?|(?:respons|response|folsomhetsgrad)\s*(?:quick|kvikk|hurtig|snabb))\b/;
+  const explicitStandard = /\b(?:sr|(?:standard|normal)\s*(?:respons|response)|(?:respons|response|folsomhetsgrad)\s*(?:standard|normal))\b/;
+  const attributeQuick = explicitQuick.test(attribute) || /\b(?:kvikk|hurtig|quick|snabb|qr)\b/.test(attribute);
+  const attributeStandard = explicitStandard.test(attribute) || /\b(?:standard|normal|sr)\b/.test(attribute);
+  const sourceQuick = explicitQuick.test(source);
+  const sourceStandard = explicitStandard.test(source);
+  const conflict = (attributeQuick || sourceQuick) && (attributeStandard || sourceStandard);
+  if (conflict) return { response: null as "quick" | "standard" | null, conflict: true };
+  if (attributeQuick || sourceQuick) return { response: "quick" as const, conflict: false };
+  if (attributeStandard || sourceStandard) return { response: "standard" as const, conflict: false };
+  return { response: null as "quick" | "standard" | null, conflict: false };
 }
 
 function normalize(value: string) {

@@ -1,10 +1,12 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 import {
   parseSprinklerKFactor,
+  projectRequirementDataWarnings,
   projectRequirementKFactorDisplayValue
 } from "@/lib/project-requirement-data-warnings";
 import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
-import { sprinklerOrientationSignals } from "@/lib/sprinkler-orientation-lexicon";
+import { resolvedSprinklerOrientation, sprinklerOrientationSignals } from "@/lib/sprinkler-orientation-lexicon";
 import {
   sprinklerCoverageFromText,
   sprinklerCoverageMatches,
@@ -13,6 +15,7 @@ import {
   sprinklerMountCapabilities,
   sprinklerNeedsHydraulicReview,
   sprinklerRequiresAccessoryReview,
+  sprinklerResponse,
   sprinklerSystemRestriction,
   type SprinklerCoverageClass
 } from "@/lib/sprinkler-technical-rules";
@@ -30,6 +33,7 @@ type ProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "manometer" | "pres
   | "custom_fabrication" | "generic";
 
 type TechnicalProfile = {
+  reviewWarnings: string[];
   text: string;
   intent: ProductIntent;
   dn: number | null;
@@ -58,7 +62,10 @@ type TechnicalProfile = {
 export function rankAhlsellCandidates(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
   const profile = requirementProfile(requirement);
   return orderAhlsellCandidatesForDisplay(
-    candidates.map((candidate) => scoreCandidate(candidate, profile))
+    candidates.map((candidate) => scoreCandidate({
+      ...candidate,
+      matchWarnings: [...new Set([...(candidate.matchWarnings ?? []), ...engineeringRequirementWarnings(requirement, candidate)])]
+    }, profile))
   );
 }
 
@@ -89,10 +96,9 @@ export function ahlsellCandidateMatchState(candidate: AhlsellPublicCandidate): A
 
 function confidenceTier(candidate: AhlsellPublicCandidate) {
   if (isExactAhlsellCandidate(candidate)) return 0;
-  if (candidate.source === "pdf_reference" || candidate.source === "public_verified" || candidate.source === "verified_database" || candidate.source === "confirmed_history") return 0;
+  if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely") return 3;
   if (candidate.recommendation === "recommended") return 1;
   if (candidate.recommendation === "possible") return 2;
-  if (candidate.recommendation === "unlikely") return 3;
   return 4;
 }
 
@@ -120,21 +126,28 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   const coverageText = `${sprinklerTypeText} ${primaryText}`;
   const mount = requirementSprinklerMount(placementText, deckPlateText);
   const orientationText = placementText || primaryText;
-  const orientationSignals = sprinklerOrientationSignals(orientationText);
-  const explicitOrientation = orientationSignals.hasUpright
-    ? "upright" as const
-    : orientationSignals.hasPendent
-      ? "pendent" as const
-      : orientationSignals.hasSidewall ? "sidewall" as const : null;
-  const orientation = explicitOrientation
-    ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(placementText) ? "pendent" : null);
+  const orientationResult = resolvedSprinklerOrientation(orientationText);
+  const orientation = orientationResult.orientation
+    ?? (!orientationResult.mixed && mount !== null && /\b(tak|himling|ceiling)\b/.test(placementText) ? "pendent" : null);
   const codeIntent = ns3420ProductFamily(flattenText({
     nsCode: value.nsCode,
     requirementKey: requirement.requirement_key
   }));
   const intent = codeIntent ?? detectIntent(semanticText, text, String(requirement.category ?? ""));
   const explicitFinish = extractFinish(primaryText);
+  const responseResult = sprinklerResponse(
+    attributeText(attributes, /\b(?:folsomhetsgrad|respons|response)\b/),
+    sourceOnlyText
+  );
+  const reviewWarnings = projectRequirementDataWarnings(requirement).map((warning) => warning.message);
+  if (intent === "sprinkler_head" && responseResult.conflict) {
+    reviewWarnings.push("PDF-posten anger både standard- och quick-respons. Kontrollera originaltexten innan produktval.");
+  }
+  if (intent === "sprinkler_head" && orientationResult.mixed) {
+    reviewWarnings.push("PDF-posten anger flera monteringsriktningar. Dela posten eller kontrollera rätt variant manuellt.");
+  }
   return {
+    reviewWarnings,
     text,
     intent,
     dn,
@@ -144,7 +157,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
       ?? extractKFactor(primaryText)
       ?? extractKFactor(text),
     temperatureC: extractTemperature(primaryText) ?? extractTemperature(text),
-    response: extractSprinklerResponse(primaryText),
+    response: responseResult.response,
     orientation,
     mount,
     visibleMount: /\b(synlig|visible|eksponert)\b/.test(placementText)
@@ -174,7 +187,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     productUrl: candidate.productUrl
   }));
   const reasons: string[] = [];
-  const warnings: string[] = [];
+  const warnings: string[] = [...requirement.reviewWarnings, ...(candidate.matchWarnings ?? [])];
   let score = 0;
 
   if (requirement.intent === "wet_alarm_valve") {
@@ -343,12 +356,12 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   const recommendation = matchScore >= 75 && warnings.length === 0
     ? "recommended"
     : matchScore >= 35 ? "possible" : "unlikely";
-  const exactMatch = candidate.exactMatch === true || (
+  const exactMatch = warnings.length === 0 && (candidate.exactMatch === true || (
     recommendation === "recommended"
     && matchScore === 100
     && warnings.length === 0
     && hasCompleteTechnicalEvidence(candidateText, candidateName, requirement)
-  );
+  ));
   return { ...candidate, matchScore, matchReasons: reasons, matchWarnings: warnings, recommendation, exactMatch };
 }
 
@@ -386,6 +399,7 @@ function hasCompleteTechnicalEvidence(
   if (requirement.material && extractMaterial(candidateText) !== requirement.material) return false;
   if (requirement.joint && !extractJointTypes(candidateText).includes(requirement.joint)) return false;
   if (requirement.intent === "sprinkler_head") {
+    if ([requirement.kFactor, requirement.dn, requirement.temperatureC, requirement.response, requirement.orientation].some((value) => value === null)) return false;
     if (requirement.sprinklerSystem === null || requirement.sprinklerHeadType === null || requirement.coverage === null) return false;
     const candidateCoverage = sprinklerCoverageFromText(candidateText);
     if (!sprinklerCoverageMatches(requirement.coverage, candidateCoverage)) return false;

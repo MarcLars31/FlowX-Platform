@@ -3,6 +3,35 @@ import test from "node:test";
 import { extractTechnicalDescriptionFromPages } from "./extractor";
 import type { TechnicalDescriptionPage } from "./types";
 
+test("preserves both reducer dimensions in structured attributes", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1, method: "text", confidence: 0.98,
+    text: ["Kapittel: 33 Brannslokking", "33.335.1 UB1.3111A", "REDUKSJON", "Dimensjon: DN100 x DN65", "Antall stk 2"].join("\n")
+  }]);
+  assert.match(result.materialLines[0].attributes.dimensjon, /DN100.*DN65/);
+});
+
+test("retains a material row with missing quantity beside complete structured rows", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1, method: "text", confidence: 0.98,
+    text: ["Kapittel: 33 Brannslokking", "33.335.1 UE2.11111112A", "SPRINKLER", "Antall stk 20",
+      "33.335.2 UE2.11111112A", "SPRINKLER", "Antall stk 30",
+      "33.335.3 UE2.11111112A", "SPRINKLER", "K-faktor: 80", "Antall stk"].join("\n")
+  }]);
+  assert.equal(result.materialLines.length, 3);
+  assert.equal(result.materialLines[2].quantity, undefined);
+  assert.ok(result.materialLines[2].reviewFlags.includes("missing-quantity"));
+  assert.ok(result.warnings.some((item) => item.code === "MISSING_QUANTITY"));
+});
+
+test("warns when unreadable pages remain in an otherwise readable document", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    { pageNumber: 1, method: "text", confidence: 0.98, text: "Readable cover" },
+    { pageNumber: 2, method: "ocr", confidence: 0, text: "", status: "failed", errorCode: "ocr_failed" }
+  ]);
+  assert.ok(result.warnings.some((item) => item.code === "PAGE_EXTRACTION_INCOMPLETE" && item.sourcePage === 2));
+});
+
 const fixturePages: TechnicalDescriptionPage[] = [
   {
     pageNumber: 1,
@@ -929,4 +958,52 @@ test("canonicalizes compact and spaced NS standard references", () => {
   }]);
 
   assert.deepEqual(result.standards, ["NS-8407"]);
+});
+
+test("recognizes OCR temperature labels from the Kantine and Vaga documents without changing values", () => {
+  for (const label of ["Utlgsningstemperatur", "Utlosningstemperatur", "Utlesningstemperatur", "Utløsningstemperatur"]) {
+    const result = extractTechnicalDescriptionFromPages([{
+      pageNumber: 2, method: "ocr", confidence: 0.9,
+      text: `Kapittel: 33 Brannslokking\n33.500.3 UE2.11111934\nSPRINKLER\nAntall stk 3\n${label}: 93 °C\nK-faktor: 80`
+    }]);
+    assert.equal(result.materialLines[0].attributes["utløsningstemperatur"], "93 °C");
+    assert.equal(result.materialLines[0].attributes["k-faktor"], "80");
+  }
+});
+
+test("keeps next-page requirements attached to a Sprinkler2 row even when OCR misses its quantity", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    { pageNumber: 10, method: "ocr", confidence: 0.85,
+      text: "30 VVS-installasjoner\n30.332.14 UE2.11112912\nSPRINKLER\nAntall stk\nSum: 0" },
+    { pageNumber: 11, method: "ocr", confidence: 0.9,
+      text: [
+        "30 VVS-installasjoner", "Sprinkleranlegg: Våtanlegg", "Type sprinkler: Spraysprinkler",
+        "Plassering: Hengende synlig i tak", "Utlgsningstemperatur: 68 °C", "K-faktor: 80",
+        "Dekkskive/pyntering (ved innfelling): I.R.", "Beskyttelse: Nei", "Dokumentasjon: Datablad",
+        "30.332.15 UE2.11112912", "SPRINKLER", "Antall stk 80", "Plassering: Innfelt i tak",
+        "Dekkskive/pyntering (ved innfelling): Dobbel rosett"
+      ].join("\n") }
+  ]);
+  const first = result.materialLines.find(line => line.postNumber === "30.332.14")!;
+  assert.ok(first);
+  assert.equal(first.quantity, undefined);
+  assert.ok(first.reviewFlags.includes("missing-quantity"));
+  assert.equal(first.attributes["k-faktor"], "80");
+  assert.equal(first.attributes["utløsningstemperatur"], "68 °C");
+  assert.equal(first.attributes.beskyttelse, "Nei");
+  assert.equal(first.attributes["dekkskive/pyntering (ved innfelling)"], "I.R.");
+  assert.equal(result.materialLines.find(line => line.postNumber === "30.332.15")?.quantity, 80);
+});
+
+test("exposes comments for review without turning their proposed products into specification requirements", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1, method: "text", confidence: 0.98,
+    text: "33.500.1 UE2.11111934\nSPRINKLER\nAntall stk 3\nBeskyttelse: Nei",
+    annotations: [{ id: "note-1", subtype: "Text", text: "9257423\n9254009 Pynteskive\nBeskyttelse: Ja" }]
+  }]);
+  assert.equal(result.materialLines[0].attributes.beskyttelse, "Nei");
+  assert.doesNotMatch(result.materialLines[0].sourceText, /9257423/);
+  const warning = result.warnings.find(w => w.code === "PDF_COMMENTS_REQUIRE_REVIEW");
+  assert.equal(warning?.sourcePage, 1);
+  assert.match(warning?.message ?? "", /9257423/);
 });

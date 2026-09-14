@@ -3,6 +3,32 @@ import test from "node:test";
 import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
 import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 
+test("keeps accessory review on Swedish direct candidates", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head", value_text: "SPRINKLER",
+    value_json: { attributes: {
+      orientation: "Pendent", response: "Quick", temperature: "68 C",
+      "k factor": "80", dimension: "15", finish: "White", guard: "Required"
+    } }
+  });
+  assert.equal(guide.directCandidates.length, 1);
+  assert.equal(guide.directCandidates[0].exactMatch, false);
+  assert.match(guide.directCandidates[0].matchWarnings?.join(" ") ?? "", /Tillbehör/);
+});
+
+test("keeps hydraulic review on otherwise exact direct candidates", () => {
+  const guide = buildAhlsellRequirementGuide({
+    category: "sprinkler_head", value_text: "SPRINKLER",
+    value_json: { attributes: {
+      orientation: "Pendent", response: "Quick", temperature: "68 C",
+      "k factor": "80", dimension: "15", finish: "White"
+    }, sourceText: "Minimum pressure 0.5 bar; hydraulic calculation required" }
+  });
+  assert.equal(guide.directCandidates.length, 1);
+  assert.equal(guide.directCandidates[0].exactMatch, false);
+  assert.match(guide.directCandidates[0].matchWarnings?.join(" ") ?? "", /Hydrauliska villkor/);
+});
+
 test("builds a verified but unapproved Ahlsell candidate from an exact PDF requirement", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head",

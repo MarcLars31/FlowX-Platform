@@ -69,3 +69,12 @@ test("keeps readable server text and fills image-only pages with OCR", () => {
   assert.equal(merged[1].status, "success");
   assert.equal(merged[1].confidence, 0.87);
 });
+
+test("retains PDF comments when replacing an unreadable text layer with OCR", () => {
+  const annotations = [{ id: "1R", text: "Check article", subtype: "Text" }];
+  const [page] = mergeClientOcrPages([
+    { pageNumber: 1, text: "", method: "text", confidence: 0, annotations }
+  ], [{ pageNumber: 1, text: "OCR text ".repeat(20), confidence: 0.8 }]);
+  assert.equal(page.method, "ocr");
+  assert.deepEqual(page.annotations, annotations);
+});

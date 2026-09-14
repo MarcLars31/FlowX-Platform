@@ -3,8 +3,7 @@ import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 
 /**
  * Combines the structured, verified database assessment with live Ahlsell
- * details. The verified assessment remains authoritative while live data may
- * enrich links, images and descriptions.
+ * details. Conflicting evidence from either source remains visible for review.
  */
 export function mergeAhlsellCandidates(
   verifiedCandidates: readonly AhlsellPublicCandidate[],
@@ -40,9 +39,9 @@ function mergeCandidate(
   ]);
   const databaseAndPublic = evidenceSources.includes("mldl_database")
     && evidenceSources.includes("ahlsell_public");
-  const warnings = hasVerifiedAssessment ? verified.matchWarnings : live.matchWarnings;
+  const warnings = uniqueText([...(verified.matchWarnings ?? []), ...(live.matchWarnings ?? [])]);
   const baseScore = hasVerifiedAssessment ? verified.matchScore : live.matchScore;
-  const boostedScore = databaseAndPublic && typeof baseScore === "number"
+  const boostedScore = databaseAndPublic && warnings.length === 0 && typeof baseScore === "number"
     ? Math.min(100, baseScore + 8)
     : baseScore;
   const reasons = hasVerifiedAssessment ? verified.matchReasons : live.matchReasons;
@@ -51,7 +50,9 @@ function mergeCandidate(
     : reasons;
   const recommendation = boostedScore !== undefined && boostedScore >= 75 && (warnings?.length ?? 0) === 0
     ? "recommended" as const
-    : hasVerifiedAssessment ? verified.recommendation : live.recommendation;
+    : warnings.length > 0
+      ? (boostedScore ?? 0) >= 35 ? "possible" as const : "unlikely" as const
+      : hasVerifiedAssessment ? verified.recommendation : live.recommendation;
   return {
     ...live,
     ...verified,
@@ -62,7 +63,7 @@ function mergeCandidate(
     specifications: uniqueText([...verified.specifications, ...live.specifications]),
     source: verified.source,
     evidenceSources,
-    exactMatch: hasVerifiedAssessment ? verified.exactMatch : live.exactMatch,
+    exactMatch: warnings.length === 0 && (hasVerifiedAssessment ? verified.exactMatch === true : live.exactMatch === true),
     matchScore: boostedScore,
     matchReasons,
     matchWarnings: warnings,

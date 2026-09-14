@@ -7,6 +7,7 @@ import type {
   AhlsellAccessorySuggestion,
   AhlsellPublicCandidate
 } from "@/lib/ahlsell-public-match";
+import { sprinklerAccessoryValueIsNotRequired } from "@/lib/sprinkler-technical-rules";
 
 export function attachAhlsellAccessorySuggestions(
   requirement: Record<string, unknown>,
@@ -62,10 +63,10 @@ function sprinklerAccessories(main: AhlsellMldlProduct, requirementText: string)
     const isGuard = /\b(?:sprinklergitter|gitter|beskyttelsesgitter|skyddskorg)\b/.test(text);
     const isCover = /\b(lokk|skjult)\b/.test(text);
     const isEscutcheon = /\b(dekkskiv(?:e)?|pyntering|rosett|escutcheon)\b/.test(text);
-    if (asksForGuard && !isGuard) return [];
-    if (needsConcealedCover && !isCover) return [];
-    if (needsRecessedEscutcheon && !isEscutcheon) return [];
-    if (!asksForGuard && !asksForConcealed && !concealedProduct && !asksForRecessed && !recessedProduct) return [];
+    const kind = asksForGuard && isGuard ? "guard"
+      : needsConcealedCover && isCover ? "cover"
+        : needsRecessedEscutcheon && isEscutcheon ? "escutcheon" : null;
+    if (!kind) return [];
 
     const accessoryFamilies = sprinklerFamilyTokens(accessory);
     const familyMatches = familyTokens.length === 0
@@ -81,20 +82,25 @@ function sprinklerAccessories(main: AhlsellMldlProduct, requirementText: string)
     if (needsConcealedCover && isCover) score += 20;
     if (needsRecessedEscutcheon && isEscutcheon) score += 20;
     if (asksForGuard && isGuard) score += 20;
-    return [{ accessory, score }];
+    return [{ accessory, score, kind }];
   }).sort((left, right) => right.score - left.score);
 
   const required = asksForGuard || asksForConcealed || asksForRecessed || concealedProduct;
-  const reason = asksForGuard
-    ? "Specifikationen kräver skydd; kontrollera modell, riktning och dimension."
-    : needsConcealedCover
-      ? "Dolt montage behöver ett kompatibelt täcklock för exakt sprinklerfamilj."
-      : "Infällt montage behöver en kompatibel täckbricka/rosett för exakt sprinklerfamilj.";
-  return ranked.slice(0, 3).map(({ accessory, score }) => suggestion(
+  const counts = new Map<string, number>();
+  return ranked.filter(({ kind }) => {
+    const count = counts.get(kind) ?? 0;
+    counts.set(kind, count + 1);
+    return count < 3;
+  }).map(({ accessory, kind }) => suggestion(
     accessory,
-    reason,
+    kind === "guard"
+      ? "Specifikationen kräver skydd; kontrollera modell, riktning och dimension."
+      : kind === "cover"
+        ? "Dolt montage behöver ett kompatibelt täcklock för exakt sprinklerfamilj."
+        : "Infällt montage behöver en kompatibel täckbricka/rosett för exakt sprinklerfamilj.",
     required,
-    score >= 70 ? "compatible" : "review"
+    // V27 family and DN are search evidence, not an exact SIN compatibility list.
+    "review"
   ));
 }
 
@@ -211,14 +217,15 @@ function accessoryRequirementText(requirement: Record<string, unknown>) {
   const value = objectRecord(requirement.value_json);
   const attributes = objectRecord(value.attributes);
   const placement = attributeValues(attributes, /\b(plassering|placering|orientation|montasje|montering|mounting)\b/);
-  const accessoryValue = attributeValues(attributes, /\b(dekkskive|pyntering|rosett|escutcheon|cover plate|beskyttelse|gitter|guard)\b/);
-  const normalizedAccessoryValue = normalize(accessoryValue);
-  const accessoryIsNotRelevant = /^(nei|no|false|ingen|i r|ir|ikke aktuelt|ikke relevant|ej relevant|icke relevant|not applicable|not required|n a)$/.test(normalizedAccessoryValue);
+  const accessoryValue = Object.entries(attributes)
+    .filter(([key, entry]) => /\b(dekkskive|pyntering|rosett|escutcheon|cover plate|beskyttelse|gitter|guard)\b/.test(normalize(key))
+      && !sprinklerAccessoryValueIsNotRequired(flatten(entry)))
+    .map(([, entry]) => flatten(entry)).join(" ");
   return normalize([
     flatten(requirement.value_text),
     flatten(requirement.display_name),
     placement,
-    accessoryIsNotRelevant ? "" : accessoryValue
+    accessoryValue
   ].join(" "));
 }
 

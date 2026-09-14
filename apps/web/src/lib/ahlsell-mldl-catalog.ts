@@ -30,7 +30,14 @@ export function findAhlsellMldlCandidates(
   limit = 50
 ): AhlsellPublicCandidate[] {
   const requirementText = normalizedRequirementText(requirement);
-  const expectedTypes = expectedCatalogTypes(requirementText);
+  // An accessory mentioned inside a head specification must not replace the
+  // main product family. Dedicated accessory rows still use text detection.
+  const accessoryRow = /^\s*(?:beskyttelsesgit(?:ter|re)|skyddskorg|sprinklerkorg|sprinklergitter|(?:sprinkler\s+)?guard)\b/i
+    .test(String(requirement.value_text ?? requirement.display_name ?? ""));
+  const expectedTypes = accessoryRow ? new Set(["sprinkler_accessory"])
+    : requirement.category === "sprinkler_head"
+      ? new Set(["sprinkler_head"])
+      : expectedCatalogTypes(requirementText);
   const explicitArticles = new Set(articleNumbers(requirementText));
   const explicitModels = new Set(modelNumbers(requirementText));
   const pool = catalogData.products.filter((product) => {

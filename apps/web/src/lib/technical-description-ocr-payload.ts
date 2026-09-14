@@ -92,6 +92,7 @@ export function mergeClientOcrPages(
     if (!clientPage?.text) return serverPage;
     const readable = clientPage.text.length >= minimumReadableLength;
     return {
+      ...serverPage,
       pageNumber: serverPage.pageNumber,
       text: clientPage.text,
       method: "ocr",

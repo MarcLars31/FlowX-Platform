@@ -3,6 +3,81 @@ import test from "node:test";
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
+test("requires review for conflicting quick and standard response in the same row", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head", value_text: "Sprinkler K80 DN15 68C QR standard response"
+  }, [candidate("response-test", "Sprinklerhode K80 DN15 68C QR messing pendent", "", "/")]);
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.match(ranked.matchWarnings?.join(" ") ?? "", /både standard- och quick/);
+});
+
+test("checks both ends of a reducer rather than only its first DN", () => {
+  const [ranked] = rankAhlsellCandidates({category: "fitting", value_text: "Reduksjon DN100 x DN65 PN16"}, [
+    candidate("reducer-test", "Reduksjon DN100 x DN50 PN16", "", "/")
+  ]);
+  assert.equal(isExactAhlsellCandidate(ranked), false);
+  assert.match(ranked.matchWarnings?.join(" ") ?? "", /anslutningar.*DN65/);
+});
+
+test("does not mark an underspecified standard sprinkler as exact", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head", value_text: "SPRINKLER",
+    value_json: {attributes: {sprinkleranlegg: "Våtanlegg", "type sprinkler": "Konvensjonell sprinkler", "k-faktor": "80", "gjengedimensjon (dn)": "15"}}
+  }, [candidate("incomplete", "Sprinklerhode K80 DN15 messing", "Standard coverage conventional sprinkler", "/")]);
+  assert.equal(ranked.matchScore, 100);
+  assert.equal(isExactAhlsellCandidate(ranked), false);
+});
+
+test("does not replace existing catalog warnings during ranking", () => {
+  const [ranked] = rankAhlsellCandidates({value_text: "Bend DN50"}, [{
+    ...candidate("flagged", "Bend DN50", "", "/"), exactMatch: true, matchWarnings: ["Kontrollera databasraden"]
+  }]);
+  assert.equal(isExactAhlsellCandidate(ranked), false);
+  assert.ok(ranked.matchWarnings?.includes("Kontrollera databasraden"));
+});
+
+test("rejects a 90 degree bend for a 45 degree requirement even when DN and PN match", () => {
+  const [ranked] = rankAhlsellCandidates({category: "fitting", value_text: "Bend 45° DN50 PN16"}, [
+    candidate("angle-test", "Bend 90° DN50 PN16", "", "/bend/")
+  ]);
+  assert.equal(isExactAhlsellCandidate(ranked), false);
+  assert.match(ranked.matchWarnings?.join(" ") ?? "", /Fel böjvinkel/);
+});
+
+test("checks explicit working pressure and accepts a documented higher capacity", () => {
+  const requirement = {category: "valve", value_text: "Spjeldventil DN100", value_json: {attributes: {Trykk: "12 bar"}}};
+  const products = [
+    candidate("low", "Spjeldventil DN100", "Maximalt arbetstryck 10 bar", "/"),
+    candidate("enough", "Spjeldventil DN100", "Maximalt arbetstryck 21 bar", "/"),
+    candidate("unknown", "Spjeldventil DN100", "", "/")
+  ];
+  const ranked = rankAhlsellCandidates(requirement, products);
+  assert.match(ranked.find((item) => item.articleNumber === "low")?.matchWarnings?.join(" ") ?? "", /För lågt arbetstryck/);
+  assert.match(ranked.find((item) => item.articleNumber === "unknown")?.matchWarnings?.join(" ") ?? "", /arbetstryck behöver verifieras/);
+  assert.deepEqual(ranked.find((item) => item.articleNumber === "enough")?.matchWarnings, []);
+});
+
+test("requires review when a sprinkler row specifies multiple orientations", () => {
+  const [ranked] = rankAhlsellCandidates({
+    category: "sprinkler_head", value_text: "SPRINKLER",
+    value_json: { attributes: {
+      sprinkleranlegg: "Våtanlegg", "type sprinkler": "Konvensjonell sprinkler",
+      plassering: "Stående og hengende", "k-faktor": "80",
+      "gjengedimensjon (dn)": "15", utløsningstemperatur: "68 C",
+      følsomhetsgrad: "Quick response", overflatebehandling: "Messing"
+    } }
+  }, [candidate("orientation-test", "Sprinklerhode K80 DN15 68C QR upright messing", "Standard coverage conventional sprinkler", "/sprinkler/")]);
+  assert.equal(isExactAhlsellCandidate(ranked), false);
+  assert.notEqual(ranked.recommendation, "recommended");
+  assert.match(ranked.matchWarnings?.join(" ") ?? "", /riktning|stående.*hängande/i);
+});
+
+test("does not sort a verified mismatch above an exact technical match", () => {
+  const mismatch = { ...candidate("wrong", "Wrong", "", "/"), source: "verified_database" as const, exactMatch: false, matchWarnings: ["Fel dimension"], matchScore: 100 };
+  const exact = { ...candidate("right", "Right", "", "/"), exactMatch: true, matchScore: 90 };
+  assert.equal(orderAhlsellCandidatesForDisplay([mismatch, exact])[0].articleNumber, "right");
+});
+
 test("ranks the DN100 Series 751 wet alarm station above a gate valve and residential manifold", () => {
   const requirement = {
     category: "valve",

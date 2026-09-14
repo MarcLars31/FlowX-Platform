@@ -1,3 +1,10 @@
+export type TechnicalDescriptionAnnotation = {
+  id: string;
+  text: string;
+  subtype: string;
+  rect?: number[];
+};
+
 export type TechnicalDescriptionPage = {
   pageNumber: number;
   text: string;
@@ -6,6 +13,8 @@ export type TechnicalDescriptionPage = {
   status?: "success" | "partial" | "failed";
   errorCode?: "ocr_failed" | "text_extraction_failed";
   errorMessage?: string;
+  annotations?: TechnicalDescriptionAnnotation[];
+  annotationReadFailed?: boolean;
 };
 
 export type TechnicalDescriptionCategory =

@@ -4,6 +4,7 @@ import {
   plainTextFromPdfItems
 } from "@/lib/pdf-runtime";
 import type { TechnicalDescriptionPage } from "./types";
+import { commentsFromPdfAnnotations } from "./pdf-annotations";
 import {
   layoutTextFromPdfItems,
   shouldPreferPdfLayoutText
@@ -27,6 +28,14 @@ export async function extractTechnicalDescriptionPages(
         ? layoutText
         : plainText;
       const readable = text.length >= MIN_TEXT_PAGE_LENGTH;
+      let annotations: TechnicalDescriptionPage["annotations"];
+      let annotationReadFailed = false;
+      try {
+        annotations = commentsFromPdfAnnotations(await page.getAnnotations({ intent: "display" }));
+      } catch {
+        // A broken comment must not discard otherwise readable page text.
+        annotationReadFailed = true;
+      }
       pages.push({
         pageNumber,
         text,
@@ -36,8 +45,11 @@ export async function extractTechnicalDescriptionPages(
         errorCode: readable ? undefined : "ocr_failed",
         errorMessage: readable
           ? undefined
-          : "Sidan innehåller för lite maskinläsbar text och behöver granskas eller OCR-behandlas."
+          : "Sidan innehåller för lite maskinläsbar text och behöver granskas eller OCR-behandlas.",
+        ...(annotations?.length ? { annotations } : {}),
+        ...(annotationReadFailed ? { annotationReadFailed } : {})
       });
+      page.cleanup();
     }
     return pages;
   } finally {

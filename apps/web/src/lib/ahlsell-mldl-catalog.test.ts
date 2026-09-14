@@ -6,6 +6,24 @@ import {
   findAhlsellMldlCandidates
 } from "./ahlsell-mldl-catalog";
 
+test("keeps a dedicated guard row searchable when an older extraction labels it sprinkler_head", () => {
+  const candidates = findAhlsellMldlCandidates({
+    category: "sprinkler_head", value_text: "Beskyttelsesgitter for sprinkler DN15"
+  });
+  assert.ok(candidates.length > 0);
+  assert.ok(candidates.every((item) => ahlsellMldlProducts().find((product) => product.articleNumber === item.articleNumber)?.productType === "sprinkler_accessory"));
+});
+
+test("keeps the main sprinkler family when its specification also requests accessories", () => {
+  const candidates = findAhlsellMldlCandidates({
+    category: "sprinkler_head",
+    value_text: "Sprinklerhode K80 DN15 68C QR pendent messing med rosett",
+    value_json: { attributes: { beskyttelse: "Gitter" } }
+  });
+  assert.ok(candidates.length > 0);
+  assert.ok(candidates.every((item) => ahlsellMldlProducts().find((product) => product.articleNumber === item.articleNumber)?.productType === "sprinkler_head"));
+});
+
 test("imports the complete MLDL assortment without duplicate article numbers", () => {
   const products = ahlsellMldlProducts();
   assert.equal(AHLSELL_MLDL_PRODUCT_COUNT, 759);

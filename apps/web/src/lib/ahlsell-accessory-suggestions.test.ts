@@ -3,6 +3,16 @@ import test from "node:test";
 import { suggestedAccessories } from "./ahlsell-accessory-suggestions";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
+test("offers both a guard and an escutcheon when both are required", () => {
+  const suggestions = suggestedAccessories({
+    category: "sprinkler_head",
+    value_text: "V2762 sprinklerhode innfelt med dekkskive og guard"
+  }, candidate("1361933"));
+  assert.ok(suggestions.some((item) => /gitter/i.test(item.productName)));
+  assert.ok(suggestions.some((item) => /dekkskiv/i.test(item.productName)));
+  assert.ok(suggestions.every((item) => item.compatibility === "review"));
+});
+
 test("finds a V27 escutcheon when the specification requires recessed mounting", () => {
   const suggestions = suggestedAccessories({
     category: "sprinkler_head",

@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
+test("handles English and Swedish negative accessory values and negated free text", () => {
+  assert.equal(sprinklerRequiresAccessoryReview({beskyttelse: "None"}), false);
+  assert.equal(sprinklerRequiresAccessoryReview({beskyttelse: "Nej"}), false);
+  assert.equal(sprinklerRequiresAccessoryReview({}, "ikke med rosett"), false);
+  assert.equal(sprinklerRequiresAccessoryReview({}, "ikke med rosett men med guard"), true);
+});
 import { sprinklerRequiresAccessoryReview } from "./sprinkler-technical-rules";
 
 test("recognizes OCR variants of I.R. in accessory values from existing PDF rows", () => {

@@ -11,6 +11,14 @@ const assets = [
     "node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js",
     "tesseract-core-lstm.wasm.js"
   ],
+  [
+    "node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js",
+    "tesseract-core-simd-lstm.wasm.js"
+  ],
+  [
+    "node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js",
+    "tesseract-core-relaxedsimd-lstm.wasm.js"
+  ],
   ["node_modules/pdfjs-dist/build/pdf.worker.min.mjs", "pdf.worker.min.mjs"],
   [
     "node_modules/@tesseract.js-data/nor/4.0.0_best_int/nor.traineddata.gz",

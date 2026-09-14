@@ -616,7 +616,11 @@ export async function POST(request: Request) {
               {
                 extracted_text: page.text,
                 extraction_method: page.method,
-                metadata: { confidence: page.confidence }
+                metadata: {
+                  confidence: page.confidence,
+                  annotations: page.annotations ?? [],
+                  annotation_read_failed: page.annotationReadFailed ?? false
+                }
               }
             )
           )
@@ -632,7 +636,11 @@ export async function POST(request: Request) {
             page_number: page.pageNumber,
             extracted_text: page.text,
             extraction_method: page.method,
-            metadata: { confidence: page.confidence }
+            metadata: {
+              confidence: page.confidence,
+              annotations: page.annotations ?? [],
+              annotation_read_failed: page.annotationReadFailed ?? false
+            }
           }))
       );
     }
