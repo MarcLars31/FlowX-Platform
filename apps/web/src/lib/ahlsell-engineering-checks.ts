@@ -1,10 +1,12 @@
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
+import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 
 /** Cross-catalogue checks that must also run on directly verified products. */
 export function engineeringRequirementWarnings(
   requirement: Record<string, unknown>,
   candidate: AhlsellPublicCandidate
 ): string[] {
+  candidate = withVerifiedWorkingPressure(candidate);
   const value = record(requirement.value_json);
   const attributes = record(value.attributes);
   const ownText = `${requirement.value_text ?? ""} ${requirement.display_name ?? ""}`;
@@ -38,9 +40,12 @@ export function engineeringRequirementWarnings(
   const requiredBar = !/\bPN\s*\d/i.test(pressureText)
     ? number(pressureText.match(/(\d+(?:[.,]\d+)?)\s*bar\b/i)?.[1]) : null;
   if (requiredBar !== null) {
-    const actualBar = candidate.source === "pdf_reference" ? null : number(productText.match(
-      /(?:max(?:imum|imalt|imalt tillåtet)?\.?\s*(?:arbeids|arbeids-|arbeids |arbets|working )?(?:trykk|tryck|pressure)?|arbeidstrykk|arbetstryck|working pressure)\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*bar\b/i
-    )?.[1]);
+    // Never use a factory test pressure or minimum hydraulic pressure here.
+    // Conflicting capacity values are assessed conservatively using the lower.
+    const capacities = candidate.source === "pdf_reference" ? [] : [...productText.matchAll(
+      /(?:max(?:imum|imalt|imalt tillåtet)?\.?\s*(?:arbeids|arbeids-|arbeids |arbets|working )?(?:trykk|tryck|pressure)|arbeidstrykk|arbetstryck|working pressure)\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(bar|kpa|mpa|psi)\b/gi
+    )].map(match => Number(match[1].replace(",", ".")) * ({ bar: 1, kpa: 0.01, mpa: 10, psi: 0.0689476 }[match[2].toLowerCase()] ?? 1));
+    const actualBar = capacities.length ? Math.min(...capacities) : null;
     if (actualBar === null) warnings.push(`Produktens tillåtna arbetstryck behöver verifieras mot PDF-kravet ${requiredBar} bar.`);
     else if (actualBar < requiredBar) warnings.push(`För lågt arbetstryck: PDF kräver ${requiredBar} bar, produkten är dokumenterad för ${actualBar} bar.`);
   }

@@ -1,5 +1,8 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
+import { technicalConflictWarnings, withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
+import { withVerifiedWorkingPressure, verifiedVictaulicWorkingPressure } from "./victaulic-working-pressure";
+import { verifiedVictaulicCandidate } from "./victaulic-sprinkler-catalog";
 import {
   parseSprinklerKFactor,
   projectRequirementDataWarnings,
@@ -63,10 +66,19 @@ type TechnicalProfile = {
 export function rankAhlsellCandidates(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
   const profile = requirementProfile(requirement);
   return orderAhlsellCandidatesForDisplay(
-    candidates.map((candidate) => scoreCandidate({
-      ...candidate,
-      matchWarnings: [...new Set([...(candidate.matchWarnings ?? []), ...engineeringRequirementWarnings(requirement, candidate)])]
-    }, profile))
+    candidates.map(candidate => {
+      const verified = verifiedVictaulicCandidate(candidate);
+      // Fill sparse public cards before assessment, retaining conflicts from
+      // both the public description and the independently verified article.
+      const combined = withVerifiedWorkingPressure(verified ? { ...candidate,
+        specifications: [...new Set([...candidate.specifications, ...verified.specifications])]
+      } : candidate);
+      const verifiedConflicts = verified ? technicalConflictWarnings(scoreCandidate(verified, profile)) : [];
+      return scoreCandidate({ ...combined, matchWarnings: [...new Set([
+        ...(candidate.matchWarnings ?? []), ...verifiedConflicts,
+        ...engineeringRequirementWarnings(requirement, combined)
+      ])] }, profile);
+    })
   );
 }
 
@@ -98,6 +110,7 @@ export function ahlsellCandidateMatchState(candidate: AhlsellPublicCandidate): A
 }
 
 function confidenceTier(candidate: AhlsellPublicCandidate) {
+  if (technicalConflictWarnings(candidate).length) return 5;
   if (isExactAhlsellCandidate(candidate)) return 0;
   if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely") return 3;
   if (candidate.recommendation === "recommended") return 1;
@@ -136,7 +149,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   const codeIntent = ns3420ProductFamily(flattenText({
     nsCode: value.nsCode,
     requirementKey: requirement.requirement_key
-  }));
+  }), String(requirement.value_text ?? requirement.display_name ?? ""));
   const intent = codeIntent ?? detectIntent(semanticText, text, String(requirement.category ?? ""));
   const explicitFinish = extractFinish(primaryText);
   const responseResult = sprinklerResponse(
@@ -176,7 +189,9 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     coverage: sprinklerCoverageFromText(coverageText),
     requiresAccessoryReview: sprinklerRequiresAccessoryReview(attributes, sourceOnlyText),
     requiresHydraulicReview: sprinklerNeedsHydraulicReview(coverageText),
-    finish: explicitFinish ?? (intent === "sprinkler_head" ? "brass" : null),
+    finish: explicitFinish ?? (intent === "sprinkler_head"
+      && !/\b(valgfritt|valfritt|optional)\b/.test(normalize(attributeText(attributes,
+        /\b(?:overflatebehandling|ytbehandling|finish|farge|farg)\b/))) ? "brass" : null),
     requiresSupervisedOpenValve: /\b(signal (?:ved|nar) stengt ventil|tilkobling for signal|overvaket|overvakning|supervised open|supervisory switch)\b/.test(primaryText),
     requiresHandwheelValve: /\b(manuell med ratt|med ratt|handratt|handwheel|gear operated|girbetjent)\b/.test(primaryText),
     requiresSoftClosingValve: /\b(myk stenging|mjuk stangning|soft clos|slow clos)\b/.test(primaryText)
@@ -189,10 +204,11 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     productName: candidate.productName,
     manufacturer: candidate.manufacturer,
     description: candidate.description,
-    specifications: candidate.specifications,
-    productUrl: candidate.productUrl
+    specifications: candidate.specifications
   }));
   const reasons: string[] = [];
+  const pressure = verifiedVictaulicWorkingPressure(candidate);
+  if (pressure) reasons.push(`Arbetstryck ${pressure.bar} bar är dokumenterat för ${pressure.model} i Victaulic ${pressure.publication}.`);
   const warnings: string[] = [...requirement.reviewWarnings, ...(candidate.matchWarnings ?? [])];
   let score = 0;
 
@@ -368,7 +384,8 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     && warnings.length === 0
     && hasCompleteTechnicalEvidence(candidateText, candidateName, requirement)
   ));
-  return { ...candidate, matchScore, matchReasons: reasons, matchWarnings: warnings, recommendation, exactMatch };
+  return withTechnicalConflictAssessment({ ...candidate, matchScore, matchReasons: reasons,
+    matchWarnings: [...new Set(warnings)], recommendation, exactMatch });
 }
 
 function hasCompleteTechnicalEvidence(
@@ -441,7 +458,7 @@ function scoreWetAlarmValve(candidateText: string, reasons: string[], warnings: 
     score -= 60;
     warnings.push("Produkten är avsedd för torrt system, men PDF-kravet anger vått system.");
   }
-  if (/\b(sluseventiler?|gate valve)\b/.test(candidateText)) {
+  if (/\b(sluseventil(?:er)?|gate valve)\b/.test(candidateText)) {
     score -= 40;
     warnings.push("Produkten är en avstängningsventil och inte ett komplett alarmventilset.");
   }
@@ -493,6 +510,8 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
       score -= 55;
       warnings.push(`Fel K-faktor: PDF kräver K${formatNumber(requirement.kFactor)}, träffen anger K${formatNumber(candidateK)}.`);
     }
+  } else if (requirement.kFactor !== null) {
+    warnings.push(`K-faktorn saknas i produktinformationen; PDF kräver K${formatNumber(requirement.kFactor)}.`);
   }
   const candidateTemperature = extractTemperature(candidateText);
   if (requirement.temperatureC !== null && candidateTemperature !== null) {
@@ -503,6 +522,8 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
       score -= 35;
       warnings.push(`Fel temperatur: PDF kräver ${formatNumber(requirement.temperatureC)} °C, träffen anger ${formatNumber(candidateTemperature)} °C.`);
     }
+  } else if (requirement.temperatureC !== null) {
+    warnings.push(`Utlösningstemperaturen saknas i produktinformationen; PDF kräver ${formatNumber(requirement.temperatureC)} °C.`);
   }
   if (requirement.response) {
     const candidateResponse = extractSprinklerResponse(candidateText);
@@ -512,6 +533,8 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
     } else if (candidateResponse) {
       score -= 35;
       warnings.push("Sprinklerns responstid stämmer inte med PDF-kravet.");
+    } else {
+      warnings.push("Sprinklerns responstid saknas i produktinformationen.");
     }
   }
   if (requirement.orientation) {
@@ -522,6 +545,8 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
     } else if (orientation) {
       score -= 45;
       warnings.push("Sprinklerns monteringsriktning stämmer inte med PDF-kravet.");
+    } else {
+      warnings.push("Sprinklerns monteringsriktning saknas i produktinformationen.");
     }
   }
   if (requirement.mount === null && requirement.visibleMount) {
@@ -544,7 +569,9 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
       reasons.push("Sprinklerns täcknings-/applikationsklass stämmer med PDF-kravet.");
     } else {
       score -= 35;
-      warnings.push(requirement.coverage.startsWith("extended")
+      warnings.push(candidateCoverage !== null
+        ? `Fel täcknings-/applikationsklass: PDF kräver ${requirement.coverage}, produkten anger ${candidateCoverage}.`
+        : requirement.coverage.startsWith("extended")
         ? "PDF-kravet anger extended coverage, men produktinformationen bekräftar inte rätt täcknings-/applikationsklass."
         : "Produktens täcknings-/applikationsklass stämmer inte med PDF-kravet eller saknar verifierbart underlag.");
     }
@@ -892,14 +919,14 @@ function extractSprinklerSystem(value: string): TechnicalProfile["sprinklerSyste
 function extractRequiredSprinklerHeadType(value: string): TechnicalProfile["sprinklerHeadType"] {
   if (/\b(torrsprinkler|torrorssprinkler|dry sprinkler|dry type sprinkler)\b/.test(value)) return "dry";
   if (/\b(window sprinkler|vindussprinkler|vindu sprinkler|apen sprinkler|open sprinkler|uten termisk element)\b/.test(value)) return "open";
-  if (/\b(konvensjonell|konventionell|conventional|spraysprinkler|standard spray|utvidet dekning|extended coverage)\b/.test(value)) return "standard";
+  if (/\b(konvensjonell|konventionell|conventional|spraysprinkler|standard spray|utvidet dekning(?:sareal)?|extended coverage|institusjonssprinkler|institutionssprinkler|korridorsprinkler)\b/.test(value)) return "standard";
   return null;
 }
 
 function candidateSprinklerHeadType(value: string): TechnicalProfile["sprinklerHeadType"] {
   const explicitlyNotDry = /\b(not|ikke|ej|inte)\s+(?:a\s+)?(?:dry|torr)(?:\s*type)?\s+sprinkler\b/.test(value);
   if (!explicitlyNotDry && /\b(torrsprinkler|torr sprinkler|torr|dry sprinkler|dry type)\b/.test(value)) return "dry";
-  if (/\b(window sprinkler|vindussprinkler|vindu sprinkler|apen sprinkler|open sprinkler|apen sprededyse|open nozzle)\b/.test(value)) return "open";
+  if (/\b(window sprinkler|vindussprinkler|vindu sprinkler|apen sprinkler|open sprinkler|apen sprededyse|open (?:(?:foam|spray) )?nozzle|open spray)\b/.test(value)) return "open";
   if (isSprinklerHeadText(value)) return "standard";
   return null;
 }
@@ -934,6 +961,8 @@ function scoreSprinklerHeadType(
     warnings.push("PDF-kravet anger en öppen sprinkler utan termiskt element, men träffen är inte dokumenterad som öppen modell.");
   } else if (candidateType === "dry") {
     warnings.push("PDF-kravet anger ett konventionellt sprinklerhuvud, men träffen är en torrsprinkler.");
+  } else if (candidateType === "open") {
+    warnings.push("PDF-kravet anger ett temperaturutlöst sprinklerhuvud, men träffen är en öppen dysa utan termiskt element.");
   } else {
     warnings.push("Produktinformationen bekräftar inte sprinklerhuvudets konstruktion.");
   }

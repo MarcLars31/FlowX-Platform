@@ -1,3 +1,5 @@
+import { ns3420ProductFamily } from "./ns3420-product-classification";
+
 export type ProductRequirementCategory =
   | "sprinkler_head"
   | "sprinkler_hose"
@@ -31,6 +33,9 @@ export function productRequirementCategory(
   requirement: Record<string, unknown>
 ): ProductRequirementCategory {
   const category = String(requirement.category ?? "").toLowerCase();
+  const codeFamily = ns3420ProductFamily(flattenText(requirement.value_json) + " " + String(requirement.requirement_key ?? ""),
+    String(requirement.value_text ?? requirement.display_name ?? ""));
+  if (codeFamily) return codeFamily;
   const searchable = normalize(flattenText({
     requirementKey: requirement.requirement_key,
     displayName: requirement.display_name,

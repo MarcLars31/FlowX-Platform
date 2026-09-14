@@ -9,6 +9,7 @@ test("preserves both reducer dimensions in structured attributes", () => {
     text: ["Kapittel: 33 Brannslokking", "33.335.1 UB1.3111A", "REDUKSJON", "Dimensjon: DN100 x DN65", "Antall stk 2"].join("\n")
   }]);
   assert.match(result.materialLines[0].attributes.dimensjon, /DN100.*DN65/);
+  assert.equal(result.materialLines[0].category, "fitting");
 });
 
 test("retains a material row with missing quantity beside complete structured rows", () => {

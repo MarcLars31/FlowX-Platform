@@ -145,7 +145,7 @@ test("learned history only breaks ties and never changes technical classificatio
   assert.equal(assisted.exactMatch, ranked[0].exactMatch);
   assert.equal(assisted.source, ranked[0].source);
   assert.equal(assisted.learningEvidence?.kind, "similar_confirmed");
-  assert.ok(assisted.matchReasons?.some((reason) => reason.includes("valts tidigare")));
+  assert.ok(assisted.matchReasons?.some((reason) => reason.includes("tidigare bekräftats")));
 });
 
 function sprinklerRequirement({

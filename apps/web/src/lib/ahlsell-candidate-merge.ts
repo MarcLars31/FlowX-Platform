@@ -1,5 +1,6 @@
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 
 /**
  * Combines the structured, verified database assessment with live Ahlsell
@@ -21,7 +22,7 @@ export function mergeAhlsellCandidates(
     candidatesByArticle.set(key, live ? mergeCandidate(verified, live) : verified);
   }
   return orderAhlsellCandidatesForDisplay(
-    [...candidatesByArticle.values()].map(withInferredEvidence)
+    [...candidatesByArticle.values()].map(withInferredEvidence).map(withTechnicalConflictAssessment)
   );
 }
 
@@ -73,6 +74,7 @@ function mergeCandidate(
 }
 
 function withInferredEvidence(candidate: AhlsellPublicCandidate): AhlsellPublicCandidate {
+  candidate = { ...candidate, imageUrl: candidate.imageUrl, specifications: uniqueText(candidate.specifications) };
   return candidate.evidenceSources?.length
     ? candidate
     : { ...candidate, evidenceSources: inferredEvidence(candidate.source) };

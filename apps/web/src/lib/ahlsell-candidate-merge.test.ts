@@ -62,15 +62,15 @@ test("keeps matching brass 68C quick-response heads first after catalog results 
   const database = findAhlsellMldlCandidates(requirement, 50);
   const merged = mergeAhlsellCandidates(direct, database);
 
-  // The database also contains 100-point variants with the wrong temperature,
-  // response or finish; source scores must not override those discrepancies.
-  assert.ok(merged.some((item) => item.matchScore === 100 && (item.matchWarnings?.length ?? 0) > 1));
+  // Incompatible variants cannot regain high scores through catalogue bonuses.
+  assert.ok(merged.filter(item => /Fel temperatur|responstid stämmer inte|ytfinish stämmer inte/.test(item.matchWarnings?.join(" ") ?? ""))
+    .every(item => item.matchScore! <= 34));
   assert.deepEqual(merged.slice(0, 2).map((item) => item.articleNumber).sort(), ["9254064", "9257392"]);
-  for (const item of merged.slice(0, 2)) {
-    assert.equal(item.exactMatch, false);
-    assert.equal(item.matchWarnings?.length, 1);
-    assert.match(item.matchWarnings![0], /arbetstryck behöver verifieras/);
-  }
+  assert.equal(merged[0].articleNumber, "9257392");
+  assert.ok(!merged[0].matchWarnings?.some(warning => /arbetstryck/.test(warning)));
+  const legacy = merged.find(item => item.articleNumber === "9254064")!;
+  assert.equal(legacy.exactMatch, false);
+  assert.match(legacy.matchWarnings!.join(" "), /arbetstryck behöver verifieras/);
   // The client merges the same direct assessment again when showing the card.
   assert.deepEqual(mergeAhlsellCandidates(direct, merged), merged);
 });

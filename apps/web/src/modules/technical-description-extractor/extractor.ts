@@ -517,7 +517,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       );
       const parent = findTableParent(parentContexts, fullPostNumber);
       const effectiveNsCode = nsCode ?? parent?.nsCode;
-      const ownCategory = ns3420ProductFamily(effectiveNsCode)
+      const ownCategory = ns3420ProductFamily(effectiveNsCode, description)
         ?? inferStructuredCategory(description, sourceText);
       const inheritedCategory = parent?.category === "unknown"
         ? inferCategory(parent.sourceText.toLocaleLowerCase())
@@ -1235,7 +1235,7 @@ function buildMaterialLine(
 ): TechnicalDescriptionMaterialLine | null {
   const sourceText = block.lines.join("\n");
   const normalizedText = sourceText.toLocaleLowerCase();
-  const category = ns3420ProductFamily(block.nsCode) ?? inferCategory(normalizedText);
+  const category = ns3420ProductFamily(block.nsCode, block.title) ?? inferCategory(normalizedText);
   const description =
     block.title.replace(/\bSPRINKLER\b/gi, "").trim() ||
     block.attributes["type sprinkler"] ||
@@ -1327,7 +1327,7 @@ function inferCategory(text: string): TechnicalDescriptionCategory {
     return "control";
   }
   if (/ventil|valve/.test(text)) return "valve";
-  if (/fitting|bend|muffe|kobling|kupling|t-r[øo]r|t-klave|r[øo]rdel|overgang|endebunn|anborring|blindflens|filter|partikkelutskiller/.test(text)) {
+  if (/fitting|bend|muffe|kobling|kupling|t-r[øo]r|t-klave|r[øo]rdel|overgang|endebunn|anborring|blindflens|filter|partikkelutskiller|\breduksjon\b|\breducer\b/.test(text)) {
     return "fitting";
   }
   if (
@@ -1364,6 +1364,7 @@ function resolveStructuredCategory(
   if (ownCategory === "unknown") return parentCategory;
   if (
     parentCategory === "pipe"
+    && inferCategory(description.toLocaleLowerCase()) !== "fitting"
     && !/ventil|sprinkler|slange|hose|h[åa]ndsl[ou]kker|bend|kobling|kupling/i.test(description)
   ) {
     return "pipe";

@@ -38,6 +38,29 @@ export const VICTAULIC_SPRINKLER_CATALOG_COUNT = catalogJson.rowCount;
 export const VICTAULIC_SPRINKLER_EXACT_SIN_COUNT = catalogJson.exactSinCount;
 export const VICTAULIC_SPRINKLER_CATALOG_SOURCE_SHA256 = catalogJson.sourceSha256;
 
+const verifiedArticles = new Map(catalogJson.products
+  .filter(product => product.victaulicVerification === "Verified by exact SIN"
+    && product.dataStatus === "Victaulic verified" && !product.reviewFlags)
+  .map(product => [product.articleNumber.toUpperCase(), product]));
+
+/** Exact article identity is required; a similar model or a search URL is insufficient. */
+export function verifiedVictaulicArticle(candidate: AhlsellPublicCandidate) {
+  if (candidate.source === "pdf_reference" || candidate.source === "confirmed_history") return null;
+  const product = verifiedArticles.get(candidate.articleNumber.trim().toUpperCase());
+  if (!product) return null;
+  if (candidate.manufacturer && !/victaulic/i.test(candidate.manufacturer)) return null;
+  const statedModels = `${candidate.productName} ${candidate.specifications.join(" ")}`.match(/\bV\d{4}\b/gi) ?? [];
+  if (statedModels.some(model => model.toUpperCase() !== product.model.toUpperCase())) return null;
+  return product;
+}
+
+export function verifiedVictaulicCandidate(candidate: AhlsellPublicCandidate): AhlsellPublicCandidate | null {
+  const product = verifiedVictaulicArticle(candidate);
+  return product ? { articleNumber: product.articleNumber, productName: product.productDescription,
+    manufacturer: "Victaulic", productUrl: candidate.productUrl, source: "verified_database",
+    specifications: catalogSpecifications(product) } : null;
+}
+
 export function findVictaulicSprinklerCandidates(
   query: VictaulicSprinklerCatalogQuery
 ): AhlsellPublicCandidate[] {

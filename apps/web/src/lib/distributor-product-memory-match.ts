@@ -43,7 +43,7 @@ export function rankDistributorProductMemoryHints(
   requirement: Record<string, unknown>,
   memories: readonly DistributorProductMemoryEvidence[]
 ): LearnedProductSearchHint[] {
-  const targetCategory = ns3420ProductFamily(flattenText(requirement))
+  const targetCategory = ns3420ProductFamily(flattenText(requirement), String(requirement.value_text ?? requirement.display_name ?? ""))
     ?? normalizedCategory(requirement.category);
   const targetFingerprint = cleanText(requirement.mapping_fingerprint);
   if (!targetCategory || targetCategory === "unknown") return [];
@@ -63,7 +63,7 @@ export function rankDistributorProductMemoryHints(
       productUrl: "",
       description: specificationLines[0],
       specifications: specificationLines.slice(1),
-      source: "catalog_search"
+      source: "confirmed_history"
     }]);
     const matchScore = ranked?.matchScore ?? 0;
     const warnings = ranked?.matchWarnings ?? [];

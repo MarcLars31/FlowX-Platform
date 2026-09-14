@@ -6,7 +6,10 @@ export type SprinklerCoverageClass =
   | "residential"
   | "storage"
   | "directional_open_spray"
-  | "window";
+  | "window"
+  | "institutional"
+  | "institutional_extended"
+  | "corridor_extended";
 
 export type SprinklerMountCapability = "surface" | "recessed" | "concealed";
 
@@ -22,14 +25,19 @@ export function sprinklerKFactorMatches(required: number, candidate: number) {
 
 export function sprinklerCoverageFromText(value: string): SprinklerCoverageClass | null {
   const normalized = normalize(value);
+  const extended = /\b(extended coverage|utvidet dekning(?:sareal)?|utokat tackningsomrade)\b/.test(normalized);
+  if (/\b(institusjonssprinkler|institutionssprinkler|institutional|vandalsikr[ae]|vandal resistant)\b/.test(normalized)) {
+    return extended ? "institutional_extended" : "institutional";
+  }
+  if (/\b(korridorsprinkler|corridor sprinkler)\b/.test(normalized)) return "corridor_extended";
   if (/\b(window sprinkler|vindussprinkler|vindu sprinkler)\b/.test(normalized)) return "window";
   if (/\b(directional open spray|open spray nozzle|apen sprededyse|sprededyse)\b/.test(normalized)) return "directional_open_spray";
   if (/\b(storage|lager|esfr)\b/.test(normalized)) return "storage";
   if (/\b(residential|boende|boligsprinkler|bolig sprinkler)\b/.test(normalized)) return "residential";
   if (/\b(extended coverage ordinary hazard|utvidet dekning ordinaer|ecoh)\b/.test(normalized)) return "extended_ordinary_hazard";
   if (/\b(extended coverage light hazard|utvidet dekning lett|eclh|qrec|ec hsw|ext cov light)\b/.test(normalized)) return "extended_light_hazard";
-  if (/\b(extended coverage|utvidet dekning)\b/.test(normalized)) return "extended";
-  if (/\b(konvensjonell|konventionell|conventional|standard spray(?:sprinkler)?|standard sprinkler|standard coverage)\b/.test(normalized)) return "standard";
+  if (extended) return "extended";
+  if (/\b(konvensjonell|konventionell|conventional|spraysprinkler|standard spray(?:sprinkler)?|standard sprinkler|standard coverage)\b/.test(normalized)) return "standard";
   return null;
 }
 

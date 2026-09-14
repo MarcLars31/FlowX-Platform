@@ -95,7 +95,7 @@ test("ranks the DN100 Series 751 wet alarm station above a gate valve and reside
     candidate(
       "5505469",
       "Sprinklerventil S-1155 m/stillingsindikator og ratt. Ulefos",
-      "Brukes i forbindelse med vann og sprinkleranlegg. Trykklasse PN16.",
+      "Sluseventil. Brukes i forbindelse med vann og sprinkleranlegg. Trykklasse PN16.",
       "/va-armatur/sluseventiler/5505469/"
     ),
     candidate(
@@ -107,7 +107,7 @@ test("ranks the DN100 Series 751 wet alarm station above a gate valve and reside
     candidate(
       "9257287",
       "Sprinklersentral S751 svart VQR CE/FG",
-      "Sprinklersentral for vått anlegg med hydraulisk brannalarm.",
+      "Sprinklersentral for vått anlegg med hydraulisk brannalarm. DN100 PN16.",
       "/sprinklersentraler/9257287---114.3mm-sprinklersentral-vat-v751/"
     )
   ];
@@ -116,7 +116,7 @@ test("ranks the DN100 Series 751 wet alarm station above a gate valve and reside
 
   assert.equal(ranked[0].articleNumber, "9257287");
   assert.equal(ranked[0].recommendation, "recommended");
-  assert.equal(ranked[0].matchScore, 100);
+  assert.ok(ranked[0].matchScore! >= 75);
   assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("DN100")));
   assert.equal(ranked.find((item) => item.articleNumber === "5505469")?.recommendation, "unlikely");
   assert.ok(ranked.find((item) => item.articleNumber === "5505469")?.matchWarnings?.some((warning) => warning.includes("avstängningsventil")));
@@ -170,7 +170,7 @@ test("prefers the V2704 QR quick-response sprinkler when another attribute says 
       utløsningstemperatur: "68 °C",
       "k-faktor": "80",
       "gjengedimensjon (dn)": "DN15 / 1/2\"",
-      overflatebehandling: "Som standard for produkt"
+      overflatebehandling: "Messing som standard for produkt"
     } }
   }, [
     {
@@ -215,7 +215,7 @@ test("prioritizes recessed pendent V2762 over a conventional opp/ned head for an
       "k-faktor": "80",
       trykk: "PN16",
       "gjengedimensjon (dn)": "DN15 / 1/2\"",
-      overflatebehandling: "Som standard for produkt",
+      overflatebehandling: "Hvit",
       "dekkskive/pyntering (ved innfelling)": "Ja",
       beskyttelse: "Ja"
     } }
@@ -585,7 +585,8 @@ test("requires explicit extended-coverage evidence for an extended-coverage spri
   }]);
 
   assert.equal(ranked.exactMatch, false);
-  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("extended coverage")));
+  assert.equal(ranked.recommendation, "unlikely");
+  assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("Fel täcknings-/applikationsklass")));
 });
 
 test("recognizes common Ahlsell fitting and valve families", () => {

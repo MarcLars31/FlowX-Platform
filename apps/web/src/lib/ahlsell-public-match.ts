@@ -15,6 +15,8 @@ import {
 } from "@/lib/sprinkler-technical-rules";
 import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
+import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
+import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -176,7 +178,7 @@ export function buildAhlsellRequirementGuide(
     : AHLSELL_SWEDEN_SEARCH_URL;
   const unit = normalize(text(value.unit) ?? "");
   const nsCode = text(value.nsCode) ?? text(requirement.requirement_key);
-  const nsCodeIntent = ns3420ProductFamily(nsCode);
+  const nsCodeIntent = ns3420ProductFamily(nsCode, description);
   const intent = nsCodeIntent
     ?? detectAhlsellProductIntent(primaryCombined, combined, category, unit);
   const isSprinklerAccessory = intent === "sprinkler_guard";
@@ -213,7 +215,8 @@ export function buildAhlsellRequirementGuide(
   const placement = firstAttribute(attributes, ["plassering", "placering", "orientation", "sprinklertype", "type"]);
   const deckPlate = firstAttribute(attributes, ["dekkskive", "pyntering", "rosett", "escutcheon", "cover plate"]);
   const responseText = firstAttribute(attributes, ["folsomhetsgrad", "respons", "response"]);
-  const finishText = `${firstAttribute(attributes, ["overflatebehandling", "farge", "farg", "finish", "colour", "color"]) ?? ""} ${description}`;
+  const finishAttribute = firstAttribute(attributes, ["overflatebehandling", "farge", "farg", "finish", "colour", "color"]);
+  const finishText = `${finishAttribute ?? ""} ${description}`;
   const sprinklerSystem = sprinklerSystemType(
     firstAttribute(attributes, ["sprinkleranlegg", "anleggstype", "systemtype", "sprinkler system"])
       ?? combined
@@ -245,7 +248,7 @@ export function buildAhlsellRequirementGuide(
   // Unspecified sprinkler finishes use the catalogue's standard brass variant.
   // An explicit colour or finish in the PDF always takes precedence.
   const finish = sprinklerFinish(finishText)
-    ?? (intent === "sprinkler_head" ? "brass" : null);
+    ?? (intent === "sprinkler_head" && !/\b(valgfritt|valfritt|optional)\b/.test(normalize(finishAttribute ?? "")) ? "brass" : null);
   const specialApplication = sprinklerHeadType === "dry" || sprinklerHeadType === "open"
     || (sprinklerCoverage !== null && sprinklerCoverage !== "standard");
   const pn = numberFromAttribute(attributes, ["trykk", "arbeidstrykk", "trykklasse", "pressure"])
@@ -393,7 +396,7 @@ export function buildAhlsellRequirementGuide(
     intent === "sprinkler_head" && !isSprinklerAccessory
       ? "Scipx kontrollerar den verifierade Victaulic-databasen samt Ahlsells variantvärden för K-faktor, DN, temperatur, respons, riktning, montage, systemvillkor och färg."
       : null,
-    intent === "sprinkler_head" && sprinklerFinish(finishText) === null
+    intent === "sprinkler_head" && finish === "brass" && sprinklerFinish(finishText) === null
       ? "Ingen färg eller ytfinish anges i PDF-posten. Scipx använder därför mässing som standardval."
       : null,
     intent === "sprinkler_head" && sprinklerSystem && sprinklerHeadType
@@ -425,7 +428,7 @@ export function buildAhlsellRequirementGuide(
     recognitionNotes,
     interpretationNotes: intent === "sprinkler_head" ? installation.notes : [],
     interpretationWarnings: intent === "sprinkler_head" ? installation.warnings : [],
-    directCandidates: directCandidates.map((item) => {
+    directCandidates: directCandidates.map(withVerifiedWorkingPressure).map((item) => {
       const checks = engineeringRequirementWarnings(requirement, item);
       if (intent === "sprinkler_head") checks.push(...installation.warnings);
       if (requiresAccessoryReview && !(item.matchWarnings ?? []).some((warning) => /tillbehör|skydd/i.test(warning))) {
@@ -437,7 +440,7 @@ export function buildAhlsellRequirementGuide(
       if (checks.length === 0) return item;
       return { ...item, exactMatch: false, recommendation: "possible" as const,
         matchWarnings: [...new Set([...(item.matchWarnings ?? []), ...checks])] };
-    })
+    }).map(withTechnicalConflictAssessment)
   };
 }
 
@@ -611,6 +614,11 @@ function buildCatalogQueries({
       : null;
     if (sprinklerHeadType === "open") {
       return [`Åpen sprinkler K${formatNumber(kFactor)}`, exact, `Window sprinkler K${formatNumber(kFactor)}`];
+    }
+    // Include the documented nominal K160/K161/K162 family in retrieval;
+    // matching still checks the actual product K-factor and every other field.
+    if ([160, 161, 162].includes(kFactor)) {
+      return [`Sprinklerhode K${formatNumber(kFactor)}`, `Sprinklerhode K160`, `Sprinklerhode K161`];
     }
     return [`Sprinklerhode K${formatNumber(kFactor)}`, exact, temperatureQuery ?? finishQuery];
   }
@@ -883,7 +891,7 @@ function requiredSprinklerHeadType(value: string): SprinklerHeadType | null {
   const normalized = normalize(value);
   if (/\b(torrsprinkler|torrorssprinkler|dry sprinkler|dry type sprinkler)\b/.test(normalized)) return "dry";
   if (/\b(window sprinkler|vindussprinkler|vindu sprinkler|apen sprinkler|open sprinkler|uten termisk element)\b/.test(normalized)) return "open";
-  if (/\b(konvensjonell|konventionell|conventional|spraysprinkler|standard spray|utvidet dekning|extended coverage)\b/.test(normalized)) return "standard";
+  if (/\b(konvensjonell|konventionell|conventional|spraysprinkler|standard spray|utvidet dekning(?:sareal)?|extended coverage|institusjonssprinkler|institutionssprinkler|korridorsprinkler)\b/.test(normalized)) return "standard";
   return null;
 }
 

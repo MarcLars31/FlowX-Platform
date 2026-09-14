@@ -1,4 +1,4 @@
-export type Ns3420ProductFamily = "sprinkler_hose";
+export type Ns3420ProductFamily = "sprinkler_hose" | "pipe";
 
 /**
  * Maps product-bearing NS 3420 codes to the catalogue family they describe.
@@ -8,10 +8,13 @@ export type Ns3420ProductFamily = "sprinkler_hose";
  * the installation system and must therefore not classify the row as rigid
  * pipe.
  */
-export function ns3420ProductFamily(value: unknown): Ns3420ProductFamily | null {
+export function ns3420ProductFamily(value: unknown, description = ""): Ns3420ProductFamily | null {
   if (typeof value !== "string") return null;
-  const normalized = value.toLocaleUpperCase("nb-NO").replace(/\s+/g, "");
-  return /(?:^|[^A-Z0-9])UB1\.3311[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)
-    ? "sprinkler_hose"
-    : null;
+  const normalized = value.toLocaleUpperCase("nb-NO").replace(/\bUB\s*1\s*\.\s*/g, "UB1.");
+  if (/(?:^|[^A-Z0-9])UB1\.3311[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)) return "sprinkler_hose";
+  // Pipe-length subposts inherit this code even when their short description
+  // says "DN25, ink. deler og oppheng". Included supports are not the main item.
+  if (/(?:^|[^A-Z0-9])UB1\.3111[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)
+    && !/\b(?:bend|albue|elbow|kupling|kobling|muffe|ventil|stengeventil|sprinklerhode|sprinklerslange|alarmapparat|rørdel|rørdeler|reduksjon|reducer|tee|t-rør|endelokk|flensadapter)\b/i.test(description)) return "pipe";
+  return null;
 }
