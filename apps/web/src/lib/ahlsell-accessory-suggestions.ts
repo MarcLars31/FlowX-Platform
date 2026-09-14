@@ -7,7 +7,7 @@ import type {
   AhlsellAccessorySuggestion,
   AhlsellPublicCandidate
 } from "@/lib/ahlsell-public-match";
-import { sprinklerAccessoryValueIsNotRequired } from "@/lib/sprinkler-technical-rules";
+import { sprinklerInstallationRequirements } from "@/lib/sprinkler-technical-rules";
 
 export function attachAhlsellAccessorySuggestions(
   requirement: Record<string, unknown>,
@@ -28,7 +28,10 @@ export function suggestedAccessories(
   const requirementText = accessoryRequirementText(requirement);
 
   if (main.productType === "sprinkler_head") {
-    return sprinklerAccessories(main, requirementText);
+    const value = objectRecord(requirement.value_json);
+    return sprinklerAccessories(main, requirementText, sprinklerInstallationRequirements(
+      objectRecord(value.attributes), `${flatten(requirement.value_text)}\n${flatten(value.sourceText)}`
+    ));
   }
   if (main.productType === "sprinkler_hose") {
     return hoseAccessories(main);
@@ -42,14 +45,14 @@ export function suggestedAccessories(
   return [];
 }
 
-function sprinklerAccessories(main: AhlsellMldlProduct, requirementText: string) {
+function sprinklerAccessories(main: AhlsellMldlProduct, requirementText: string, installation: ReturnType<typeof sprinklerInstallationRequirements>) {
   const mainText = normalize(`${main.productName} ${main.model ?? ""} ${main.mount ?? ""}`);
   const selectedProductText = normalize(`${main.productName} ${main.headConstruction ?? ""}`);
   const asksForGuard = /\b(gitter|beskytt|skyddskorg|guard)\b/.test(requirementText);
-  const asksForConcealed = /\b(skjult|concealed|dekkplate|cover plate|tacklock)\b/.test(requirementText);
-  const asksForRecessed = /\b(innfelt|recessed|dekkskiv(?:e)?|pyntering|rosett|escutcheon)\b/.test(requirementText);
+  const asksForConcealed = installation.mount === "concealed" || /\b(dekkplate|cover plate|tacklock)\b/.test(requirementText);
+  const asksForRecessed = installation.mount === "recessed" || /\b(dekkskiv(?:e)?|pyntering|rosett|escutcheon)\b/.test(requirementText);
   const concealedProduct = /\b(skjult|concealed)\b/.test(selectedProductText);
-  const recessedProduct = /\b(innfelt|recessed)\b/.test(normalize(main.productName));
+  const recessedProduct = !installation.exposed && /\b(innfelt|recessed)\b/.test(normalize(main.productName));
   if (!asksForGuard && !asksForConcealed && !asksForRecessed && !concealedProduct && !recessedProduct) return [];
   const needsConcealedCover = asksForConcealed || concealedProduct;
   const needsRecessedEscutcheon = !needsConcealedCover && (asksForRecessed || recessedProduct);
@@ -85,7 +88,7 @@ function sprinklerAccessories(main: AhlsellMldlProduct, requirementText: string)
     return [{ accessory, score, kind }];
   }).sort((left, right) => right.score - left.score);
 
-  const required = asksForGuard || asksForConcealed || asksForRecessed || concealedProduct;
+  const unresolvedCover = installation.accessories.some((entry) => entry.kind === "cover" && entry.status === "review");
   const counts = new Map<string, number>();
   return ranked.filter(({ kind }) => {
     const count = counts.get(kind) ?? 0;
@@ -93,12 +96,14 @@ function sprinklerAccessories(main: AhlsellMldlProduct, requirementText: string)
     return count < 3;
   }).map(({ accessory, kind }) => suggestion(
     accessory,
-    kind === "guard"
+    kind !== "guard" && unresolvedCover
+      ? "Kravet på täckbricka är villkorat. Kontrollera montagesättet och tillbehörets kompatibilitet innan val."
+      : kind === "guard"
       ? "Specifikationen kräver skydd; kontrollera modell, riktning och dimension."
       : kind === "cover"
         ? "Dolt montage behöver ett kompatibelt täcklock för exakt sprinklerfamilj."
         : "Infällt montage behöver en kompatibel täckbricka/rosett för exakt sprinklerfamilj.",
-    required,
+    kind === "guard" ? asksForGuard : !unresolvedCover && (asksForConcealed || asksForRecessed || concealedProduct),
     // V27 family and DN are search evidence, not an exact SIN compatibility list.
     "review"
   ));
@@ -216,24 +221,15 @@ function flatten(value: unknown): string {
 function accessoryRequirementText(requirement: Record<string, unknown>) {
   const value = objectRecord(requirement.value_json);
   const attributes = objectRecord(value.attributes);
-  const placement = attributeValues(attributes, /\b(plassering|placering|orientation|montasje|montering|mounting)\b/);
-  const accessoryValue = Object.entries(attributes)
-    .filter(([key, entry]) => /\b(dekkskive|pyntering|rosett|escutcheon|cover plate|beskyttelse|gitter|guard)\b/.test(normalize(key))
-      && !sprinklerAccessoryValueIsNotRequired(flatten(entry)))
-    .map(([, entry]) => flatten(entry)).join(" ");
+  const installation = sprinklerInstallationRequirements(attributes, `${flatten(requirement.value_text)}\n${flatten(value.sourceText)}`);
+  const accessoryValue = installation.accessories
+    .filter((entry) => entry.status === "required" || entry.status === "review")
+    .map((entry) => `${entry.label} ${entry.value}`).join(" ");
   return normalize([
     flatten(requirement.value_text),
     flatten(requirement.display_name),
-    placement,
     accessoryValue
   ].join(" "));
-}
-
-function attributeValues(attributes: Record<string, unknown>, pattern: RegExp) {
-  return Object.entries(attributes)
-    .filter(([key]) => pattern.test(normalize(key)))
-    .map(([, value]) => flatten(value))
-    .join(" ");
 }
 
 function objectRecord(value: unknown): Record<string, unknown> {

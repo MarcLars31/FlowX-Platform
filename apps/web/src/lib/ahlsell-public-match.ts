@@ -8,6 +8,7 @@ import { findVictaulicSprinklerCandidates } from "@/lib/victaulic-sprinkler-cata
 import {
   sprinklerCoverageFromText,
   sprinklerExplicitlyExcludesCoverPlate,
+  sprinklerInstallationRequirements,
   sprinklerNeedsHydraulicReview,
   sprinklerRequiresAccessoryReview,
   sprinklerResponse
@@ -70,12 +71,13 @@ export type AhlsellRequirementGuide = {
   warnings: string[];
   recognitionNotes: string[];
   directCandidates: AhlsellPublicCandidate[];
+  interpretationNotes?: string[];
+  interpretationWarnings?: string[];
 };
 
 type Orientation = "pendent" | "upright" | "sidewall";
 type Response = "quick" | "standard";
 type Finish = "brass" | "white" | "black" | "chrome";
-type SprinklerMount = "recessed" | "concealed";
 type SprinklerSystem = "wet" | "dry";
 type SprinklerHeadType = "standard" | "dry" | "open";
 type AhlsellProductIntent =
@@ -231,12 +233,14 @@ export function buildAhlsellRequirementGuide(
     attributes,
     `${description} ${rowSourceText} ${technicalSpecification}`
   );
-  const mount = sprinklerMount(placement, deckPlate);
+  const installation = sprinklerInstallationRequirements(record(value.attributes), `${description}\n${rowSourceText}`);
+  const mount = installation.mount;
   const visibleMount = /\b(synlig|visible|eksponert)\b/.test(normalize(placement ?? ""))
+    || installation.exposed
     || sprinklerExplicitlyExcludesCoverPlate(deckPlate);
   const orientationResult = sprinklerOrientation(`${placement ?? ""} ${description}`);
   const orientation = orientationResult.orientation
-    ?? (mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
+    ?? (!orientationResult.mixed && mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
   const responseResult = sprinklerResponse(responseText, technicalSpecification);
   // Unspecified sprinkler finishes use the catalogue's standard brass variant.
   // An explicit colour or finish in the PDF always takes precedence.
@@ -296,6 +300,7 @@ export function buildAhlsellRequirementGuide(
   const searchQueries = unique(plannedQueries).slice(0, 3);
   const searchQuery = searchQueries[0] ?? description;
   const warnings = compact([
+    ...(intent === "sprinkler_head" ? installation.warnings : []),
     ...dataWarnings.map((warning) => warning.message),
     orientationResult.mixed
       ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."
@@ -381,6 +386,7 @@ export function buildAhlsellRequirementGuide(
   searchUrl.searchParams.set("parameters.SearchPhrase", searchQuery || description);
 
   const recognitionNotes = compact([
+    ...(intent === "sprinkler_head" ? installation.notes : []),
     searchQueries.length > 1
       ? `Scipx provar ${searchQueries.length} Ahlsell-anpassade sökningar och slår ihop träffarna.`
       : null,
@@ -417,8 +423,11 @@ export function buildAhlsellRequirementGuide(
     criteria,
     warnings,
     recognitionNotes,
+    interpretationNotes: intent === "sprinkler_head" ? installation.notes : [],
+    interpretationWarnings: intent === "sprinkler_head" ? installation.warnings : [],
     directCandidates: directCandidates.map((item) => {
       const checks = engineeringRequirementWarnings(requirement, item);
+      if (intent === "sprinkler_head") checks.push(...installation.warnings);
       if (requiresAccessoryReview && !(item.matchWarnings ?? []).some((warning) => /tillbehör|skydd/i.test(warning))) {
         checks.push("Tillbehör eller skydd måste kompatibilitetskontrolleras mot exakt sprinklerutförande.");
       }
@@ -717,16 +726,6 @@ function numberFromText(value: string, pattern: RegExp) {
 
 function sprinklerOrientation(value: string): { orientation: Orientation | null; mixed: boolean } {
   return resolvedSprinklerOrientation(value);
-}
-
-function sprinklerMount(placement: string | null, deckPlate: string | null): SprinklerMount | null {
-  const normalizedPlacement = normalize(placement ?? "");
-  if (/\b(skjult|concealed|dold)\b/.test(normalizedPlacement)) return "concealed";
-  const normalizedDeckPlate = normalize(deckPlate ?? "");
-  const affirmativeDeckPlate = /\b(ja|yes|true|inkludert|required)\b/.test(normalizedDeckPlate)
-    && !/\b(nei|no|false)\b/.test(normalizedDeckPlate);
-  if (/\b(innfelt|infalld|recessed)\b/.test(normalizedPlacement) || affirmativeDeckPlate) return "recessed";
-  return null;
 }
 
 function sprinklerFinish(value: string): Finish | null {

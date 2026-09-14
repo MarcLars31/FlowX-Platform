@@ -12,6 +12,7 @@ import {
   sprinklerCoverageMatches,
   sprinklerExplicitlyExcludesCoverPlate,
   sprinklerKFactorMatches,
+  sprinklerInstallationRequirements,
   sprinklerMountCapabilities,
   sprinklerNeedsHydraulicReview,
   sprinklerRequiresAccessoryReview,
@@ -126,7 +127,8 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   const sprinklerTypeText = normalize(attributeText(attributes, /\b(?:type sprinkler|sprinklertype|dekning|coverage)\b/));
   const sprinklerSystemText = normalize(attributeText(attributes, /\b(?:sprinkleranlegg|anleggstype|systemtype|sprinkler system)\b/));
   const coverageText = `${sprinklerTypeText} ${primaryText}`;
-  const mount = requirementSprinklerMount(placementText, deckPlateText);
+  const installation = sprinklerInstallationRequirements(attributes, `${requirement.value_text ?? ""}\n${flattenText(value.sourceText)}\n${requirement.source_excerpt ?? ""}`);
+  const mount = installation.mount;
   const orientationText = placementText || primaryText;
   const orientationResult = resolvedSprinklerOrientation(orientationText);
   const orientation = orientationResult.orientation
@@ -142,6 +144,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     sourceOnlyText
   );
   const reviewWarnings = projectRequirementDataWarnings(requirement).map((warning) => warning.message);
+  if (intent === "sprinkler_head") reviewWarnings.push(...installation.warnings);
   if (intent === "sprinkler_head" && responseResult.conflict) {
     reviewWarnings.push("PDF-posten anger både standard- och quick-respons. Kontrollera originaltexten innan produktval.");
   }
@@ -163,6 +166,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     orientation,
     mount,
     visibleMount: /\b(synlig|visible|eksponert)\b/.test(placementText)
+      || installation.exposed
       || sprinklerExplicitlyExcludesCoverPlate(deckPlateText),
     sprinklerSystem: extractSprinklerSystem(sprinklerSystemText),
     sprinklerHeadType: extractRequiredSprinklerHeadType(sprinklerTypeText),
@@ -975,17 +979,6 @@ function attributeText(attributes: Record<string, unknown>, keyPattern: RegExp) 
     .filter(([key]) => keyPattern.test(normalize(key)))
     .map(([, value]) => flattenText(value))
     .join(" ");
-}
-
-function requirementSprinklerMount(
-  placementText: string,
-  deckPlateText: string
-): TechnicalProfile["mount"] {
-  if (/\b(skjult|concealed|dold)\b/.test(placementText)) return "concealed";
-  const affirmativeDeckPlate = /\b(ja|yes|true|inkludert|required)\b/.test(deckPlateText)
-    && !/\b(nei|no|false)\b/.test(deckPlateText);
-  if (/\b(innfelt|infalld|recessed)\b/.test(placementText) || affirmativeDeckPlate) return "recessed";
-  return null;
 }
 
 function record(value: unknown): Record<string, unknown> {

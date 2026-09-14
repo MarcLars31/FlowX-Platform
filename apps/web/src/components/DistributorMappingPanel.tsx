@@ -1677,6 +1677,16 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
             </dl>
           </div>
+          {Boolean(ahlsellGuide.interpretationNotes?.length || ahlsellGuide.interpretationWarnings?.length) && (
+            <section aria-label="Så tolkas PDF-kraven" className="rounded-md border border-flow-200 bg-flow-50 p-4">
+              <h4 className="text-sm font-bold text-ink-950">Så tolkas PDF-kraven</h4>
+              <p className="mt-1 text-xs leading-5 text-ink-600">Tolkningen väger ihop villkor, placering och lokalisering. Originaluppgifterna visas ovan.</p>
+              <ul className="mt-2 list-disc space-y-2 pl-4 text-xs leading-5 text-ink-800">
+                {ahlsellGuide.interpretationNotes?.map((note) => <li key={note}>{note}</li>)}
+                {ahlsellGuide.interpretationWarnings?.map((warning) => <li key={warning} className="font-semibold text-amber-900">{warning}</li>)}
+              </ul>
+            </section>
+          )}
         </div>
       </section>
 

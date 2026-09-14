@@ -76,19 +76,94 @@ export function sprinklerRequiresAccessoryReview(
   attributes: Record<string, unknown> | ReadonlyMap<string, unknown>,
   freeText = ""
 ) {
-  const accessoryKey = /\b(dekkskive|pyntering|rosett|escutcheon|cover plate|coverplate|beskyttelse|beskyttelsesgitter|vannskjerm|watershield|water shield|guard)\b/;
-  const entries = attributes instanceof Map ? [...attributes.entries()] : Object.entries(attributes);
-  for (const [key, rawValue] of entries) {
-    if (!accessoryKey.test(normalize(key))) continue;
-    const rawText = scalarText(rawValue).trim();
-    if (sprinklerAccessoryValueIsNotRequired(rawText)) continue;
-    return true;
-  }
-  const normalizedFreeText = normalize(freeText);
-  const positive = /\b(med|inkludert|inkluderer|krever|required|with)\s+(?:en\s+)?(?:dekkskive|pyntering|rosett|escutcheon|cover plate|coverplate|beskyttelsesgitter|vannskjerm|watershield|water shield|guard)\b/g;
-  return [...normalizedFreeText.matchAll(positive)].some((match) =>
-    !/\b(?:ikke|inte|not|uten|utan|without)\s*$/.test(normalizedFreeText.slice(0, match.index))
+  const interpretation = sprinklerInstallationRequirements(attributes, freeText);
+  if (interpretation.accessories.some((entry) => entry.status === "required" || entry.status === "review")) return true;
+  const positive = /\b(?:med|inkludert|inkluderer|krever|required|with)\s+(?:en\s+)?(dekkskive|pyntering|rosett|escutcheon|cover plate|coverplate|beskyttelsesgitter|gitter|vannskjerm|watershield|water shield|guard)\b/g;
+  return freeText.split(/[\r\n.;]+|\b(?:men|but)\b/i).some((clause) => {
+    const normalized = normalize(clause);
+    return [...normalized.matchAll(positive)].some((match) => {
+      const before = normalized.slice(0, match.index);
+      const after = normalized.slice(match.index + match[0].length);
+      if (/\b(?:ikke|inte|not|uten|utan|without|valgfritt|valfritt|optional)\s*$/.test(before)) return false;
+      if (/^\s+(?:(?:er|ar|is)\s+)?(?:valgfritt|valfritt|optional)\b/.test(after)) return false;
+      return !(interpretation.exposed && COVER_ATTRIBUTE.test(match[1])
+        && CONDITIONAL_RECESS.test(`${before.slice(-70)} ${match[0]} ${after.slice(0, 70)}`));
+    });
+  });
+}
+
+export type SprinklerAccessoryRequirement = {
+  label: string;
+  value: string;
+  kind: "cover" | "protection";
+  status: "required" | "optional" | "not_required" | "not_applicable" | "review";
+};
+
+const COVER_ATTRIBUTE = /\b(dekkskive|pyntering|rosett|escutcheon|cover plate|coverplate|dekkplate|tackbricka|tacklock)\b/;
+const PROTECTION_ATTRIBUTE = /\b(beskyttelse|beskyttelsesgitter|gitter|skydd|skyddskorg|vannskjerm|watershield|water shield|guard)\b/;
+const CONDITIONAL_RECESS = /\b(?:ved|vid|vid eventuell|ved eventuell|if|when|for)\s+(?:innfelling|innfelt(?:\s+montasje)?|infallning|infallt(?:\s+montage)?|infalld|recessed(?:\s+mounting)?|recessing)\b/;
+
+/** Interpret relationships between existing PDF fields without changing source
+ * values. A conditional accessory never establishes the mounting condition. */
+export function sprinklerInstallationRequirements(
+  attributes: Record<string, unknown> | ReadonlyMap<string, unknown>,
+  freeText = ""
+) {
+  const entries = (attributes instanceof Map ? [...attributes.entries()] : Object.entries(attributes))
+    .map(([label, value]) => ({ label, key: normalize(label), value: scalarText(value).trim() }));
+  const context = entries.filter(({ key }) => /\b(plassering|placering|orientation|montasje|montering|mounting|lokalisering|location|lokalisasjon)\b/.test(key));
+  const contextText = normalize(context.length ? context.map(({ value }) => value).join(". ") : mountingSourceText(freeText));
+  const recessed = positiveMountMention(contextText, /\b(innfelt|infalld|infallt|recessed)\b/g);
+  const concealed = positiveMountMention(contextText, /\b(skjult|concealed|dold)\b/g);
+  const exposed = positiveMountMention(contextText, /\b(?:uten|utan|without)\s+(?:(?:system|nedhangt|suspended|ett|a)\s+)?(?:himling|undertak|ceiling)\b|\b(?:over|ovenfor|ovanfor|above)\s+(?:(?:system|nedhangt|suspended|the|ett|a)\s+)?(?:systemhimling|himling|undertak|ceiling)\b/g)
+    || /\b(?:ikke|inte|ej|not)\s+(?:innfelt|infalld|infallt|recessed)\b/.test(contextText);
+  const conflict = exposed && (recessed || concealed);
+  const mount = conflict ? null : concealed ? "concealed" as const : recessed ? "recessed" as const : null;
+  const notes: string[] = [];
+  const warnings: string[] = [];
+  if (conflict) warnings.push("Montageuppgifterna anger både infällt/dolt montage och placering utan eller ovanför undertak. Kontrollera vilka krav som gäller för posten.");
+  const accessories: SprinklerAccessoryRequirement[] = entries.flatMap(({ label, key, value }) => {
+    const cover = COVER_ATTRIBUTE.test(key);
+    if (!cover && !PROTECTION_ATTRIBUTE.test(key)) return [];
+    let status: SprinklerAccessoryRequirement["status"];
+    if (sprinklerAccessoryValueIsNotRequired(value)) status = "not_required";
+    else if (sprinklerAccessoryValueIsOptional(value)) {
+      status = "optional";
+      notes.push(`${label}: ${value}. Uppgiften är valfri och skapar inget obligatoriskt tillbehörskrav.`);
+    } else if (cover && CONDITIONAL_RECESS.test(normalize(`${label} ${value}`))) {
+      if (conflict || (!mount && !exposed)) {
+        status = "review";
+        warnings.push(`${label}: ${value}. Kravet gäller vid infällt montage, men det är inte klarlagt om villkoret gäller. Kontrollera placering och lokalisering.`);
+      } else if (exposed) {
+        status = "not_applicable";
+        notes.push(`${label}: ${value}. Villkoret för infällt montage gäller inte vid den angivna placeringen utan eller ovanför undertak. Ingen täckbricka krävs av detta fält.`);
+      } else {
+        status = "required";
+        notes.push(`${label}: ${value}. Infällt/dolt montage anges, så det villkorade tillbehörskravet gäller.`);
+      }
+    } else status = "required";
+    return [{ label, value, kind: cover ? "cover" as const : "protection" as const, status }];
+  });
+  return { mount, exposed: exposed && !conflict, conflict, accessories, notes, warnings };
+}
+
+export function sprinklerAccessoryValueIsOptional(value: string) {
+  return /^(valgfritt|valgfri|valfritt|valfri|optional|frivillig|frivilligt)$/.test(normalize(value));
+}
+
+function positiveMountMention(text: string, pattern: RegExp) {
+  return [...text.matchAll(pattern)].some((match) =>
+    !/\b(?:ikke|inte|ej|not|uten|utan|without|ved|vid|if|when|for)\s*$/.test(text.slice(0, match.index))
   );
+}
+
+function mountingSourceText(value: string) {
+  // Keep prose descriptions, but remove accessory field labels and their
+  // conditions so '(ved innfelling)' cannot become an explicit mounting fact.
+  return value.split(/\r?\n/).filter((line) => {
+    const label = line.split(":")[0];
+    return !line.includes(":") || (!COVER_ATTRIBUTE.test(normalize(label)) && !PROTECTION_ATTRIBUTE.test(normalize(label)));
+  }).join(" ").replace(/\([^)]*\)/g, " ");
 }
 
 export function sprinklerAccessoryValueIsNotRequired(rawText: string) {
