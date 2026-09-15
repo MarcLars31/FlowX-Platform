@@ -1,5 +1,6 @@
 import "server-only";
 import { selectUserRows } from "@/lib/supabase-user-rest";
+import { readProductSelectionReview } from "./product-selection-review";
 
 export type DistributorProductMemoryRow = Record<string, unknown> & {
   id: string;
@@ -51,7 +52,7 @@ export async function loadDistributorProductMemory(
   );
   const mappingMemories = mappingMemoryBatches.flat();
   const relevantMemories = mappingMemories.filter((memory) =>
-    fingerprints.has(memory.requirement_fingerprint)
+    fingerprints.has(memory.requirement_fingerprint) && !readProductSelectionReview(memory.notes)
   );
   if (relevantMemories.length === 0) {
     return { mappingMemories: [], mappingAccessories: [] };
@@ -93,7 +94,7 @@ export async function loadDistributorProductMemoryCandidates(
       distributor_name: "eq.Ahlsell",
       requirement_category: `eq.${category}`,
       deleted_at: "is.null",
-      select: "id,organization_id,requirement_fingerprint,requirement_category,requirement_key,requirement_snapshot,product_name,product_number,manufacturer_name,usage_count,last_used_at",
+      select: "id,organization_id,requirement_fingerprint,requirement_category,requirement_key,requirement_snapshot,product_name,product_number,manufacturer_name,usage_count,last_used_at,notes",
       order: "usage_count.desc,last_used_at.desc",
       limit: String(safeLimit)
     }

@@ -1,5 +1,6 @@
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isMatchingAhlsellCandidate } from "@/lib/ahlsell-candidate-ranking";
+import { technicalConflictWarnings } from "./ahlsell-technical-conflicts";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
 
 export type AhlsellMatchGroup = "green" | "yellow" | "red";
@@ -38,7 +39,7 @@ export function classifyAhlsellCatalogCandidates(
     source: candidate.source ?? "catalog_search"
   }))) return "safe";
   return candidates.some((candidate) =>
-    candidate.recommendation === "recommended" || candidate.recommendation === "possible"
+    !technicalConflictWarnings(candidate).length
   ) ? "found" : "none";
 }
 
@@ -78,12 +79,14 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
     approvedRequirementIds,
     memoryFingerprints,
     catalogStatuses = {},
-    staticallySafeRequirementIds
+    staticallySafeRequirementIds,
+    manualReviewGroups = {}
   }: {
     approvedRequirementIds: ReadonlySet<string>;
     memoryFingerprints: ReadonlySet<string>;
     catalogStatuses?: Readonly<Record<string, AhlsellCatalogMatchStatus>>;
     staticallySafeRequirementIds?: ReadonlySet<string>;
+    manualReviewGroups?: Readonly<Record<string, "red" | "yellow">>;
   }
 ) {
   const greenRequirements: Row[] = [];
@@ -101,7 +104,9 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
       && buildAhlsellRequirementGuide(requirement).directCandidates.some(isMatchingAhlsellCandidate);
     const catalogStatus = catalogStatuses[requirement.id];
 
-    if (requiresDataReview) {
+    if (manualReviewGroups[requirement.id] === "red") {
+      redRequirements.push(requirement);
+    } else if (manualReviewGroups[requirement.id] === "yellow" || requiresDataReview) {
       yellowRequirements.push(requirement);
     } else if (precomputedSafe || hasApprovedProduct || hasLearnedProduct || hasDirectAhlsellMatch || catalogStatus === "safe") {
       greenRequirements.push(requirement);

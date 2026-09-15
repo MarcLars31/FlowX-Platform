@@ -2,11 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ahlsellCatalogStatusFromPayload, classifyAhlsellCatalogCandidates, mergeAhlsellCatalogAssessments, hasReusableProductMemory, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
 
+test("classification separates confirmed conflicts from missing data irrespective of score", () => {
+  assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "unlikely", matchWarnings: ["K-faktorn saknas i produktinformationen; PDF kräver K80."] }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible", matchWarnings: ["Fel K-faktor: PDF kräver K80, träffen anger K115."] }]), "none");
+  const grouped = splitAhlsellMatchGroups([{ id: "wrong" }, { id: "incomplete" }], {
+    approvedRequirementIds: new Set(["wrong", "incomplete"]), memoryFingerprints: new Set(),
+    staticallySafeRequirementIds: new Set(["wrong", "incomplete"]),
+    manualReviewGroups: { wrong: "red", incomplete: "yellow" }
+  });
+  assert.equal(grouped.greenRequirements.length, 0);
+  assert.equal(grouped.redRequirements[0].id, "wrong");
+  assert.equal(grouped.yellowRequirements[0].id, "incomplete");
+});
+
 test("shows green for a supported warning-free proposal without approving weak or conflicting candidates", () => {
   assert.equal(classifyAhlsellCatalogCandidates([{ source: "structured_database", matchScore: 85, recommendation: "recommended", matchWarnings: [], exactMatch: false }]), "safe");
   assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, recommendation: "recommended", matchWarnings: ["Tryck måste kontrolleras"] }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 41, recommendation: "possible", matchWarnings: [] }]), "found");
-  assert.equal(classifyAhlsellCatalogCandidates([{ source: "pdf_reference", exactMatch: true }]), "none");
+  assert.equal(classifyAhlsellCatalogCandidates([{ source: "pdf_reference", exactMatch: true }]), "found");
 });
 
 test("a late MLDL classification cannot overwrite a completed hybrid result for the same revision", () => {
@@ -114,7 +127,7 @@ test("classifies safe, uncertain and empty Ahlsell responses", () => {
   assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, matchWarnings: [], recommendation: "recommended" }]), "safe");
   assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 95, matchWarnings: [], recommendation: "recommended" }]), "safe");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible" }]), "found");
-  assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "unlikely" }]), "none");
+  assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "unlikely" }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([]), "none");
 });
 

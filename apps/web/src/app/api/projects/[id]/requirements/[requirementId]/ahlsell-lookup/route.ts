@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AhlsellCatalogError, ahlsellMarketFromSearchUrl } from "@/lib/ahlsell-public-catalog";
 import { AhlsellLookupInputError, lookupAhlsellProduct, parseAhlsellLookupQuery } from "@/lib/ahlsell-product-lookup";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
+import { complementMldlCandidates } from "@/lib/ahlsell-hybrid-matching";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { readJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
@@ -20,7 +21,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (!isUuid(id) || !isUuid(requirementId)) return NextResponse.json({ error: "Ogiltigt projekt- eller krav-id." }, { status: 400, headers });
     const limit = consumeRateLimit(requestRateLimitKey(request, "ahlsell-lookup", authorization.user.id), 30, 60_000);
     if (!limit.allowed) return NextResponse.json({ error: "För många Ahlsell-sökningar. Vänta en kort stund och försök igen." }, { status: 429, headers: { ...headers, "Retry-After": String(limit.retryAfterSeconds) } });
-    const body = await readJsonBody<{ query?: unknown } | null>(request, 8_000);
+    const body = await readJsonBody<{ query?: unknown; accessory?: unknown } | null>(request, 8_000);
     parseAhlsellLookupQuery(body?.query, "no");
     const [requirement] = await selectUserRows<Record<string, unknown>>("project_requirements", {
       id: `eq.${requirementId}`, project_id: `eq.${id}`, organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null",
@@ -28,7 +29,11 @@ export async function POST(request: Request, context: RouteContext) {
     });
     if (!requirement) return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404, headers });
     const result = await lookupAhlsellProduct({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal });
-    return NextResponse.json(result, { headers });
+    // Accessories have their own compatibility check against the chosen head;
+    // do not compare an escutcheon with the head's K-factor or temperature.
+    const products = body?.accessory === true ? result.products : complementMldlCandidates(requirement, [], result.products)
+      .map(candidate => ({ ...candidate, subtitle: result.products.find(product => product.articleNumber === candidate.articleNumber)?.subtitle }));
+    return NextResponse.json({ ...result, products }, { headers });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Sökningen är för lång." }, { status: 413, headers });
     if (error instanceof AhlsellLookupInputError || error instanceof SyntaxError) return NextResponse.json({ error: error instanceof AhlsellLookupInputError ? error.message : "Sökningen har ogiltigt format." }, { status: 400, headers });

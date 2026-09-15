@@ -111,7 +111,7 @@ export type AhlsellCandidateMatchState = "exact" | "matched" | "review" | "misma
 export function ahlsellCandidateMatchState(candidate: AhlsellPublicCandidate): AhlsellCandidateMatchState {
   if (isExactAhlsellCandidate(candidate)) return "exact";
   if (isMatchingAhlsellCandidate(candidate)) return "matched";
-  if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely") return "mismatch";
+  if (technicalConflictWarnings(candidate).length > 0) return "mismatch";
   return "review";
 }
 

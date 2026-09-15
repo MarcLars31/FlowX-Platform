@@ -10,6 +10,31 @@
 
 ## Förbättringar från genomgången
 
+### F04. Tydlig hantering när ingen produkt matchar
+
+- **Status:** Genomförd 2026-09-15 efter Marcus instruktion.
+- Bekräftade avvikelser visas i en stängd lista, **Visa bortvalda produkter och
+  orsaker**. Alla hämtade alternativ går att visa. Om alla träffar är fel visas
+  **Ingen match bland kontrollerade produkter**, orsak och knappar för att söka
+  efter en annan produkt eller kontrollera PDF-kravet.
+- Saknade uppgifter och osäkra underlag visas i gult under **Produkter att
+  kontrollera**. Röda avvikelser och gula kontrollpunkter separeras även när
+  samma produkt har båda. Ett misslyckat sökanrop visar sitt eget felmeddelande.
+- NRF- och länksökning i **Lägg till produkt** kompletteras med samma tekniska
+  MLDL/Ahlsell-bedömning. Tillbehör jämförs inte med huvudproduktens K-värde.
+- Ett valt avvikande alternativ märks **Manuellt vald – avvikelse**, även efter
+  sparande och i produktpostlistan. Ofullständiga underlag märks **Manuellt vald
+  – kontroll krävs**. Bedömningen sparas som läsbar notering i den befintliga
+  godkännandetransaktionen, tillsammans med produktval och matchminne.
+  Dessa noterade val utesluts från återanvändbara matchminnen och massgodkännande.
+- **Inte i sortiment** är fortfarande ett uttryckligt användarval.
+- Länken **Ahlsells hemsida** öppnar ahlsell.no i en ny flik och ligger direkt
+  efter **Legg til vedlegg**.
+- Verifierat med 232 produktmatchningstester, 13 hybridtester och 34 tester för
+  Ahlsell-sökning/tillbehör (vissa tester ingår i flera sviter). Lokal webbläsare
+  provar enbart avvikelser, saknade uppgifter, tom lista, samtliga bortvalda
+  alternativ samt valt alternativ och tangentbordsfokus vid öppning/stängning.
+
 ### F01. Utfällbar lista med matchade produkter
 
 - **Sparat:** 2026-09-15.

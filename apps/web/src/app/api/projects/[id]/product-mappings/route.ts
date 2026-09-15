@@ -10,6 +10,7 @@ import {
   updateSupabaseRowsReturning
 } from "@/lib/supabase-rest";
 import { withProductRequirementResolution } from "@/lib/product-requirement-resolution";
+import { readProductSelectionReview, PRODUCT_DEVIATION_LABEL, PRODUCT_REVIEW_LABEL } from "@/lib/product-selection-review";
 import {
   callUserRpc,
   selectUserRows,
@@ -70,8 +71,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({
       mapping: result,
-      message:
-        "Produkten är godkänd och sparad. Kopplingen kan nu föreslås i kommande liknande projekt."
+      message: readProductSelectionReview(input.notes)
+        ? `Produktvalet är sparat som ”${readProductSelectionReview(input.notes)?.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL}”. Märkningen finns kvar i produktlistan.`
+        : "Produkten är godkänd och sparad. Kopplingen kan nu föreslås i kommande liknande projekt."
     });
   } catch (error) {
     if (error instanceof UserSupabaseError) {

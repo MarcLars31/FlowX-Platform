@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/Button";
+import { AhlsellCandidateWarnings } from "@/components/AhlsellCandidateList";
 import type { AhlsellLookupProduct, AhlsellLookupResult } from "@/lib/ahlsell-product-lookup";
 
 export function AhlsellProductLookup({ projectId, requirementId, id, accessory = false, disabled = false, onSelect }: {
@@ -31,7 +32,7 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
     try {
       const response = await fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-lookup`, {
         method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ query: value }), signal: controller.signal
+        body: JSON.stringify({ query: value, accessory }), signal: controller.signal
       });
       const payload = await response.json() as AhlsellLookupResult & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Sökningen kunde inte genomföras.");
@@ -41,7 +42,7 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [projectId, requirementId]);
+  }, [projectId, requirementId, accessory]);
 
   useEffect(() => {
     const digits = query.replace(/^nrf\s*(?:[- ]?(?:nr|nummer))?\.?\s*:?\s*/i, "").replace(/[\s-]/g, "");
@@ -75,6 +76,7 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
           {product.subtitle && <p className="mt-1 text-xs text-ink-700">{product.subtitle}</p>}
           <p className="mt-1 text-sm font-semibold text-flow-800">NRF-nummer {product.articleNumber}{product.manufacturer ? ` · ${product.manufacturer}` : ""}</p>
           {product.specifications.length > 0 && <p className="mt-1 text-xs leading-5 text-ink-600">{product.specifications.join(" · ")}</p>}
+          {!accessory && <AhlsellCandidateWarnings candidate={product} />}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <a href={product.productUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-flow-800 underline">Visa hos Ahlsell<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
             <Button type="button" disabled={disabled} className="min-h-9 px-3 py-1.5 text-xs" onClick={() => onSelect(product)}>{accessory ? "Välj tillbehör" : "Välj produkt"}</Button>

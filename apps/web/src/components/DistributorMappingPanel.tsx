@@ -30,6 +30,7 @@ import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-card-candidates";
+import { candidateSelectionReview, productSelectionReviewNotes, readProductSelectionReview, PRODUCT_DEVIATION_LABEL, PRODUCT_REVIEW_LABEL, type ProductSelectionReview } from "@/lib/product-selection-review";
 import {
   accessoriesForSelectedProduct,
   hasSuggestedProductAccessory,
@@ -129,7 +130,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   finishing?: boolean;
 }) {
   const memories = useMemo(() => allMemories.filter(memory =>
-    ahlsellMldlProduct(String(memory.product_number ?? ""))), [allMemories]);
+    ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes)), [allMemories]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { productRequirements, removalRequirements, workRequirements } = useMemo(
@@ -275,9 +276,13 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       approvedRequirementIds: handledRequirementIds,
       memoryFingerprints,
       catalogStatuses,
-      staticallySafeRequirementIds
+      staticallySafeRequirementIds,
+      manualReviewGroups: Object.fromEntries(approvedAssignments.flatMap(assignment => {
+        const review = readProductSelectionReview(record(assignment.product_snapshot).notes);
+        return review ? [[String(assignment.requirement_id), review.status === "mismatch" ? "red" as const : "yellow" as const]] : [];
+      }))
     }),
-    [catalogStatuses, handledRequirementIds, memoryFingerprints, productRequirements, staticallySafeRequirementIds]
+    [approvedAssignments, catalogStatuses, handledRequirementIds, memoryFingerprints, productRequirements, staticallySafeRequirementIds]
   );
   const groupByRequirementId = useMemo(() => new Map<string, AhlsellMatchGroup>([
     ...greenRequirements.map((requirement) => [requirement.id, "green"] as const),
@@ -1130,6 +1135,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   onError: (message: string) => void;
 }) {
   const currentSnapshot = record(assignment?.product_snapshot);
+  const [selectionReview, setSelectionReview] = useState<ProductSelectionReview | null>(() => readProductSelectionReview(currentSnapshot.notes));
   const defaultCurrency = normalizeCurrencyCode(currency) || "NOK";
   const [productName, setProductName] = useState(String(currentSnapshot.name ?? ""));
   const [productSubtitle, setProductSubtitle] = useState(String(currentSnapshot.subtitle ?? ""));
@@ -1266,6 +1272,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setUnitPrice(selection.unitPrice);
     setPriceCurrency(normalizeCurrencyCode(selection.currency) || defaultCurrency);
     setManualProductSelected(manual);
+    setSelectionReview(manual ? candidateSelectionReview() : null);
     setManualProductRequired(false);
     setManualProductOpen(false);
     setManualProductDraftDirty(false);
@@ -1284,6 +1291,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       selectionFromMemory(memory, resolved),
       `Tidigare godkänd produkt har valts för kontroll: ${String(memory.product_name)} · NRF-nummer ${String(memory.product_number)}.`
     );
+    setSelectionReview(readProductSelectionReview(memory.notes));
     onError("");
   }
 
@@ -1297,11 +1305,15 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       deliveryTimeDays: "",
       unitPrice: "",
       currency: defaultCurrency
-    }, `${candidate.recommendation === "recommended" ? "Rekommenderad produkt" : "Produkt"} har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`, false, candidate.suggestedAccessories ?? []);
+    }, `Produkt har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`, false, candidate.suggestedAccessories ?? []);
+    setSelectionReview(candidateSelectionReview(candidate) ?? (dataWarnings.length ? {
+      status: "review", warnings: dataWarnings.map(warning => warning.message)
+    } : null));
     onError("");
   }
 
   function clearSelectedProduct() {
+    setSelectionReview(null);
     setAccessoryLookupOpen(false);
     setProductName("");
     setProductSubtitle("");
@@ -1544,10 +1556,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         deliveryTimeDays,
         unitPrice,
         currency: priceCurrency,
-        notes:
+        notes: productSelectionReviewNotes(selectionReview,
           sameApprovedProduct && typeof currentSnapshot.notes === "string"
             ? currentSnapshot.notes
-            : "",
+            : ""),
         accessories: productAccessoryPayload(selectedProductAccessories)
       };
       const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
@@ -1637,11 +1649,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   return (
     <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
-      <section aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-ink-200 bg-ink-50/50 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+      <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-ink-200 bg-ink-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-wrap items-center gap-2">
             {resolution ? (
               <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
+            ) : isApproved && selectionReview ? (
+              <span className={`inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold ${selectionReview.status === "mismatch" ? "border-rose-300 bg-rose-50 text-rose-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />{selectionReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL}</span>
             ) : isApproved ? (
               <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
             ) : (
@@ -1712,7 +1726,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Välj produkt</p>
               <h4 className="mt-0.5 text-base font-bold text-ink-950">Produkter för PDF-post {details.postNumber ?? position}</h4>
-              <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
+              <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved && selectionReview ? "Manuellt produktval sparat" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
             </div>
             <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
@@ -1761,7 +1775,18 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
               <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
             </Button>
+            <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells hemsida
+            </a>
           </nav>
+
+          {productNumber.trim() && selectionReview && (
+            <div role="status" className={`rounded-md border px-4 py-3 text-sm ${selectionReview.status === "mismatch" ? "border-rose-300 bg-rose-50 text-rose-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}>
+              <p className="font-bold">{selectionReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL} · NRF {productNumber}</p>
+              <p className="mt-1 text-xs">{isApproved ? "Valet är sparat med denna märkning." : "När du godkänner sparas valet med denna märkning."}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{selectionReview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
+            </div>
+          )}
 
           {manualProductOpen && (
             <section id={`manual-product-card-${requirement.id}`} aria-labelledby={`manual-product-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border-2 border-flow-300 bg-white shadow-sm">
@@ -1825,6 +1850,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               onClearSelection={clearSelectedProduct}
               onUseCandidate={applyAhlsellCandidate}
               onUseMemory={applyMemory}
+              onSearch={openManualProductCard}
+              onCheckRequirement={() => {
+                const element = document.getElementById(`pdf-requirement-${requirement.id}`);
+                element?.scrollIntoView({ behavior: "smooth", block: "start" });
+                element?.scrollTo({ top: 0, behavior: "smooth" });
+                element?.focus({ preventScroll: true });
+              }}
             />
           </div>
 
@@ -1994,7 +2026,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   );
 }
 
-function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory }: {
+function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory, onSearch, onCheckRequirement }: {
   projectId: string;
   requirementId: string;
   guide: AhlsellRequirementGuide;
@@ -2006,6 +2038,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   onClearSelection: () => void;
   onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
   onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string }) => void;
+  onSearch: () => void;
+  onCheckRequirement: () => void;
 }) {
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -2141,13 +2175,6 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         </div>
       )}
 
-      {!loadingCatalog && !catalogError && !hasNrfFilter && totalResultCount === 0 && (
-        <div className="border-t border-ink-200 bg-ink-50 px-3 py-4 text-sm text-ink-700 sm:px-4">
-          <p className="font-semibold">Ingen lämplig produkt hittades i MLDL eller bland de hämtade Ahlsell-träffarna.</p>
-          <p className="mt-2 text-xs">Sök på Ahlsells webbplats via ”Lägg till produkt” om du vill lägga till en annan artikel.</p>
-        </div>
-      )}
-
       {filteredMemories.length > 0 && (
         <div className="border-t border-emerald-300" role="radiogroup" aria-label="Tidigare bekräftade produkter">
           <div className={memoriesAreExact ? "bg-emerald-100/80 px-3 py-2 sm:px-4" : "bg-amber-50 px-3 py-2 sm:px-4"}>
@@ -2210,6 +2237,9 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         disabled={disabled}
         allowMatches={memoriesAreExact}
         accessoryRequirements={guide.accessoryRequirements}
+        showNoMatch={!loadingCatalog && !catalogError && !hasNrfFilter && filteredMemories.length === 0}
+        onSearch={onSearch}
+        onCheckRequirement={onCheckRequirement}
         onSelect={selectCandidate}
       />
 
@@ -2301,6 +2331,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
   const dataWarnings = projectRequirementDataWarnings(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const productSnapshot = record(assignment?.product_snapshot);
+  const savedReview = readProductSelectionReview(productSnapshot.notes);
   const resolution = productRequirementResolution(requirement);
   const productName = String(productSnapshot.name ?? "").trim();
   const productSubtitle = String(productSnapshot.subtitle ?? "").trim();
@@ -2320,7 +2351,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     || bulkSelection?.productName
     || memoryProductName;
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
-  const rowClass = productTableRowClass({ approved, selected });
+  const rowClass = productTableRowClass({ approved: approved && !savedReview, selected });
 
   function renderProductTableCell(columnId: ProductTableColumnId) {
     if (columnId === "control") {
@@ -2328,6 +2359,8 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
         <td key={columnId} className="px-2 py-2.5 text-center align-middle">
           {resolution ? (
             <span title={resolution.label} className="inline-flex text-slate-700"><Tag className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{resolution.label}</span></span>
+          ) : approved && savedReview ? (
+            <span title={savedReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL} className={`inline-flex ${savedReview.status === "mismatch" ? "text-rose-600" : "text-amber-600"}`}><AlertTriangle className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{savedReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL}</span></span>
           ) : approved ? (
             <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
           ) : group === "red" ? (

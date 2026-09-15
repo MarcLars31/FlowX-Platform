@@ -1,5 +1,5 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
-import { isMatchingAhlsellCandidate } from "./ahlsell-candidate-ranking";
+import { ahlsellCandidateMatchState, isMatchingAhlsellCandidate } from "./ahlsell-candidate-ranking";
 
 export const MAX_VISIBLE_AHLSELL_CANDIDATES = 3;
 
@@ -27,5 +27,7 @@ export function groupAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandid
   const matching = candidates.filter(candidate => allowMatches && isMatchingAhlsellCandidate(candidate));
   const matchingSet = new Set(matching);
   const other = candidates.filter(candidate => !matchingSet.has(candidate));
-  return { matching, other, visibleOther: topAhlsellCandidates(other) };
+  const rejected = other.filter(candidate => ahlsellCandidateMatchState(candidate) === "mismatch");
+  const review = other.filter(candidate => ahlsellCandidateMatchState(candidate) !== "mismatch");
+  return { matching, other, visibleOther: topAhlsellCandidates(other), rejected, review };
 }

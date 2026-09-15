@@ -528,7 +528,7 @@ test("learning evidence only breaks ties between candidates with equal technical
 test("reserves exact-match presentation for a complete 100-point match without warnings", () => {
   const exact = { ...candidate("exact", "Exakt produkt", "", "/exact/"), matchScore: 100, recommendation: "recommended" as const, matchWarnings: [], exactMatch: true };
   const strong = { ...candidate("strong", "Stark produkt", "", "/strong/"), matchScore: 95, recommendation: "recommended" as const, matchWarnings: [] };
-  const mismatch = { ...candidate("wrong", "Fel produkt", "", "/wrong/"), matchScore: 100, recommendation: "possible" as const, matchWarnings: ["Fel respons."] };
+  const mismatch = { ...candidate("wrong", "Fel produkt", "", "/wrong/"), matchScore: 100, recommendation: "possible" as const, matchWarnings: ["Sprinklerns responstid stämmer inte med PDF-kravet."] };
 
   assert.equal(ahlsellCandidateMatchState(exact), "exact");
   assert.equal(ahlsellCandidateMatchState(strong), "matched");

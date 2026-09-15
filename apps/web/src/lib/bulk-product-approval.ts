@@ -2,6 +2,7 @@ import { isExactAhlsellCandidate } from "@/lib/ahlsell-candidate-ranking";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
 import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
+import { readProductSelectionReview } from "./product-selection-review";
 
 export type BulkProductApprovalSelection = {
   requirementId: string;
@@ -67,6 +68,7 @@ export function bulkProductApprovalSelection({
   const requirementFingerprint = text(requirement.mapping_fingerprint);
   const exactMemoryProducts = new Map<string, Record<string, unknown>>();
   for (const memory of memories) {
+    if (readProductSelectionReview(memory.notes)) continue;
     const memoryProductName = text(memory.product_name);
     const memoryProductNumber = text(memory.product_number);
     if (

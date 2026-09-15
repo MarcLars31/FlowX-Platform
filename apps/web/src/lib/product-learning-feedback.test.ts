@@ -38,7 +38,7 @@ test("normalizes feedback payloads without mutating catalog candidates", () => {
   assert.equal(snapshot.matchScore, 100);
   assert.deepEqual(snapshot.matchReasons, ["Rätt responstid"]);
   assert.deepEqual(snapshot.matchWarnings, ["Kontroll krävs"]);
-  assert.equal(snapshot.matchState, "mismatch");
+  assert.equal(snapshot.matchState, "review");
   assert.equal(snapshot.familyCode, null);
   assert.deepEqual(source, before);
 });

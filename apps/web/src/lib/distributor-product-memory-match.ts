@@ -4,6 +4,7 @@ import {
 } from "@/lib/ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
+import { readProductSelectionReview } from "./product-selection-review";
 
 export const MIN_LEARNED_PRODUCT_MATCH_SCORE = 75;
 export const MIN_LEARNED_PRODUCT_MATCH_REASONS = 2;
@@ -49,6 +50,7 @@ export function rankDistributorProductMemoryHints(
   if (!targetCategory || targetCategory === "unknown") return [];
 
   const hints = memories.flatMap((memory): LearnedProductSearchHint[] => {
+    if (readProductSelectionReview(memory.notes)) return [];
     if (normalizedCategory(memory.requirement_category) !== targetCategory) return [];
 
     const productNumber = cleanText(memory.product_number);
