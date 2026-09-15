@@ -1,0 +1,167 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { enrichProjectRequirements } from "./project-requirement-enrichment";
+import {
+  postNumberFromSource,
+  projectRequirementSystemLabel,
+  projectRequirementDetails
+} from "./project-requirement-details";
+
+test("reads a split NS 3420 post number from an existing source excerpt", () => {
+  assert.equal(
+    postNumberFromSource(
+      "1403.33.332.\n1.12\nRillerør Bend DN40\nstk 43 0,00 0,00"
+    ),
+    "1403.33.332.1.12"
+  );
+});
+
+test("shows portable foam extinguishers as foam extinguishers", () => {
+  assert.equal(projectRequirementSystemLabel("foam-extinguisher"), "Skumsläckare");
+  assert.equal(projectRequirementSystemLabel("sprinkler"), "Sprinkler");
+});
+
+test("repairs the inherited sprinkler system in already saved foam-extinguisher rows", () => {
+  const details = projectRequirementDetails({
+    id: "requirement-1",
+    value_text: "HANDSLOKKER",
+    value_json: {
+      description: "HANDSLOKKER",
+      category: "other",
+      system: "sprinkler",
+      attributes: {
+        slokkemiddel: "Skum",
+        "mengde slokkemedium": "6 liter"
+      }
+    }
+  });
+
+  assert.equal(details.system, "foam-extinguisher");
+  assert.equal(projectRequirementSystemLabel(details.system!), "Skumsläckare");
+});
+
+test("returns every stored specification without the former eight-item limit", () => {
+  const attributes = Object.fromEntries(
+    Array.from({ length: 12 }, (_, index) => [`spec_${index + 1}`, `värde ${index + 1}`])
+  );
+  const details = projectRequirementDetails({
+    value_json: {
+      postNumber: "1403.33.332.23.1",
+      attributes: { ...attributes, kapittelpost: "3325 Utstyr" }
+    },
+    source_page: 32,
+    source_excerpt: "original"
+  });
+
+  assert.equal(details.postNumber, "1403.33.332.23.1");
+  assert.equal(details.chapterPost, "3325 Utstyr");
+  assert.equal(details.attributes.length, 12);
+  assert.equal(details.sourcePage, 32);
+});
+
+test("shows the raw PDF K-factor when legacy OCR normalization stored a decimal", () => {
+  const details = projectRequirementDetails({
+    value_json: {
+      attributes: { "k-faktor": "114.5" },
+      technicalSpecification: "SPRINKLER\nK-faktor: 1145"
+    }
+  });
+
+  assert.deepEqual(
+    details.attributes.find(([key]) => key === "k-faktor"),
+    ["k-faktor", "1145"]
+  );
+});
+
+test("enriches an existing requirement with its inherited main-post specifications", () => {
+  const documentId = "00000000-0000-4000-8000-000000000001";
+  const [requirement] = enrichProjectRequirements(
+    [{
+      id: "requirement-1",
+      requirement_key: "pipe",
+      value_text: "Rillede rør for sprinkleranl. Pulverlakkert DN100",
+      value_json: {
+        quantity: 29.16,
+        unit: "m",
+        attributes: { dimension: "DN100" }
+      },
+      source_page: 10,
+      source_excerpt:
+        "1403.33.332.\n1.1\nRillede rør for sprinkleranl. Pulverlakkert DN100\nm 29,16 0,00 0,00",
+      source_technical_description_document_id: documentId
+    }],
+    [{
+      id: documentId,
+      file_name: "teknisk-beskrivning.pdf",
+      source_pages: [
+        {
+          pageNumber: 9,
+          method: "text",
+          confidence: 0.98,
+          text: [
+            "1403.33.332.",
+            "1",
+            "UB1.31114921934A",
+            "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+            "Materiale: Stål – malingsbehandlet",
+            "Trykk: 12 bar",
+            "Dimensjon: iht. underposter",
+            "Andre krav:",
+            "Sum denne side:"
+          ].join("\n")
+        },
+        {
+          pageNumber: 10,
+          method: "text",
+          confidence: 0.98,
+          text: [
+            "1403.33.332.",
+            "1.1",
+            "Rillede rør for sprinkleranl. Pulverlakkert DN100",
+            "m 29,16 0,00 0,00"
+          ].join("\n")
+        }
+      ]
+    }]
+  );
+
+  const value = requirement.value_json as Record<string, unknown>;
+  const attributes = value.attributes as Record<string, unknown>;
+  assert.equal(value.postNumber, "1403.33.332.1.1");
+  assert.equal(value.parentPostNumber, "1403.33.332.1");
+  assert.equal(value.nsCode, "UB1.31114921934A");
+  assert.equal(attributes.materiale, "Stål – malingsbehandlet");
+  assert.equal(attributes.trykk, "12 bar");
+  assert.equal(attributes.dimensjon, "DN100");
+});
+
+test("carries extraction review flags into enriched project requirements", () => {
+  const documentId = "00000000-0000-4000-8000-000000000002";
+  const sourceText = [
+    "33.500.1 UE2.11121532",
+    "SPRINKLER",
+    "Antall stk 1",
+    "K-faktor: 560"
+  ].join("\n");
+  const [requirement] = enrichProjectRequirements([{
+    id: "requirement-warning",
+    value_text: "SPRINKLER",
+    value_json: { postNumber: "33.500.1", attributes: {} },
+    source_page: 1,
+    source_excerpt: sourceText,
+    source_technical_description_document_id: documentId
+  }], [{
+    id: documentId,
+    file_name: "sprinkler.pdf",
+    source_pages: [{
+      pageNumber: 1,
+      method: "ocr",
+      confidence: 0.9,
+      text: sourceText
+    }]
+  }]);
+  const value = requirement.value_json as Record<string, unknown>;
+
+  assert.deepEqual(value.reviewFlags, ["ocr-source", "implausible-k-factor"]);
+  assert.equal((value.attributes as Record<string, unknown>)["k-faktor"], "560");
+});

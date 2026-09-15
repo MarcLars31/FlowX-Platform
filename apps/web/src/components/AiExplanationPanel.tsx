@@ -19,7 +19,7 @@ export function AiExplanationPanel({
           </div>
           <div>
             <h2 className="text-base font-semibold text-ink-950">{title}</h2>
-            <p className="text-sm text-ink-500">FlowX recommendation context</p>
+            <p className="text-sm text-ink-500">Scipx recommendation context</p>
           </div>
         </div>
         <Badge tone="teal">AI</Badge>

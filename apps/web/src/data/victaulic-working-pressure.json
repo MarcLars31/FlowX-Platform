@@ -1,0 +1,27 @@
+{
+  "verifiedAt": "2026-09-14",
+  "scope": "Conservative published baseline working pressure for the exact SIN models listed. Higher approval-dependent ratings and factory hydrostatic test pressures are not used. Comparable or replacement models do not inherit these values.",
+  "publications": [
+    {
+      "publication": "41.01-EUR-AP",
+      "revision": "Rev A, 12/2023, page 1",
+      "sourceUrl": "https://assets.victaulic.com/assets/uploads/literature/41.01-EUR-AP.pdf",
+      "models": ["V2815", "V4215", "V2704", "V3402", "V2801", "V4201", "V2762", "V3702"],
+      "maximumWorkingPressureKpa": 1200
+    },
+    {
+      "publication": "41.02",
+      "revision": "Rev B, 07/2022, page 1",
+      "sourceUrl": "https://assets.victaulic.com/assets/uploads/literature/41.02.pdf",
+      "models": ["V2826", "V4226", "V2710", "V3410"],
+      "maximumWorkingPressureKpa": 1200
+    },
+    {
+      "publication": "42.01",
+      "revision": "Rev C, 08/2024, page 1",
+      "sourceUrl": "https://assets.victaulic.com/assets/uploads/literature/42.01.pdf",
+      "models": ["V5614", "V3428", "V3412", "V3414"],
+      "maximumWorkingPressureKpa": 1200
+    }
+  ]
+}

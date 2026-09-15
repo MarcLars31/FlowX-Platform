@@ -3,6 +3,7 @@ import {
   isJsonRecord,
   normalizeProductImport
 } from "@/lib/pkms-product-normalizer";
+import { requirePlatformAdminApi } from "@/lib/platform-api-authorization";
 import {
   getSupabaseDiagnostics,
   selectSupabaseRows,
@@ -37,6 +38,9 @@ const rawTextFields = [
 ] as const;
 
 export async function GET() {
+  const authorizationError = await requirePlatformAdminApi();
+  if (authorizationError) return authorizationError;
+
   try {
     const rows = await selectSupabaseRows<ProductRow>("products", {
       status: "eq.needs_review",
@@ -47,11 +51,10 @@ export async function GET() {
       products: rows.map(expandReviewProduct),
       supabase: getSupabaseDiagnostics()
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         error: "Could not load products awaiting approval.",
-        detail: error instanceof Error ? error.message : "Unknown queue error.",
         products: [],
         supabase: getSupabaseDiagnostics()
       },
@@ -61,6 +64,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const authorizationError = await requirePlatformAdminApi();
+  if (authorizationError) return authorizationError;
+
   try {
     const body = (await request.json()) as unknown;
 
@@ -132,11 +138,10 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ product: expandReviewProduct(updatedProduct) });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
-        error: "Could not update review product.",
-        detail: error instanceof Error ? error.message : "Unknown update error."
+        error: "Could not update review product."
       },
       { status: 500 }
     );
