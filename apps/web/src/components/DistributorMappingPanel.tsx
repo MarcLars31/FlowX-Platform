@@ -25,10 +25,11 @@ import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProductApprovals, type BulkProductApprovalSelection, type PreviousBulkProductApproval } from "@/lib/bulk-product-approval";
 import { ahlsellCatalogStatusFromPayload, mergeAhlsellCatalogAssessments, type AhlsellCatalogAssessment, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
-import { ahlsellCandidateMatchState, isMatchingAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import { isMatchingAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
-import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "@/lib/product-card-candidates";
+import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
+import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-card-candidates";
 import {
   accessoriesForSelectedProduct,
   hasSuggestedProductAccessory,
@@ -2058,15 +2059,17 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   ]));
   const candidates = orderAhlsellCandidatesForDisplay(mergedCandidates)
     .filter((candidate) => !memoryArticleNumbers.has(normalizeNrfNumber(candidate.articleNumber)));
-  const filteredCandidates = filterAhlsellCandidatesByNrf(candidates, selectedArticleNumber);
+  // Selecting a listed article must keep the other matches available.
+  const hasNrfFilter = Boolean(normalizeNrfNumber(selectedArticleNumber))
+    && !candidatesByArticle.has(normalizeNrfNumber(selectedArticleNumber))
+    && !memoryArticleNumbers.has(normalizeNrfNumber(selectedArticleNumber));
+  const filteredCandidates = filterAhlsellCandidatesByNrf(candidates, hasNrfFilter ? selectedArticleNumber : "");
   const filteredMemories = usableMemories.filter((memory) => {
-    const filter = normalizeNrfNumber(selectedArticleNumber);
+    const filter = hasNrfFilter ? normalizeNrfNumber(selectedArticleNumber) : "";
     return !filter || normalizeNrfNumber(String(memory.product_number)) === filter;
   });
   const totalResultCount = usableMemories.length + candidates.length;
   const filteredResultCount = filteredMemories.length + filteredCandidates.length;
-  const hasNrfFilter = Boolean(normalizeNrfNumber(selectedArticleNumber));
-  const visibleCandidates = topAhlsellCandidates(filteredCandidates);
   function selectCandidate(candidate: AhlsellPublicCandidate) {
     onUseCandidate(
       candidate,
@@ -2089,9 +2092,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
           <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
             {!loadingCatalog && (
               <span className="text-ink-600">
-                {filteredCandidates.length > visibleCandidates.length
-                  ? `Visar ${visibleCandidates.length} bästa av ${filteredCandidates.length} träffar`
-                  : `${filteredResultCount} ${filteredResultCount === 1 ? "träff" : "träffar"}`}
+                {filteredResultCount} {filteredResultCount === 1 ? "träff" : "träffar"}
               </span>
             )}
             {hasNrfFilter && (
@@ -2127,7 +2128,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 
       {!loadingCatalog && !catalogError && catalogResult?.truncated && (
         <div className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-950 sm:px-4">
-          Fler träffar finns hos Ahlsell. Scipx visar de tre högst rankade produkterna från den avgränsade sökningen.
+          Fler träffar finns hos Ahlsell. Listan innehåller alla matchande produkter från den avgränsade sökningen.
         </div>
       )}
 
@@ -2202,86 +2203,18 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         </div>
       )}
 
-      {visibleCandidates.length > 0 && (
-        <div className="divide-y divide-ink-200 border-t border-ink-200" role="radiogroup" aria-label="Välj Ahlsellprodukt">
-          {visibleCandidates.map((candidate) => {
-            const isSelected = normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber);
-            const matchState = memoriesAreExact ? ahlsellCandidateMatchState(candidate) : "review";
-            const candidateSubtitle = candidate.description;
-            const candidateClass = matchState === "exact" || matchState === "matched"
-              ? "bg-emerald-50 px-3 py-3 sm:px-4"
-              : matchState === "mismatch"
-                ? "bg-rose-50/40 px-3 py-3 sm:px-4"
-                : isSelected ? "bg-cyan-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4";
-            return (
-            <article key={candidate.articleNumber} className={candidateClass}>
-              <div className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold leading-5 text-ink-950">{candidate.productName}</p>
-                  {candidateSubtitle && candidateSubtitle !== candidate.productName && (
-                    <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-ink-700" title={candidateSubtitle}>{candidateSubtitle}</p>
-                  )}
-                  <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
-                  {matchState === "exact" || matchState === "matched" ? (
-                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Matchar kraven</p>
-                  ) : candidate.learningEvidence ? (
-                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Tidigare bekräftad för liknande krav · kontroll krävs</p>
-                  ) : matchState === "review" && candidate.recommendation === "recommended" ? (
-                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Stark träff · kontroll krävs</p>
-                  ) : null}
-                  <p className="mt-1 text-xs leading-5 text-ink-600">{candidateSourceLabel(candidate)}</p>
-                  {candidate.suggestedAccessories && candidate.suggestedAccessories.length > 0 && (
-                    <p className="mt-1.5 rounded-sm border border-cyan-200 bg-cyan-50 px-2 py-1.5 text-xs font-semibold leading-4 text-cyan-950">
-                      {candidate.suggestedAccessories.length} {candidate.suggestedAccessories.length === 1 ? "tillbehör" : "tillbehör"} hittades i MLDL och visas för separat val när huvudprodukten markeras.
-                    </p>
-                  )}
-                  {candidate.matchWarnings && candidate.matchWarnings.length > 0 && (
-                    <div className="mt-1.5 rounded-sm border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs leading-4 text-rose-900">
-                      <p className="font-bold">Matchar inte PDF-kravet:</p>
-                      <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
-                        {candidate.matchWarnings.map((warning, index) => (
-                          <li key={`${candidate.articleNumber}-${index}`}>{warning}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`ahlsell-product-${requirementId}`}
-                    value={candidate.articleNumber}
-                    checked={isSelected}
-                    disabled={disabled}
-                    onChange={() => selectCandidate(candidate)}
-                    aria-label={`Välj ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
-                    className="h-5 w-5 shrink-0 cursor-pointer border-ink-300 text-flow-700 focus:ring-flow-600 disabled:cursor-not-allowed"
-                  />
-                    <span className="text-xs font-bold text-flow-800" aria-hidden="true">{isSelected ? "Vald" : "Välj"}</span>
-                  </span>
-                  <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                </a>
-                </div>
-              </div>
-            </article>
-          );})}
-        </div>
-      )}
+      <AhlsellCandidateList
+        candidates={filteredCandidates}
+        requirementId={requirementId}
+        selectedArticleNumber={selectedArticleNumber}
+        disabled={disabled}
+        allowMatches={memoriesAreExact}
+        accessoryRequirements={guide.accessoryRequirements}
+        onSelect={selectCandidate}
+      />
 
     </section>
   );
-}
-
-function candidateSourceLabel(candidate: AhlsellPublicCandidate) {
-  if (candidate.evidenceSources?.includes("mldl_database") && candidate.evidenceSources.includes("ahlsell_public")) {
-    return "MLDL · samma artikel hittad på Ahlsells webbplats";
-  }
-  if (candidate.source === "catalog_search" || candidate.source === "public_verified") return "Träff på Ahlsells webbplats";
-  return candidate.source === "verified_database"
-    ? "Träff i MLDL · verifierade Victaulic-uppgifter"
-    : "Träff i MLDL-databasen";
 }
 
 function buildProductPostMailHref({ postNumber, productRequirement, quantity, nsCode, system, attributes, sourceExcerpt }: {

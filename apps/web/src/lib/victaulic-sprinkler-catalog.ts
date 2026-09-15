@@ -83,15 +83,12 @@ export function findVictaulicSprinklerCandidates(
     return {
       ...candidate,
       exactMatch: false,
-      recommendation: "possible" as const,
-      matchWarnings: [
-        ...(candidate.matchWarnings ?? []),
-        "Flera verifierade artiklar uppfyller de angivna värdena. Ange variantens återstående egenskaper innan automatiskt val."
-      ]
+      recommendation: "recommended" as const,
+      requiresProductSelection: true
     };
   });
 
-  return candidates.slice(0, 12);
+  return candidates;
 }
 
 function evaluateCatalogProduct(
@@ -161,9 +158,6 @@ function evaluateCatalogProduct(
       ? `Databasraden kräver kontroll: ${product.reviewFlags}`
       : "Databasraden är inte slutligt verifierad och får inte väljas automatiskt.");
   }
-  if (query.requiresAccessoryReview) {
-    warnings.push("Specifikationen kräver ett tillbehör eller skydd som måste kontrolleras mot sprinklerhuvudets exakta utförande.");
-  }
 
   const hasRequiredVariantEvidence = query.sprinklerHeadType === "open"
     ? query.kFactor !== null && query.dn !== null
@@ -195,6 +189,7 @@ function evaluateCatalogProduct(
       source: "verified_database",
       verifiedAt: catalogJson.catalogVersion,
       exactMatch: false,
+      requiresAccessoryReview: query.requiresAccessoryReview,
       matchScore,
       matchReasons: reasons,
       matchWarnings: warnings,

@@ -41,6 +41,8 @@ function mergeCandidate(
   const databaseAndPublic = evidenceSources.includes("mldl_database")
     && evidenceSources.includes("ahlsell_public");
   const warnings = uniqueText([...(verified.matchWarnings ?? []), ...(live.matchWarnings ?? [])]);
+  const requiresAccessoryReview = Boolean(verified.requiresAccessoryReview || live.requiresAccessoryReview);
+  const requiresProductSelection = Boolean(verified.requiresProductSelection || live.requiresProductSelection);
   const baseScore = hasVerifiedAssessment ? verified.matchScore : live.matchScore;
   const boostedScore = databaseAndPublic && warnings.length === 0 && typeof baseScore === "number"
     ? Math.min(100, baseScore + 8)
@@ -49,9 +51,9 @@ function mergeCandidate(
   const matchReasons = databaseAndPublic
     ? uniqueText([...(reasons ?? []), "Artikeln finns i både Ahlsells MLDL-databas och den aktuella offentliga katalogen."])
     : reasons;
-  const recommendation = boostedScore !== undefined && boostedScore >= 75 && (warnings?.length ?? 0) === 0
+  const recommendation = !requiresAccessoryReview && boostedScore !== undefined && boostedScore >= 75 && (warnings?.length ?? 0) === 0
     ? "recommended" as const
-    : warnings.length > 0
+    : warnings.length > 0 || requiresAccessoryReview
       ? (boostedScore ?? 0) >= 35 ? "possible" as const : "unlikely" as const
       : hasVerifiedAssessment ? verified.recommendation : live.recommendation;
   return {
@@ -64,7 +66,9 @@ function mergeCandidate(
     specifications: uniqueText([...verified.specifications, ...live.specifications]),
     source: verified.source,
     evidenceSources,
-    exactMatch: warnings.length === 0 && (hasVerifiedAssessment ? verified.exactMatch === true : live.exactMatch === true),
+    exactMatch: !requiresAccessoryReview && !requiresProductSelection && warnings.length === 0 && (hasVerifiedAssessment ? verified.exactMatch === true : live.exactMatch === true),
+    requiresAccessoryReview,
+    ...(requiresProductSelection ? { requiresProductSelection: true } : {}),
     matchScore: boostedScore,
     matchReasons,
     matchWarnings: warnings,

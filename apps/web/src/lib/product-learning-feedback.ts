@@ -2,7 +2,7 @@ import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { ahlsellCandidateMatchState, type AhlsellCandidateMatchState } from "@/lib/ahlsell-candidate-ranking";
 
 export const MAX_RECORDED_PRODUCT_CANDIDATES = 3;
-export const PRODUCT_MATCHING_ENGINE_VERSION = "mldl-ahlsell-complement-2026-09-14.5";
+export const PRODUCT_MATCHING_ENGINE_VERSION = "mldl-ahlsell-complement-2026-09-15.1";
 
 export type ProductLearningCandidateSnapshot = {
   rank: number;
@@ -17,6 +17,8 @@ export type ProductLearningCandidateSnapshot = {
   matchReasons: string[];
   matchWarnings: string[];
   exactMatch: boolean;
+  requiresAccessoryReview: boolean;
+  requiresProductSelection: boolean;
   matchState: AhlsellCandidateMatchState;
   familyCode: string | null;
   learningEvidence: {
@@ -49,6 +51,8 @@ export function productLearningCandidateSnapshots(
       matchReasons: cleanTextList(candidate.matchReasons, 20, 500),
       matchWarnings: cleanTextList(candidate.matchWarnings, 20, 500),
       exactMatch: candidate.exactMatch === true,
+      requiresAccessoryReview: candidate.requiresAccessoryReview === true,
+      requiresProductSelection: candidate.requiresProductSelection === true,
       matchState: ahlsellCandidateMatchState(candidate),
       familyCode: cleanOptionalText(candidate.familyCode, 120),
       learningEvidence: cleanLearningEvidence(candidate.learningEvidence)

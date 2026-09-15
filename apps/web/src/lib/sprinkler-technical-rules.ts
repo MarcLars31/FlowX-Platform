@@ -107,6 +107,31 @@ export type SprinklerAccessoryRequirement = {
   status: "required" | "optional" | "not_required" | "not_applicable" | "review";
 };
 
+/** These reminders are represented by the accessory requirement, not product deviations. */
+export function isSprinklerAccessoryReviewWarning(message: string) {
+  return /^(?:Specifikationen kräver ett tillbehör eller skydd som måste kontrolleras mot sprinklerhuvudets exakta utförande\.|Täckbricka, skydd eller annat tillbehör måste kompatibilitetskontrolleras mot exakt sprinklerutförande\.|Tillbehör eller skydd måste kompatibilitetskontrolleras mot exakt sprinklerutförande\.)$/.test(message)
+    || message.includes("Kravet gäller vid infällt montage, men det är inte klarlagt om villkoret gäller.");
+}
+
+export function sprinklerAccessoryNotices(
+  attributes: Record<string, unknown> | ReadonlyMap<string, unknown>,
+  freeText = ""
+) {
+  const installation = sprinklerInstallationRequirements(attributes, freeText);
+  const notices = installation.accessories.flatMap((entry) => {
+    if (entry.status !== "required" && entry.status !== "review") return [];
+    const name = /^(?:ja|yes|true|required)$/i.test(entry.value)
+      ? entry.kind === "cover" ? "Täckbricka/rosett" : "Skydd"
+      : entry.value.replace(/\bdobbel\b/gi, "Dubbel").replace(/[.\s]+$/, "");
+    const conditional = entry.kind === "cover" && CONDITIONAL_RECESS.test(normalize(`${entry.label} ${entry.value}`));
+    return [`${name}${conditional ? " (vid infällt montage)" : ""}`];
+  });
+  if (!notices.length && sprinklerRequiresAccessoryReview(attributes, freeText)) {
+    notices.push("Tillbehör enligt PDF-posten");
+  }
+  return [...new Set(notices)];
+}
+
 const COVER_ATTRIBUTE = /\b(dekkskive|pyntering|rosett|escutcheon|cover plate|coverplate|dekkplate|tackbricka|tacklock)\b/;
 const PROTECTION_ATTRIBUTE = /\b(beskyttelse|beskyttelsesgitter|gitter|skydd|skyddskorg|vannskjerm|watershield|water shield|guard)\b/;
 const CONDITIONAL_RECESS = /\b(?:ved|vid|vid eventuell|ved eventuell|if|when|for)\s+(?:innfelling|innfelt(?:\s+montasje)?|infallning|infallt(?:\s+montage)?|infalld|recessed(?:\s+mounting)?|recessing)\b/;

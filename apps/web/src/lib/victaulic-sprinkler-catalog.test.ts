@@ -9,6 +9,7 @@ import {
   type VictaulicSprinklerCatalogQuery
 } from "./victaulic-sprinkler-catalog";
 import baseline from "./__fixtures__/sprinkler-matching-baseline.v1.json";
+import { isExactAhlsellCandidate, isMatchingAhlsellCandidate } from "./ahlsell-candidate-ranking";
 
 type BaselineRequirement = {
   system: string;
@@ -71,7 +72,7 @@ test("normalizes K115.5 to the verified K115 product family", () => {
   assert.equal(candidates[0].exactMatch, true);
 });
 
-test("does not auto-select when several articles satisfy an incomplete variant", () => {
+test("offers all verified matching variants without a mismatch or automatic selection", () => {
   const candidates = findVictaulicSprinklerCandidates(query({
     kFactor: 80,
     dn: 15,
@@ -85,7 +86,10 @@ test("does not auto-select when several articles satisfy an incomplete variant",
 
   assert.ok(candidates.length > 1);
   assert.ok(candidates.every((candidate) => candidate.exactMatch === false));
-  assert.ok(candidates.some((candidate) => candidate.matchWarnings?.some((warning) => warning.includes("Flera verifierade artiklar"))));
+  const matches = candidates.filter(isMatchingAhlsellCandidate);
+  assert.ok(matches.length > 1);
+  assert.ok(matches.every(candidate => candidate.requiresProductSelection && !isExactAhlsellCandidate(candidate)));
+  assert.ok(matches.every(candidate => candidate.matchWarnings?.length === 0));
 });
 
 test("excludes concealed heads when the specification explicitly requires visible mounting", () => {
@@ -156,7 +160,9 @@ test("requires manual accessory compatibility review before an exact match", () 
 
   assert.equal(candidates[0].articleNumber, "9257423");
   assert.equal(candidates[0].exactMatch, false);
-  assert.ok(candidates[0].matchWarnings?.some((warning) => warning.includes("tillbehör eller skydd")));
+  assert.equal(candidates[0].requiresAccessoryReview, true);
+  assert.equal(candidates[0].matchWarnings?.length, 0);
+  assert.equal(isMatchingAhlsellCandidate(candidates[0]), false);
 });
 
 test("separates a dry-pipe installation from the sprinkler head construction", () => {

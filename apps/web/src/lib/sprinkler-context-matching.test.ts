@@ -2,8 +2,53 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { extractTechnicalDescriptionFromPages } from "../modules/technical-description-extractor/extractor";
 import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
-import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
+import { isExactAhlsellCandidate, isMatchingAhlsellCandidate, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 import { suggestedAccessories } from "./ahlsell-accessory-suggestions";
+import { findMldlOnlyCandidates } from "./ahlsell-mldl-matching";
+import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
+import { classifyAhlsellCatalogCandidates } from "./ahlsell-match-groups";
+
+const standardAttributes = {
+  sprinkleranlegg: "Våtanlegg", "type sprinkler": "Spraysprinkler", plassering: "Hengende",
+  "følsomhetsgrad": "Kvikk respons", "utløsningstemperatur": "68 °C", "k-faktor": "80",
+  "gjengedimensjon (DN)": "15", overflatebehandling: "Messing", trykk: "12 bar"
+};
+
+test("three overlapping accessory warnings become one conditional notice while technical conflicts remain", () => {
+  const requirement = { category: "sprinkler_head", value_text: "SPRINKLER", value_json: { attributes: {
+    ...standardAttributes, "dekkskive/pyntering (ved innfelling)": "Dobbel rosett", beskyttelse: "Nei"
+  } } };
+  const guide = buildAhlsellRequirementGuide(requirement);
+  assert.deepEqual(guide.accessoryRequirements, ["Dubbel rosett (vid infällt montage)"]);
+  assert.deepEqual(guide.interpretationWarnings, []);
+  const candidates = findMldlOnlyCandidates(requirement);
+  assert.ok(candidates.length > 0);
+  assert.ok(candidates.every(candidate => candidate.requiresAccessoryReview && !isMatchingAhlsellCandidate(candidate)));
+  assert.ok(candidates.every(candidate => !candidate.matchWarnings?.some(warning => /kompatibilitetskontrolleras|Kravet gäller vid infällt montage|Specifikationen kräver ett tillbehör/.test(warning))));
+  const merged = mergeAhlsellCandidates(candidates, [{ ...candidates[0], source: "catalog_search", exactMatch: true, recommendation: "recommended", matchWarnings: [], requiresAccessoryReview: false }]);
+  assert.equal(merged.find(candidate => candidate.articleNumber === candidates[0].articleNumber)?.requiresAccessoryReview, true);
+  assert.notEqual(classifyAhlsellCatalogCandidates(merged), "safe");
+  const [wrong] = rankAhlsellCandidates(requirement, [{
+    ...product, articleNumber: "test-wrong", productName: "Sprinkler K115 DN15 QR 93C pendent mässing",
+    specifications: ["K115", "DN15", "QR", "93C", "pendent", "standard coverage", "16 bar", "Messing"]
+  }]);
+  assert.ok(wrong.matchWarnings?.some(warning => /Fel K-faktor/.test(warning)));
+  assert.ok(wrong.matchWarnings?.some(warning => /Fel temperatur/.test(warning)));
+});
+
+test("Sprinkler2 keeps the verified head green while an alternative still lacks pressure evidence", () => {
+  const requirement = { category: "sprinkler_head", value_text: "SPRINKLER", value_json: { attributes: {
+    ...standardAttributes, plassering: "Hengende synlig i tak og over systemhimling",
+    "dekkskive/pyntering (ved innfelling)": "|.R.", beskyttelse: "Nei"
+  } } };
+  assert.deepEqual(buildAhlsellRequirementGuide(requirement).accessoryRequirements, []);
+  const candidates = rankAhlsellCandidates(requirement, findMldlOnlyCandidates(requirement));
+  const matches = candidates.filter(isMatchingAhlsellCandidate);
+  assert.deepEqual(matches.map(candidate => candidate.articleNumber), ["9257392"]);
+  assert.ok(candidates.find(candidate => candidate.articleNumber === "9254064")?.matchWarnings?.some(warning => /arbetstryck/.test(warning)));
+  assert.ok(matches.every(candidate => !isExactAhlsellCandidate(candidate)));
+  assert.equal(classifyAhlsellCatalogCandidates(candidates), "safe");
+});
 
 // Regression from the customer's annotated screenshot. These are source fields,
 // not an instruction to approve this sprinkler or change its construction type.
@@ -56,7 +101,8 @@ test("real recessed mounting retains the cover requirement throughout the same p
   assert.ok(buildAhlsellRequirementGuide(requirement).criteria.includes("Recessed"));
   const [ranked] = rankAhlsellCandidates(requirement, [product]);
   assert.ok(ranked.matchWarnings?.some((message) => /infällt/i.test(message)));
-  assert.ok(ranked.matchWarnings?.some((message) => /täckbricka/i.test(message)));
+  assert.equal(ranked.requiresAccessoryReview, true);
+  assert.deepEqual(buildAhlsellRequirementGuide(requirement).accessoryRequirements, ["Täckbricka/rosett (vid infällt montage)"]);
   const accessories = suggestedAccessories(requirement, { ...product, articleNumber: "9257392" });
   assert.ok(accessories.some((entry) => /dekkskiv/i.test(entry.productName) && entry.required));
   assert.ok(!accessories.some((entry) => /gitter/i.test(entry.productName)));

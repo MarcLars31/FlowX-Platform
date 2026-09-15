@@ -13,7 +13,9 @@ test("keeps accessory review on MLDL direct candidates", () => {
   });
   assert.ok(guide.directCandidates.length > 0);
   assert.equal(guide.directCandidates[0].exactMatch, false);
-  assert.match(guide.directCandidates[0].matchWarnings?.join(" ") ?? "", /tillbehör/i);
+  assert.equal(guide.directCandidates[0].requiresAccessoryReview, true);
+  assert.deepEqual(guide.accessoryRequirements, ["Skydd"]);
+  assert.equal(guide.directCandidates[0].matchWarnings?.length, 0);
 });
 
 test("keeps hydraulic review on otherwise exact direct candidates", () => {

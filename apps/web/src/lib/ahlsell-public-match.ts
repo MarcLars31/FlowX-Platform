@@ -7,6 +7,8 @@ import { resolvedSprinklerOrientation } from "@/lib/sprinkler-orientation-lexico
 import { findVictaulicSprinklerCandidates } from "@/lib/victaulic-sprinkler-catalog";
 import {
   sprinklerCoverageFromText,
+  isSprinklerAccessoryReviewWarning,
+  sprinklerAccessoryNotices,
   sprinklerExplicitlyExcludesCoverPlate,
   sprinklerInstallationRequirements,
   sprinklerNeedsHydraulicReview,
@@ -36,6 +38,8 @@ export type AhlsellPublicCandidate = {
   matchWarnings?: string[];
   recommendation?: "recommended" | "possible" | "unlikely";
   exactMatch?: boolean;
+  requiresProductSelection?: boolean;
+  requiresAccessoryReview?: boolean;
   familyCode?: string;
   variantCount?: number;
   learningEvidence?: {
@@ -77,6 +81,7 @@ export type AhlsellRequirementGuide = {
   directCandidates: AhlsellPublicCandidate[];
   interpretationNotes?: string[];
   interpretationWarnings?: string[];
+  accessoryRequirements?: string[];
 };
 
 type Orientation = "pendent" | "upright" | "sidewall";
@@ -277,7 +282,7 @@ export function buildAhlsellRequirementGuide(
   const searchQueries = unique([...(commentArticle ? [commentArticle] : []), ...plannedQueries]).slice(0, 3);
   const searchQuery = searchQueries[0] ?? description;
   const warnings = compact([
-    ...(intent === "sprinkler_head" ? installation.warnings : []),
+    ...(intent === "sprinkler_head" ? installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)) : []),
     ...dataWarnings.map((warning) => warning.message),
     orientationResult.mixed
       ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."
@@ -399,19 +404,17 @@ export function buildAhlsellRequirementGuide(
     warnings,
     recognitionNotes,
     interpretationNotes: intent === "sprinkler_head" ? installation.notes : [],
-    interpretationWarnings: intent === "sprinkler_head" ? installation.warnings : [],
+    interpretationWarnings: intent === "sprinkler_head" ? installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)) : [],
+    accessoryRequirements: intent === "sprinkler_head" ? sprinklerAccessoryNotices(attributes, sourceLanguageText) : [],
     directCandidates: directCandidates.filter(item => item.source !== "pdf_reference" && ahlsellMldlProduct(item.articleNumber))
       .map(withVerifiedWorkingPressure).map((item) => {
       const checks = engineeringRequirementWarnings(requirement, item);
-      if (intent === "sprinkler_head") checks.push(...installation.warnings);
-      if (requiresAccessoryReview && !(item.matchWarnings ?? []).some((warning) => /tillbehör|skydd/i.test(warning))) {
-        checks.push("Tillbehör eller skydd måste kompatibilitetskontrolleras mot exakt sprinklerutförande.");
-      }
+      if (intent === "sprinkler_head") checks.push(...installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)));
       if (intent === "sprinkler_head" && sprinklerNeedsHydraulicReview(sourceLanguageText)) {
         checks.push("Hydrauliska villkor och produktens listning måste verifieras innan slutligt produktval.");
       }
-      if (checks.length === 0) return item;
-      return { ...item, exactMatch: false, recommendation: "possible" as const,
+      if (checks.length === 0 && !requiresAccessoryReview) return item;
+      return { ...item, exactMatch: false, recommendation: "possible" as const, requiresAccessoryReview,
         matchWarnings: [...new Set([...(item.matchWarnings ?? []), ...checks])] };
     }).map(withTechnicalConflictAssessment)
   };

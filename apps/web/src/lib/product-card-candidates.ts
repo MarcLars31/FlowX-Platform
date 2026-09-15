@@ -1,4 +1,5 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import { isMatchingAhlsellCandidate } from "./ahlsell-candidate-ranking";
 
 export const MAX_VISIBLE_AHLSELL_CANDIDATES = 3;
 
@@ -20,4 +21,11 @@ export function filterAhlsellCandidatesByNrf(
 
 export function topAhlsellCandidates(candidates: AhlsellPublicCandidate[]) {
   return candidates.slice(0, MAX_VISIBLE_AHLSELL_CANDIDATES);
+}
+
+export function groupAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandidate[], allowMatches = true) {
+  const matching = candidates.filter(candidate => allowMatches && isMatchingAhlsellCandidate(candidate));
+  const matchingSet = new Set(matching);
+  const other = candidates.filter(candidate => !matchingSet.has(candidate));
+  return { matching, other, visibleOther: topAhlsellCandidates(other) };
 }

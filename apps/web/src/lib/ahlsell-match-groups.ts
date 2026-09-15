@@ -30,6 +30,7 @@ export function classifyAhlsellCatalogCandidates(
     matchScore?: number;
     matchWarnings?: string[];
     exactMatch?: boolean;
+    requiresAccessoryReview?: boolean;
   }>
 ): AhlsellCatalogMatchStatus {
   if (candidates.some((candidate) => isMatchingAhlsellCandidate({
@@ -52,6 +53,7 @@ export function ahlsellCatalogStatusFromPayload(value: unknown): AhlsellCatalogM
       matchScore?: number;
       matchWarnings?: string[];
       exactMatch?: boolean;
+      requiresAccessoryReview?: boolean;
     } =>
       Boolean(candidate) && typeof candidate === "object" && !Array.isArray(candidate)
     )

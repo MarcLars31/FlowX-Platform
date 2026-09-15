@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
-import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "./product-card-candidates";
+import { filterAhlsellCandidatesByNrf, groupAhlsellCandidatesForDisplay, normalizeNrfNumber, topAhlsellCandidates } from "./product-card-candidates";
 import { validateAhlsellProductLabelItems } from "./ahlsell-product-labels";
 
 const candidates: AhlsellPublicCandidate[] = [
@@ -41,6 +41,19 @@ test("visar bara de tre högst rankade Ahlsellprodukterna", () => {
     ["9254042", "9254043", "9254464"]
   );
   assert.equal(rankedCandidates.length, 4);
+});
+
+test("den utfällbara gruppen behåller alla matchningar och skiljer dem från avvikelser och tillbehörskrav", () => {
+  const matching: AhlsellPublicCandidate[] = Array.from({ length: 16 }, (_, index) => ({
+    ...candidate(`925${4000 + index}`, `Matchning ${index + 1}`),
+    recommendation: "recommended", matchScore: 100, exactMatch: false, requiresProductSelection: true, matchWarnings: []
+  }));
+  const mismatch = { ...matching[0], articleNumber: "wrong", matchWarnings: ["Fel K-faktor: PDF kräver K80, produkten anger K115."] };
+  const accessory = { ...matching[0], articleNumber: "accessory", requiresAccessoryReview: true };
+  const group = groupAhlsellCandidatesForDisplay([...matching, mismatch, accessory]);
+  assert.equal(group.matching.length, 16);
+  assert.deepEqual(group.other, [mismatch, accessory]);
+  assert.equal(groupAhlsellCandidatesForDisplay(matching, false).matching.length, 0);
 });
 
 test("validerar en begränsad lista med unika produktrader för Ahlselltexter", () => {

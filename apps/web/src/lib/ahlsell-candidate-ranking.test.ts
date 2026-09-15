@@ -287,7 +287,8 @@ test("prioritizes recessed pendent V2762 over a conventional opp/ned head for an
   assert.equal(ranked[0].recommendation, "possible");
   assert.equal(ranked[0].exactMatch, false);
   assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("infällt pendentmontage")));
-  assert.ok(ranked[0].matchWarnings?.some((warning) => warning.includes("Täckbricka")));
+  assert.equal(ranked[0].requiresAccessoryReview, true);
+  assert.ok(!ranked[0].matchWarnings?.some((warning) => warning.includes("kompatibilitetskontrolleras")));
 
   const conventional = ranked.find((candidate) => candidate.articleNumber === "9254111");
   assert.notEqual(conventional?.recommendation, "recommended");

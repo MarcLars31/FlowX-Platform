@@ -21,6 +21,7 @@ import {
   sprinklerRequiresAccessoryReview,
   sprinklerResponse,
   sprinklerSystemRestriction,
+  isSprinklerAccessoryReviewWarning,
   type SprinklerCoverageClass
 } from "@/lib/sprinkler-technical-rules";
 
@@ -92,13 +93,15 @@ export function orderAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandid
 }
 
 export function isExactAhlsellCandidate(candidate: AhlsellPublicCandidate) {
+  if (candidate.requiresAccessoryReview || candidate.requiresProductSelection) return false;
   if (candidate.source === "pdf_reference" || candidate.recommendation === "unlikely") return false;
   if ((candidate.matchWarnings?.length ?? 0) > 0) return false;
   return candidate.exactMatch === true;
 }
 
 /** Green describes a technically supported proposal, independently of approval. */
-export function isMatchingAhlsellCandidate(candidate: Pick<AhlsellPublicCandidate, "source" | "recommendation" | "matchScore" | "matchWarnings" | "exactMatch">) {
+export function isMatchingAhlsellCandidate(candidate: Pick<AhlsellPublicCandidate, "source" | "recommendation" | "matchScore" | "matchWarnings" | "exactMatch" | "requiresAccessoryReview">) {
+  if (candidate.requiresAccessoryReview) return false;
   if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely" || candidate.source === "pdf_reference") return false;
   return candidate.exactMatch === true || (candidate.recommendation === "recommended" && (candidate.matchScore ?? 0) >= 75);
 }
@@ -158,7 +161,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     sourceOnlyText
   );
   const reviewWarnings = projectRequirementDataWarnings(requirement).map((warning) => warning.message);
-  if (intent === "sprinkler_head") reviewWarnings.push(...installation.warnings);
+  if (intent === "sprinkler_head") reviewWarnings.push(...installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)));
   if (intent === "sprinkler_head" && responseResult.conflict) {
     reviewWarnings.push("PDF-posten anger både standard- och quick-respons. Kontrollera originaltexten innan produktval.");
   }
@@ -212,7 +215,8 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   const reasons: string[] = [];
   const pressure = verifiedVictaulicWorkingPressure(candidate);
   if (pressure) reasons.push(`Arbetstryck ${pressure.bar} bar är dokumenterat för ${pressure.model} i Victaulic ${pressure.publication}.`);
-  const warnings: string[] = [...requirement.reviewWarnings, ...(candidate.matchWarnings ?? [])];
+  const warnings: string[] = [...requirement.reviewWarnings, ...(candidate.matchWarnings ?? [])]
+    .filter(message => !isSprinklerAccessoryReviewWarning(message));
   let score = 0;
 
   if (requirement.intent === "wet_alarm_valve") {
@@ -393,17 +397,18 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   score += scoreMaterialAndJoint(candidateText, requirement, reasons, warnings);
 
   const matchScore = Math.max(0, Math.min(100, score));
-  const recommendation = matchScore >= 75 && warnings.length === 0
+  const requiresAccessoryReview = requirement.intent === "sprinkler_head" && requirement.requiresAccessoryReview;
+  const recommendation = matchScore >= 75 && warnings.length === 0 && !requiresAccessoryReview
     ? "recommended"
     : matchScore >= 35 ? "possible" : "unlikely";
-  const exactMatch = warnings.length === 0 && (candidate.exactMatch === true || (
+  const exactMatch = !requiresAccessoryReview && !candidate.requiresProductSelection && warnings.length === 0 && (candidate.exactMatch === true || (
     recommendation === "recommended"
     && matchScore === 100
     && warnings.length === 0
     && hasCompleteTechnicalEvidence(candidateText, candidateName, requirement)
   ));
   return withTechnicalConflictAssessment({ ...candidate, matchScore, matchReasons: reasons,
-    matchWarnings: [...new Set(warnings)], recommendation, exactMatch });
+    matchWarnings: [...new Set(warnings)], recommendation, exactMatch, requiresAccessoryReview });
 }
 
 const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
@@ -609,9 +614,6 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
         ? "PDF-kravet anger extended coverage, men produktinformationen bekräftar inte rätt täcknings-/applikationsklass."
         : "Produktens täcknings-/applikationsklass stämmer inte med PDF-kravet eller saknar verifierbart underlag.");
     }
-  }
-  if (requirement.requiresAccessoryReview) {
-    warnings.push("Täckbricka, skydd eller annat tillbehör måste kompatibilitetskontrolleras mot exakt sprinklerutförande.");
   }
   if (requirement.requiresHydraulicReview) {
     warnings.push("Hydrauliska villkor och produktens listning måste verifieras innan slutligt produktval.");
