@@ -24,8 +24,8 @@ const STANDARD_PATTERN =
   /\b((?:NS(?:[-\s]?EN)?|NFPA)\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
 const ATTRIBUTE_PATTERN = /^\s*([^:]{2,60}):\s*(.*?)\s*$/;
 const NS3420_CODE_PATTERN =
-  /^(%?[A-ZÆØÅ][A-ZÆØÅ0-9]*\.[A-ZÆØÅ0-9.]+[A-ZÆØÅ]?)\s*(?:-\s*)?(.*)$/i;
-const QUANTITY_UNIT_SOURCE = String.raw`(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|l)`;
+  /^(%?[A-ZÆØÅ][A-ZÆØÅ0-9]*\.[A-ZÆØÅ0-9.]+[A-ZÆØÅ]?|[A-ZÆØÅ]{2}\d[A-Z]?|RQA?|AOA)(?=\s|$)\s*(?:-\s*)?(.*)$/i;
+const QUANTITY_UNIT_SOURCE = String.raw`(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|liter|l)`;
 const QUANTITY_NUMBER_SOURCE = String.raw`(?:\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)`;
 const TABLE_QUANTITY_PATTERN = new RegExp(
   String.raw`^(?:(?:Antall|Lengde)\s+)?(${QUANTITY_UNIT_SOURCE})\.?\s+(${QUANTITY_NUMBER_SOURCE})(?=\s|$)`,
@@ -451,6 +451,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   );
   let previousMaterialLine: TechnicalDescriptionMaterialLine | undefined;
   let previousContext: TableParentContext | undefined;
+  let pipeSection: { number: string; sourcePage: number; text: string } | undefined;
 
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
     const page = pages[pageIndex];
@@ -469,6 +470,19 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       if (!start) continue;
       starts.push(start);
       index += start.consumedLineCount - 1;
+    }
+
+    const sectionIndex = pageLines.findIndex(line => /^\d{4}\s+Ledningsnett\b/i.test(line));
+    if (sectionIndex >= 0) {
+      pipeSection = { number: pageLines[sectionIndex].split(" ")[0], sourcePage: page.pageNumber,
+        text: pageLines.slice(sectionIndex, starts[0]?.lineIndex ?? footerIndex(pageLines, sectionIndex)).join("\n") };
+    } else if (pipeSection && page.pageNumber === pipeSection.sourcePage + 1) {
+      const headingEnd = pageLines.findIndex(line => /^Postnr\./i.test(line));
+      // Only a visual header at the start of the page bounds a continuation.
+      const firstStart = starts[0]?.lineIndex ?? footerIndex(pageLines, -1);
+      const contentStart = headingEnd >= 0 && headingEnd < firstStart ? headingEnd + 1 : 0;
+      pipeSection.text += `\n${pageLines.slice(contentStart, firstStart)
+        .filter(line => !/^(?:Prosjekt:|Kapittel:|Postnr\.)/i.test(line)).join("\n")}`;
     }
 
     mergeLeadingPageContinuation({
@@ -497,7 +511,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         : quantity
           ? blockLines.slice(0, quantity.lineIndex)
           : blockLines;
-      if (quantity?.descriptionPrefix) {
+      if (!start.quantity && quantity?.descriptionPrefix) {
         descriptionParts.push(quantity.descriptionPrefix);
       }
       const parsedDescription = tableDescription(descriptionParts);
@@ -568,6 +582,12 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         ...(parent?.attributes ?? {}),
         ...ownAttributes
       };
+      if (pipeSection && fullPostNumber.includes(`.${pipeSection.number}.`)
+        && (category === "pipe" || category === "fitting")) {
+        attributes["generelle krav"] = `PDF side ${pipeSection.sourcePage}:\n${pipeSection.text}`;
+      }
+      const comments = (page.annotations ?? []).filter(comment => comment.postNumber === fullPostNumber);
+      if (comments.length) attributes["pdf-kommentar"] = comments.map(comment => comment.text).join("\n\n");
       const reviewFlags: string[] = [];
       if (category === "unknown") reviewFlags.push("unknown-category");
       if (page.method === "ocr") reviewFlags.push("ocr-source");
@@ -713,7 +733,8 @@ function parseStructuredPostStart(
       lines,
       lineIndex,
       post: leadingLumpSum.groups.post,
-      description: leadingLumpSum.groups.description
+      description: leadingLumpSum.groups.description,
+      quantity: { quantity: 1, unit: "RS", text: "Rund sum", lineIndex: 0, descriptionPrefix: "" }
     });
   }
 
@@ -774,24 +795,22 @@ function parseWrappedVisualPostStart(
     (baseParts.length < 4 && !base.endsWith("."))
     || (!continuation.includes(".") && !base.endsWith("."))
     || continuationWithoutDot.startsWith(`${base.replace(/\.$/, "")}.`)
-    || !isLikelyWrappedPostDescription(baseMatch[2])
+    || !/[a-zæøå]/i.test(baseMatch[2])
   ) {
     return undefined;
   }
 
+  const quantity = findTableQuantity([baseMatch[2]]);
   return {
     lineIndex,
     consumedLineCount: 2,
     postNumber: composeWrappedPostNumber(base, continuation),
-    description: [baseMatch[2], continuationMatch[2]]
+    description: [quantity ? quantity.descriptionPrefix : baseMatch[2], continuationMatch[2]]
       .filter(Boolean)
       .join(" ")
-      .trim()
+      .trim(),
+    quantity
   };
-}
-
-function isLikelyWrappedPostDescription(value: string) {
-  return /(?:\bDN\s*\d|\b(?:Antall|Lengde)\b|\b(?:stk|st|m|lm)\s+\d|%?[A-ZÆØÅ]{1,10}\d[\w.%-]*|sprinkler|r[øo]r|ventil|bend|kupling|kobling|overgang|fitting)/i.test(value);
 }
 
 function completeStructuredStart({
@@ -819,7 +838,7 @@ function completeStructuredStart({
   }
 
   const continuation = lines[lineIndex + 1]?.match(POST_CONTINUATION_PATTERN);
-  if (!continuation) {
+  if (!continuation || continuation[1].startsWith(`${cleanPost.split(".").slice(0, -1).join(".")}.`)) {
     return {
       lineIndex,
       consumedLineCount: 1,
@@ -844,7 +863,7 @@ function composeWrappedPostNumber(base: string, continuation: string) {
     return `${base.replace(/\.$/, "")}${continuation}`;
   }
   if (base.endsWith(".")) return `${base}${continuation}`;
-  return `${base} ${continuation}`;
+  return `${base}${continuation}`;
 }
 
 function recoverMissingStructuredPostNumbers(pageLines: string[][]) {
@@ -852,6 +871,19 @@ function recoverMissingStructuredPostNumbers(pageLines: string[][]) {
   const flatLines: FlatLine[] = pageLines.flatMap((lines, pageIndex) =>
     lines.map((text, lineIndex) => ({ pageIndex, lineIndex, text }))
   );
+  // A code following a standalone or wrapped post number already has an
+  // identity. Do not infer a replacement from the next page's first post.
+  const attachedCodes = new Set<number>();
+  let pageOffset = 0;
+  for (const lines of pageLines) {
+    for (let index = 0; index < lines.length; index += 1) {
+      const start = parseStructuredPostStart(lines, index);
+      if (!start) continue;
+      attachedCodes.add(pageOffset + index + start.consumedLineCount);
+      index += start.consumedLineCount - 1;
+    }
+    pageOffset += lines.length;
+  }
   const explicit = flatLines
     .map((line, flatIndex) => ({
       flatIndex,
@@ -862,6 +894,7 @@ function recoverMissingStructuredPostNumbers(pageLines: string[][]) {
     .map((line, flatIndex) => ({ line, flatIndex }))
     .filter(({ line, flatIndex }) =>
       NS3420_CODE_PATTERN.test(line.text)
+      && !attachedCodes.has(flatIndex)
       && blockHasExplicitQuantity(flatLines, flatIndex)
     );
   const inferredPostNumbers = new Set<string>();
@@ -936,7 +969,8 @@ function mergeLeadingPageContinuation({
   if (continuationStart < 0) return;
   const continuation = leading
     .slice(continuationStart)
-    .filter((line) => !isTableFooter(line));
+    .slice(0, footerIndex(leading.slice(continuationStart), -1))
+    .filter((line) => !/^(?:Kapittel:|Postnr\.|Kopi-)/i.test(line));
   if (continuation.length === 0) return;
 
   const continuationText = continuation.join("\n");
@@ -1048,7 +1082,7 @@ function extractChapterPost(lines: string[]) {
 }
 
 function isTableFooter(value: string) {
-  return /^(?:Sum(?: denne side)?\s*:|Akkumulert\b|Prosjekt:|Postnr:)/i.test(value);
+  return /^(?:Sum(?: denne side| Kapittel[^:]*)?\s*:|Akkumulert\b|Prosjekt:|Postnr:|Kopi-)/i.test(value);
 }
 
 function findTableQuantity(lines: string[]) {
@@ -1092,13 +1126,22 @@ function findTableQuantity(lines: string[]) {
     };
   }
 
+  // RS is a priced scope, not a zero quantity: the trailing zeroes belong to
+  // price/sum columns. Prefer explicit numeric quantities (e.g. "Rund sum stk
+  // 1") above, and retain the remaining lump sums as one scope in unit RS.
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const match = lines[lineIndex].match(/^(.*?)(?:^|\s)RS(?:\s+[\d., ]+)?$/i)
+      ?? lines[lineIndex].match(/^(.*?)(?:^|\s)Rund\s+sum\s*$/i);
+    if (match) return { quantity: 1, unit: "RS", text: "Rund sum", lineIndex, descriptionPrefix: match[1].trim() };
+  }
+
   return undefined;
 }
 
 function tableDescription(parts: string[]) {
   const cleaned = parts
     .map((part) => part.trim().replace(/^[|)]{1,2}\s*/, ""))
-    .filter(Boolean);
+    .filter((part) => Boolean(part) && !/^(?:Antall(?: prøver)?|Lengde|Mengde|Rund sum)$/i.test(part));
   let nsCode: string | undefined;
 
   for (let index = 0; index < cleaned.length; index += 1) {
@@ -1135,12 +1178,13 @@ function extractTableAttributes(lines: string[]) {
         continue;
       }
       const key = normalizeAttributeKey(match[1]);
-      if (["gjelder", "andre krav", "postnr"].includes(key)) continue;
+      if (["gjelder", "andre krav", "postnr", "kapittel", "prosjekt"].includes(key)) continue;
       attributes[key] = normalizeAttributeValue(key, match[2]);
       activeKey = hasTableQuantity(line) ? null : key;
       continue;
     }
 
+    if (/^(?:[a-z]\)|Andre krav|Merket\b|Sum\b|Akkumulert|Kopi-)/i.test(line)) activeKey = null;
     if (
       activeKey &&
       !/^(?:[a-z]\)|Sum denne side|Akkumulert|Prosjekt:|\d{2}\.\d{2}\.\d{4})/i.test(line)
@@ -1432,6 +1476,7 @@ function normalizeUnit(value: string) {
   if (["m", "lm", "im", "1m", "meter", "løpemeter"].includes(normalized)) return "m";
   if (normalized === "m2" || normalized === "m²") return "m2";
   if (normalized === "m3" || normalized === "m³") return "m3";
+  if (normalized === "liter") return "l";
   return normalized;
 }
 

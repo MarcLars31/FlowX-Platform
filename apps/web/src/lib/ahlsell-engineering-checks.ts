@@ -1,5 +1,6 @@
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
+import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
 
 /** Cross-catalogue checks that must also run on directly verified products. */
 export function engineeringRequirementWarnings(
@@ -10,11 +11,59 @@ export function engineeringRequirementWarnings(
   const value = record(requirement.value_json);
   const attributes = record(value.attributes);
   const ownText = `${requirement.value_text ?? ""} ${requirement.display_name ?? ""}`;
-  const requirementText = `${ownText} ${Object.entries(attributes).map(([key, item]) => `${key} ${item}`).join(" ")}`;
+  const requirementText = `${ownText} ${Object.entries(attributes).filter(([key]) => !["generelle krav", "pdf-kommentar"].includes(key)).map(([key, item]) => `${key} ${item}`).join(" ")}`;
+  const detail = `${value.technicalSpecification ?? ""} ${value.sourceText ?? ""} ${requirement.source_excerpt ?? ""}`.replace(/\s+/g, " ");
+  const intent = ahlsellRequirementIntent(requirement);
   // A search URL, stock location or requirement-derived PDF reference is not
   // technical product evidence.
   const productText = `${candidate.productName} ${candidate.description ?? ""} ${candidate.specifications.join(" ")}`;
   const warnings: string[] = [];
+  const comment = String(attributes["pdf-kommentar"] ?? "");
+  if (comment && !/^\s*\d{6,8}(?:N5)?\s*$/i.test(comment)) {
+    warnings.push(`PDF-kommentaren innehåller en reservation eller flera delar som behöver granskas: ${comment}`);
+  }
+  const requiredIp = requirementText.match(/\bIP\s*(\d{2})\b/i)?.[1];
+  if (requiredIp && !new RegExp(`\\bIP\\s*${requiredIp}\\b`, "i").test(productText)) {
+    warnings.push(`Kapslingsklass IP${requiredIp} behöver verifieras mot PDF-posten.`);
+  }
+  if (intent === "ball_valve" && /trykkbryter|endebryter|overv[åa]k|registrerer [åa]pen stilling/i.test(detail)
+    && !/supervisory switch|endebryter|overv[åa]k|supervised/i.test(productText)) {
+    warnings.push("Ventilens lägesövervakning och brytare behöver verifieras mot PDF-posten.");
+  }
+  if (intent === "pump" && /\b\d+\s*l\/s|\b400\s*V/i.test(requirementText)) {
+    warnings.push("Pumpens flöde vid angiven lyfthöjd, spänning och tillbehör behöver verifieras mot PDF-posten.");
+  }
+
+  const general = String(attributes["generelle krav"] ?? "");
+  if (["pipe", "bend", "tee", "reducer", "cap", "branch"].includes(intent)
+    && /(?:alle rør|rørene skal)[\s\S]{0,160}varmgalvaniser/i.test(general)
+    && !/\b(?:galv\.?|galvanisert|galvaniserad|galvanized|galvanised|hot.dip)\b/i.test(productText)) {
+    warnings.push("Kapitlets krav på galvaniserade rör/rördelar behöver verifieras mot produktens ytbehandling.");
+  }
+  if (intent === "pipe" && /pressfittings aksepteres ikke/i.test(general) && /\bpress(?:fitting|ystem|kobling)/i.test(productText)) {
+    warnings.push("Fel produkttyp: kapitlet tillåter inte presskopplingar.");
+  }
+  if (intent === "bend") {
+    if (/^m(?:eter)?$/i.test(String(value.unit ?? ""))) warnings.push("PDF-posten mängdar rörböjar i meter. Kontrollera antal och enhet före produktval.");
+    if (angle(requirementText) === null) warnings.push("Böjvinkeln saknas i PDF-posten och behöver anges före produktval.");
+  }
+  if (intent === "branch" && dimensions(requirementText).length < 2) {
+    warnings.push("Avstickets anslutningsdimension saknas i PDF-posten; huvudrörets dimension räcker inte för produktval.");
+  }
+  if (intent === "sprinkler_guard") {
+    warnings.push("Skyddsgallrets kompatibilitet med valt sprinklerhuvud och angiven ytbehandling behöver verifieras.");
+  }
+  if (intent === "sprinkler_cabinet") {
+    warnings.push("Reservsprinklerskåpets innehåll, antal huvuden och sprinklernycklar behöver kontrolleras mot den kompletta posten.");
+  }
+  if (["wet_alarm_valve", "water_meter", "test_drain", "flushing_connection", "sensor_pocket", "pump", "strainer", "flange_adapter"].includes(intent)
+    && /komplett|inkl\.|medta|automatisk returspyling|følerlomme|overgang fra pe til stål/i.test(`${requirementText} ${detail}`)) {
+    warnings.push("PDF-posten omfattar en installation med flera delar eller särskild funktion. Kontrollera komplett leveransomfattning mot produktförslaget.");
+  }
+  if (intent === "check_valve" && /v[æä]skekategori\s*4/i.test(detail)
+    && !/(?:v[æä]skekategori|fluid category)\s*4/i.test(productText)) {
+    warnings.push("Godkännande för vätskekategori 4 enligt PDF-posten behöver verifieras; en vanlig backventil är inte tillräcklig dokumentation.");
+  }
 
   const requiredDns = dimensions(requirementText);
   if (requiredDns.length > 1) {

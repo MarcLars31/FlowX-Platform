@@ -2,7 +2,7 @@ import catalogData from "@/data/ahlsell-mldl-catalog.json";
 import { orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
-import { ns3420ProductFamily } from "./ns3420-product-classification";
+import { ahlsellRequirementIntent, catalogTypesForIntent } from "./ahlsell-requirement-intent";
 
 export type AhlsellMldlProduct = (typeof catalogData.products)[number];
 
@@ -37,16 +37,8 @@ export function findAhlsellMldlCandidates(
   limit = 50
 ): AhlsellPublicCandidate[] {
   const requirementText = normalizedRequirementText(requirement);
-  const codeFamily = ns3420ProductFamily(requirementText, String(requirement.value_text ?? requirement.display_name ?? ""));
-  // An accessory mentioned inside a head specification must not replace the
-  // main product family. Dedicated accessory rows still use text detection.
-  const accessoryRow = /^\s*(?:beskyttelsesgit(?:ter|re)|skyddskorg|sprinklerkorg|sprinklergitter|(?:sprinkler\s+)?guard)\b/i
-    .test(String(requirement.value_text ?? requirement.display_name ?? ""));
-  const expectedTypes = accessoryRow ? new Set(["sprinkler_accessory"])
-    : codeFamily ? new Set([codeFamily])
-    : requirement.category === "sprinkler_head"
-      ? new Set(["sprinkler_head"])
-      : expectedCatalogTypes(requirementText);
+  const primaryTypes = catalogTypesForIntent(ahlsellRequirementIntent(requirement));
+  const expectedTypes = primaryTypes ? new Set(primaryTypes) : expectedCatalogTypes(requirementText);
   const explicitArticles = new Set(articleNumbers(requirementText));
   const explicitModels = new Set(modelNumbers(requirementText));
   const pool = catalogData.products.filter((product) => {
@@ -237,7 +229,11 @@ function expectedCatalogTypes(value: string) {
 }
 
 function normalizedRequirementText(requirement: Record<string, unknown>) {
-  return normalize(flatten(requirement));
+  const value = requirement.value_json as Record<string, unknown> | undefined;
+  const attributes = value?.attributes as Record<string, unknown> | undefined;
+  return normalize(flatten({ ...requirement, value_json: { ...value,
+    attributes: Object.fromEntries(Object.entries(attributes ?? {}).filter(([key]) => key !== "pdf-kommentar"))
+  } }));
 }
 
 function flatten(value: unknown): string {

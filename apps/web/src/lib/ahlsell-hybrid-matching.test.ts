@@ -5,6 +5,24 @@ import { findMldlOnlyCandidates } from "./ahlsell-mldl-matching";
 import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
+import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
+
+test("uses a positioned comment's article as a search hint without copying its dimensions into the specification", () => {
+  const guide = buildAhlsellRequirementGuide({ category: "pipe", value_text: "DN80", value_json: { unit: "m", attributes: {
+    dimensjon: "DN80", "pdf-kommentar": "1118636 DN100 er bare et eksempel."
+  } } });
+  assert.equal(guide.searchQueries[0], "1118636");
+  assert.ok(guide.searchQueries.slice(1).every(query => !/DN100|eksempel/.test(query)));
+});
+
+test("complementary PN and material evidence clears only missing product-data warnings", () => {
+  const req = { category: "valve", value_text: "Kuleventil DN25", value_json: { attributes: { trykk: "PN16", materiale: "Messing" } } };
+  const local = rankAhlsellCandidates(req, [{ ...candidate("9999901", "Kuleventil DN25"), source: "structured_database" }]);
+  assert.ok(local[0].matchWarnings?.some(warning => /tryckklass saknas|material behöver verifieras/.test(warning)));
+  const result = complementMldlCandidates(req, local, [{ ...candidate("9999901", "Kuleventil DN25 PN10/16 Messing") }]);
+  assert.deepEqual(result[0].matchWarnings, []);
+  assert.equal(result[0].recommendation, "recommended");
+});
 
 const requirement = { category: "sprinkler_head", value_text: "SPRINKLER", value_json: { attributes: {
   sprinkleranlegg: "Våtanlegg", "type sprinkler": "Spraysprinkler", plassering: "Hengende synlig i tak",

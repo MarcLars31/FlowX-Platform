@@ -3,6 +3,7 @@ export type TechnicalDescriptionAnnotation = {
   text: string;
   subtype: string;
   rect?: number[];
+  postNumber?: string;
 };
 
 export type TechnicalDescriptionPage = {

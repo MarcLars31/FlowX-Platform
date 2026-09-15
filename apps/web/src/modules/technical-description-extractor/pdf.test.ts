@@ -3,6 +3,16 @@ import test from "node:test";
 import { PDFDocument, PDFName, PDFString, StandardFonts } from "pdf-lib";
 import { extractTechnicalDescriptionPages, pagesRequiringOcr } from "./pdf";
 import { commentsFromPdfAnnotations } from "./pdf-annotations";
+
+test("anchors note icons to wrapped product rows using the lower edge instead of the previous row", () => {
+  const item = (str: string, y: number) => ({ str, transform: [1, 0, 0, 1, 54, y] });
+  const comments = commentsFromPdfAnnotations([
+    { id: "first", subtype: "Text", contentsObj: { str: "1001012" }, rect: [444, 689, 468, 713] },
+    { id: "second", subtype: "Text", contentsObj: { str: "1118631" }, rect: [444, 661, 468, 685] },
+    { id: "unplaced", subtype: "Text", contentsObj: { str: "Review" } }
+  ], [item("0.33.332.3", 700), item("322.1.1", 689), item("0.33.332.3", 667), item("322.1.2", 656)]);
+  assert.deepEqual(comments.map(comment => comment.postNumber), ["0.33.332.3322.1.1", "0.33.332.3322.1.2", undefined]);
+});
 import type { TechnicalDescriptionPage } from "./types";
 
 test("renders only short text pages for OCR in mixed technical PDFs", () => {

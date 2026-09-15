@@ -1,9 +1,23 @@
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
-import { isExactAhlsellCandidate } from "@/lib/ahlsell-candidate-ranking";
+import { isMatchingAhlsellCandidate } from "@/lib/ahlsell-candidate-ranking";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
 
 export type AhlsellMatchGroup = "green" | "yellow" | "red";
 export type AhlsellCatalogMatchStatus = "safe" | "found" | "none";
+export type AhlsellCatalogAssessment = { revision: string; status: AhlsellCatalogMatchStatus; fullSearch: boolean };
+
+export function mergeAhlsellCatalogAssessments(
+  current: Readonly<Record<string, AhlsellCatalogAssessment>>,
+  incoming: Readonly<Record<string, AhlsellCatalogAssessment>>
+) {
+  const next = { ...current };
+  for (const [id, result] of Object.entries(incoming)) {
+    const previous = next[id];
+    if (previous?.revision === result.revision && previous.fullSearch && !result.fullSearch) continue;
+    next[id] = result;
+  }
+  return next;
+}
 
 export function isAhlsellCatalogMatchStatus(value: unknown): value is AhlsellCatalogMatchStatus {
   return value === "safe" || value === "found" || value === "none";
@@ -18,13 +32,8 @@ export function classifyAhlsellCatalogCandidates(
     exactMatch?: boolean;
   }>
 ): AhlsellCatalogMatchStatus {
-  if (candidates.some((candidate) => isExactAhlsellCandidate({
+  if (candidates.some((candidate) => isMatchingAhlsellCandidate({
     ...candidate,
-    articleNumber: "",
-    productName: "",
-    manufacturer: "",
-    productUrl: "",
-    specifications: [],
     source: candidate.source ?? "catalog_search"
   }))) return "safe";
   return candidates.some((candidate) =>
@@ -87,7 +96,7 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
     const hasLearnedProduct = !staticallySafeRequirementIds
       && hasReusableProductMemory(requirement, memoryFingerprints);
     const hasDirectAhlsellMatch = !staticallySafeRequirementIds
-      && buildAhlsellRequirementGuide(requirement).directCandidates.some(isExactAhlsellCandidate);
+      && buildAhlsellRequirementGuide(requirement).directCandidates.some(isMatchingAhlsellCandidate);
     const catalogStatus = catalogStatuses[requirement.id];
 
     if (requiresDataReview) {

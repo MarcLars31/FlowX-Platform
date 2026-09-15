@@ -31,7 +31,7 @@ export async function extractTechnicalDescriptionPages(
       let annotations: TechnicalDescriptionPage["annotations"];
       let annotationReadFailed = false;
       try {
-        annotations = commentsFromPdfAnnotations(await page.getAnnotations({ intent: "display" }));
+        annotations = commentsFromPdfAnnotations(await page.getAnnotations({ intent: "display" }), content.items);
       } catch {
         // A broken comment must not discard otherwise readable page text.
         annotationReadFailed = true;

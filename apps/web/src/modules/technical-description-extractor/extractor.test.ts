@@ -3,6 +3,39 @@ import test from "node:test";
 import { extractTechnicalDescriptionFromPages } from "./extractor";
 import type { TechnicalDescriptionPage } from "./types";
 
+test("retains wrapped numbered heads, guards, litres and lump-sum work without reading price zeroes as quantity", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 17, method: "text", confidence: 0.98,
+    text: ["Kapittel: 33 Brannslokking", "0.33.332.3", "325.2.1", "UE2.11112512A", "SPRINKLER", "Antall stk 27 0 0",
+      "K-faktor: 80", "0.33.332.3", "325.2.2", "UE2.11112912A", "SPRINKLER", "Antall stk 188 0 0",
+      "0.33.332.3 Beskyttelsesgitre. stk 10 0 0", "325.2.4 På grunn av lave takhøyder", "Hvitlakkert utførelse.",
+      "0.33.332.3 UL1.4215143A", "322.9 OPPFYLLING MED ARBEIDSMEDIUM", "Mengde liter 2 650 0 0",
+      "0.33.332.3 Maling av rør RS 0 0", "322.8.1 To strøk signalrød maling.",
+      "0.33.332.3", "327.3", "UL1.12152439A", "TETTHETSPRØVING AV INNENDØRS", "TRYKKRØR", "Antall prøver RS 0 0",
+      "0.33.332.3", "327.4", "AOA", "Kvalitetssikrende tiltak", "x) Mengderegler", "Rund sum", "Sum denne side: 0"].join("\n")
+  }]);
+  assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.quantity, line.unit]), [
+    ["0.33.332.3322.8.1", 1, "RS"], ["0.33.332.3322.9", 2650, "l"],
+    ["0.33.332.3325.2.1", 27, "st"], ["0.33.332.3325.2.2", 188, "st"], ["0.33.332.3325.2.4", 10, "st"],
+    ["0.33.332.3327.3", 1, "RS"], ["0.33.332.3327.4", 1, "RS"]
+  ]);
+  assert.equal(result.materialLines[5].description, "TETTHETSPRØVING AV INNENDØRS TRYKKRØR");
+  assert.ok(result.materialLines.every(line => !line.reviewFlags.includes("inferred-post-number")));
+});
+
+test("keeps scoped pipe instructions and positioned comments separate from the row's technical attributes", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    { pageNumber: 2, method: "text", confidence: 0.98, text: "Kapittel: 33 Brannslokking\n3322 Ledningsnett\nAlle rør skal være varmgalvaniserte.\nSum denne side: 0" },
+    { pageNumber: 3, method: "text", confidence: 0.98,
+      text: "Kapittel: 33 Brannslokking\n0.33.332.3 UB1.1194300932A\n322.1 INNENDØRS VANNLEDNING - KOMPLETT\nMateriale: Stål\n0.33.332.3 DN25 m 274 0 0\n322.1.1\n0.33.332.3 UE2.11112912A\n325.2.2 SPRINKLER\nAntall stk 188 0 0",
+      annotations: [{ id: "nrf", subtype: "Text", text: "1001012", postNumber: "0.33.332.3322.1.1" }] }
+  ]);
+  assert.match(result.materialLines[0].attributes["generelle krav"], /varmgalvaniserte/);
+  assert.equal(result.materialLines[0].attributes["pdf-kommentar"], "1001012");
+  assert.equal(result.materialLines[1].attributes["generelle krav"], undefined);
+  assert.equal(result.materialLines[1].attributes["pdf-kommentar"], undefined);
+});
+
 test("preserves both reducer dimensions in structured attributes", () => {
   const result = extractTechnicalDescriptionFromPages([{
     pageNumber: 1, method: "text", confidence: 0.98,
@@ -313,16 +346,16 @@ test("extracts GAB rows where quantity precedes a wrapped post number", () => {
     })),
     [
       {
-        postNumber: "0.33.332.3 322.1.1",
-        parentPostNumber: "0.33.332.3 322.1",
+        postNumber: "0.33.332.3322.1.1",
+        parentPostNumber: "0.33.332.3322.1",
         description: "DN25",
         quantity: 274,
         unit: "m",
         nsCode: "UB1.1194300932A"
       },
       {
-        postNumber: "0.33.332.3 322.1.2",
-        parentPostNumber: "0.33.332.3 322.1",
+        postNumber: "0.33.332.3322.1.2",
+        parentPostNumber: "0.33.332.3322.1",
         description: "DN32",
         quantity: 65,
         unit: "m",
@@ -705,15 +738,15 @@ test("reconnects wrapped GAB post suffixes printed below quantified rows", () =>
     category: line.category
   })), [
     {
-      postNumber: "0.33.332.3 322.1.1",
-      parentPostNumber: "0.33.332.3 322.1",
+      postNumber: "0.33.332.3322.1.1",
+      parentPostNumber: "0.33.332.3322.1",
       description: "DN25",
       quantity: 274,
       category: "pipe"
     },
     {
-      postNumber: "0.33.332.3 322.1.2",
-      parentPostNumber: "0.33.332.3 322.1",
+      postNumber: "0.33.332.3322.1.2",
+      parentPostNumber: "0.33.332.3322.1",
       description: "DN32",
       quantity: 65,
       category: "pipe"

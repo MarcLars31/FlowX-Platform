@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
@@ -24,8 +24,8 @@ import { projectRequirementDetails, projectRequirementSystemLabel, specification
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
 import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProductApprovals, type BulkProductApprovalSelection, type PreviousBulkProductApproval } from "@/lib/bulk-product-approval";
-import { ahlsellCatalogStatusFromPayload, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
-import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import { ahlsellCatalogStatusFromPayload, mergeAhlsellCatalogAssessments, type AhlsellCatalogAssessment, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
+import { ahlsellCandidateMatchState, isMatchingAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber, topAhlsellCandidates } from "@/lib/product-card-candidates";
@@ -201,7 +201,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     const safe = handledRequirementIds.has(requirement.id)
       || (!hasProjectRequirementDataWarning(requirement) && (
         Boolean(fingerprint && hasReusableProductMemory(requirement, memoryFingerprints))
-        || buildAhlsellRequirementGuide(requirement).directCandidates.some(isExactAhlsellCandidate)
+        || buildAhlsellRequirementGuide(requirement).directCandidates.some(isMatchingAhlsellCandidate)
       ));
     return safe ? [requirement.id] : [];
   })), [handledRequirementIds, memoryFingerprints, productRequirements]);
@@ -214,24 +214,35 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       .map((requirement) => requirement.id),
     [productRequirements, staticallySafeRequirementIds]
   );
-  const catalogCheckKey = useMemo(() => catalogCheckRequirementIds.join(","), [catalogCheckRequirementIds]);
-  const [catalogStatuses, setCatalogStatuses] = useState<Record<string, AhlsellCatalogMatchStatus>>({});
+  const catalogRevisions = useMemo(() => Object.fromEntries(productRequirements.map(requirement => [
+    requirement.id, JSON.stringify([projectId, requirement.category, requirement.value_text, requirement.value_json, requirement.source_excerpt])
+  ])), [productRequirements, projectId]);
+  const catalogCheckKey = useMemo(() => JSON.stringify(catalogCheckRequirementIds.map(id => [id, catalogRevisions[id]])), [catalogCheckRequirementIds, catalogRevisions]);
+  const [catalogAssessments, setCatalogAssessments] = useState<Record<string, AhlsellCatalogAssessment>>({});
+  const catalogStatuses = useMemo(() => Object.fromEntries(Object.entries(catalogAssessments)
+    .filter(([id, result]) => result.revision === catalogRevisions[id])
+    .map(([id, result]) => [id, result.status])), [catalogAssessments, catalogRevisions]);
+  const recordFullCatalogResult = useCallback((requirementId: string, status: AhlsellCatalogMatchStatus) => {
+    setCatalogAssessments(current => mergeAhlsellCatalogAssessments(current, {
+      [requirementId]: { revision: catalogRevisions[requirementId], status, fullSearch: true }
+    }));
+  }, [catalogRevisions]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const requirementIds = catalogCheckKey ? catalogCheckKey.split(",") : [];
+    const requirementIds = JSON.parse(catalogCheckKey) as Array<[string, string]>;
     let nextIndex = 0;
 
     async function worker() {
-      let statusBatch: Record<string, AhlsellCatalogMatchStatus> = {};
+      let statusBatch: Record<string, AhlsellCatalogAssessment> = {};
       const flush = () => {
         if (Object.keys(statusBatch).length === 0 || controller.signal.aborted) return;
         const completedBatch = statusBatch;
         statusBatch = {};
-        setCatalogStatuses((current) => ({ ...current, ...completedBatch }));
+        setCatalogAssessments(current => mergeAhlsellCatalogAssessments(current, completedBatch));
       };
       while (!controller.signal.aborted) {
-        const requirementId = requirementIds[nextIndex];
+        const [requirementId, revision] = requirementIds[nextIndex] ?? [];
         nextIndex += 1;
         if (!requirementId) {
           flush();
@@ -246,7 +257,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
           const payload = await response.json().catch(() => null);
           const classification = ahlsellCatalogStatusFromPayload(payload);
           if (!classification) continue;
-          statusBatch[requirementId] = classification;
+          statusBatch[requirementId] = { revision, status: classification, fullSearch: false };
           if (Object.keys(statusBatch).length >= 4) flush();
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") return;
@@ -481,7 +492,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   ).length;
   const checkedCatalogCount = catalogCheckRequirementIds.filter((requirementId) => catalogStatuses[requirementId]).length;
   const catalogChecksRemaining = Math.max(0, catalogCheckRequirementIds.length - checkedCatalogCount);
-  const matchedRequirementCount = greenRequirements.length + yellowRequirements.length;
+  const matchedRequirementCount = greenRequirements.length + yellowRequirements.filter(requirement => catalogStatuses[requirement.id] === "found").length;
   const ahlsellCoveragePercent = productRequirements.length > 0
     ? Math.round((matchedRequirementCount / productRequirements.length) * 100)
     : 0;
@@ -755,7 +766,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               <p className="mt-0.5 text-xs font-semibold text-ink-600">
                 {catalogChecksRemaining > 0
                   ? `Scipx kontrollerar MLDL för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
-                  : `MLDL-träff för ${matchedRequirementCount} av ${productRequirements.length} poster (${ahlsellCoveragePercent} %).`}
+                  : `Produktförslag för ${matchedRequirementCount} av ${productRequirements.length} poster (${ahlsellCoveragePercent} %).`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -978,7 +989,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                           {activeGroup === "green" ? <CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /> : activeGroup === "red" ? <CircleX className="h-5 w-5 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
                         </span>
                         <div>
-                          <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-emerald-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeResolution ? `Posten är hanterad · ${activeResolution.label}` : assignment ? "Produkten är godkänd" : activeGroup === "green" ? "Exakt match hittad · godkänn valet" : activeGroup === "red" ? "Produkten hittas inte hos Ahlsell" : "Produkten måste ses över"}</p>
+                          <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-emerald-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeResolution ? `Posten är hanterad · ${activeResolution.label}` : assignment ? "Produkten är godkänd" : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : "Produkten måste ses över"}</p>
                           <p className="mt-0.5 text-sm font-bold text-ink-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount} kvar i visningen</p>
                         </div>
                       </div>
@@ -1015,6 +1026,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                       position={activeIndex + 1}
                       totalPosts={queueRequirements.length}
                       memories={matchingMemories}
+                      onCatalogResult={recordFullCatalogResult}
                       onSavingChange={setProductCardSaving}
                       onDirtyChange={setProductCardDirty}
                       onSaved={async (successMessage) => {
@@ -1101,7 +1113,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   );
 }
 
-function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, totalPosts, memories, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, totalPosts, memories, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   currency: string;
   requirement: Row;
@@ -1110,6 +1122,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   position: number;
   totalPosts: number;
   memories: Row[];
+  onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onSavingChange: (saving: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
   onSaved: (message: string) => Promise<void>;
@@ -1803,6 +1816,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               projectId={projectId}
               requirementId={requirement.id}
               guide={ahlsellGuide}
+              onCatalogResult={onCatalogResult}
               disabled={saving}
               selectedArticleNumber={productNumber}
               memories={memories}
@@ -1979,7 +1993,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   );
 }
 
-function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, onClearSelection, onUseCandidate, onUseMemory }: {
+function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory }: {
   projectId: string;
   requirementId: string;
   guide: AhlsellRequirementGuide;
@@ -1987,6 +2001,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   selectedArticleNumber: string;
   memories: Row[];
   memoriesAreExact: boolean;
+  onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onClearSelection: () => void;
   onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
   onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string }) => void;
@@ -2006,7 +2021,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         const payload = (await response.json().catch(() => null)) as (AhlsellCatalogResult & { error?: string }) | null;
         if (!response.ok) throw new Error(payload?.error ?? "Ahlsell-sökningen misslyckades.");
         if (!payload) throw new Error("Ahlsell-sökningen gav inget läsbart svar.");
+        if (controller.signal.aborted) return;
         setCatalogResult(payload);
+        const status = ahlsellCatalogStatusFromPayload(payload);
+        if (status) onCatalogResult(requirementId, status);
       })
       .catch((error) => {
         if (error instanceof Error && error.name === "AbortError") return;
@@ -2017,7 +2035,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       });
 
     return () => controller.abort();
-  }, [projectId, requirementId]);
+  }, [onCatalogResult, projectId, requirementId]);
 
   const usableMemoriesByArticle = new Map<string, Row>();
   for (const memory of memories) {
@@ -2190,7 +2208,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
             const isSelected = normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber);
             const matchState = memoriesAreExact ? ahlsellCandidateMatchState(candidate) : "review";
             const candidateSubtitle = candidate.description;
-            const candidateClass = matchState === "exact"
+            const candidateClass = matchState === "exact" || matchState === "matched"
               ? "bg-emerald-50 px-3 py-3 sm:px-4"
               : matchState === "mismatch"
                 ? "bg-rose-50/40 px-3 py-3 sm:px-4"
@@ -2204,8 +2222,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                     <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-ink-700" title={candidateSubtitle}>{candidateSubtitle}</p>
                   )}
                   <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {candidate.articleNumber}</p>
-                  {matchState === "exact" ? (
-                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Exakt match</p>
+                  {matchState === "exact" || matchState === "matched" ? (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Matchar kraven</p>
                   ) : candidate.learningEvidence ? (
                     <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Tidigare bekräftad för liknande krav · kontroll krävs</p>
                   ) : matchState === "review" && candidate.recommendation === "recommended" ? (
@@ -2380,9 +2398,9 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
           ) : approved ? (
             <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
           ) : group === "red" ? (
-            <span title="Produkten hittas inte hos Ahlsell" className="inline-flex text-rose-600"><CircleX className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten hittas inte hos Ahlsell</span></span>
+            <span title="Ingen match bland kontrollerade produkter" className="inline-flex text-rose-600"><CircleX className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Ingen match bland kontrollerade produkter</span></span>
           ) : group === "green" ? (
-            <span title="Exakt match hittad – kontrollera och godkänn" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Exakt match hittad – kontrollera och godkänn</span></span>
+            <span title="Match utan kvarstående tekniska varningar – kontrollera och godkänn" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Match utan kvarstående tekniska varningar – kontrollera och godkänn</span></span>
           ) : (
             <span title="Produkten måste ses över" className="inline-flex text-amber-600"><AlertTriangle className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten måste ses över</span></span>
           )}

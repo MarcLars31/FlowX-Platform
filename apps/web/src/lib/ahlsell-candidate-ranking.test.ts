@@ -1,5 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
+
+test("does not accept an ordinary strainer for a specified automatic backwash installation", () => {
+  const warnings = engineeringRequirementWarnings({ category: "fitting", value_text: "INNENDØRS PARTIKKELUTSKILLER", value_json: {
+    attributes: { "type partikkelutskiller": "Sil (netting)", trykk: "PN16" },
+    technicalSpecification: "Utstyr for differansetrykkstyring med automatisk\nreturspyling av silen."
+  } }, candidate("filter", "Y-filter med flenser PN16", "Rustfritt stål", "/filter/"));
+  assert.ok(warnings.some(warning => warning.includes("komplett leveransomfattning")));
+});
+
+test("a PDF comment can guide search without changing the required dimension", () => {
+  const requirement = { category: "pipe", value_text: "Rør DN80", value_json: { attributes: { dimensjon: "DN80", "pdf-kommentar": "1118636 DN100 er bare et eksempel" } } };
+  const ranked = rankAhlsellCandidates(requirement, [candidate("pipe", "Stålrør DN80", "", "/pipe/")]);
+  assert.ok(ranked[0].matchReasons?.some(reason => reason.includes("DN80")));
+  assert.ok(ranked[0].matchWarnings?.some(warning => warning.includes("PDF-kommentaren")));
+  assert.ok(!ranked[0].matchWarnings?.some(warning => /Fel dimension|Alla anslutningar/.test(warning)));
+});
+
+test("applies an explicit chapter allowance for grooved pipe and a minimum pressure class", () => {
+  const req = { category: "pipe", value_text: "DN32", value_json: { attributes: {
+    dimensjon: "DN32", skjøt: "Gjengeskjøt", trykk: "PN16",
+    "generelle krav": "Man står fritt til å bruke rillede stålrør for alle dimensjoner. Alle rør og deler skal ha minimum trykklasse PN16."
+  } } };
+  const [pipe] = rankAhlsellCandidates(req, [candidate("pipe", "Rillede stålrør DN32 PN25", "Grooved", "/pipe/")]);
+  assert.equal(pipe.recommendation, "recommended");
+  assert.deepEqual(pipe.matchWarnings, []);
+});
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
@@ -503,7 +530,7 @@ test("reserves exact-match presentation for a complete 100-point match without w
   const mismatch = { ...candidate("wrong", "Fel produkt", "", "/wrong/"), matchScore: 100, recommendation: "possible" as const, matchWarnings: ["Fel respons."] };
 
   assert.equal(ahlsellCandidateMatchState(exact), "exact");
-  assert.equal(ahlsellCandidateMatchState(strong), "review");
+  assert.equal(ahlsellCandidateMatchState(strong), "matched");
   assert.equal(ahlsellCandidateMatchState(mismatch), "mismatch");
 });
 
@@ -601,7 +628,8 @@ test("recognizes common Ahlsell fitting and valve families", () => {
     value_json: { attributes: { "dimensjon, tilkoblinger": "DN100" } }
   }, [candidate("check", "Tilbakeslagsventil rillet", "Nominell diameter DN100", "/check/")]);
 
-  assert.equal(bend.recommendation, "recommended");
+  assert.equal(bend.recommendation, "possible");
+  assert.ok(bend.matchWarnings?.some(warning => warning.includes("Böjvinkeln saknas i PDF-posten")));
   assert.equal(checkValve.recommendation, "recommended");
 });
 
@@ -823,7 +851,8 @@ test("prioritizes Series 705 for a supervised soft-closing DN100 butterfly valve
   ]);
 
   assert.equal(ranked[0].articleNumber, "9253499");
-  assert.equal(ranked[0].recommendation, "recommended");
+  assert.equal(ranked[0].recommendation, "possible");
+  assert.ok(ranked[0].matchWarnings?.some(warning => warning.includes("material")));
   assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("övervakad i öppet")));
   assert.ok(ranked.slice(1).every((candidate) => candidate.recommendation !== "recommended"));
   assert.ok(ranked.slice(1).every((candidate) =>

@@ -27,6 +27,7 @@ export function distributorRequirementKind(
 ): "product" | "remove" | "work" {
   if (distributorRequirementOperation(requirement) === "remove") return "remove";
   const value = record(requirement.value_json);
+  if (/^(?:rs|rund sum)$/i.test(String(value.unit ?? "").trim())) return "work";
   const searchable = normalize([
     requirement.category,
     requirement.requirement_key,
@@ -37,7 +38,7 @@ export function distributorRequirementKind(
     value.technicalSpecification
   ].map(flattenText).join(" "));
 
-  if (/\b(?:hulltaking|utsparing|trykktesting av romintegritet|romintegritetstest|maling etter gjennomforing|groft(?:ekasser)?|gravearbeid|uttak og utlegging av losmasser|tilbakefylling|kryssing|langsforing)\b/.test(searchable)) {
+  if (/\b(?:oppfylling med arbeidsmedium|tetthetsproving|sluttdokumentasjon|kvalitetssikrende tiltak|hulltaking|utsparing|trykktesting av romintegritet|romintegritetstest|maling etter gjennomforing|groft(?:ekasser)?|gravearbeid|uttak og utlegging av losmasser|tilbakefylling|kryssing|langsforing)\b/.test(searchable)) {
     return "work";
   }
   if (/\bkomplett\b/.test(searchable) && /\brund sum\b/.test(searchable)) return "work";

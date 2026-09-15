@@ -13,7 +13,8 @@ import {
   sprinklerRequiresAccessoryReview,
   sprinklerResponse
 } from "@/lib/sprinkler-technical-rules";
-import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
+import { ahlsellRequirementIntent, type AhlsellProductIntent } from "./ahlsell-requirement-intent";
+import { ns3420ProductFamily } from "./ns3420-product-classification";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
@@ -83,37 +84,6 @@ type Response = "quick" | "standard";
 type Finish = "brass" | "white" | "black" | "chrome";
 type SprinklerSystem = "wet" | "dry";
 type SprinklerHeadType = "standard" | "dry" | "open";
-type AhlsellProductIntent =
-  | "foam_extinguisher"
-  | "portable_fire_extinguisher"
-  | "sprinkler_head"
-  | "sprinkler_guard"
-  | "sprinkler_hose"
-  | "pipe"
-  | "coupling"
-  | "bend"
-  | "tee"
-  | "reducer"
-  | "cap"
-  | "branch"
-  | "flange_adapter"
-  | "wet_alarm_valve"
-  | "dry_alarm_valve"
-  | "check_valve"
-  | "butterfly_valve"
-  | "shutoff_valve"
-  | "ball_valve"
-  | "pressure_reducing_valve"
-  | "manometer"
-  | "pressure_switch"
-  | "flow_switch"
-  | "test_drain"
-  | "pump"
-  | "strainer"
-  | "support"
-  | "custom_fabrication"
-  | "generic";
-
 const PIPE_OUTSIDE_DIAMETER_BY_DN: Record<number, number> = {
   10: 17.2,
   15: 21.3,
@@ -163,7 +133,8 @@ export function buildAhlsellRequirementGuide(
   requirement: Record<string, unknown>
 ): AhlsellRequirementGuide {
   const value = record(requirement.value_json);
-  const attributes = normalizedAttributeMap(record(value.attributes));
+  const attributes = normalizedAttributeMap(Object.fromEntries(Object.entries(record(value.attributes))
+    .filter(([key]) => !["pdf-kommentar", "generelle krav"].includes(key))));
   const category = text(requirement.category) ?? text(requirement.requirement_key) ?? "unknown";
   const description = text(requirement.value_text) ?? text(requirement.display_name) ?? "Teknisk produkt";
   const technicalSpecification = text(value.technicalSpecification) ?? text(requirement.source_excerpt) ?? "";
@@ -177,11 +148,9 @@ export function buildAhlsellRequirementGuide(
   const ahlsellSearchUrl = isNorwegianSource
     ? AHLSELL_NORWAY_SEARCH_URL
     : AHLSELL_SWEDEN_SEARCH_URL;
-  const unit = normalize(text(value.unit) ?? "");
+  const intent = ahlsellRequirementIntent(requirement);
   const nsCode = text(value.nsCode) ?? text(requirement.requirement_key);
   const nsCodeIntent = ns3420ProductFamily(nsCode, description);
-  const intent = nsCodeIntent
-    ?? detectAhlsellProductIntent(primaryCombined, combined, category, unit);
   const isSprinklerAccessory = intent === "sprinkler_guard";
   const dataWarnings = projectRequirementDataWarnings(requirement);
 
@@ -301,7 +270,11 @@ export function buildAhlsellRequirementGuide(
         outsideDiameters,
         pn
       });
-  const searchQueries = unique(plannedQueries).slice(0, 3);
+  const comment = String(record(value.attributes)["pdf-kommentar"] ?? "");
+  // Comments are unverified search hints, never substitutions for the PDF's
+  // dimensions, materials or technical requirements. Keep a family query too.
+  const commentArticle = comment.match(/\b\d{6,8}(?:N5)?\b/i)?.[0];
+  const searchQueries = unique([...(commentArticle ? [commentArticle] : []), ...plannedQueries]).slice(0, 3);
   const searchQuery = searchQueries[0] ?? description;
   const warnings = compact([
     ...(intent === "sprinkler_head" ? installation.warnings : []),
@@ -541,7 +514,7 @@ function buildCatalogQueries({
   if (intent === "flange_adapter") {
     return [compact(["Flensadapter rillet", outsideDiameterTerm]).join(" "), compact(["Flenseadapter", dnTerm]).join(" ")];
   }
-  if (intent === "bend" && /\b(flens|flanged)\b/.test(combined)) {
+  if ((intent === "flanged_bend" || intent === "bend" && /\b(flens|flanged)\b/.test(combined))) {
     return [
       compact(["Flensebend", dnTerm, pressureTerm]).join(" "),
       compact(["Bend flens", dnTerm]).join(" ")
@@ -591,6 +564,10 @@ function buildCatalogQueries({
   if (intent === "pump") {
     return ["Lensepumpe", "Pumpe avløpsvann", "Sprinklerpumpe"];
   }
+  if (intent === "water_meter") return [compact(["Vannmåler", dnTerm]).join(" "), "Vannkapasitetsmåler sprinkler"];
+  if (intent === "flushing_connection") return [compact(["Spyleventil", dnTerm]).join(" "), compact(["Spjeldventil", dnTerm]).join(" ")];
+  if (intent === "sensor_pocket") return ["Følerlomme trykkgiver", "Tilkobling trykkvakt"];
+  if (intent === "sprinkler_cabinet") return ["Sprinklerskap", "Skap reservesprinkler"];
   if (intent === "strainer") {
     return [compact(["Sil", dnTerm]).join(" "), compact(["Grovfilter", dnTerm]).join(" "), compact(["Filter", dnTerm]).join(" ")];
   }
@@ -794,54 +771,6 @@ function intentLabel(intent: AhlsellProductIntent, category: string, description
     custom_fabrication: "Specialtillverkad produkt"
   } as Partial<Record<AhlsellProductIntent, string>>)[intent];
   return label ?? categoryLabel(category, description);
-}
-
-function detectAhlsellProductIntent(
-  primaryText: string,
-  combinedText: string,
-  category: string,
-  unit: string
-): AhlsellProductIntent {
-  const source = primaryText || combinedText;
-  // Product family must come from the row heading or its structured attributes.
-  // Parent prose often mentions several sibling products and must not turn a
-  // pipe row into, for example, a valve or an end cap.
-  const has = (pattern: RegExp) => pattern.test(source);
-
-  if (has(/\b(handslokker|handslukker|handslokkeapparat|brannslokker|brannslukker)\b/)) {
-    return has(/\bskum\b|\bfoam\b/) ? "foam_extinguisher" : "portable_fire_extinguisher";
-  }
-  if (has(/\b(beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg)\b/)) return "sprinkler_guard";
-  if (
-    has(/\b(sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b/)
-    || has(/\bbrannslokking\s+slange\b/)
-  ) return "sprinkler_hose";
-  if (has(/\b(pumpe innendors|sprinklerpumpe|lensepumpe|type pumpe|pumpedrift)\b/)) return "pump";
-  if (has(/\b(partikkelutskiller|grovfilter|y filter|sil netting|type partikkelutskiller)\b/)) return "strainer";
-  if (has(/\b(torr.*(?:alarmventil|sprinklersentral)|dry (?:alarm )?valve|d769n)\b/)) return "dry_alarm_valve";
-  if (has(/\b(vat alarmventil|wet alarm valve|kontrollventilsett)\b/)) return "wet_alarm_valve";
-  if (has(/\b(trykkreduksjonsventil|pressure reducing valve|reduksjonsventil)\b/)) return "pressure_reducing_valve";
-  if (has(/\b(tilbakeslagsventil|backventil|check valve)\b/)) return "check_valve";
-  if (has(/\b(dreiespjeldventil|spjeldventil|butterfly valve)\b/)) return "butterfly_valve";
-  if (has(/\b(kuleventil|ball valve)\b/)) return "ball_valve";
-  if (has(/\b(stengeventil|sluseventil|gate valve|sprinklerventil)\b/)) return "shutoff_valve";
-  if (has(/\b(trykkvakt|trykkbryter|pressostat|pressure switch)\b/)) return "pressure_switch";
-  if (has(/\b(stromningsvakt|flow switch)\b/)) return "flow_switch";
-  if (has(/\b(maleinstrument|manometer|analog.*trykk|absolutt trykk.*direkte|maling av absolutt trykk|direkte maling|avlesning analog)\b/)) return "manometer";
-  if (has(/\b(testarrangement|test og drener|testventil)\b/)) return "test_drain";
-  if (category === "valve") return "shutoff_valve";
-  if (has(/\b(overgang fra pe til stal|flens pa pe rille|flensadapter|flenseadapter)\b/)) return "flange_adapter";
-  if (has(/\b(blindflens|endelokk|endebunn|plugg)\b/)) return "cap";
-  if (has(/\b(anboringsklammer|anborring|avstikk|utlopskupling)\b/)) return "branch";
-  if (has(/\b(dimensjonsovergang|reduksjonskupling|reduksjon|reducer)\b/)) return "reducer";
-  if (has(/\b(t ror|t klave|tee)\b/)) return "tee";
-  if (has(/\b(bend|rorboy|elbow)\b/)) return "bend";
-  if (has(/\b(kupling|rillekobling|hurtigrillekobling|coupling)\b/)) return "coupling";
-  if (has(/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/)) return "custom_fabrication";
-  if (category === "sprinkler_head" || has(/\bsprinkler head\b|\bk faktor\b|\butlosningstemperatur\b/)) return "sprinkler_head";
-  if (category === "pipe" || (unit === "m" && !has(/\b(oppheng|isolasjon|kanal|kabel|groft)\b/))) return "pipe";
-  if (category === "support" || has(/\b(oppheng|rorstotte|support|rorbarer|klammer)\b/)) return "support";
-  return "generic";
 }
 
 function dnValuesFromText(value: string) {

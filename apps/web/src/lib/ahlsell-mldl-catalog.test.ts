@@ -1,5 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
+
+test("retrieves the main equipment family instead of a mentioned component", () => {
+  for (const [description, attrs, intent] of [
+    ["PUMPE INNENDØRS", { "type pumpe": "Neddykket", tilleggsutstyr: "Tilbakeslagsventil DN50" }, "pump"],
+    ["INNENDØRS PARTIKKELUTSKILLER", { "type partikkelutskiller": "Sil (netting)", dimensjon: "DN100" }, "strainer"],
+    ["INNENDØRS STENGEVENTIL", { ventiltype: "Kuleventil", dimensjon: "DN100" }, "ball_valve"],
+    ["KONTROLLVENTILSETT FOR SPRINKLERANLEGG", { "type kontrollventilsett": "Våt alarmventil", dimensjon: "DN100" }, "wet_alarm_valve"],
+    ["INNENDØRS RØRLEDNING - BRANNSLOKKING - RØR", { "slokkeanlegg/-medium": "Vannmåler" }, "water_meter"]
+  ] as const) {
+    const requirement = { category: "control", value_text: description, value_json: { attributes: attrs }, source_excerpt: "Inkl. stengeventiler og manometer." };
+    assert.equal(ahlsellRequirementIntent(requirement), intent);
+    const found = findAhlsellMldlCandidates(requirement);
+    assert.ok(found.every(candidate => !/spjeldventil|Y-rør/i.test(candidate.productName)));
+  }
+});
 import {
   AHLSELL_MLDL_PRODUCT_COUNT,
   ahlsellMldlProducts,

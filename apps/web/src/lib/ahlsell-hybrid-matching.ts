@@ -14,7 +14,9 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
   const guide = buildAhlsellRequirementGuide(requirement);
   const local = findMldlOnlyCandidates(requirement);
   const market = ahlsellMarketFromSearchUrl(guide.searchUrl);
-  const primaryArticle = local.find(candidate => technicalConflictWarnings(candidate).length === 0)?.articleNumber;
+  const value = requirement.value_json as { attributes?: Record<string, unknown> } | undefined;
+  const commentArticle = String(value?.attributes?.["pdf-kommentar"] ?? "").match(/\b\d{6,8}(?:N5)?\b/i)?.[0];
+  const primaryArticle = commentArticle ?? local.find(candidate => technicalConflictWarnings(candidate).length === 0)?.articleNumber;
   const queries = [...new Set([...(primaryArticle ? [primaryArticle] : []), ...guide.searchQueries.slice(0, 2)])];
   // Check the leading MLDL article by its exact NRF, independently of the
   // broader family search, which may return a different variant of that family.
@@ -89,7 +91,7 @@ export function complementMldlCandidates(requirement: Record<string, unknown>, l
       // Only missing-value warnings are regenerated. Variant ambiguity and
       // confirmed conflicts must survive evidence from a second source.
       matchWarnings: [...new Set([
-        ...(database.matchWarnings ?? []).filter(warning => !/saknas i produktinformationen|arbetstryck behöver verifieras/.test(warning)),
+        ...(database.matchWarnings ?? []).filter(warning => !/saknas i produktinformationen|arbetstryck behöver verifieras|^Produktens (?:dimension|tryckklass) saknas|^Produktens (?:material|skarv- eller anslutningstyp) behöver verifieras|^Kapslingsklass IP\d+ behöver verifieras|^Kapitlets krav på galvaniserade|^Ventilens lägesövervakning/.test(warning)),
         ...technicalConflictWarnings(publicAssessment)
       ])]
     }]);

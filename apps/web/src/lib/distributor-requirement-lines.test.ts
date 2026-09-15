@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { distributorRequirementKind } from "./distributor-requirement-lines";
+
+test("retains RS scopes, filling and complete gas systems as work instead of failed product searches", () => {
+  assert.equal(distributorRequirementKind({ id: "paint", value_text: "Maling av rør", value_json: { unit: "RS", quantity: 1 } }), "work");
+  assert.equal(distributorRequirementKind({ id: "fill", value_text: "OPPFYLLING MED ARBEIDSMEDIUM", value_json: { unit: "l", quantity: 2650 } }), "work");
+  assert.equal(distributorRequirementKind({ id: "head", value_text: "SPRINKLER", value_json: { unit: "st", quantity: 188 } }), "product");
+});
 import { splitDistributorRequirementLines } from "./distributor-requirement-lines";
 
 test("keeps removal rows visible but separate from purchasable products", () => {

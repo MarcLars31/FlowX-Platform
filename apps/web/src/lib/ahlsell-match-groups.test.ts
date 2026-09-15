@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ahlsellCatalogStatusFromPayload, classifyAhlsellCatalogCandidates, hasReusableProductMemory, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
+import { ahlsellCatalogStatusFromPayload, classifyAhlsellCatalogCandidates, mergeAhlsellCatalogAssessments, hasReusableProductMemory, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
+
+test("shows green for a supported warning-free proposal without approving weak or conflicting candidates", () => {
+  assert.equal(classifyAhlsellCatalogCandidates([{ source: "structured_database", matchScore: 85, recommendation: "recommended", matchWarnings: [], exactMatch: false }]), "safe");
+  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, recommendation: "recommended", matchWarnings: ["Tryck måste kontrolleras"] }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 41, recommendation: "possible", matchWarnings: [] }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ source: "pdf_reference", exactMatch: true }]), "none");
+});
+
+test("a late MLDL classification cannot overwrite a completed hybrid result for the same revision", () => {
+  const full = { row: { revision: "v1", status: "safe" as const, fullSearch: true } };
+  assert.equal(mergeAhlsellCatalogAssessments(full, { row: { revision: "v1", status: "none", fullSearch: false } }).row.status, "safe");
+  assert.equal(mergeAhlsellCatalogAssessments(full, { row: { revision: "v2", status: "found", fullSearch: false } }).row.status, "found");
+});
 
 test("separates Ahlsell matches from rows requiring manual work", () => {
   const result = splitAhlsellMatchGroups([
@@ -98,8 +111,8 @@ test("keeps implausible K-factors out of automatic safe results until handled", 
 
 test("classifies safe, uncertain and empty Ahlsell responses", () => {
   assert.equal(classifyAhlsellCatalogCandidates([{ exactMatch: true, recommendation: "recommended" }]), "safe");
-  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, matchWarnings: [], recommendation: "recommended" }]), "found");
-  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 95, matchWarnings: [], recommendation: "recommended" }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, matchWarnings: [], recommendation: "recommended" }]), "safe");
+  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 95, matchWarnings: [], recommendation: "recommended" }]), "safe");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible" }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "unlikely" }]), "none");
   assert.equal(classifyAhlsellCatalogCandidates([]), "none");
