@@ -2,6 +2,8 @@ import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
 import { MANIFOLD_CABINET_REVIEW_WARNING } from "./ahlsell-manifold-cabinet";
+import { isCompletePipeLengthDescription } from "./ns3420-product-classification";
+import { normalizeTechnicalText, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 
 /** Cross-catalogue checks that must also run on directly verified products. */
 export function engineeringRequirementWarnings(
@@ -22,6 +24,38 @@ export function engineeringRequirementWarnings(
   // technical product evidence.
   const productText = `${candidate.productName} ${candidate.description ?? ""} ${candidate.specifications.join(" ")}`;
   const warnings: string[] = [];
+  if (intent === "pipe" && isCompletePipeLengthDescription(String(requirement.value_text ?? ""))) {
+    warnings.push("Rörposten omfattar även böjar, T-stycken, ändlock och upphängning. Kontrollera delarnas antal och kompatibilitet mot ritning; ett valt rör uppfyller inte hela posten.");
+  }
+  if (intent === "pipe" && /\bRAL\s*9010\b/i.test(`${requirementText} ${detail}`)) {
+    warnings.push("Posten kräver vit målning RAL 9010. Kontrollera målningssystem, grundning och bättring av kapade ändar och montageskador i den kompletta leveransen.");
+  }
+  if (intent === "alarm_device") {
+    warnings.push("Verifiera komplett alarmgivarset inklusive extra alarmgivare och kompatibilitet med det valda alarmventilsetet. En enskild pressostat verifierar inte hela setet eller likvärdighet med PDF-referensen.");
+  }
+  if (intent === "pressure_switch" && /\b(?:vannforsyning|vanninnlegg)\b/i.test(`${ownText} ${detail}`)) {
+    warnings.push("Tryckbrytaren ska övervaka vattenförsörjningen. Verifiera inställningsområde, larmgränser, kontakter och tillåtet arbetstryck; en alarmpressostat är inte automatiskt rätt för denna funktion.");
+  }
+  if (intent === "flow_meter") {
+    const rangeText = Object.entries(attributes).find(([key]) => normalizeTechnicalText(key) === "maleomrade")?.[1];
+    const requiredRange = flowRange(String(rangeText ?? ""));
+    const productRange = flowRange(productText);
+    if (requiredRange && productRange && (productRange[0] > requiredRange[0] || productRange[1] < requiredRange[1])) {
+      warnings.push(`Fel mätområde: PDF kräver ${requiredRange.join("–")} l/min; produkten anger ${productRange.join("–")} l/min.`);
+    } else if (!requiredRange || !productRange) {
+      warnings.push(`Kapacitetsmätarens mätområde behöver verifieras${rangeText ? ` mot PDF-kravet ${rangeText}` : " mot PDF-posten"}.`);
+    }
+    warnings.push("Verifiera kapacitetsmätarens sprinklergodkännande, anslutningar och komplett leveransomfattning mot databladet.");
+  }
+  if (["shutoff_valve", "butterfly_valve", "ball_valve"].includes(intent)
+    && valveMonitoringRequirement(requirementText) === "none") {
+    const monitoring = valveMonitoringRequirement(productText);
+    if (monitoring === "required" || /\b(?:series\s*)?705\b/.test(normalizeTechnicalText(productText))) {
+      warnings.push("Fel ventilövervakning: PDF anger utan övervakning, men produkten är övervakad.");
+    } else if (monitoring !== "none") {
+      warnings.push("Verifiera att ventilvarianten är utan övervakning enligt PDF-posten.");
+    }
+  }
   if (intent === "shower_set") {
     warnings.push("Duschens kompletta leveransomfattning och tilläggskraven i PDF-posten behöver verifieras. Kontrollera blandare, handdusch, slang, stång samt eventuella stödhandtag, duschsits och belastningskrav.");
   }
@@ -119,6 +153,11 @@ export function engineeringRequirementWarnings(
 function angle(text: string) {
   return number(text.match(/\b(\d{1,3}(?:[.,]\d+)?)\s*(?:°(?!\s*C)|grader|degrees|deg\b)/i)?.[1])
     ?? number(text.match(/\b(?:vinkel|angle)\s*[:=]?\s*(\d{1,3}(?:[.,]\d+)?)/i)?.[1]);
+}
+
+function flowRange(text: string): [number, number] | null {
+  const match = text.match(/(\d+(?:[.,]\d+)?)\s*[-–]\s*(\d+(?:[.,]\d+)?)\s*(?:l|dm[³3])\s*\/\s*min\b/i);
+  return match ? [Number(match[1].replace(",", ".")), Number(match[2].replace(",", "."))] : null;
 }
 
 function number(value: string | undefined) {

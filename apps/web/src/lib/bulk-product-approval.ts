@@ -3,6 +3,7 @@ import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
 import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
 import { readProductSelectionReview } from "./product-selection-review";
+import { requiresProductRequirementReview } from "./product-requirement-review";
 
 export type BulkProductApprovalSelection = {
   requirementId: string;
@@ -63,7 +64,7 @@ export function bulkProductApprovalSelection({
   memories?: ReadonlyArray<Record<string, unknown>>;
   handled: boolean;
 }): BulkProductApprovalSelection | null {
-  if (handled || hasProjectRequirementDataWarning(requirement)) return null;
+  if (handled || hasProjectRequirementDataWarning(requirement) || requiresProductRequirementReview(requirement)) return null;
 
   const requirementFingerprint = text(requirement.mapping_fingerprint);
   const exactMemoryProducts = new Map<string, Record<string, unknown>>();

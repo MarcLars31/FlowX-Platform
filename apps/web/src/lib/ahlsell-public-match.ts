@@ -16,7 +16,8 @@ import {
   sprinklerResponse
 } from "@/lib/sprinkler-technical-rules";
 import { ahlsellRequirementIntent, type AhlsellProductIntent } from "./ahlsell-requirement-intent";
-import { ns3420ProductFamily } from "./ns3420-product-classification";
+import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
+import { valveMonitoringRequirement } from "./ahlsell-requirement-context";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
@@ -183,7 +184,7 @@ export function buildAhlsellRequirementGuide(
     const inferredDn = dnFromOutsideDiameter(explicitOutsideDiameters[0]);
     if (inferredDn !== null) dnValues.push(inferredDn);
   }
-  const dn = dnValues[0]
+  const dn = intent === "alarm_device" ? null : dnValues[0]
     ?? numberFromAttribute(attributes, ["gjengedimensjon dn", "dimension", "dimensjon", "dn"])
     ?? numberFromText(combined, /\bdn\s*(\d{1,3})\b/i);
   const outsideDiameters = uniqueNumbers([
@@ -208,8 +209,8 @@ export function buildAhlsellRequirementGuide(
       ?? combined
   );
   const sprinklerCoverage = sprinklerCoverageFromText(combined);
-  const requiresSupervisedOpenValve = intent === "butterfly_valve"
-    && /\b(signal (?:ved|nar) stengt ventil|tilkobling for signal|overvaket|overvakning|supervised open|supervisory switch)\b/.test(primaryCombined);
+  const requiresSupervisedOpenValve = ["butterfly_valve", "shutoff_valve", "ball_valve"].includes(intent)
+    && valveMonitoringRequirement(primarySourceText) === "required";
   const requiresHandwheelValve = intent === "butterfly_valve"
     && /\b(manuell med ratt|med ratt|handratt|handwheel|gear operated|girbetjent)\b/.test(primaryCombined);
   const requiresSoftClosingValve = intent === "butterfly_valve"
@@ -240,6 +241,11 @@ export function buildAhlsellRequirementGuide(
 
   const criteria = compact([
     intentLabel(intent, category, description),
+    intent === "pipe" && isCompletePipeLengthDescription(description) ? "Komplett med rördelar och upphängning" : null,
+    intent === "pipe" ? firstAttribute(attributes, ["materiale", "material"]) : null,
+    intent === "pipe" && /\bral\s*9010\b/.test(combined) ? "Vit målning RAL 9010" : null,
+    intent === "flow_meter" ? firstAttribute(attributes, ["maleomrade", "matomrade"]) : null,
+    intent === "shutoff_valve" && valveMonitoringRequirement(primarySourceText) === "none" ? "Utan övervakning" : null,
     intent === "toilet" && /\belektrisk\s+(?:hoydejustering|hojdjustering|hev\s+senk)\b/.test(combined) ? "Elektrisk höjdjustering" : null,
     requiresSupervisedOpenValve ? "Övervakad öppen" : null,
     requiresHandwheelValve ? "Manuell med handratt" : null,
@@ -292,6 +298,13 @@ export function buildAhlsellRequirementGuide(
   const searchQueries = unique([...(commentArticle ? [commentArticle] : []), ...plannedQueries]).slice(0, 3);
   const searchQuery = searchQueries[0] ?? description;
   const warnings = compact([
+    intent === "pipe" && isCompletePipeLengthDescription(description)
+      ? "Posten omfattar rör, böjar, T-stycken, ändlock och upphängning. Rördelarnas antal och utförande behöver tas från ritning; rörlängden anger inte antal delar."
+      : null,
+    intent === "alarm_device"
+      ? "Kontrollera komplett alarmgivarset, extra alarmgivare och kompatibilitet med det valda alarmventilsetet. Huvudventilens DN är inte alarmgivarens anslutningsdimension."
+      : null,
+    intent === "flow_meter" ? "Verifiera kapacitetsmätarens mätområde, anslutningar och sprinklergodkännande mot databladet." : null,
     intent === "shower_set"
       ? "Kontrollera komplett duschleverans och PDF-postens tilläggskrav på blandare, duschstång, eventuella stödhandtag och duschsits."
       : null,
@@ -512,7 +525,15 @@ function buildCatalogQueries({
   }
 
   if (intent === "pressure_switch") {
+    if (/\b(?:vannforsyning|vanninnlegg)\b/.test(combined)) return ["Pressostat vanntrykk", "Trykkbryter vannforsyning", "Pressostat sprinkler"];
     return ["Pressostat", "Pressostat vann", "PS10 pressostat"];
+  }
+  if (intent === "alarm_device") {
+    return compact([/\bkit\s*5\b/.test(combined) ? "Tyco KIT5" : null, "Alarmgiver sprinkler", "Alarmpressostat"]);
+  }
+  if (intent === "flow_meter") {
+    return compact([/\bds1162\b/.test(combined) ? "DS1162" : null,
+      compact(["Kapasitetsmåler", dnTerm]).join(" "), compact(["Flowmeter sprinkler", dnTerm]).join(" ")]);
   }
   if (intent === "flow_switch") {
     return ["Strømningsvakt", "Flow switch sprinkler"];
@@ -543,6 +564,11 @@ function buildCatalogQueries({
     return [compact(["Trykkreduksjonsventil", dnTerm]).join(" "), "Trykkreduksjonsventil"];
   }
   if (intent === "shutoff_valve") {
+    if (valveMonitoringRequirement(combined) === "none") {
+      return [compact(["Stengeventil", dnTerm, "uten overvåking"]).join(" "),
+        compact(["Spjeldventil", outsideDiameterTerm ?? dnTerm, "håndtak"]).join(" "),
+        compact(["Stengeventil", dnTerm]).join(" ")];
+    }
     return ["Sprinklerventil", compact(["Sprinklerventil", dnTerm]).join(" ")];
   }
   if (intent === "flange_adapter") {
@@ -555,6 +581,10 @@ function buildCatalogQueries({
     ];
   }
   if (intent === "pipe") {
+    if (/\b(?:rustfritt|rustfri|stainless)\b/.test(combined)) {
+      return [compact(["Rustfrie rør", outsideDiameterTerm]).join(" "),
+        compact(["Rustfritt rør rillet", dnTerm]).join(" "), compact(["Rustfritt stålrør", dnTerm]).join(" ")];
+    }
     return [
       compact(["Rør sprinkler", outsideDiameterTerm]).join(" "),
       compact(["Rillede rør", outsideDiameterTerm]).join(" "),
@@ -805,6 +835,7 @@ function intentLabel(intent: AhlsellProductIntent, category: string, description
     manometer: "Manometer",
     pressure_switch: "Tryckvakt",
     flow_switch: "Flödesvakt",
+    alarm_device: "Alarmgivare för sprinkler", flow_meter: "Kapacitetsmätare",
     test_drain: "Test- och dräneringsventil",
     pump: "Pump",
     strainer: "Sil/filter",

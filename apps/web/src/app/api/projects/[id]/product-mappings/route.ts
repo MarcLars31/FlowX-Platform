@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase-rest";
 import { withProductRequirementResolution } from "@/lib/product-requirement-resolution";
 import { readProductSelectionReview, PRODUCT_DEVIATION_LABEL, PRODUCT_REVIEW_LABEL } from "@/lib/product-selection-review";
+import { productRequirementChecks, validateRequirementReview } from "@/lib/product-requirement-review";
 import {
   callUserRpc,
   selectUserRows,
@@ -45,10 +46,18 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const input = validation.data;
+    const [requirement] = await selectUserRows<Record<string, unknown> & { updated_at: string }>("project_requirements", {
+      select: "id,requirement_key,category,value_text,value_json,source_excerpt,source_page,updated_at",
+      id: `eq.${input.requirementId}`, project_id: `eq.${id}`,
+      organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null", limit: "1"
+    });
+    if (!requirement) return NextResponse.json({ error: "Produktposten kunde inte hittas." }, { status: 404 });
+    const review = validateRequirementReview(requirement, input, input.requirementReview);
+    if ("error" in review) return NextResponse.json({ error: review.error }, { status: 400 });
     // Manual preparation is part of the v2 database transaction. Keeping it
     // out of this preflight means an unavailable or failed v2 RPC leaves no
     // promoted requirement or partially approved product behind.
-    if (input.entryMethod === "catalog") {
+    if (input.entryMethod === "catalog" && !review.data) {
       await callUserRpc<string>(
         "prepare_requirement_for_direct_product_mapping",
         {
@@ -60,7 +69,9 @@ export async function POST(request: Request, context: RouteContext) {
     const result = await saveExplicitlyApprovedMapping(
       id,
       authorization.user.id,
-      input
+      input,
+      review.data ? { ...review.data, checks: productRequirementChecks(requirement) } : null,
+      requirement.updated_at
     );
     await clearRequirementResolution(
       id,
@@ -71,7 +82,8 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({
       mapping: result,
-      message: readProductSelectionReview(input.notes)
+      message: review.data ? "Postens produktval och kravgenomgång är godkända och sparade."
+        : readProductSelectionReview(input.notes)
         ? `Produktvalet är sparat som ”${readProductSelectionReview(input.notes)?.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL}”. Märkningen finns kvar i produktlistan.`
         : "Produkten är godkänd och sparad. Kopplingen kan nu föreslås i kommande liknande projekt."
     });
@@ -79,7 +91,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (error instanceof UserSupabaseError) {
       const denied =
         error.status === 401 || error.status === 403 || error.code === "42501";
-      const unavailable = error.code === MANUAL_PRODUCT_APPROVAL_UNAVAILABLE;
+      const unavailable = error.code === MANUAL_PRODUCT_APPROVAL_UNAVAILABLE || error.code === "REQUIREMENT_REVIEW_UNAVAILABLE";
       return NextResponse.json(
         {
           error: unavailable
@@ -157,7 +169,9 @@ function isRequirementValueConflict(error: unknown) {
 async function saveExplicitlyApprovedMapping(
   projectId: string,
   actorId: string,
-  input: DistributorProductMappingInput
+  input: DistributorProductMappingInput,
+  requirementReview: Record<string, unknown> | null,
+  requirementUpdatedAt: string
 ) {
   const mappingPayload = {
     requested_project_id: projectId,
@@ -168,6 +182,27 @@ async function saveExplicitlyApprovedMapping(
     requested_notes: input.notes || null,
     requested_accessories: input.accessories
   };
+
+  if (requirementReview) {
+    try {
+      return await callUserRpc<Record<string, unknown>>("approve_distributor_product_mapping_v3", {
+        ...mappingPayload,
+        requested_user_approved: input.userApproved,
+        requested_entry_method: input.entryMethod,
+        requested_product_subtitle: input.productSubtitle || null,
+        requested_manufacturer_article_number: input.manufacturerArticleNumber || null,
+        requested_delivery_time_days: input.deliveryTimeDays,
+        requested_unit_price: input.unitPrice,
+        requested_currency: input.currency || null,
+        requested_requirement_review: requirementReview,
+        requested_requirement_updated_at: requirementUpdatedAt
+      });
+    } catch (error) {
+      if (!(error instanceof UserSupabaseError) || !["PGRST202", "42883"].includes(error.code ?? "")) throw error;
+      // Never approve first and attach the mandatory review later.
+      throw new UserSupabaseError("Kravgenomgången kan inte sparas förrän databasen har uppdaterats. Produktvalet har inte godkänts.", 503, "REQUIREMENT_REVIEW_UNAVAILABLE");
+    }
+  }
 
   const approveWithProductDetails = () =>
     callUserRpc<Record<string, unknown>>(
@@ -390,6 +425,7 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 function readableDatabaseError(message: string) {
+  if (message.includes("Requirement changed during review")) return "PDF-posten har ändrats. Ladda om och kontrollera kraven igen.";
   if (message.includes("Rejected requirements")) {
     return "En avvisad produktrad kan inte kopplas till en produkt.";
   }

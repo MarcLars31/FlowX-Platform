@@ -1,3 +1,5 @@
+import { parseRequirementReview, type RequirementReviewDraft } from "./product-requirement-review";
+
 export type DistributorAccessoryInput = {
   name: string;
   productNumber: string;
@@ -20,6 +22,7 @@ export type DistributorProductMappingInput = {
   currency: string;
   notes: string;
   accessories: DistributorAccessoryInput[];
+  requirementReview?: RequirementReviewDraft;
 };
 
 export type ManualDistributorProductInput = {
@@ -66,6 +69,8 @@ export function validateDistributorProductMapping(
   const currency = currencyCode(rawCurrency);
   if (rawCurrency && !currency) return { error: "Valutan måste anges med en giltig kod, till exempel NOK." };
   const notes = text(value.notes, 2000);
+  const requirementReview = value.requirementReview == null ? null : parseRequirementReview(value.requirementReview);
+  if (value.requirementReview != null && !requirementReview) return { error: "Kravgenomgången har ogiltigt format." };
   if (!isUuid(requirementId)) return { error: "Ogiltigt krav-id." };
   if (value.userApproved !== true) {
     return { error: "Produkten måste godkännas uttryckligen av användaren." };
@@ -130,7 +135,8 @@ export function validateDistributorProductMapping(
       unitPrice,
       currency,
       notes,
-      accessories
+      accessories,
+      ...(requirementReview ? { requirementReview } : {})
     }
   };
 }

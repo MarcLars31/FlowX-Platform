@@ -3,6 +3,8 @@ import { AhlsellCatalogError, ahlsellMarketFromSearchUrl } from "@/lib/ahlsell-p
 import { AhlsellLookupInputError, lookupAhlsellProduct, parseAhlsellLookupQuery } from "@/lib/ahlsell-product-lookup";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { complementMldlCandidates } from "@/lib/ahlsell-hybrid-matching";
+import { productAssemblyPlan } from "@/lib/product-assembly-plan";
+import { lookupAssemblyComponents } from "@/lib/assembly-component-lookup";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { readJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
@@ -21,17 +23,29 @@ export async function POST(request: Request, context: RouteContext) {
     if (!isUuid(id) || !isUuid(requirementId)) return NextResponse.json({ error: "Ogiltigt projekt- eller krav-id." }, { status: 400, headers });
     const limit = consumeRateLimit(requestRateLimitKey(request, "ahlsell-lookup", authorization.user.id), 30, 60_000);
     if (!limit.allowed) return NextResponse.json({ error: "För många Ahlsell-sökningar. Vänta en kort stund och försök igen." }, { status: 429, headers: { ...headers, "Retry-After": String(limit.retryAfterSeconds) } });
-    const body = await readJsonBody<{ query?: unknown; accessory?: unknown } | null>(request, 8_000);
+    const body = await readJsonBody<{ query?: unknown; accessory?: unknown; componentKind?: unknown; componentId?: unknown; mainArticleNumber?: unknown; automatic?: unknown } | null>(request, 8_000);
     parseAhlsellLookupQuery(body?.query, "no");
     const [requirement] = await selectUserRows<Record<string, unknown>>("project_requirements", {
       id: `eq.${requirementId}`, project_id: `eq.${id}`, organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null",
       select: "id,category,requirement_key,display_name,value_text,value_json,source_excerpt", limit: "1"
     });
     if (!requirement) return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404, headers });
+    const component = productAssemblyPlan(requirement)?.components.find(item => body?.componentId != null ? item.id === body.componentId : item.kind === body?.componentKind);
+    if ((body?.componentId != null || body?.componentKind != null) && (!component || body.accessory !== true)) {
+      return NextResponse.json({ error: "Tillbehörsgruppen finns inte i den här PDF-posten." }, { status: 400, headers });
+    }
+    if (component) {
+      const result = await lookupAssemblyComponents({ requirement, component, mainArticleNumber: body?.mainArticleNumber,
+        query: body?.query, automatic: body?.automatic === true,
+        market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal });
+      return NextResponse.json(result, { headers });
+    }
     const result = await lookupAhlsellProduct({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal });
     // Accessories have their own compatibility check against the chosen head;
     // do not compare an escutcheon with the head's K-factor or temperature.
-    const products = body?.accessory === true ? result.products : complementMldlCandidates(requirement, [], result.products)
+    const products = body?.accessory === true
+      ? result.products
+      : complementMldlCandidates(requirement, [], result.products)
       .map(candidate => ({ ...candidate, subtitle: result.products.find(product => product.articleNumber === candidate.articleNumber)?.subtitle }));
     return NextResponse.json({ ...result, products }, { headers });
   } catch (error) {

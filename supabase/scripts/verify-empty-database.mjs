@@ -584,6 +584,67 @@ try {
   }
   process.stdout.write("PASS failure after base manual approval rolls back assignment and product memory\n");
 
+  await database.exec(`
+    insert into public.project_requirements (
+      id, organization_id, project_id, category, requirement_key, value_text, value_json, status, created_by
+    ) select 'd0000000-0000-4000-8000-000000000205', organization_id, project_id,
+      category, 'requirement-review-verification', 'Sprinkler with escutcheon', value_json,
+      'extracted_unreviewed', created_by
+    from public.project_requirements where id = 'd0000000-0000-4000-8000-000000000203';
+  `);
+  const reviewTimestamp = async () => (await database.query(`select updated_at::text as stamp from public.project_requirements where id = 'd0000000-0000-4000-8000-000000000205'`)).rows[0].stamp;
+  const reviewFixture = {
+    version: 1, revision: "source-revision", confirmation: "confirmed-selection",
+    checks: [{ id: "rosette", label: "Rosett", text: "Todelt rosett", optional: false }],
+    decisions: { rosette: { status: "product", productKeys: ["component:escutcheon"], note: "Datablad" } }
+  };
+  const reviewApprovalSql = `select public.approve_distributor_product_mapping_v3(
+    requested_project_id := '${project.id}',
+    requested_requirement_id := 'd0000000-0000-4000-8000-000000000205',
+    requested_user_approved := true, requested_product_name := 'Reviewed sprinkler',
+    requested_product_number := '9254043', requested_manufacturer_name := 'Victaulic',
+    requested_notes := null, requested_accessories := '[{"name":"Rosett","productNumber":"9254070","quantity":1,"unit":"st"}]'::jsonb,
+    requested_entry_method := 'catalog', requested_product_subtitle := null,
+    requested_manufacturer_article_number := null, requested_delivery_time_days := null,
+    requested_unit_price := null, requested_currency := null,
+    requested_requirement_review := $1::jsonb, requested_requirement_updated_at := $2::timestamptz
+  ) as result`;
+  async function rejectReview(review, stamp, expected) {
+    try { await database.query(reviewApprovalSql, [JSON.stringify(review), stamp]); }
+    catch (error) {
+      if (!expected.test(error.message)) throw error;
+      return;
+    }
+    throw new Error(`Requirement review unexpectedly accepted: ${expected}`);
+  }
+  await rejectReview(reviewFixture, '2000-01-01', /Requirement changed during review/);
+  await rejectReview({ ...reviewFixture, decisions: {} }, await reviewTimestamp(), /Every requirement/);
+  await rejectReview({ ...reviewFixture, decisions: { rosette: { status: "not_applicable", note: "Skip", productKeys: [] } } }, await reviewTimestamp(), /Mandatory requirements/);
+  await rejectReview({ ...reviewFixture, decisions: { rosette: { status: "handled", note: " ", productKeys: [] } } }, await reviewTimestamp(), /review comment/);
+  await database.exec(`
+    create function public.reject_requirement_review_for_verification() returns trigger
+    language plpgsql set search_path = pg_catalog as $review_trigger$
+    begin
+      if new.product_snapshot ? 'requirementReview' then raise exception 'Forced review snapshot failure'; end if;
+      return new;
+    end $review_trigger$;
+    create trigger reject_requirement_review_for_verification before update on public.project_product_suggestions
+      for each row execute function public.reject_requirement_review_for_verification();
+  `);
+  await rejectReview(reviewFixture, await reviewTimestamp(), /Forced review snapshot failure/);
+  const failedReview = (await database.query(`select
+    (select count(*)::int from public.project_product_suggestions where requirement_id = 'd0000000-0000-4000-8000-000000000205') as assignments,
+    (select status::text from public.project_requirements where id = 'd0000000-0000-4000-8000-000000000205') as status`)).rows[0];
+  if (failedReview.assignments !== 0 || failedReview.status !== "extracted_unreviewed") throw new Error("Failed review left a partial approval");
+  await database.exec(`drop trigger reject_requirement_review_for_verification on public.project_product_suggestions; drop function public.reject_requirement_review_for_verification();`);
+  const reviewed = await database.query(reviewApprovalSql, [JSON.stringify(reviewFixture), await reviewTimestamp()]);
+  const reviewedId = reviewed.rows[0].result.assignmentId;
+  const reviewedSnapshot = (await database.query("select product_snapshot from public.project_product_suggestions where id = $1", [reviewedId])).rows[0].product_snapshot;
+  if (!reviewedSnapshot.approvedByUser || reviewedSnapshot.requirementReview?.reviewedBy !== "d0000000-0000-4000-8000-000000000201"
+    || !reviewedSnapshot.requirementReview?.reviewedAt || reviewedSnapshot.requirementReview?.decisions?.rosette?.note !== "Datablad"
+    || reviewedSnapshot.accessories?.[0]?.productNumber !== "9254070") throw new Error("Requirement review did not persist with its approved products");
+  process.stdout.write("PASS requirement review validates decisions and source revision, rolls back on failure, and saves with the approved products\n");
+
   await expectDatabaseRejection(
     "duplicate project numbers remain blocked",
     `select public.create_project_with_defaults(

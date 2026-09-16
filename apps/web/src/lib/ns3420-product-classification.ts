@@ -1,5 +1,10 @@
 export type Ns3420ProductFamily = "sprinkler_hose" | "pipe";
 
+/** A length of complete pipe remains the main item when fittings are included. */
+export function isCompletePipeLengthDescription(description: string) {
+  return /^\s*DN\s*\d+\s+komplett\s+med\s+(?:deler|delar)\b/i.test(description);
+}
+
 /**
  * Maps product-bearing NS 3420 codes to the catalogue family they describe.
  *
@@ -12,6 +17,8 @@ export function ns3420ProductFamily(value: unknown, description = ""): Ns3420Pro
   if (typeof value !== "string") return null;
   const normalized = value.toLocaleUpperCase("nb-NO").replace(/\bUB\s*1\s*\.\s*/g, "UB1.");
   if (/(?:^|[^A-Z0-9])UB1\.3311[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)) return "sprinkler_hose";
+  if (/(?:^|[^A-Z0-9])UB1\.3111[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)
+    && isCompletePipeLengthDescription(description)) return "pipe";
   // Pipe-length subposts inherit this code even when their short description
   // says "DN25, ink. deler og oppheng". Included supports are not the main item.
   if (/(?:^|[^A-Z0-9])UB1\.3111[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)

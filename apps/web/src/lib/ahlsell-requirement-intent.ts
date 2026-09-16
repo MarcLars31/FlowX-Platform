@@ -1,12 +1,13 @@
-import { ns3420ProductFamily } from "./ns3420-product-classification";
+import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
+import { immediateParentHeading } from "./ahlsell-requirement-context";
 
 export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "manometer" | "pressure_switch"
   | "flow_switch" | "ball_valve" | "butterfly_valve" | "shutoff_valve" | "check_valve"
   | "pressure_reducing_valve" | "pipe" | "coupling" | "flanged_bend" | "bend" | "tee"
   | "reducer" | "cap" | "branch" | "flange_adapter" | "pump" | "strainer" | "support"
   | "test_drain" | "flushing_connection" | "sprinkler_head" | "sprinkler_guard" | "sprinkler_hose" | "sprinkler_cabinet"
-  | "water_meter" | "sensor_pocket" | "foam_extinguisher" | "portable_fire_extinguisher"
+  | "water_meter" | "flow_meter" | "alarm_device" | "sensor_pocket" | "foam_extinguisher" | "portable_fire_extinguisher"
   | "toilet" | "shower_set" | "manifold_cabinet" | "custom_fabrication" | "generic";
 
 /** The row's product and attributes govern retrieval, before included parts. */
@@ -20,6 +21,18 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   const detail = normalize(`${value.technicalSpecification ?? ""} ${value.sourceText ?? ""} ${requirement.source_excerpt ?? ""}`);
   const has = (pattern: RegExp) => pattern.test(source);
   const category = String(requirement.category ?? "");
+
+  // A quantified pipe assembly includes fittings; they are not its main item.
+  if (isCompletePipeLengthDescription(description)
+    && (value.unit === "m" || ns3420ProductFamily(value.nsCode, description) === "pipe")) return "pipe";
+  // A child alarm device must not inherit its parent's alarm-valve product type.
+  if (/^(?:alarmgiver|alarmapparat|alarmkit)\b/.test(normalize(description))) return "alarm_device";
+  if (/^(?:kapasitetsmaler|stromningsmaler|flowmeter|flow meter|gap meter)\b/.test(normalize(description))) return "flow_meter";
+  if (/^dn\s*\d+\b/.test(normalize(description))) {
+    const parentHeading = normalize(immediateParentHeading(requirement));
+    if (/^(?:innendors\s+)?stengeventiler?\b/.test(parentHeading)) return "shutoff_valve";
+    if (/^(?:kapasitetsmaler|stromningsmaler|flowmeter|flow meter)\b/.test(parentHeading)) return "flow_meter";
+  }
 
   // The main product wins over included valves and stale extraction categories.
   if (isManifoldCabinetProduct(description)) return "manifold_cabinet";
@@ -77,6 +90,7 @@ export function catalogTypesForIntent(intent: AhlsellProductIntent): readonly st
     shutoff_valve: ["butterfly_valve", "ball_valve", "gate_valve"], support: ["support_bracket"],
     test_drain: ["test_drain"], sensor_pocket: ["sensor_pocket"], water_meter: ["water_meter"],
     flushing_connection: ["butterfly_valve", "ball_valve", "valve"],
+    alarm_device: ["alarm_device", "pressure_switch"], flow_meter: ["flow_meter"],
     manometer: ["manometer"], pump: ["pump"], strainer: ["strainer"]
   };
   return intent === "generic" || intent === "custom_fabrication" ? null : types[intent] ?? [intent];

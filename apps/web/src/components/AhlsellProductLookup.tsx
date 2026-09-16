@@ -5,16 +5,21 @@ import { ExternalLink, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellCandidateWarnings } from "@/components/AhlsellCandidateList";
 import type { AhlsellLookupProduct, AhlsellLookupResult } from "@/lib/ahlsell-product-lookup";
+import type { AssemblyComponentKind } from "@/lib/product-assembly-plan";
 
-export function AhlsellProductLookup({ projectId, requirementId, id, accessory = false, disabled = false, onSelect }: {
+export function AhlsellProductLookup({ projectId, requirementId, id, accessory = false, automaticQuery = "", componentKind, componentId, mainArticleNumber, disabled = false, onSelect }: {
   projectId: string;
   requirementId: string;
   id: string;
   accessory?: boolean;
+  automaticQuery?: string;
+  componentKind?: AssemblyComponentKind;
+  componentId?: string;
+  mainArticleNumber?: string;
   disabled?: boolean;
   onSelect: (product: AhlsellLookupProduct) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(automaticQuery);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AhlsellLookupResult | null>(null);
   const [error, setError] = useState("");
@@ -32,7 +37,7 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
     try {
       const response = await fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-lookup`, {
         method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ query: value, accessory }), signal: controller.signal
+        body: JSON.stringify({ query: value, accessory, componentKind, componentId, mainArticleNumber, automatic: Boolean(automaticQuery && value === automaticQuery) }), signal: controller.signal
       });
       const payload = await response.json() as AhlsellLookupResult & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Sökningen kunde inte genomföras.");
@@ -42,17 +47,17 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [projectId, requirementId, accessory]);
+  }, [projectId, requirementId, accessory, componentKind, componentId, mainArticleNumber, automaticQuery]);
 
   useEffect(() => {
     const digits = query.replace(/^nrf\s*(?:[- ]?(?:nr|nummer))?\.?\s*:?\s*/i, "").replace(/[\s-]/g, "");
-    const ready = /^\d{7}$/.test(digits) || /^(?:https?:\/\/)?(?:www\.)?ahlsell\.(?:no|se)\/products\/\S+/i.test(query.trim());
+    const ready = Boolean(automaticQuery && query === automaticQuery) || /^\d{7}$/.test(digits) || /^(?:https?:\/\/)?(?:www\.)?ahlsell\.(?:no|se)\/products\/\S+/i.test(query.trim());
     if (ready && !disabled) timer.current = setTimeout(() => { void search(query); }, 650);
     return () => {
       if (timer.current) clearTimeout(timer.current);
       request.current?.abort();
     };
-  }, [query, disabled, search]);
+  }, [query, disabled, search, automaticQuery]);
 
   return <div className="space-y-3">
     <form onSubmit={(event) => { event.preventDefault(); if (!disabled && query.trim()) void search(query); }} className="space-y-2">
@@ -64,7 +69,7 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
           {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />}Sök hos Ahlsell
         </Button>
       </div>
-      <p className="text-xs leading-5 text-ink-600">NRF-nummer och produktlänkar söks automatiskt. Produktnamn söker du med knappen eller Enter.</p>
+      <p className="text-xs leading-5 text-ink-600">{automaticQuery ? "Programmet söker automatiskt utifrån kravdelen och den valda huvudprodukten. Du kan ändra sökningen vid behov." : "NRF-nummer och produktlänkar söks automatiskt. Produktnamn söker du med knappen eller Enter."}</p>
     </form>
     <div aria-live="polite" aria-busy={loading}>
       {loading && <p className="text-sm text-flow-800">Söker på Ahlsells webbplats…</p>}
@@ -76,7 +81,7 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
           {product.subtitle && <p className="mt-1 text-xs text-ink-700">{product.subtitle}</p>}
           <p className="mt-1 text-sm font-semibold text-flow-800">NRF-nummer {product.articleNumber}{product.manufacturer ? ` · ${product.manufacturer}` : ""}</p>
           {product.specifications.length > 0 && <p className="mt-1 text-xs leading-5 text-ink-600">{product.specifications.join(" · ")}</p>}
-          {!accessory && <AhlsellCandidateWarnings candidate={product} />}
+          {(!accessory || componentKind) && <AhlsellCandidateWarnings candidate={product} />}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <a href={product.productUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-flow-800 underline">Visa hos Ahlsell<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
             <Button type="button" disabled={disabled} className="min-h-9 px-3 py-1.5 text-xs" onClick={() => onSelect(product)}>{accessory ? "Välj tillbehör" : "Välj produkt"}</Button>
