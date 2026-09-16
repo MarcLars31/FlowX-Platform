@@ -4,7 +4,7 @@ import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
 import { attachAhlsellAccessorySuggestions } from "./ahlsell-accessory-suggestions";
 import { distributorRequirementKind } from "./distributor-requirement-lines";
 
-/** Automatic matching is local. Public Ahlsell lookup is a separate, user-triggered action. */
+/** Local evidence for the automatic search, which also queries Ahlsell's website. */
 export function findMldlOnlyCandidates(requirement: Record<string, unknown>, limit = 50) {
   if (distributorRequirementKind({ ...requirement, id: String(requirement.id ?? "") }) !== "product") return [];
   const guide = buildAhlsellRequirementGuide(requirement);

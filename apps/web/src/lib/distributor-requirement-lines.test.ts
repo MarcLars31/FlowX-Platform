@@ -2,6 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { distributorRequirementKind } from "./distributor-requirement-lines";
 
+test("counts quantified preparatory meetings as work without excluding products mentioning meetings", () => {
+  assert.equal(distributorRequirementKind({
+    id: "meeting", value_text: "FORBEREDENDE MØTER Entreprenøren skal delta før oppstart.",
+    value_json: { quantity: 2, unit: "st" }
+  }), "work");
+  assert.equal(distributorRequirementKind({
+    id: "pipe", display_name: "Stålrør DN65", source_excerpt: "Avklares i forberedende møter.",
+    value_json: { quantity: 20, unit: "m" }
+  }), "product");
+});
+
 test("retains RS scopes, filling and complete gas systems as work instead of failed product searches", () => {
   assert.equal(distributorRequirementKind({ id: "paint", value_text: "Maling av rør", value_json: { unit: "RS", quantity: 1 } }), "work");
   assert.equal(distributorRequirementKind({ id: "fill", value_text: "OPPFYLLING MED ARBEIDSMEDIUM", value_json: { unit: "l", quantity: 2650 } }), "work");

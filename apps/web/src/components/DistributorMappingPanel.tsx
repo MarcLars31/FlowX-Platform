@@ -210,17 +210,18 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const catalogCheckRequirementIds = useMemo(
     () => productRequirements
       .filter((requirement) =>
-        !staticallySafeRequirementIds.has(requirement.id)
+        !handledRequirementIds.has(requirement.id)
         && !hasProjectRequirementDataWarning(requirement)
       )
       .map((requirement) => requirement.id),
-    [productRequirements, staticallySafeRequirementIds]
+    [productRequirements, handledRequirementIds]
   );
   const catalogRevisions = useMemo(() => Object.fromEntries(productRequirements.map(requirement => [
     requirement.id, JSON.stringify([projectId, requirement.category, requirement.value_text, requirement.value_json, requirement.source_excerpt])
   ])), [productRequirements, projectId]);
   const catalogCheckKey = useMemo(() => JSON.stringify(catalogCheckRequirementIds.map(id => [id, catalogRevisions[id]])), [catalogCheckRequirementIds, catalogRevisions]);
   const [catalogAssessments, setCatalogAssessments] = useState<Record<string, AhlsellCatalogAssessment>>({});
+  const completedCatalogChecks = useRef(new Set<string>());
   const catalogStatuses = useMemo(() => Object.fromEntries(Object.entries(catalogAssessments)
     .filter(([id, result]) => result.revision === catalogRevisions[id])
     .map(([id, result]) => [id, result.status])), [catalogAssessments, catalogRevisions]);
@@ -232,38 +233,35 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
 
   useEffect(() => {
     const controller = new AbortController();
-    const requirementIds = JSON.parse(catalogCheckKey) as Array<[string, string]>;
+    const requirementIds = (JSON.parse(catalogCheckKey) as Array<[string, string]>)
+      .filter(entry => !completedCatalogChecks.current.has(JSON.stringify(entry)));
     let nextIndex = 0;
 
     async function worker() {
-      let statusBatch: Record<string, AhlsellCatalogAssessment> = {};
-      const flush = () => {
-        if (Object.keys(statusBatch).length === 0 || controller.signal.aborted) return;
-        const completedBatch = statusBatch;
-        statusBatch = {};
-        setCatalogAssessments(current => mergeAhlsellCatalogAssessments(current, completedBatch));
-      };
       while (!controller.signal.aborted) {
         const [requirementId, revision] = requirementIds[nextIndex] ?? [];
         nextIndex += 1;
-        if (!requirementId) {
-          flush();
-          return;
-        }
+        if (!requirementId) return;
+        let status: AhlsellCatalogMatchStatus = "incomplete";
+        let fullSearch = false;
         try {
           const response = await fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates?classification=1`, {
             signal: controller.signal,
             headers: { Accept: "application/json" }
           });
-          if (!response.ok) continue;
+          if (!response.ok) throw new Error("Ahlsell-sökningen kunde inte slutföras.");
           const payload = await response.json().catch(() => null);
           const classification = ahlsellCatalogStatusFromPayload(payload);
-          if (!classification) continue;
-          statusBatch[requirementId] = { revision, status: classification, fullSearch: false };
-          if (Object.keys(statusBatch).length >= 4) flush();
+          if (classification) status = classification;
+          fullSearch = payload?.fullSearch === true;
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") return;
         }
+        if (controller.signal.aborted) return;
+        completedCatalogChecks.current.add(JSON.stringify([requirementId, revision]));
+        setCatalogAssessments(current => mergeAhlsellCatalogAssessments(current, {
+          [requirementId]: { revision, status, fullSearch }
+        }));
       }
     }
 
@@ -771,7 +769,9 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               <h3 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h3>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">
                 {catalogChecksRemaining > 0
-                  ? `Scipx kontrollerar MLDL för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
+                  ? `Scipx söker automatiskt på Ahlsells webbplats för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
+                  : catalogCheckRequirementIds.some(id => catalogStatuses[id] === "incomplete")
+                  ? "Alla sökningar kunde inte slutföras. Berörda poster behöver kontrolleras när Ahlsell kan ge ett fullständigt sökresultat."
                   : `Produktförslag för ${matchedRequirementCount} av ${productRequirements.length} poster (${ahlsellCoveragePercent} %).`}
               </p>
             </div>
@@ -2105,6 +2105,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   const totalResultCount = usableMemories.length + candidates.length;
   const filteredResultCount = filteredMemories.length + filteredCandidates.length;
   function selectCandidate(candidate: AhlsellPublicCandidate) {
+    if (normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber)) {
+      onClearSelection();
+      return;
+    }
     onUseCandidate(
       candidate,
       candidate.description ?? ""
@@ -2121,7 +2125,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktval</p>
-            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Produktförslag från MLDL och Ahlsell</h4>
+            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Automatiska produktförslag från Ahlsell</h4>
           </div>
           <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
             {!loadingCatalog && (
@@ -2136,12 +2140,12 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
             )}
           </div>
         </div>
-        <p className="mt-1.5 text-xs leading-5 text-ink-600">MLDL är första källa. Ahlsells webbplats kompletterar produktuppgifter och sökningen. Markera en produkt för att fylla NRF-numret.</p>
+        <p className="mt-1.5 text-xs leading-5 text-ink-600">Scipx söker automatiskt i Ahlsells sortiment utifrån PDF-postens krav. Markera en produkt för att fylla NRF-numret.</p>
       </header>
 
       {loadingCatalog && (
         <div className="flex min-h-16 items-center justify-center gap-2 border-t border-ink-200 bg-ink-50 px-3 py-3 text-sm font-bold text-ink-800" role="status">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Kompletterar MLDL med Ahlsells webbplats…
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Söker automatiskt på Ahlsells webbplats…
         </div>
       )}
 
@@ -2176,7 +2180,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       )}
 
       {filteredMemories.length > 0 && (
-        <div className="border-t border-emerald-300" role="radiogroup" aria-label="Tidigare bekräftade produkter">
+        <div className="border-t border-emerald-300" role="group" aria-label="Tidigare bekräftade produkter">
           <div className={memoriesAreExact ? "bg-emerald-100/80 px-3 py-2 sm:px-4" : "bg-amber-50 px-3 py-2 sm:px-4"}>
             <p className={memoriesAreExact ? "flex items-center gap-1.5 text-xs font-bold text-emerald-900" : "flex items-center gap-1.5 text-xs font-bold text-amber-900"}>
               {memoriesAreExact ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
@@ -2208,19 +2212,19 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                     </div>
                     <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-flow-800">
                       <input
-                        type="radio"
+                        type="checkbox"
                         name={`ahlsell-product-${requirementId}`}
                         value={articleNumber}
                         checked={isSelected}
                         disabled={disabled}
-                        onChange={() => onUseMemory(memory, {
+                        onChange={() => isSelected ? onClearSelection() : onUseMemory(memory, {
                           productName: candidate?.productName || productName,
                           productSubtitle: resolvedSubtitle
                         })}
-                        aria-label={`Välj tidigare bekräftad produkt ${productName}, NRF-nummer ${articleNumber}`}
-                        className="h-5 w-5 shrink-0 cursor-pointer border-ink-300 text-emerald-700 focus:ring-emerald-600 disabled:cursor-not-allowed"
+                        aria-label={`${isSelected ? "Ta bort valet av" : "Välj"} tidigare bekräftad produkt ${productName}, NRF-nummer ${articleNumber}`}
+                        className="h-5 w-5 shrink-0 cursor-pointer rounded border-ink-300 text-emerald-700 focus:ring-emerald-600 disabled:cursor-not-allowed"
                       />
-                      <span aria-hidden="true">{isSelected ? "Vald" : "Välj"}</span>
+                      <span aria-hidden="true">{isSelected ? "Ta bort val" : "Välj"}</span>
                     </label>
                   </div>
                 </article>
@@ -2351,7 +2355,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     || bulkSelection?.productName
     || memoryProductName;
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
-  const rowClass = productTableRowClass({ approved: approved && !savedReview, selected });
+  const rowClass = productTableRowClass({ approved, selected });
 
   function renderProductTableCell(columnId: ProductTableColumnId) {
     if (columnId === "control") {

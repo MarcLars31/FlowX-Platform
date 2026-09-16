@@ -28,6 +28,28 @@ test("a late MLDL classification cannot overwrite a completed hybrid result for 
   assert.equal(mergeAhlsellCatalogAssessments(full, { row: { revision: "v2", status: "found", fullSearch: false } }).row.status, "found");
 });
 
+test("does not report products as absent when the automatic web search was incomplete", () => {
+  for (const metadata of [{ publicSearchStatus: "unavailable" }, { publicSearchStatus: "partial" }, { truncated: true }]) {
+    assert.equal(ahlsellCatalogStatusFromPayload({ classification: "none", ...metadata }), "incomplete");
+    assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [], ...metadata }), "incomplete");
+    assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ recommendation: "possible" }], ...metadata }), "found");
+  }
+  assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [], publicSearchStatus: "available" }), "none");
+  const groups = splitAhlsellMatchGroups([{ id: "shower", value_text: "DUSJ MED BLANDEBATTERI" }], {
+    approvedRequirementIds: new Set(), memoryFingerprints: new Set(), catalogStatuses: { shower: "incomplete" }
+  });
+  assert.equal(groups.redRequirements.length, 0);
+  assert.equal(groups.yellowRequirements[0].id, "shower");
+});
+
+test("a failed web search cannot erase a successful search for the same requirements", () => {
+  const found = { row: { revision: "v1", status: "found" as const, fullSearch: true } };
+  assert.equal(mergeAhlsellCatalogAssessments(found, { row: { revision: "v1", status: "incomplete", fullSearch: true } }).row.status, "found");
+  assert.equal(mergeAhlsellCatalogAssessments(found, { row: { revision: "v2", status: "incomplete", fullSearch: true } }).row.status, "incomplete");
+  const local = { row: { revision: "v1", status: "none" as const, fullSearch: false } };
+  assert.equal(mergeAhlsellCatalogAssessments(local, { row: { revision: "v1", status: "incomplete", fullSearch: true } }).row.status, "incomplete");
+});
+
 test("separates Ahlsell matches from rows requiring manual work", () => {
   const result = splitAhlsellMatchGroups([
     {

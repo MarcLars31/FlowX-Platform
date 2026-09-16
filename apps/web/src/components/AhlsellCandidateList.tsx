@@ -54,11 +54,11 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-flow-800">
-              <input type="radio" name={`ahlsell-product-${requirementId}`} value={candidate.articleNumber}
+              <input type="checkbox" name={`ahlsell-product-${requirementId}`} value={candidate.articleNumber}
                 checked={selected} disabled={disabled} onChange={() => onSelect(candidate)}
-                aria-label={`Välj ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
-                className="h-5 w-5 shrink-0 cursor-pointer border-ink-300 text-flow-700 focus:ring-flow-600 disabled:cursor-not-allowed" />
-              <span aria-hidden="true">{selected ? "Vald" : "Välj"}</span>
+                aria-label={`${selected ? "Ta bort valet av" : "Välj"} ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
+                className="h-5 w-5 shrink-0 cursor-pointer rounded border-ink-300 text-flow-700 focus:ring-flow-600 disabled:cursor-not-allowed" />
+              <span aria-hidden="true">{selected ? "Ta bort val" : "Välj"}</span>
             </label>
             <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
@@ -102,7 +102,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             </div>
             <ChevronDown className="h-5 w-5 text-emerald-800 transition group-open:rotate-180" aria-hidden="true" />
           </summary>
-          <div className="divide-y divide-emerald-200 border-t border-emerald-200" role="radiogroup" aria-label="Matchade produkter">
+          <div className="divide-y divide-emerald-200 border-t border-emerald-200" role="group" aria-label="Matchade produkter">
             {matching.map(productRow)}
           </div>
         </details>
@@ -110,14 +110,14 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
       {review.length > 0 && (
         <details open={matching.length === 0} className="border-t border-amber-200">
           <summary className="cursor-pointer bg-amber-50 px-3 py-3 text-sm font-bold text-amber-950 sm:px-4">Produkter att kontrollera ({review.length})</summary>
-          <div className="divide-y divide-amber-200" role="radiogroup" aria-label="Produkter att kontrollera">{review.map(productRow)}</div>
+          <div className="divide-y divide-amber-200" role="group" aria-label="Produkter att kontrollera">{review.map(productRow)}</div>
         </details>
       )}
       {selectedRejected && !rejectedOpen && productRow(selectedRejected)}
       {rejected.length > 0 && (
         <details className="border-t border-ink-200" onToggle={event => setRejectedOpen(event.currentTarget.open)}>
           <summary className="cursor-pointer px-3 py-3 text-sm font-bold text-ink-700 sm:px-4">Visa bortvalda produkter och orsaker ({rejected.length})</summary>
-          <div className="divide-y divide-ink-200" role="radiogroup" aria-label="Bortvalda produkter">{rejectedOpen && rejected.map(productRow)}</div>
+          <div className="divide-y divide-ink-200" role="group" aria-label="Bortvalda produkter">{rejectedOpen && rejected.map(productRow)}</div>
         </details>
       )}
     </div>

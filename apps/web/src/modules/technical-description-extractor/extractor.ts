@@ -32,7 +32,7 @@ const TABLE_QUANTITY_PATTERN = new RegExp(
   "i"
 );
 const INLINE_TABLE_QUANTITY_PATTERN = new RegExp(
-  String.raw`^(.*?)\s+(${QUANTITY_UNIT_SOURCE})\.?\s+(${QUANTITY_NUMBER_SOURCE})(?:\s+${QUANTITY_NUMBER_SOURCE}){1,3}$`,
+  String.raw`^(.*?)\s+(${QUANTITY_UNIT_SOURCE})\.?\s+(${QUANTITY_NUMBER_SOURCE})(?:\s+${QUANTITY_NUMBER_SOURCE}){0,3}$`,
   "i"
 );
 
@@ -644,7 +644,15 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
     }
   }
 
-  return materialLines;
+  // An unquantified parent with quantified subposts supplies their shared
+  // specification; it is not an additional product with a missing quantity.
+  return materialLines.filter((line) =>
+    line.quantity !== undefined
+    || line.operation === "remove"
+    || !materialLines.some((child) =>
+      child.quantity !== undefined && child.postNumber?.startsWith(`${line.postNumber}.`)
+    )
+  );
 }
 
 type StructuredPostStart = {
@@ -672,7 +680,7 @@ const LEADING_LUMP_SUM_POST_PATTERN = new RegExp(
   "i"
 );
 const TRAILING_QUANTITY_POST_PATTERN = new RegExp(
-  String.raw`^(?<post>\d+(?:\.\d+){1,7}\.?)\s+(?<description>.+?)\s+(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})(?:\s+${STRUCTURED_NUMBER_SOURCE}){1,3}$`,
+  String.raw`^(?<post>\d+(?:\.\d+){1,7}\.?)\s+(?<description>.+?)\s+(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})(?:\s+${STRUCTURED_NUMBER_SOURCE}){0,3}$`,
   "i"
 );
 const FULL_POST_LINE_PATTERN = /^(\d+(?:\.\d+){1,7})(?:\s*[|)]{1,2}\s*|\s+)(.+)$/;
@@ -794,7 +802,9 @@ function parseWrappedVisualPostStart(
   if (
     (baseParts.length < 4 && !base.endsWith("."))
     || (!continuation.includes(".") && !base.endsWith("."))
-    || continuationWithoutDot.startsWith(`${base.replace(/\.$/, "")}.`)
+    // A new post in the same chapter (including siblings and parents) is
+    // never a wrapped suffix of the preceding post number.
+    || continuationWithoutDot.startsWith(`${baseParts[0]}.`)
     || !/[a-zæøå]/i.test(baseMatch[2])
   ) {
     return undefined;
@@ -1184,7 +1194,8 @@ function extractTableAttributes(lines: string[]) {
       continue;
     }
 
-    if (/^(?:[a-z]\)|Andre krav|Merket\b|Sum\b|Akkumulert|Kopi-)/i.test(line)) activeKey = null;
+    if (/^(?:[a-z]\)|Andre krav|Merket\b|Sum\b|Akkumulert|Kopi-)/i.test(line)
+      || /^(?:Antall|Lengde|Mengde)\s*$/i.test(line)) activeKey = null;
     if (
       activeKey &&
       !/^(?:[a-z]\)|Sum denne side|Akkumulert|Prosjekt:|\d{2}\.\d{2}\.\d{4})/i.test(line)

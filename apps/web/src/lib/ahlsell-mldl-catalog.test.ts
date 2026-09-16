@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
+import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
+import { ahlsellCandidateMatchState, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
+import { complementMldlCandidates } from "./ahlsell-hybrid-matching";
 
 test("retrieves the main equipment family instead of a mentioned component", () => {
   for (const [description, attrs, intent] of [
@@ -18,9 +21,86 @@ test("retrieves the main equipment family instead of a mentioned component", () 
 });
 import {
   AHLSELL_MLDL_PRODUCT_COUNT,
+  ahlsellMldlCandidate,
   ahlsellMldlProducts,
   findAhlsellMldlCandidates
 } from "./ahlsell-mldl-catalog";
+
+const completeToiletRequirement = {
+  // Older extraction sees "avstengningsventil" and stores the valve category.
+  category: "valve", value_text: "KLOSETT – KOMPLETT",
+  value_json: {
+    nsCode: "UF1.21206912A", postNumber: "31.4.1", quantity: 14, unit: "stk",
+    attributes: {
+      brukskategori: "For bevegelseshemmede", materiale: "Valgfritt", plassering: "På vegg",
+      montering: "Veggmontert og i henhold til leverandørspesifikasjon",
+      spylesystem: "Sisterne påbygd", vannlås: "Skjult", utforming: "Se andre krav",
+      farge: "Avklares med byggherre", sete: "Se andre krav", sisterne: "Se andre krav",
+      avstengningsventil: "Valgfritt"
+    },
+    technicalSpecification: "Leveres med støttehåndtak: Lengde 900mm, og skal tåle min. 250kg. "
+      + "Elektrisk høydejustering 200mm, fra 410-610mm. løftekapasitet på minimum 300kg. "
+      + "Med klemsikring. Toalettmodulen skal være sertifisert for å tåle en belastning på minimum 500kg. "
+      + "Uten spylekant. Leveres med ryggstøtte."
+  }
+};
+
+test("uses the complete toilet as the main product despite included valves and a stale category", () => {
+  for (const category of ["valve", "unknown"]) {
+    const requirement = { ...completeToiletRequirement, category };
+    assert.equal(ahlsellRequirementIntent(requirement), "toilet");
+    assert.deepEqual(findAhlsellMldlCandidates(requirement), []);
+  }
+  assert.equal(ahlsellRequirementIntent({ category: "valve", value_text: "Kuleventil for WC DN15" }), "ball_valve");
+});
+
+test("searches for an electrically adjustable toilet without sprinkler orientation or invented pipe dimensions", () => {
+  const guide = buildAhlsellRequirementGuide(completeToiletRequirement);
+  assert.ok(guide.searchQueries.every(query => /Toalett.*elektrisk/.test(query)));
+  assert.ok(guide.criteria.includes("Toalett"));
+  assert.ok(guide.criteria.includes("Elektrisk höjdjustering"));
+  assert.doesNotMatch(guide.criteria.join(" "), /sprinkler|HSW|Pendent|DN\d/i);
+  assert.ok(guide.warnings.some(warning => /tilläggskraven/.test(warning)));
+  assert.deepEqual(guide.directCandidates, []);
+});
+
+test("rejects all twenty valve alternatives reported for toilet post 31.4.1, including inherited exact matches", () => {
+  const articles = ["9256649", "9256653", "9256646", "9255289", "9256647", "9256648", "9256651",
+    "9255769", "9253499", "9253207", "9253208", "9253209", "9253502", "9253496", "9253204",
+    "9253497", "9253205", "9253498", "9253206", "9253211"];
+  const candidates = articles.map(article => {
+    const candidate = ahlsellMldlCandidate(article);
+    assert.ok(candidate, `Missing regression article ${article}`);
+    return { ...candidate, exactMatch: true, recommendation: "recommended" as const, matchScore: 100 };
+  });
+  const assessed = [
+    ...rankAhlsellCandidates(completeToiletRequirement, candidates),
+    // A public hit for the same NRF must not restore the old green assessment.
+    ...complementMldlCandidates(completeToiletRequirement, candidates, candidates.map(candidate => ({
+      ...candidate, source: "public_verified" as const
+    })))
+  ];
+  for (const candidate of assessed) {
+    assert.equal(ahlsellCandidateMatchState(candidate), "mismatch", candidate.articleNumber);
+    assert.equal(candidate.exactMatch, false);
+    assert.equal(candidate.recommendation, "unlikely");
+    assert.ok(candidate.matchWarnings?.some(warning => warning.startsWith("Fel produkttyp:")));
+  }
+});
+
+test("keeps toilet candidates under review until the complete assembly and additional requirements are verified", () => {
+  const names = ["Vegghengt klosett uten spylekant", "Toalettmodul elektrisk høydejustering 410-610mm 300kg"];
+  const candidates = names.map((productName, index) => ({
+    articleNumber: `toilet-test-${index}`, productName, manufacturer: "Test", productUrl: "https://example.com/toilet",
+    specifications: [], source: "public_verified" as const, exactMatch: true,
+    recommendation: "recommended" as const, matchScore: 100
+  }));
+  for (const candidate of rankAhlsellCandidates(completeToiletRequirement, candidates)) {
+    assert.equal(ahlsellCandidateMatchState(candidate), "review");
+    assert.equal(candidate.exactMatch, false);
+    assert.ok(candidate.matchWarnings?.some(warning => /tilläggskraven/.test(warning)));
+  }
+});
 
 test("keeps a dedicated guard row searchable when an older extraction labels it sprinkler_head", () => {
   const candidates = findAhlsellMldlCandidates({

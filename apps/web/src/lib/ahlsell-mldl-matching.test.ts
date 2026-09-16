@@ -14,7 +14,7 @@ const requirement = { category: "sprinkler_head", value_text: "SPRINKLER", value
 
 test("the MLDL baseline needs no network and returns only local articles and accessories", () => {
   const original = globalThis.fetch;
-  globalThis.fetch = () => { throw new Error("Automatic matching must not fetch public data"); };
+  globalThis.fetch = () => { throw new Error("The local MLDL baseline must not fetch public data"); };
   try {
     const candidates = findMldlOnlyCandidates(requirement);
     assert.ok(candidates.length > 0);
@@ -41,7 +41,7 @@ test("public-only screenshot articles and PDF references do not enter the MLDL b
   }
 });
 
-test("table labels stay local and product cards request the combined server assessment", async () => {
+test("table labels stay local while automatic classification and product cards search the public assortment", async () => {
   const routes = [
     "../app/api/projects/[id]/requirements/[requirementId]/ahlsell-subtitles/route.ts",
     "../app/api/projects/[id]/ahlsell-product-labels/route.ts"
@@ -54,8 +54,10 @@ test("table labels stay local and product cards request the combined server asse
   assert.doesNotMatch(panel, /\/ahlsell-subtitles/);
   assert.match(panel, /catalogResult\?\.candidates \?\? guide.directCandidates/);
   const candidateRoute = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-candidates/route.ts", import.meta.url), "utf8");
-  assert.match(candidateRoute, /classifyAhlsellCatalogCandidates\(findMldlOnlyCandidates/);
+  assert.doesNotMatch(candidateRoute, /findMldlOnlyCandidates/);
+  assert.match(candidateRoute, /classification: ahlsellCatalogStatusFromPayload\(result\)/);
   assert.match(candidateRoute, /await findAhlsellHybridCandidates\(requirement\)/);
+  assert.ok(candidateRoute.indexOf("await findAhlsellHybridCandidates(requirement)") < candidateRoute.indexOf("if (classificationMode)"));
   const manualLookup = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-lookup/route.ts", import.meta.url), "utf8");
   assert.match(manualLookup, /lookupAhlsellProduct/);
 });

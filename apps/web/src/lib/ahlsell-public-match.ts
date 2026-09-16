@@ -181,7 +181,7 @@ export function buildAhlsellRequirementGuide(
     ?? numberFromText(combined, /\bdn\s*(\d{1,3})\b/i);
   const outsideDiameters = uniqueNumbers([
     ...explicitOutsideDiameters,
-    ...dnValues.map((dimension) => PIPE_OUTSIDE_DIAMETER_BY_DN[dimension]).filter((value): value is number => value !== undefined)
+    ...uniqueNumbers([...dnValues, dn]).map((dimension) => PIPE_OUTSIDE_DIAMETER_BY_DN[dimension]).filter((value): value is number => value !== undefined)
   ]);
   const temperatureC = intent === "sprinkler_head"
     ? numberFromAttribute(attributes, ["utlosningstemperatur", "utløsningstemperatur", "temperature"])
@@ -216,7 +216,9 @@ export function buildAhlsellRequirementGuide(
   const visibleMount = /\b(synlig|visible|eksponert)\b/.test(normalize(placement ?? ""))
     || installation.exposed
     || sprinklerExplicitlyExcludesCoverPlate(deckPlate);
-  const orientationResult = sprinklerOrientation(`${placement ?? ""} ${description}`);
+  const orientationResult = intent === "sprinkler_head"
+    ? sprinklerOrientation(`${placement ?? ""} ${description}`)
+    : { orientation: null, mixed: false };
   const orientation = orientationResult.orientation
     ?? (!orientationResult.mixed && mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
   const responseResult = sprinklerResponse(responseText, technicalSpecification);
@@ -231,6 +233,7 @@ export function buildAhlsellRequirementGuide(
 
   const criteria = compact([
     intentLabel(intent, category, description),
+    intent === "toilet" && /\belektrisk\s+(?:hoydejustering|hojdjustering|hev\s+senk)\b/.test(combined) ? "Elektrisk höjdjustering" : null,
     requiresSupervisedOpenValve ? "Övervakad öppen" : null,
     requiresHandwheelValve ? "Manuell med handratt" : null,
     requiresSoftClosingValve ? "Mjuk stängning" : null,
@@ -282,6 +285,12 @@ export function buildAhlsellRequirementGuide(
   const searchQueries = unique([...(commentArticle ? [commentArticle] : []), ...plannedQueries]).slice(0, 3);
   const searchQuery = searchQueries[0] ?? description;
   const warnings = compact([
+    intent === "shower_set"
+      ? "Kontrollera komplett duschleverans och PDF-postens tilläggskrav på blandare, duschstång, eventuella stödhandtag och duschsits."
+      : null,
+    intent === "toilet"
+      ? "Kontrollera toalettens kompletta utförande och tilläggskraven i PDF-posten, inklusive eventuell höjdjustering, belastning och tillbehör."
+      : null,
     ...(intent === "sprinkler_head" ? installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)) : []),
     ...dataWarnings.map((warning) => warning.message),
     orientationResult.mixed
@@ -369,7 +378,7 @@ export function buildAhlsellRequirementGuide(
 
   const recognitionNotes = compact([
     ...(intent === "sprinkler_head" ? installation.notes : []),
-    "MLDL är första källa. När produktkortet öppnas kompletterar Ahlsells webbplats produktuppgifter och söker efter fler produkter.",
+    "Scipx söker automatiskt på Ahlsells webbplats utifrån PDF-kraven, även efter produkter som saknas i MLDL. Databasen kompletterar med lagrade produktuppgifter.",
     intent === "sprinkler_head" && !isSprinklerAccessory
       ? "Scipx kontrollerar MLDL-artikelns K-faktor, DN, temperatur, respons, riktning, montage, systemvillkor och färg med lagrade tekniska uppgifter."
       : null,
@@ -464,8 +473,23 @@ function buildCatalogQueries({
     .join(" ");
   const pressureTerm = pn === null ? null : `PN${formatNumber(pn)}`;
 
-  if (intent === "wet_alarm_valve") return ["Sprinklersentral", compact(["Sprinklersentral våt", dnTerm]).join(" ")];
-  if (intent === "dry_alarm_valve") return ["Sprinklersentral", compact(["Sprinklersentral tørr", dnTerm]).join(" ")];
+  if (intent === "shower_set") {
+    return /\b(blandebatteri|dusjbatteri|duschblandare|blandare)\b/.test(combined)
+      ? ["Dusjsett med blandebatteri", "Dusjbatteri hånddusj glidestang", "Dusjsett"]
+      : ["Dusjsett", "Hånddusj glidestang"];
+  }
+  if (intent === "toilet") {
+    return /\belektrisk\s+(?:hoydejustering|hojdjustering|hev\s+senk)\b/.test(combined)
+      ? ["Toalett elektrisk hev senk", "Toalettmodul elektrisk høydejustering"]
+      : ["Klosett komplett", "Toalett"];
+  }
+  if (intent === "wet_alarm_valve" || intent === "dry_alarm_valve") {
+    const system = intent === "wet_alarm_valve" ? "våt" : "tørr";
+    return [
+      compact(["Alarmventil", system, dnTerm]).join(" "),
+      compact(["Sprinklersentral", system, outsideDiameterTerm ?? dnTerm]).join(" ")
+    ];
+  }
   if (intent === "foam_extinguisher") {
     const liters = combined.match(/\b(\d+(?:[.,]\d+)?)\s*liter\b/)?.[1];
     return [compact(["Skumslukker", liters ? `${liters} liter` : null]).join(" "), "Brannslukker skum"];
@@ -603,6 +627,10 @@ function buildCatalogQueries({
     return [`Sprinklerhode K${formatNumber(kFactor)}`, exact, temperatureQuery ?? finishQuery];
   }
 
+  // An unrecognised product must retain its own description; a broad stored
+  // category is not evidence that it belongs to a sprinkler installation.
+  if (intent === "generic") return [searchDescription ?? description];
+
   if (category === "fitting") {
     return [
       compact(["Kupling sprinkler", outsideDiameterTerm]).join(" "),
@@ -739,11 +767,14 @@ function categoryLabel(category: string, description: string) {
     valve: "Sprinklerventil",
     support: "Rörupphängning sprinkler",
     control: "Sprinkler övervakning"
-  } as Record<string, string>)[category] ?? "Sprinklerprodukt";
+  } as Record<string, string>)[category] ?? "Teknisk produkt";
 }
 
 function intentLabel(intent: AhlsellProductIntent, category: string, description: string) {
+  if (intent === "generic") return "Teknisk produkt";
   const label = ({
+    toilet: "Toalett",
+    shower_set: "Dusch",
     foam_extinguisher: "Skumsläckare",
     portable_fire_extinguisher: "Handbrandsläckare",
     sprinkler_head: "Sprinkler",

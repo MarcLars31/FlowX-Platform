@@ -6,7 +6,7 @@ export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "mano
   | "reducer" | "cap" | "branch" | "flange_adapter" | "pump" | "strainer" | "support"
   | "test_drain" | "flushing_connection" | "sprinkler_head" | "sprinkler_guard" | "sprinkler_hose" | "sprinkler_cabinet"
   | "water_meter" | "sensor_pocket" | "foam_extinguisher" | "portable_fire_extinguisher"
-  | "custom_fabrication" | "generic";
+  | "toilet" | "shower_set" | "custom_fabrication" | "generic";
 
 /** The row's product and attributes govern retrieval, before included parts. */
 export function ahlsellRequirementIntent(requirement: Record<string, unknown>): AhlsellProductIntent {
@@ -19,6 +19,11 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   const detail = normalize(`${value.technicalSpecification ?? ""} ${value.sourceText ?? ""} ${requirement.source_excerpt ?? ""}`);
   const has = (pattern: RegExp) => pattern.test(source);
   const category = String(requirement.category ?? "");
+
+  // The main product wins over included valves and stale extraction categories.
+  // Keep this anchored so a valve described as "for WC" remains a valve.
+  if (/^(?:(?:komplett|elektrisk|hoydejusterbar|hojdjusterbar|vegghengt|vagghangd|veggmontert|vaggmonterad|gulvstaende|golvstaende)\s+)*(?:klosett|toalett(?:modul|kassett)?|wc|toilet)\b/.test(normalize(description))) return "toilet";
+  if (/^(?:(?:komplett|veggmontert|vaggmonterad)\s+)*(?:dusj|dusch|handdusj|handdusch|dusjsett|duschset)\b/.test(normalize(description))) return "shower_set";
 
   if (has(/\b(handslokker|handslukker|handslokkeapparat|brannslokker|brannslukker)\b/)) {
     return has(/\b(skum|foam)\b/) ? "foam_extinguisher" : "portable_fire_extinguisher";

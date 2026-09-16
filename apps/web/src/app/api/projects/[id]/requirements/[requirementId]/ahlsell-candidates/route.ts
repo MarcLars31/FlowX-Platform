@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { AHLSELL_MLDL_CATALOG_VERSION, AHLSELL_MLDL_PRODUCT_COUNT } from "@/lib/ahlsell-mldl-catalog";
-import { findMldlOnlyCandidates } from "@/lib/ahlsell-mldl-matching";
 import { findAhlsellHybridCandidates } from "@/lib/ahlsell-hybrid-matching";
-import { classifyAhlsellCatalogCandidates } from "@/lib/ahlsell-match-groups";
+import { ahlsellCatalogStatusFromPayload } from "@/lib/ahlsell-match-groups";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { PRODUCT_MATCHING_ENGINE_VERSION, productLearningCandidateSnapshots } from "@/lib/product-learning-feedback";
@@ -54,14 +53,17 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404 });
     }
 
+    const result = await findAhlsellHybridCandidates(requirement);
     if (classificationMode) {
-      // Keep the whole-table classification local; public search runs when a
-      // product card opens instead of starting dozens of searches on page load.
-      return NextResponse.json({ classification: classifyAhlsellCatalogCandidates(findMldlOnlyCandidates(requirement, 30)) }, {
+      // The automatic queue searches the same public assortment as the card,
+      // including products that have no MLDL entry.
+      return NextResponse.json({
+        classification: ahlsellCatalogStatusFromPayload(result),
+        publicSearchStatus: result.publicSearchStatus, truncated: result.truncated, fullSearch: true
+      }, {
         headers: { "Cache-Control": "private, no-store" }
       });
     }
-    const result = await findAhlsellHybridCandidates(requirement);
     const { candidates } = result;
     await recordCandidateImpression({
       projectId: id, requirementId, candidates,

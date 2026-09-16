@@ -28,6 +28,8 @@ export function distributorRequirementKind(
   if (distributorRequirementOperation(requirement) === "remove") return "remove";
   const value = record(requirement.value_json);
   if (/^(?:rs|rund sum)$/i.test(String(value.unit ?? "").trim())) return "work";
+  const heading = normalize(String(requirement.display_name ?? requirement.value_text ?? ""));
+  if (/^(?:forberedende moter|byggemoter|byggemote|prosjekteringsmoter)\b/.test(heading)) return "work";
   const searchable = normalize([
     requirement.category,
     requirement.requirement_key,

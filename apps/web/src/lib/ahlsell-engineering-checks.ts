@@ -18,6 +18,14 @@ export function engineeringRequirementWarnings(
   // technical product evidence.
   const productText = `${candidate.productName} ${candidate.description ?? ""} ${candidate.specifications.join(" ")}`;
   const warnings: string[] = [];
+  if (intent === "shower_set") {
+    warnings.push("Duschens kompletta leveransomfattning och tilläggskraven i PDF-posten behöver verifieras. Kontrollera blandare, handdusch, slang, stång samt eventuella stödhandtag, duschsits och belastningskrav.");
+  }
+  if (intent === "toilet") {
+    // Sanitary assemblies have requirements outside the pipe/sprinkler checks.
+    // A matching family or inherited exact flag cannot verify the complete unit.
+    warnings.push("Toalettens montage, cistern, sits och tilläggskraven i PDF-posten behöver verifieras mot produktunderlaget, inklusive eventuell elektrisk höjdjustering, belastning och tillbehör.");
+  }
   const comment = String(attributes["pdf-kommentar"] ?? "");
   if (comment && !/^\s*\d{6,8}(?:N5)?\s*$/i.test(comment)) {
     warnings.push(`PDF-kommentaren innehåller en reservation eller flera delar som behöver granskas: ${comment}`);
@@ -55,6 +63,9 @@ export function engineeringRequirementWarnings(
   }
   if (intent === "sprinkler_cabinet") {
     warnings.push("Reservsprinklerskåpets innehåll, antal huvuden och sprinklernycklar behöver kontrolleras mot den kompletta posten.");
+  }
+  if (intent === "wet_alarm_valve" && /retarda(?:sjons|tions?)kamm(?:er|are)|retard chamber/i.test(`${requirementText} ${detail}`)) {
+    warnings.push("PDF-posten kräver retardationskammare för tryckutjämning. Kontrollera att rätt kammare ingår i ventilsetets leverans.");
   }
   if (["wet_alarm_valve", "water_meter", "test_drain", "flushing_connection", "sensor_pocket", "pump", "strainer", "flange_adapter"].includes(intent)
     && /komplett|inkl\.|medta|automatisk returspyling|følerlomme|overgang fra pe til stål/i.test(`${requirementText} ${detail}`)) {

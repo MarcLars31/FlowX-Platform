@@ -1,6 +1,7 @@
 import { attachAhlsellAccessorySuggestions } from "./ahlsell-accessory-suggestions";
 import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
-import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
+import { hasAhlsellProductFamilyMismatch, isAhlsellSignageCandidate, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
+import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
 import { ahlsellMldlCandidate, ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
 import { findMldlOnlyCandidates } from "./ahlsell-mldl-matching";
 import { ahlsellMarketFromSearchUrl, searchAhlsellPublicCatalogQueries, type AhlsellCatalogResult } from "./ahlsell-public-catalog";
@@ -17,11 +18,11 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
   const value = requirement.value_json as { attributes?: Record<string, unknown> } | undefined;
   const commentArticle = String(value?.attributes?.["pdf-kommentar"] ?? "").match(/\b\d{6,8}(?:N5)?\b/i)?.[0];
   const primaryArticle = commentArticle ?? local.find(candidate => technicalConflictWarnings(candidate).length === 0)?.articleNumber;
-  const queries = [...new Set([...(primaryArticle ? [primaryArticle] : []), ...guide.searchQueries.slice(0, 2)])];
+  const queries = [...new Set([...(primaryArticle ? [primaryArticle] : []), ...guide.searchQueries])];
   // Check the leading MLDL article by its exact NRF, independently of the
   // broader family search, which may return a different variant of that family.
   const [search, exact] = await Promise.allSettled([
-    searchAhlsellPublicCatalogQueries({ market, queries: guide.searchQueries.slice(0, 2), fetchImpl, maxCandidates: 40, maxPages: 2, maxVariantFamilies: 4 }),
+    searchAhlsellPublicCatalogQueries({ market, queries: guide.searchQueries, fetchImpl, maxCandidates: 40, maxPages: 2, maxVariantFamilies: 4 }),
     primaryArticle ? lookupAhlsellProduct({ query: primaryArticle, market, fetchImpl }) : Promise.resolve(null)
   ]);
   const result = search.status === "fulfilled" ? search.value : null;
@@ -29,7 +30,7 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
     .filter(product => articleKey(product.articleNumber) === articleKey(primaryArticle ?? "")) : [];
   const publicByArticle = new Map((result?.candidates ?? []).map(candidate => [articleKey(candidate.articleNumber), candidate]));
   for (const candidate of exactProducts) publicByArticle.set(articleKey(candidate.articleNumber), candidate);
-  const publicCandidates = [...publicByArticle.values()];
+  const publicCandidates = excludeUnrelatedMainProducts(requirement, [...publicByArticle.values()]);
   const preliminary = rankAhlsellCandidates(requirement, publicCandidates);
   const detailCandidates = [...new Map([
     ...preliminary.filter(candidate => ahlsellMldlProduct(candidate.articleNumber)).slice(0, 3),
@@ -60,7 +61,7 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
     } : candidate);
   }
   const candidates = complementMldlCandidates(requirement, local, [...detailedByArticle.values()], aliases);
-  const failedQueries = [...(result?.failedQueries ?? (search.status === "rejected" ? guide.searchQueries.slice(0, 2) : [])),
+  const failedQueries = [...(result?.failedQueries ?? (search.status === "rejected" ? guide.searchQueries : [])),
     ...(exact.status === "rejected" && primaryArticle ? [primaryArticle] : [])];
   const anySearchSucceeded = search.status === "fulfilled" || (Boolean(primaryArticle) && exact.status === "fulfilled");
   return {
@@ -108,7 +109,18 @@ export function complementMldlCandidates(requirement: Record<string, unknown>, l
       description: publicCandidate.description, productUrl: publicCandidate.productUrl,
       source: publicCandidate.source, evidenceSources: ["ahlsell_public" as const] };
   });
-  return attachAhlsellAccessorySuggestions(requirement, mergeAhlsellCandidates([...reassessedLocal.values()], rankedPublic));
+  return attachAhlsellAccessorySuggestions(requirement, excludeUnrelatedMainProducts(requirement,
+    mergeAhlsellCandidates([...reassessedLocal.values()], rankedPublic)));
+}
+
+function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
+  const intent = ahlsellRequirementIntent(requirement);
+  if (intent === "shower_set" || intent === "toilet") {
+    return candidates.filter(candidate => !hasAhlsellProductFamilyMismatch(intent, candidate.productName));
+  }
+  return intent === "wet_alarm_valve" || intent === "dry_alarm_valve"
+    ? candidates.filter(candidate => !isAhlsellSignageCandidate(candidate))
+    : candidates;
 }
 
 function articleKey(value: string) {

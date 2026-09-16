@@ -4,7 +4,7 @@ import { technicalConflictWarnings } from "./ahlsell-technical-conflicts";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
 
 export type AhlsellMatchGroup = "green" | "yellow" | "red";
-export type AhlsellCatalogMatchStatus = "safe" | "found" | "none";
+export type AhlsellCatalogMatchStatus = "safe" | "found" | "none" | "incomplete";
 export type AhlsellCatalogAssessment = { revision: string; status: AhlsellCatalogMatchStatus; fullSearch: boolean };
 
 export function mergeAhlsellCatalogAssessments(
@@ -14,6 +14,7 @@ export function mergeAhlsellCatalogAssessments(
   const next = { ...current };
   for (const [id, result] of Object.entries(incoming)) {
     const previous = next[id];
+    if (previous?.revision === result.revision && previous.fullSearch && previous.status !== "incomplete" && result.status === "incomplete") continue;
     if (previous?.revision === result.revision && previous.fullSearch && !result.fullSearch) continue;
     next[id] = result;
   }
@@ -21,7 +22,7 @@ export function mergeAhlsellCatalogAssessments(
 }
 
 export function isAhlsellCatalogMatchStatus(value: unknown): value is AhlsellCatalogMatchStatus {
-  return value === "safe" || value === "found" || value === "none";
+  return value === "safe" || value === "found" || value === "none" || value === "incomplete";
 }
 
 export function classifyAhlsellCatalogCandidates(
@@ -46,9 +47,12 @@ export function classifyAhlsellCatalogCandidates(
 export function ahlsellCatalogStatusFromPayload(value: unknown): AhlsellCatalogMatchStatus | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const payload = value as Record<string, unknown>;
-  if (isAhlsellCatalogMatchStatus(payload.classification)) return payload.classification;
+  const incomplete = payload.publicSearchStatus === "unavailable" || payload.publicSearchStatus === "partial" || payload.truncated === true;
+  if (isAhlsellCatalogMatchStatus(payload.classification)) {
+    return payload.classification === "none" && incomplete ? "incomplete" : payload.classification;
+  }
   if (!Array.isArray(payload.candidates)) return null;
-  return classifyAhlsellCatalogCandidates(
+  const classification = classifyAhlsellCatalogCandidates(
     payload.candidates.filter((candidate): candidate is {
       recommendation?: "recommended" | "possible" | "unlikely";
       matchScore?: number;
@@ -59,6 +63,7 @@ export function ahlsellCatalogStatusFromPayload(value: unknown): AhlsellCatalogM
       Boolean(candidate) && typeof candidate === "object" && !Array.isArray(candidate)
     )
   );
+  return classification === "none" && incomplete ? "incomplete" : classification;
 }
 
 type RequirementRow = Record<string, unknown> & { id: string };

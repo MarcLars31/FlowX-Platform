@@ -2,7 +2,7 @@ import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { ahlsellCandidateMatchState, type AhlsellCandidateMatchState } from "@/lib/ahlsell-candidate-ranking";
 
 export const MAX_RECORDED_PRODUCT_CANDIDATES = 3;
-export const PRODUCT_MATCHING_ENGINE_VERSION = "mldl-ahlsell-complement-2026-09-15.2";
+export const PRODUCT_MATCHING_ENGINE_VERSION = "ahlsell-automatic-assortment-2026-09-16.1";
 
 export type ProductLearningCandidateSnapshot = {
   rank: number;

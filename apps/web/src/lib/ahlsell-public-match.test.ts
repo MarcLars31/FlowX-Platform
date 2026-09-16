@@ -3,6 +3,14 @@ import test from "node:test";
 import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
 import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 
+test("does not turn an unrecognised sanitary product into a sprinkler search", () => {
+  for (const category of ["unknown", "control"]) {
+    const guide = buildAhlsellRequirementGuide({ category, value_text: "SERVANT MED BLANDEBATTERI" });
+    assert.deepEqual(guide.searchQueries, ["SERVANT MED BLANDEBATTERI"]);
+    assert.doesNotMatch(guide.criteria.join(" "), /sprinkler/i);
+  }
+});
+
 test("keeps accessory review on MLDL direct candidates", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "sprinkler_head", value_text: "SPRINKLER",
@@ -330,7 +338,8 @@ test("keeps valve searches concise so Ahlsell can return relevant candidates", (
     value_json: { attributes: { dimensjon: "DN100" } }
   });
 
-  assert.equal(guide.searchQuery, "Sprinklersentral");
+  assert.equal(guide.searchQuery, "Alarmventil våt DN100");
+  assert.ok(guide.searchQueries.includes("Sprinklersentral våt 114.3mm"));
   assert.doesNotMatch(guide.searchQuery, /KONTROLLVENTILSETT/);
 });
 

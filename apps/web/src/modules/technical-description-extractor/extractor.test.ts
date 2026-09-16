@@ -1,6 +1,117 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { extractTechnicalDescriptionFromPages } from "./extractor";
+import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
+
+test("preserves quantified alarm, valve, flowmeter and reserve cabinet posts without price columns", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 23,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "Postnr: NS-kode/Spesifikasjon Enh. Mengde Pris Sum",
+        "33.3.2 UE2.211A",
+        "KONTROLLVENTILSETT FOR SPRINKLERANLEGG",
+        "Antall stk 1",
+        "Type kontrollventilsett: Våt alarmventil",
+        "Dimensjon (DN): 65",
+        "33.3.2.1 ALARMGIVER",
+        "Det skal leveres og monteres komplett sett inkl. ekstra",
+        "alarmgiver for montasje på alarmventilsett",
+        "Type Tyco KIT5 el. tilsvarende stk 2",
+        "33.3.5 TRYKKBRYTER FOR OVERVÅKING AV VANNTRYKK",
+        "Antall stk 1",
+        "33.3.6 UC1",
+        "Innendørs stengeventiler",
+        "Andre krav: Nei",
+        "33.3.6.2 DN65 Med signal for overvåking av ventilposisjon stk 3",
+        "33.3.6.3 DN 65 til kapasitetsmåler uten overvåking",
+        "Antall stk 2",
+        "Sum denne side:"
+      ].join("\n")
+    },
+    {
+      pageNumber: 24,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.3.7 KAPASITETSMÅLER",
+        "Strømningsmåler for full vannmengdekontroll",
+        "Måleområde: 300 - 3000 l/min",
+        "Antall",
+        "33.3.7.1 DN65 stk 1",
+        "33.3.8 DRENERINGSVENTILER",
+        "Se sprinklertegninger for nødvendig antall dreneringsventiler.",
+        "Dreneringsventiler sikres med rem og hengelås. RS",
+        "Sum denne side:"
+      ].join("\n")
+    },
+    {
+      pageNumber: 28,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.4.25 VEGGSKAP MED RESERVEUTSTYR",
+        "Plasseres ved sprinklersentral.",
+        "24 stk reservesprinklere med min 3 av hver installert type",
+        "med tilhørende sprinklernøkkel.",
+        "Komplett veggskap med innhold levert og montert. stk 1",
+        "Sum denne side:"
+      ].join("\n")
+    }
+  ]);
+
+  assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.quantity, line.unit]), [
+    ["33.3.2", 1, "st"],
+    ["33.3.2.1", 2, "st"],
+    ["33.3.5", 1, "st"],
+    ["33.3.6.2", 3, "st"],
+    ["33.3.6.3", 2, "st"],
+    ["33.3.7.1", 1, "st"],
+    ["33.3.8", 1, "RS"],
+    ["33.4.25", 1, "st"]
+  ]);
+  const monitored = result.materialLines.find(line => line.postNumber === "33.3.6.2")!;
+  const unmonitored = result.materialLines.find(line => line.postNumber === "33.3.6.3")!;
+  assert.doesNotMatch(monitored.sourceText, /uten overvåking/);
+  assert.doesNotMatch(unmonitored.sourceText, /Med signal/);
+  assert.equal(monitored.nsCode, "UC1");
+  const meter = result.materialLines.find(line => line.postNumber === "33.3.7.1")!;
+  assert.equal(meter.parentPostNumber, "33.3.7");
+  assert.equal(meter.attributes["måleområde"], "300 - 3000 l/min");
+  assert.match(meter.technicalSpecification!, /KAPASITETSMÅLER/);
+  assert.equal(result.warnings.some(warning => warning.code === "MISSING_QUANTITY"), false);
+
+  const groups = splitDistributorRequirementLines(result.materialLines.map(line => ({
+    id: line.id, value_text: line.description, value_json: line, source_excerpt: line.sourceText
+  })));
+  assert.equal(groups.productRequirements.length, 7);
+  assert.deepEqual(groups.workRequirements.map(row => row.value_json.postNumber), ["33.3.8"]);
+});
+
+test("keeps an explicit removal quantity when the description also says Rund sum", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 17,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt: Sprinkleranlegg og sanitæranlegg",
+      "Kapittel: 31 Sanitær",
+      "31.4.4 CD3.11699A",
+      "DEMONTERING AV BYGNINGSDEL – RUND SUM",
+      "Rund sum stk 14",
+      "Bygningsdel: Servant, toalett, dusjgranityr",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+  assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.quantity, line.unit, line.operation]), [
+    ["31.4.4", 14, "st", "remove"]
+  ]);
+});
 import type { TechnicalDescriptionPage } from "./types";
 
 test("retains wrapped numbered heads, guards, litres and lump-sum work without reading price zeroes as quantity", () => {

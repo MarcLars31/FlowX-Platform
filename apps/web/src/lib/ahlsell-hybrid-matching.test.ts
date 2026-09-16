@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { complementMldlCandidates, findAhlsellHybridCandidates } from "./ahlsell-hybrid-matching";
 import { findMldlOnlyCandidates } from "./ahlsell-mldl-matching";
-import { rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
-import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
+import { ahlsellCandidateMatchState, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
+import { ahlsellMldlCandidate, ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
+import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { buildAhlsellRequirementGuide } from "./ahlsell-public-match";
+import { ahlsellCatalogStatusFromPayload } from "./ahlsell-match-groups";
 
 test("uses a positioned comment's article as a search hint without copying its dimensions into the specification", () => {
   const guide = buildAhlsellRequirementGuide({ category: "pipe", value_text: "DN80", value_json: { unit: "m", attributes: {
@@ -38,6 +40,162 @@ const card = (article: string, name = "Sprinklerhoder - Ned") => ({
 });
 const html = (article: string, subtitle: string) => `<h1 data-test="product-name">Sprinklerhoder</h1><div>${subtitle}</div><span class="text-card-item-number"><span>${article}</span></span>`;
 
+const wetAlarmRequirement = {
+  category: "valve", value_text: "KONTROLLVENTILSETT FOR SPRINKLERANLEGG",
+  value_json: { nsCode: "UE2.211A", postNumber: "33.3.2", quantity: 1, unit: "stk", attributes: {
+    "type kontrollventilsett": "Våt alarmventil", "dimensjon (dn)": "65", trykk: "12 bar",
+    "type tilkobling": "Rille eller flens"
+  }, technicalSpecification: "Ventilen skal leveres med retardasjonskammer for trykkutgjevning" }
+};
+
+const showerRequirement = {
+  category: "control", value_text: "DUSJ MED BLANDEBATTERI",
+  value_json: { nsCode: "UF8.21120A", postNumber: "31.4.3", quantity: 14, unit: "stk", attributes: {
+    type: "Hånddusj montert på glidestang", dusjhode: "Med sparefunksjon", materiale: "Valgfritt",
+    lokalisering: "Bad beboerrom", dusjbatteri: "Valgfritt", utforming: "Se tekst under.", slange: "Valgfritt",
+    "avvik i plassering": "maks ±5 mm.", "avvik i vinkel": "maks ±1°.",
+    "avstand mellom dusjstang og vegg": "iht. monteringsanvisning."
+  }, technicalSpecification: "Komplett hånddusj med blandebatteri, vinkelformet støttehåndtak, dusjsett og dusjsete. "
+    + "Trykkstyrt dusjarmatur med integrert temperatursperre. Dusjstang minimum 1000 mm vertikal og 400 mm horisontal lengde, "
+    + "belastningstestet for minimum 500 kg. Dusjsete skal tåle minimum 500 kg, kunne høydejusteres og slås opp mot vegg." }
+};
+const showerWrongProducts = [
+  ["9254797", '1/2" luft trim-sett 757 f/serie 768-769 -Fire'],
+  ["9255764", "76.1mm Flow Switch VSR-2 m/30 sek forsinkelse VDS Fire"],
+  ["9254852", "Akselerator D746 f/768/769 Lap dry -Fire"],
+  ["9253499", "Spjeldventil VIC 705, åpen overvåkning, Victaulic FireLock"],
+  ["9254844", "Sprinklerklokke. Vic D760, Victaulic, FireLock"],
+  ["9255866", "Dreneringssett Vic 751, Victaulic Fire"],
+  ["9256178", "Lavtrykksaktuator"],
+  ["PRØVEJOURNAL2021", "Prøvejournal Sprinkler"]
+].map(([article, name]) => ({
+  ...(ahlsellMldlCandidate(article) ?? candidate(article, name)), productName: name,
+  exactMatch: true, recommendation: "recommended" as const, matchScore: 100
+}));
+
+test("classifies shower post 31.4.3 independently of stale sprinkler categories and mounting tolerances", () => {
+  for (const category of ["unknown", "control", "valve", "sprinkler_head"]) {
+    const req = { ...showerRequirement, category };
+    assert.equal(ahlsellRequirementIntent(req), "shower_set");
+    assert.deepEqual(findMldlOnlyCandidates(req), []);
+    const guide = buildAhlsellRequirementGuide(req);
+    assert.deepEqual(guide.searchQueries, ["Dusjsett med blandebatteri", "Dusjbatteri hånddusj glidestang", "Dusjsett"]);
+    assert.doesNotMatch(guide.criteria.join(" "), /sprinkler|HSW|DN\d|K\d|\d+°C/i);
+  }
+  assert.equal(ahlsellRequirementIntent({ category: "valve", value_text: "Kuleventil for dusj DN15" }), "ball_valve");
+});
+
+test("rejects all eight sprinkler suggestions for the shower, including inherited exact matches and merged sources", () => {
+  const ranked = rankAhlsellCandidates(showerRequirement, showerWrongProducts);
+  assert.equal(ranked.length, 8);
+  for (const product of ranked) {
+    assert.equal(ahlsellCandidateMatchState(product), "mismatch", product.articleNumber);
+    assert.equal(product.exactMatch, false);
+  }
+  assert.deepEqual(complementMldlCandidates(showerRequirement, showerWrongProducts, showerWrongProducts), []);
+});
+
+test("does not show or fetch details for unrelated sprinkler results returned by a shower search", async () => {
+  const queries: string[] = [];
+  const result = await findAhlsellHybridCandidates(showerRequirement, async input => {
+    const url = new URL(String(input));
+    assert.equal(url.pathname, "/api/search");
+    queries.push(url.searchParams.get("parameters.SearchPhrase")!);
+    return Response.json({ productCount: 8, productCards: showerWrongProducts.map(product => card(product.articleNumber, product.productName)) });
+  });
+  assert.deepEqual(queries.sort(), ["Dusjsett med blandebatteri", "Dusjbatteri hånddusj glidestang", "Dusjsett"].sort());
+  assert.equal(result.publicSearchStatus, "available");
+  assert.equal(result.total, 0);
+  assert.deepEqual(result.candidates, []);
+});
+
+test("retains relevant shower components for review without approving a whole accessible shower assembly", () => {
+  const products = ["Dusjsett med hånddusj og glidestang", "Dusjbatteri med temperatursperre", "Dusjsete veggmontert"]
+    .map((name, index) => ({ ...candidate(`test-shower-${index}`, name), exactMatch: true }));
+  const combined = complementMldlCandidates(showerRequirement, [], products);
+  assert.equal(combined.length, 3);
+  for (const product of combined) {
+    assert.equal(ahlsellCandidateMatchState(product), "review");
+    assert.ok(product.matchWarnings?.some(warning => /leveransomfattning.*tilläggskraven/.test(warning)));
+    assert.equal(product.exactMatch, false);
+  }
+});
+
+test("automatically finds a shower outside MLDL using the PDF-derived broader search and reads its product page", async () => {
+  const article = "6200001";
+  assert.equal(ahlsellMldlProduct(article), null);
+  assert.deepEqual(findMldlOnlyCandidates(showerRequirement), []);
+  const queries: string[] = [];
+  let productPageRead = false;
+  const result = await findAhlsellHybridCandidates(showerRequirement, async input => {
+    const url = new URL(String(input));
+    if (url.pathname.startsWith("/products/")) {
+      productPageRead = true;
+      return new Response(html(article, "Dusjsett med sparefunksjon og glidestang").replace("Sprinklerhoder", "Dusjsett"), {
+        headers: { "Content-Type": "text/html" }
+      });
+    }
+    const query = url.searchParams.get("parameters.SearchPhrase")!;
+    queries.push(query);
+    return Response.json({ productCount: query === "Dusjsett" ? 1 : 0,
+      productCards: query === "Dusjsett" ? [{ ...card(article, "Dusjsett med glidestang"), brand: "Test sanitærleverandør" }] : [] });
+  });
+  assert.equal(queries.length, 3);
+  assert.ok(queries.includes("Dusjsett"));
+  assert.equal(productPageRead, true);
+  assert.equal(result.publicSearchStatus, "available");
+  assert.equal(result.candidates.length, 1);
+  assert.equal(result.candidates[0].articleNumber, article);
+  assert.deepEqual(result.candidates[0].evidenceSources, ["ahlsell_public"]);
+  assert.equal(ahlsellCatalogStatusFromPayload(result), "found");
+  assert.equal(result.candidates[0].exactMatch, false);
+});
+
+test("does not fill an unavailable DN65 wet alarm set with signage results", async () => {
+  const queries: string[] = [];
+  assert.deepEqual(findMldlOnlyCandidates(wetAlarmRequirement), []);
+  const result = await findAhlsellHybridCandidates(wetAlarmRequirement, async input => {
+    const url = new URL(String(input));
+    assert.equal(url.pathname, "/api/search", "Signage must not consume product detail lookups");
+    queries.push(url.searchParams.get("parameters.SearchPhrase")!);
+    return Response.json({ productCount: 2, productCards: [
+      { ...card("63819071", "Skiltpakke for sprinklersentral Systemtext"), brand: "Systemtext" },
+      { ...card("test-sign", "Brannskilt Sprinklersentral"), brand: "Systemtext" }
+    ] });
+  });
+  assert.deepEqual(queries.sort(), ["Alarmventil våt DN65", "Sprinklersentral våt 76.1mm"].sort());
+  assert.equal(result.publicSearchStatus, "available");
+  assert.deepEqual(result.candidates, []);
+  assert.equal(result.total, 0);
+});
+
+test("rejects signs for wet and dry alarm sets even with inherited exact-match evidence", () => {
+  const signs = ["Skiltpakke for sprinklersentral Systemtext", "Brannskilt Sprinklersentral", "Sprinklersentral"]
+    .map((name, index) => ({ ...candidate(`sign-${index}`, name), exactMatch: true,
+      description: "Etterlysende skilt for sprinklersentral", matchScore: 100, recommendation: "recommended" as const }));
+  for (const type of ["Våt alarmventil", "Tørr alarmventil"]) {
+    const req = { ...wetAlarmRequirement, value_json: { ...wetAlarmRequirement.value_json,
+      attributes: { ...wetAlarmRequirement.value_json.attributes, "type kontrollventilsett": type } } };
+    for (const sign of rankAhlsellCandidates(req, signs)) {
+      assert.equal(ahlsellCandidateMatchState(sign), "mismatch");
+      assert.equal(sign.exactMatch, false);
+    }
+    assert.deepEqual(complementMldlCandidates(req, signs, signs), []);
+  }
+});
+
+test("retains an actual wet alarm set with included signs while requiring its retard chamber to be checked", () => {
+  const valve = { ...candidate("test-wet-set", "Sprinklersentral våt DN65 med skilt"),
+    description: "Komplett våt alarmventil med alarmfunksjon og skilt. Max arbeidstrykk 16 bar." };
+  const [ranked] = rankAhlsellCandidates(wetAlarmRequirement, [valve]);
+  assert.equal(ahlsellCandidateMatchState(ranked), "review");
+  assert.ok(ranked.matchWarnings?.some(warning => /retardationskammare/.test(warning)));
+  assert.ok(!ranked.matchWarnings?.some(warning => /skylt/.test(warning)));
+  const result = complementMldlCandidates(wetAlarmRequirement, [], [valve]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].articleNumber, "test-wet-set");
+});
+
 test("searches the exact MLDL article, finds public-only articles, and ranks technical subtitles before display", async () => {
   const queries: string[] = [];
   const result = await findAhlsellHybridCandidates({ ...requirement, project_name: "PRIVATE_PROJECT", source_excerpt: "PRIVATE_PDF" }, async input => {
@@ -52,7 +210,7 @@ test("searches the exact MLDL article, finds public-only articles, and ranks tec
   });
   assert.equal(result.publicSearchStatus, "available");
   assert.ok(queries.includes("9257392"));
-  assert.ok(queries.length <= 3);
+  assert.ok(queries.length <= 4);
   assert.ok(!queries.some(query => /PRIVATE_/.test(query)));
   assert.equal(ahlsellMldlProduct("9254111N5"), null);
   const extra = result.candidates.find(c => c.articleNumber === "9254111N5")!;

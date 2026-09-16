@@ -115,6 +115,17 @@ export function ahlsellCandidateMatchState(candidate: AhlsellPublicCandidate): A
   return "review";
 }
 
+/** Identify the sold product, not signs included with a complete valve set. */
+export function isAhlsellSignageCandidate(candidate: Pick<AhlsellPublicCandidate, "productName" | "description" | "specifications">) {
+  const mainName = normalize(candidate.productName).split(/\b(?:med|with|inkl|inkludert|inklusive|including)\b/)[0];
+  const signage = /\b(?:skilt|skiltpakke|skiltsett|brannskilt|sprinklerskilt|skylt|skyltpaket|signage|sign)\b/;
+  if (signage.test(mainName)) return true;
+  if (candidate.specifications.some(spec => /^(?:produkttype|produkttyp|product type)\s+/.test(normalize(spec)) && signage.test(normalize(spec)))) return true;
+  // Some cards use only the text printed on the sign as their title.
+  return /^(?:sprinklersentral|sprinklercentral)$/.test(mainName.trim())
+    && /^(?:(?:etterlysende|etterlysande|brann|systemtext)\s+)*(?:skilt|brannskilt|skylt|sign)\b/.test(normalize(candidate.description ?? ""));
+}
+
 function confidenceTier(candidate: AhlsellPublicCandidate) {
   if (technicalConflictWarnings(candidate).length) return 5;
   if (isExactAhlsellCandidate(candidate)) return 0;
@@ -218,9 +229,17 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   const warnings: string[] = [...requirement.reviewWarnings, ...(candidate.matchWarnings ?? [])]
     .filter(message => !isSprinklerAccessoryReviewWarning(message));
   let score = 0;
+  const signage = isAhlsellSignageCandidate(candidate);
+  if ((requirement.intent === "wet_alarm_valve" || requirement.intent === "dry_alarm_valve") && signage) {
+    warnings.push("Fel produkttyp: träffen är en skylt, inte ett kontrollventilset.");
+  }
 
-  if (requirement.intent === "wet_alarm_valve") {
-    score += scoreWetAlarmValve(candidateText, reasons, warnings, requirement.text);
+  if (requirement.intent === "toilet") {
+    score += scoreNamedProductFamily(candidateName, /\b(klosett|toalett(?:modul|kassett)?|wc|toilet)\b/, "Produkten tillhör toalettfamiljen; komplett utförande behöver kontrolleras.", reasons);
+  } else if (requirement.intent === "shower_set") {
+    score += scoreNamedProductFamily(candidateName, SHOWER_PRODUCT_PATTERN, "Produkten tillhör duschfamiljen; komplett leveransomfattning behöver kontrolleras.", reasons);
+  } else if (requirement.intent === "wet_alarm_valve") {
+    score += scoreWetAlarmValve(candidateText, reasons, warnings, requirement.text, signage);
   } else if (requirement.intent === "dry_alarm_valve") {
     score += scoreNamedProductFamily(candidateText, /\b(sprinklersentral|alarmventil)\b/, "Produkten är en sprinklersentral/alarmventil.", reasons);
     score += scoreNamedProductFamily(candidateText, /\b(torr|dry|d769n)\b/, "Utförandet är avsett för torrt sprinklersystem.", reasons);
@@ -385,8 +404,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     warnings.push("Posten verkar vara specialtillverkad och måste verifieras via offert eller manuellt produktval.");
   }
 
-  const familyPattern = PRODUCT_FAMILY_PATTERNS[requirement.intent];
-  if (familyPattern && !familyPattern.test(candidateName)) {
+  if (hasAhlsellProductFamilyMismatch(requirement.intent, candidate.productName)) {
     warnings.push("Fel produkttyp: träffen motsvarar inte den huvudprodukt som PDF-posten kräver.");
   }
   if (requirement.intent === "pipe" && /\b(?:[ty] ror|grenror|tee|sprinkler t|anb klammer)\b/.test(candidateName)) {
@@ -411,7 +429,11 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     matchWarnings: [...new Set(warnings)], recommendation, exactMatch, requiresAccessoryReview });
 }
 
+const SHOWER_PRODUCT_PATTERN = /\b(?:dusj|dusch|handdusj|handdusch|dusjsett|duschset|duschpaket|dusjbatteri|duschblandare|dusjarmatur|duscharmatur|dusjstang|duschstang|dusjhode|duschhuvud|dusjsete|duschsits|shower)\b/;
+
 const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
+  toilet: /\b(klosett|toalett(?:modul|kassett)?|wc|toilet)\b/,
+  shower_set: SHOWER_PRODUCT_PATTERN,
   pipe: /\b(ror|stalror|sprinklerror|konstruksjonsror|red pipe|pipe)\b/,
   wet_alarm_valve: /\b(sprinklersentral|alarmventil|alarm valve|alarm check valve)\b/,
   dry_alarm_valve: /\b(sprinklersentral|sprinklerventil|alarmventil|dry valve)\b/,
@@ -426,6 +448,12 @@ const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
   sprinkler_cabinet: /\b(sprinklerskap|skap|cabinet)\b/,
   test_drain: /\b(test.*drener|drener.*test|testventil|inspector|test.*drain|spyleventil)\b/
 };
+
+/** Family compatibility is necessary, but does not verify a complete assembly. */
+export function hasAhlsellProductFamilyMismatch(intent: ProductIntent, productName: string) {
+  const pattern = PRODUCT_FAMILY_PATTERNS[intent];
+  return pattern !== undefined && !pattern.test(normalize(productName));
+}
 
 function hasCompleteTechnicalEvidence(
   candidateText: string,
@@ -473,9 +501,8 @@ function hasCompleteTechnicalEvidence(
   return true;
 }
 
-function scoreWetAlarmValve(candidateText: string, reasons: string[], warnings: string[], requirementText: string) {
+function scoreWetAlarmValve(candidateText: string, reasons: string[], warnings: string[], requirementText: string, signage: boolean) {
   let score = 0;
-  const signage = /\b(skilt|skiltpakke|systemtext)\b/.test(candidateText);
   const sparePart = /\b(pakningssett|reservedel|spare part)\b/.test(candidateText);
   if (/\bsprinklersentral\b/.test(candidateText) && !signage && !sparePart) {
     score += 30;
@@ -507,7 +534,6 @@ function scoreWetAlarmValve(candidateText: string, reasons: string[], warnings: 
   }
   if (signage) {
     score -= 60;
-    warnings.push("Träffen är en skylt och inte den tekniska ventilprodukten.");
   }
   if (sparePart) {
     score -= 40;
