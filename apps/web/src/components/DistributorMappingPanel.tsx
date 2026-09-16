@@ -1297,12 +1297,16 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setAccessories(nextAccessories);
     setAccessoryOwnerProductNumber(nextAccessories.length > 0 ? selection.productNumber : "");
     setAccessoriesExpanded(nextAccessories.length > 0);
-    const firstComponent = assemblyPlan?.components.find(component => !component.optional);
+    const firstComponent = assemblyPlan?.kind === "pipe" ? undefined : assemblyPlan?.components.find(component => !component.optional);
     setAccessoryComponentId(firstComponent?.id ?? null);
     setAccessoryLookupOpen(Boolean(firstComponent));
     setSuggestedAccessories(accessorySuggestions);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
+    if (assemblyPlan?.kind === "pipe") window.requestAnimationFrame(() => {
+      document.getElementById(`selected-pipe-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById(`selected-pipe-${requirement.id}`)?.focus({ preventScroll: true });
+    });
   }
 
   function applyMemory(memory: Row, resolved?: { productName?: string; productSubtitle?: string }) {
@@ -1417,11 +1421,16 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   function openAccessoryLookup(component?: AssemblyComponent) {
     if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
+    if (component && accessoryLookupOpen && accessoryComponentId === component.id) {
+      setAccessoryLookupOpen(false);
+      return;
+    }
     setAccessoryComponentId(component?.id ?? null);
     setAccessoryLookupOpen(true);
     window.requestAnimationFrame(() => {
-      document.getElementById(`accessory-lookup-card-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      document.getElementById(`ahlsell-accessory-lookup-${requirement.id}`)?.focus();
+      const target = component ? `assembly-parts-${requirement.id}-${component.id}-trigger` : `accessory-lookup-card-${requirement.id}`;
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (!component) document.getElementById(`ahlsell-accessory-lookup-${requirement.id}`)?.focus();
     });
   }
 
@@ -1444,6 +1453,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setHasUnapprovedChanges(true);
     setDraftNotice(`Tillbehöret med NRF-nummer ${candidate.articleNumber} har lagts till för kontroll.`);
     onError("");
+    if (accessoryComponent) window.requestAnimationFrame(() => {
+      const trigger = document.getElementById(`assembly-parts-${requirement.id}-${accessoryComponent.id}-trigger`);
+      trigger?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      trigger?.focus({ preventScroll: true });
+    });
   }
 
   function addManualAccessory() {
@@ -1681,6 +1695,17 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     void saveResolution("not_in_assortment");
   }
 
+  const accessoryLookup = accessoryLookupOpen && productNumber.trim() ? (
+    <section id={`accessory-lookup-card-${requirement.id}`} aria-label={accessoryComponent ? `Produktalternativ för ${accessoryComponent.label}` : "Lägg till tillbehör från Ahlsell"} className="scroll-mt-24 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h5 className="text-sm font-bold text-ink-950">{accessoryComponent ? `Alternativ för ${accessoryComponent.label}` : "Lägg till tillbehör"}</h5>
+        <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => setAccessoryLookupOpen(false)}>Stäng tillbehörssökning</Button>
+      </div>
+      <AhlsellProductLookup key={`${productNumber}:${accessoryComponentId ?? "manual"}`} projectId={projectId} requirementId={requirement.id} id={`ahlsell-accessory-lookup-${requirement.id}`} accessory automaticQuery={accessoryQuery} componentKind={accessoryComponent?.kind} componentId={accessoryComponent?.id} mainArticleNumber={productNumber} disabled={saving || selectedProductAccessories.length >= 20} onSelect={applyAhlsellAccessory} />
+      <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addManualAccessory} disabled={saving || selectedProductAccessories.length >= 20}>Registrera tillbehör manuellt</Button>
+    </section>
+  ) : null;
+
   return (
     <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-ink-200 bg-ink-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
@@ -1860,7 +1885,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </section>
           )}
 
-          <div id={`ahlsell-products-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
+          <div id={`ahlsell-products-${requirement.id}`} hidden={Boolean(productNumber.trim() && assemblyPlan?.kind === "pipe")} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
             <AhlsellPublicMatchPanel
               projectId={projectId}
               requirementId={requirement.id}
@@ -1884,22 +1909,26 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             />
           </div>
 
-          {productNumber.trim() && assemblyPlan && <ProductAssemblyParts id={`assembly-parts-${requirement.id}`} plan={assemblyPlan}
-            mainProductName={productName || `NRF ${productNumber}`} accessories={selectedProductAccessories} disabled={saving || selectedProductAccessories.length >= 20} onChoose={openAccessoryLookup} />}
-
-          {accessoryLookupOpen && productNumber.trim() && (
-            <section id={`accessory-lookup-card-${requirement.id}`} aria-label="Lägg till tillbehör från Ahlsell" className="scroll-mt-24 rounded-md border-2 border-flow-300 bg-white p-4">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <h5 className="text-base font-bold text-ink-950">{accessoryComponent?.label ?? "Lägg till tillbehör"}</h5>
-                  <p className="mt-1 text-xs leading-5 text-ink-600">Välj tillbehör från Ahlsell till NRF {productNumber.trim()}. Kontrollera att tillbehöret passar huvudprodukten.</p>
-                </div>
-                <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => setAccessoryLookupOpen(false)}>Stäng tillbehörssökning</Button>
+          {productNumber.trim() && assemblyPlan?.kind === "pipe" && (
+            <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valt rör" className="scroll-mt-80 rounded-md border border-flow-300 bg-flow-50 p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600 lg:scroll-mt-52">
+              <p className="text-xs font-bold uppercase tracking-wide text-flow-800">Valt rör</p>
+              <h5 className="mt-1 text-base font-bold text-ink-950">{productName || `NRF ${productNumber}`}</h5>
+              {productSubtitle && <p className="mt-1 text-sm text-ink-700">{productSubtitle}</p>}
+              <p className="mt-1 text-sm font-semibold text-flow-800">NRF {productNumber}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" onClick={showAllProductAlternatives}>Byt rör</Button>
+                <Button type="button" variant="ghost" onClick={clearSelectedProduct}>Ta bort val</Button>
               </div>
-              <AhlsellProductLookup key={`${productNumber}:${accessoryComponentId ?? "manual"}`} projectId={projectId} requirementId={requirement.id} id={`ahlsell-accessory-lookup-${requirement.id}`} accessory automaticQuery={accessoryQuery} componentKind={accessoryComponent?.kind} componentId={accessoryComponent?.id} mainArticleNumber={productNumber} disabled={saving || selectedProductAccessories.length >= 20} onSelect={applyAhlsellAccessory} />
-              <Button type="button" variant="secondary" className="mt-4 min-h-9 px-3 py-1.5 text-xs" onClick={addManualAccessory} disabled={saving || selectedProductAccessories.length >= 20}>Registrera tillbehör manuellt</Button>
             </section>
           )}
+
+          {productNumber.trim() && assemblyPlan && <ProductAssemblyParts id={`assembly-parts-${requirement.id}`} plan={assemblyPlan}
+            mainProductName={productName || `NRF ${productNumber}`} accessories={selectedProductAccessories} disabled={saving || selectedProductAccessories.length >= 20}
+            activeComponentId={accessoryLookupOpen ? accessoryComponentId : null} onChoose={openAccessoryLookup}>
+            {accessoryLookup}
+          </ProductAssemblyParts>}
+
+          {accessoryLookup && !accessoryComponent && <div className="rounded-md border-2 border-flow-300 bg-white p-4">{accessoryLookup}</div>}
 
           {productNumber.trim() && suggestedAccessories.length > 0 && (
             <section aria-labelledby={`suggested-accessories-title-${requirement.id}`} className="overflow-hidden rounded-md border border-cyan-300 bg-white">

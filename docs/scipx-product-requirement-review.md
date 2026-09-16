@@ -51,6 +51,11 @@ huvudprodukten i stället för en separat artikel. Artikelvalet kryssar inte
 automatiskt av kraven. Samma flöde gäller kompletta rörlängdsposter, exempelvis 33.2.2.1 och 33.2.2.2.
 Rör är huvudprodukten även när en gammal extraktion har kategorin rördel.
 Ändlock, böjar, T-stycken, kopplingar och upphängning söks separat efter rörvalet.
+När röret väljs fälls huvudförslagen ihop till en sammanfattning av det valda
+röret. Direkt under visas postens tillbehörsgrupper. Användaren klickar på
+en grupp för att starta den förberedda sökningen och se produktalternativen
+i samma rad. Efter tillbehörsvalet stängs alternativen och vald artikel visas
+på gruppen. Användaren kan sedan öppna nästa grupp eller byta/ta bort röret.
 Huvudförslag från katalogen och tidigare val filtreras så att rördelar inte
 kan visas som rör. DN följer aktuell underpost; gängat eller rillat sökord
 hämtas från det valda röret när anslutningen framgår. Tillåtna alternativ i
