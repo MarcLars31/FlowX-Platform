@@ -115,7 +115,7 @@ export function complementMldlCandidates(requirement: Record<string, unknown>, l
 
 function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
   const intent = ahlsellRequirementIntent(requirement);
-  if (intent === "shower_set" || intent === "toilet") {
+  if (intent === "shower_set" || intent === "toilet" || intent === "manifold_cabinet") {
     return candidates.filter(candidate => !hasAhlsellProductFamilyMismatch(intent, candidate.productName));
   }
   return intent === "wet_alarm_valve" || intent === "dry_alarm_valve"

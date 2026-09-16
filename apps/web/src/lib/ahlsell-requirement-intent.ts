@@ -1,4 +1,5 @@
 import { ns3420ProductFamily } from "./ns3420-product-classification";
+import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 
 export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "manometer" | "pressure_switch"
   | "flow_switch" | "ball_valve" | "butterfly_valve" | "shutoff_valve" | "check_valve"
@@ -6,7 +7,7 @@ export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "mano
   | "reducer" | "cap" | "branch" | "flange_adapter" | "pump" | "strainer" | "support"
   | "test_drain" | "flushing_connection" | "sprinkler_head" | "sprinkler_guard" | "sprinkler_hose" | "sprinkler_cabinet"
   | "water_meter" | "sensor_pocket" | "foam_extinguisher" | "portable_fire_extinguisher"
-  | "toilet" | "shower_set" | "custom_fabrication" | "generic";
+  | "toilet" | "shower_set" | "manifold_cabinet" | "custom_fabrication" | "generic";
 
 /** The row's product and attributes govern retrieval, before included parts. */
 export function ahlsellRequirementIntent(requirement: Record<string, unknown>): AhlsellProductIntent {
@@ -21,6 +22,7 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   const category = String(requirement.category ?? "");
 
   // The main product wins over included valves and stale extraction categories.
+  if (isManifoldCabinetProduct(description)) return "manifold_cabinet";
   // Keep this anchored so a valve described as "for WC" remains a valve.
   if (/^(?:(?:komplett|elektrisk|hoydejusterbar|hojdjusterbar|vegghengt|vagghangd|veggmontert|vaggmonterad|gulvstaende|golvstaende)\s+)*(?:klosett|toalett(?:modul|kassett)?|wc|toilet)\b/.test(normalize(description))) return "toilet";
   if (/^(?:(?:komplett|veggmontert|vaggmonterad)\s+)*(?:dusj|dusch|handdusj|handdusch|dusjsett|duschset)\b/.test(normalize(description))) return "shower_set";

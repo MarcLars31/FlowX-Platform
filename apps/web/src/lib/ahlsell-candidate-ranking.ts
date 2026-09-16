@@ -9,6 +9,7 @@ import {
   projectRequirementKFactorDisplayValue
 } from "@/lib/project-requirement-data-warnings";
 import { ahlsellRequirementIntent, type AhlsellProductIntent as ProductIntent } from "./ahlsell-requirement-intent";
+import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { resolvedSprinklerOrientation, sprinklerOrientationSignals } from "@/lib/sprinkler-orientation-lexicon";
 import {
   sprinklerCoverageFromText,
@@ -234,7 +235,12 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     warnings.push("Fel produkttyp: träffen är en skylt, inte ett kontrollventilset.");
   }
 
-  if (requirement.intent === "toilet") {
+  if (requirement.intent === "manifold_cabinet") {
+    if (isManifoldCabinetProduct(candidate.productName)) {
+      score += 65;
+      reasons.push("Produkten är ett fördelarskåp; innehåll och komplett leveransomfattning behöver kontrolleras.");
+    }
+  } else if (requirement.intent === "toilet") {
     score += scoreNamedProductFamily(candidateName, /\b(klosett|toalett(?:modul|kassett)?|wc|toilet)\b/, "Produkten tillhör toalettfamiljen; komplett utförande behöver kontrolleras.", reasons);
   } else if (requirement.intent === "shower_set") {
     score += scoreNamedProductFamily(candidateName, SHOWER_PRODUCT_PATTERN, "Produkten tillhör duschfamiljen; komplett leveransomfattning behöver kontrolleras.", reasons);
@@ -410,9 +416,11 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   if (requirement.intent === "pipe" && /\b(?:[ty] ror|grenror|tee|sprinkler t|anb klammer)\b/.test(candidateName)) {
     warnings.push("Fel produkttyp: en grenrörsdel är inte en rak rörlängd.");
   }
-  score += scoreDimension(candidateText, requirement, reasons, warnings);
-  score += scorePressure(candidateText, requirement, reasons, warnings);
-  score += scoreMaterialAndJoint(candidateText, requirement, reasons, warnings);
+  if (requirement.intent !== "manifold_cabinet") {
+    score += scoreDimension(candidateText, requirement, reasons, warnings);
+    score += scorePressure(candidateText, requirement, reasons, warnings);
+    score += scoreMaterialAndJoint(candidateText, requirement, reasons, warnings);
+  }
 
   const matchScore = Math.max(0, Math.min(100, score));
   const requiresAccessoryReview = requirement.intent === "sprinkler_head" && requirement.requiresAccessoryReview;
@@ -451,6 +459,7 @@ const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
 
 /** Family compatibility is necessary, but does not verify a complete assembly. */
 export function hasAhlsellProductFamilyMismatch(intent: ProductIntent, productName: string) {
+  if (intent === "manifold_cabinet") return !isManifoldCabinetProduct(productName);
   const pattern = PRODUCT_FAMILY_PATTERNS[intent];
   return pattern !== undefined && !pattern.test(normalize(productName));
 }

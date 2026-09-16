@@ -1,6 +1,7 @@
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
+import { MANIFOLD_CABINET_REVIEW_WARNING } from "./ahlsell-manifold-cabinet";
 
 /** Cross-catalogue checks that must also run on directly verified products. */
 export function engineeringRequirementWarnings(
@@ -14,6 +15,9 @@ export function engineeringRequirementWarnings(
   const requirementText = `${ownText} ${Object.entries(attributes).filter(([key]) => !["generelle krav", "pdf-kommentar"].includes(key)).map(([key, item]) => `${key} ${item}`).join(" ")}`;
   const detail = `${value.technicalSpecification ?? ""} ${value.sourceText ?? ""} ${requirement.source_excerpt ?? ""}`.replace(/\s+/g, " ");
   const intent = ahlsellRequirementIntent(requirement);
+  // Cabinet, manifolds and supply pipes need separate evidence. A cabinet
+  // family match cannot verify the whole assembly or inherit pipe dimensions.
+  if (intent === "manifold_cabinet") return [MANIFOLD_CABINET_REVIEW_WARNING];
   // A search URL, stock location or requirement-derived PDF reference is not
   // technical product evidence.
   const productText = `${candidate.productName} ${candidate.description ?? ""} ${candidate.specifications.join(" ")}`;

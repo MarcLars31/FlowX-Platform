@@ -21,6 +21,7 @@ import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
+import { manifoldCabinetRequirementGuide } from "./ahlsell-manifold-cabinet";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -158,6 +159,12 @@ export function buildAhlsellRequirementGuide(
   const nsCodeIntent = ns3420ProductFamily(nsCode, description);
   const isSprinklerAccessory = intent === "sprinkler_guard";
   const dataWarnings = projectRequirementDataWarnings(requirement);
+
+  // Cabinet dimensions and supply dimensions belong to different components.
+  // Do not turn them (or legacy neighbouring sprinkler text) into a pipe DN.
+  if (intent === "manifold_cabinet") {
+    return manifoldCabinetRequirementGuide(attributes, dataWarnings.map(warning => warning.message), ahlsellSearchUrl);
+  }
 
   const rawKFactor = parseSprinklerKFactor(projectRequirementKFactorDisplayValue(requirement))
     ?? numberFromAttribute(attributes, ["k faktor", "k factor", "k verdi", "k value"])

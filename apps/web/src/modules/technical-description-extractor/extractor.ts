@@ -11,6 +11,7 @@ import {
   parseSprinklerKFactor
 } from "@/lib/project-requirement-data-warnings";
 import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
+import { isManifoldCabinetProduct } from "@/lib/ahlsell-manifold-cabinet";
 
 type ExtractOptions = {
   fileName?: string;
@@ -974,6 +975,15 @@ function mergeLeadingPageContinuation({
   previousContext?: TableParentContext;
 }) {
   if (!previousMaterialLine && !previousContext) return;
+  const chapter = extractChapterPost(pageLines);
+  const previousChapter = previousContext?.attributes.kapittelpost ?? previousMaterialLine?.attributes.kapittelpost;
+  // Headers may be at the end of extracted page text. Check the whole page
+  // before attaching leading prose to the last quantified post. Orientation
+  // pages may identify their chapter only through a page label such as 33-1.
+  const chapterNumber = chapter?.match(/^\d+/)?.[0]
+    ?? pageLines.map(line => line.match(/\bSide\s+(\d{2,6})-\d+\b/i)?.[1]).find(Boolean);
+  const previousChapterNumber = previousChapter?.match(/^\d+/)?.[0];
+  if (chapterNumber && previousChapterNumber && Number(chapterNumber) !== Number(previousChapterNumber)) return;
   const leading = pageLines.slice(0, firstStartIndex ?? pageLines.length);
   const continuationStart = leading.findIndex(isTechnicalContinuationLine);
   if (continuationStart < 0) return;
@@ -1405,6 +1415,7 @@ function inferCategory(text: string): TechnicalDescriptionCategory {
 }
 
 function inferStructuredCategory(description: string, sourceText: string) {
+  if (isManifoldCabinetProduct(description)) return "other";
   const descriptionCategory = inferCategory(description.toLocaleLowerCase());
   if (descriptionCategory !== "unknown") return descriptionCategory;
   return inferCategory(sourceText.toLocaleLowerCase());
