@@ -13,14 +13,14 @@ export function ProductAssemblyParts({ id, plan, mainProductName, accessories = 
 }) {
   return <section id={id} className="scroll-mt-80 overflow-hidden rounded-md border border-flow-300 bg-white lg:scroll-mt-52" aria-labelledby={`${id}-title`}>
     <div className="border-b border-flow-200 bg-flow-50 p-4">
-      <h5 id={`${id}-title`} className="text-base font-bold text-ink-950">{plan.kind === "pipe" ? "2. Tillbehör till röret" : "2. Välj delprodukter och tillbehör"}</h5>
+      <h5 id={`${id}-title`} className="text-base font-bold text-ink-950">3. Komplettera med tillbehör</h5>
       <p className="mt-1 text-sm font-semibold text-flow-900">Huvudprodukt: {mainProductName || plan.mainLabel}</p>
       {plan.guidance && <p className="mt-2 text-xs leading-5 text-ink-700">{plan.guidance}</p>}
       <p className="mt-2 text-sm leading-5 text-ink-700">Klicka på en tillbehörsgrupp för att se alternativen som programmet söker fram till din huvudprodukt.</p>
       {plan.kind === "pipe"
         ? <p className="mt-1 text-xs font-semibold leading-5 text-ink-700">Rörlängden gäller huvudprodukten. Antalet böjar, T-stycken, ändlock och fästen behöver mängdas separat från ritningen. Mängdfälten lämnas tomma tills du fyller i dem.</p>
-        : <p className="mt-1 text-xs leading-5 text-ink-700">Om en del redan ingår i huvudproduktens leverans behöver den inte läggas till igen. Koppla då huvudprodukten till delens krav i steg 3.</p>}
-      {!plan.components.length && <p className="mt-2 text-sm font-semibold text-ink-800">Inga separata tillbehör har identifierats i den här posten. Fortsätt med kravkontrollen nedan.</p>}
+        : <p className="mt-1 text-xs leading-5 text-ink-700">Delar som redan ingår i huvudproduktens leverans behöver inte läggas till igen.</p>}
+      {!plan.components.length && <p className="mt-2 text-sm font-semibold text-ink-800">Inga separata tillbehör har identifierats i posten. Fortsätt till godkännandet när produktvalet är klart.</p>}
     </div>
     <ul className="divide-y divide-ink-200">
       {plan.components.map(component => {

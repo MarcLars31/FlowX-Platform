@@ -4,12 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as Re
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
-import { ProductRequirementReview } from "@/components/ProductRequirementReview";
 import { ProductAssemblyParts } from "@/components/ProductAssemblyParts";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
 import { isRigidPipeProduct } from "@/lib/pipe-product-family";
 import { ahlsellRequirementIntent } from "@/lib/ahlsell-requirement-intent";
-import { newRequirementReview, productRequirementChecks, reviewProducts, validateRequirementReview } from "@/lib/product-requirement-review";
 import type { AhlsellLookupProduct } from "@/lib/ahlsell-product-lookup";
 import { NsCodeSpecification, NsCodeTableValue } from "@/components/NsCodeExplanation";
 import { ns3420CodeInfo } from "@/lib/ns3420-code-catalog";
@@ -1141,7 +1139,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   onError: (message: string) => void;
 }) {
   const currentSnapshot = record(assignment?.product_snapshot);
-  const [requirementReview, setRequirementReview] = useState(() => newRequirementReview(requirement, currentSnapshot.requirementReview));
   const [selectionReview, setSelectionReview] = useState<ProductSelectionReview | null>(() => readProductSelectionReview(currentSnapshot.notes));
   const defaultCurrency = normalizeCurrencyCode(currency) || "NOK";
   const [productName, setProductName] = useState(String(currentSnapshot.name ?? ""));
@@ -1199,14 +1196,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     accessories
   });
   const accessoryError = productAccessoryDraftError(selectedProductAccessories);
-  const requirementChecks = productRequirementChecks(requirement);
   const assemblyPlan = productAssemblyPlan(requirement);
   const accessoryComponent = assemblyPlan?.components.find(component => component.id === accessoryComponentId);
   const accessoryQuery = accessoryComponent
     ? assemblyComponentSearch(accessoryComponent, `${productName} ${productSubtitle} ${manufacturerName}`) : "";
-  const reviewSelection = { productNumber, manufacturerArticleNumber, accessories: selectedProductAccessories };
-  const requirementReviewResult = validateRequirementReview(requirement, reviewSelection, requirementReview);
-  const requirementReviewError = "error" in requirementReviewResult ? requirementReviewResult.error : null;
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
   const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
   const pdfArticleNumber = ahlsellGuide.directCandidates.find(
@@ -1274,7 +1267,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     manual = false,
     accessorySuggestions: AhlsellAccessorySuggestion[] = []
   ) {
-    if (normalizeNrfNumber(selection.productNumber) !== normalizeNrfNumber(productNumber)) setRequirementReview(newRequirementReview(requirement));
     const nextAccessories = accessoriesForSelectedProduct({
       currentProductNumber: accessoryOwnerProductNumber,
       nextProductNumber: selection.productNumber,
@@ -1336,7 +1328,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function clearSelectedProduct() {
-    setRequirementReview(newRequirementReview(requirement));
     setSelectionReview(null);
     setAccessoryLookupOpen(false);
     setProductName("");
@@ -1557,11 +1548,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       onError(accessoryError);
       return;
     }
-    if (requirementReviewError) {
-      onError(requirementReviewError);
-      document.getElementById(`requirement-review-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
     const sameApprovedProduct = Boolean(normalizeNrfNumber(productNumber)) && normalizeNrfNumber(productNumber) === normalizeNrfNumber(String(currentSnapshot.productNumber ?? ""));
     setSaving(true);
     onSavingChange(true);
@@ -1607,8 +1593,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           sameApprovedProduct && typeof currentSnapshot.notes === "string"
             ? currentSnapshot.notes
             : ""),
-        accessories: productAccessoryPayload(selectedProductAccessories),
-        ...(requirementChecks.length ? { requirementReview } : {})
+        accessories: productAccessoryPayload(selectedProductAccessories)
       };
       const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
         method: "POST",
@@ -1618,7 +1603,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Produktvalet kunde inte sparas.");
       setHasUnapprovedChanges(false);
-      await onSaved(`Produktvalet${requirementChecks.length ? " och kravgenomgången" : ""} för post ${details.postNumber ?? position} är godkänt och sparat.`);
+      await onSaved(`Produktvalet för post ${details.postNumber ?? position} är godkänt och sparat.`);
     } catch (saveError) {
       onError(saveError instanceof Error ? saveError.message : "Produktvalet kunde inte sparas.");
     } finally {
@@ -1750,7 +1735,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
           <div className="mt-4 overflow-hidden rounded-md border border-ink-200 bg-white">
             <div className="border-b border-ink-200 px-4 py-3">
-              <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Fullständig specifikation från PDF</p>
+              <h4 className="text-sm font-bold text-flow-700">1. Gå igenom postens krav</h4>
               <p className="mt-1 text-xs leading-5 text-ink-600">Alla extraherade krav visas här medan du väljer produkt.</p>
             </div>
             <dl className="grid sm:grid-cols-2">
@@ -1766,6 +1751,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
             </dl>
           </div>
+          {details.sourceExcerpt && (
+            <details className="mt-3 rounded-md border border-ink-200 bg-white p-4">
+              <summary className="cursor-pointer text-sm font-bold text-flow-800">Hela PDF-texten och tilläggskraven</summary>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-800">{details.sourceExcerpt}</p>
+            </details>
+          )}
           {Boolean(ahlsellGuide.interpretationNotes?.length || ahlsellGuide.interpretationWarnings?.length) && (
             <section aria-label="Så tolkas PDF-kraven" className="rounded-md border border-flow-200 bg-flow-50 p-4">
               <h4 className="text-sm font-bold text-ink-950">Så tolkas PDF-kraven</h4>
@@ -1783,18 +1774,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         <div className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">1. Välj huvudprodukt</p>
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">2. Välj huvudprodukt</p>
               <h4 className="mt-0.5 text-base font-bold text-ink-950">Produkter för PDF-post {details.postNumber ?? position}</h4>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved && selectionReview ? "Manuellt produktval sparat" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
             </div>
-            <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? requirementReviewError ?? "Godkänn och spara produkt"} className="min-h-10 shrink-0 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || !productNumber.trim() || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError) || Boolean(requirementReviewError)}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-              {saving ? "Sparar…" : "Godkänn och spara"}
-            </Button>
           </div>
-          {productNumber.trim() && requirementChecks.length > 0 && <button type="button" onClick={() => document.getElementById(`requirement-review-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })} className={`mt-2 text-left text-xs font-semibold underline ${requirementReviewError ? "text-amber-900" : "text-emerald-800"}`}>
-            {requirementReviewError ?? "Alla krav är genomgångna för det aktuella produktvalet"}
-          </button>}
+          <p className="mt-2 text-xs leading-5 text-ink-600">Arbetsflöde: gå igenom postens krav → välj huvudprodukt → komplettera med tillbehör → godkänn.</p>
         </div>
 
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
@@ -2002,8 +1987,16 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </section>
           )}
 
-          {productNumber.trim() && <ProductRequirementReview id={`requirement-review-${requirement.id}`} checks={requirementChecks} products={reviewProducts(reviewSelection)} value={requirementReview}
-            onChange={next => { setRequirementReview(next); setHasUnapprovedChanges(true); onError(""); }} onAddProduct={addAccessory} />}
+          {productNumber.trim() && (
+            <section id={`product-approval-${requirement.id}`} aria-labelledby={`product-approval-title-${requirement.id}`} className="rounded-md border border-flow-300 bg-flow-50 p-4">
+              <h5 id={`product-approval-title-${requirement.id}`} className="text-base font-bold text-ink-950">4. Godkänn</h5>
+              <p className="mt-1 text-sm leading-6 text-ink-700">Godkänn när du har gått igenom postens krav, valt huvudprodukt och kompletterat med de tillbehör som behövs.</p>
+              <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="mt-3 min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+                {saving ? "Sparar…" : "Godkänn och spara"}
+              </Button>
+            </section>
+          )}
         </div>
 
         {attachmentExpanded && (

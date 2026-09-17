@@ -52,7 +52,12 @@ export async function POST(request: Request, context: RouteContext) {
       organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null", limit: "1"
     });
     if (!requirement) return NextResponse.json({ error: "Produktposten kunde inte hittas." }, { status: 404 });
-    const review = validateRequirementReview(requirement, input, input.requirementReview);
+    // The product flow uses explicit approval after reading the specification,
+    // not a mandatory per-requirement checklist. Validate legacy reviews only
+    // when a client actually submits one; never invent completed decisions.
+    const review = input.requirementReview
+      ? validateRequirementReview(requirement, input, input.requirementReview)
+      : { data: null };
     if ("error" in review) return NextResponse.json({ error: review.error }, { status: 400 });
     // Manual preparation is part of the v2 database transaction. Keeping it
     // out of this preflight means an unavailable or failed v2 RPC leaves no
