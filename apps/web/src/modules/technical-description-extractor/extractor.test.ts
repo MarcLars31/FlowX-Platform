@@ -1,0 +1,1154 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { extractTechnicalDescriptionFromPages } from "./extractor";
+import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
+
+test("preserves quantified alarm, valve, flowmeter and reserve cabinet posts without price columns", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 23,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "Postnr: NS-kode/Spesifikasjon Enh. Mengde Pris Sum",
+        "33.3.2 UE2.211A",
+        "KONTROLLVENTILSETT FOR SPRINKLERANLEGG",
+        "Antall stk 1",
+        "Type kontrollventilsett: Våt alarmventil",
+        "Dimensjon (DN): 65",
+        "33.3.2.1 ALARMGIVER",
+        "Det skal leveres og monteres komplett sett inkl. ekstra",
+        "alarmgiver for montasje på alarmventilsett",
+        "Type Tyco KIT5 el. tilsvarende stk 2",
+        "33.3.5 TRYKKBRYTER FOR OVERVÅKING AV VANNTRYKK",
+        "Antall stk 1",
+        "33.3.6 UC1",
+        "Innendørs stengeventiler",
+        "Andre krav: Nei",
+        "33.3.6.2 DN65 Med signal for overvåking av ventilposisjon stk 3",
+        "33.3.6.3 DN 65 til kapasitetsmåler uten overvåking",
+        "Antall stk 2",
+        "Sum denne side:"
+      ].join("\n")
+    },
+    {
+      pageNumber: 24,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.3.7 KAPASITETSMÅLER",
+        "Strømningsmåler for full vannmengdekontroll",
+        "Måleområde: 300 - 3000 l/min",
+        "Antall",
+        "33.3.7.1 DN65 stk 1",
+        "33.3.8 DRENERINGSVENTILER",
+        "Se sprinklertegninger for nødvendig antall dreneringsventiler.",
+        "Dreneringsventiler sikres med rem og hengelås. RS",
+        "Sum denne side:"
+      ].join("\n")
+    },
+    {
+      pageNumber: 28,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.4.25 VEGGSKAP MED RESERVEUTSTYR",
+        "Plasseres ved sprinklersentral.",
+        "24 stk reservesprinklere med min 3 av hver installert type",
+        "med tilhørende sprinklernøkkel.",
+        "Komplett veggskap med innhold levert og montert. stk 1",
+        "Sum denne side:"
+      ].join("\n")
+    }
+  ]);
+
+  assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.quantity, line.unit]), [
+    ["33.3.2", 1, "st"],
+    ["33.3.2.1", 2, "st"],
+    ["33.3.5", 1, "st"],
+    ["33.3.6.2", 3, "st"],
+    ["33.3.6.3", 2, "st"],
+    ["33.3.7.1", 1, "st"],
+    ["33.3.8", 1, "RS"],
+    ["33.4.25", 1, "st"]
+  ]);
+  const monitored = result.materialLines.find(line => line.postNumber === "33.3.6.2")!;
+  const unmonitored = result.materialLines.find(line => line.postNumber === "33.3.6.3")!;
+  assert.doesNotMatch(monitored.sourceText, /uten overvåking/);
+  assert.doesNotMatch(unmonitored.sourceText, /Med signal/);
+  assert.equal(monitored.nsCode, "UC1");
+  const meter = result.materialLines.find(line => line.postNumber === "33.3.7.1")!;
+  assert.equal(meter.parentPostNumber, "33.3.7");
+  assert.equal(meter.attributes["måleområde"], "300 - 3000 l/min");
+  assert.match(meter.technicalSpecification!, /KAPASITETSMÅLER/);
+  assert.equal(result.warnings.some(warning => warning.code === "MISSING_QUANTITY"), false);
+
+  const groups = splitDistributorRequirementLines(result.materialLines.map(line => ({
+    id: line.id, value_text: line.description, value_json: line, source_excerpt: line.sourceText
+  })));
+  assert.equal(groups.productRequirements.length, 7);
+  assert.deepEqual(groups.workRequirements.map(row => row.value_json.postNumber), ["33.3.8"]);
+});
+
+test("keeps an explicit removal quantity when the description also says Rund sum", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 17,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt: Sprinkleranlegg og sanitæranlegg",
+      "Kapittel: 31 Sanitær",
+      "31.4.4 CD3.11699A",
+      "DEMONTERING AV BYGNINGSDEL – RUND SUM",
+      "Rund sum stk 14",
+      "Bygningsdel: Servant, toalett, dusjgranityr",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+  assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.quantity, line.unit, line.operation]), [
+    ["31.4.4", 14, "st", "remove"]
+  ]);
+});
+import type { TechnicalDescriptionPage } from "./types";
+
+test("retains wrapped numbered heads, guards, litres and lump-sum work without reading price zeroes as quantity", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 17, method: "text", confidence: 0.98,
+    text: ["Kapittel: 33 Brannslokking", "0.33.332.3", "325.2.1", "UE2.11112512A", "SPRINKLER", "Antall stk 27 0 0",
+      "K-faktor: 80", "0.33.332.3", "325.2.2", "UE2.11112912A", "SPRINKLER", "Antall stk 188 0 0",
+      "0.33.332.3 Beskyttelsesgitre. stk 10 0 0", "325.2.4 På grunn av lave takhøyder", "Hvitlakkert utførelse.",
+      "0.33.332.3 UL1.4215143A", "322.9 OPPFYLLING MED ARBEIDSMEDIUM", "Mengde liter 2 650 0 0",
+      "0.33.332.3 Maling av rør RS 0 0", "322.8.1 To strøk signalrød maling.",
+      "0.33.332.3", "327.3", "UL1.12152439A", "TETTHETSPRØVING AV INNENDØRS", "TRYKKRØR", "Antall prøver RS 0 0",
+      "0.33.332.3", "327.4", "AOA", "Kvalitetssikrende tiltak", "x) Mengderegler", "Rund sum", "Sum denne side: 0"].join("\n")
+  }]);
+  assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.quantity, line.unit]), [
+    ["0.33.332.3322.8.1", 1, "RS"], ["0.33.332.3322.9", 2650, "l"],
+    ["0.33.332.3325.2.1", 27, "st"], ["0.33.332.3325.2.2", 188, "st"], ["0.33.332.3325.2.4", 10, "st"],
+    ["0.33.332.3327.3", 1, "RS"], ["0.33.332.3327.4", 1, "RS"]
+  ]);
+  assert.equal(result.materialLines[5].description, "TETTHETSPRØVING AV INNENDØRS TRYKKRØR");
+  assert.ok(result.materialLines.every(line => !line.reviewFlags.includes("inferred-post-number")));
+});
+
+test("keeps scoped pipe instructions and positioned comments separate from the row's technical attributes", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    { pageNumber: 2, method: "text", confidence: 0.98, text: "Kapittel: 33 Brannslokking\n3322 Ledningsnett\nAlle rør skal være varmgalvaniserte.\nSum denne side: 0" },
+    { pageNumber: 3, method: "text", confidence: 0.98,
+      text: "Kapittel: 33 Brannslokking\n0.33.332.3 UB1.1194300932A\n322.1 INNENDØRS VANNLEDNING - KOMPLETT\nMateriale: Stål\n0.33.332.3 DN25 m 274 0 0\n322.1.1\n0.33.332.3 UE2.11112912A\n325.2.2 SPRINKLER\nAntall stk 188 0 0",
+      annotations: [{ id: "nrf", subtype: "Text", text: "1001012", postNumber: "0.33.332.3322.1.1" }] }
+  ]);
+  assert.match(result.materialLines[0].attributes["generelle krav"], /varmgalvaniserte/);
+  assert.equal(result.materialLines[0].attributes["pdf-kommentar"], "1001012");
+  assert.equal(result.materialLines[1].attributes["generelle krav"], undefined);
+  assert.equal(result.materialLines[1].attributes["pdf-kommentar"], undefined);
+});
+
+test("preserves both reducer dimensions in structured attributes", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1, method: "text", confidence: 0.98,
+    text: ["Kapittel: 33 Brannslokking", "33.335.1 UB1.3111A", "REDUKSJON", "Dimensjon: DN100 x DN65", "Antall stk 2"].join("\n")
+  }]);
+  assert.match(result.materialLines[0].attributes.dimensjon, /DN100.*DN65/);
+  assert.equal(result.materialLines[0].category, "fitting");
+});
+
+test("retains a material row with missing quantity beside complete structured rows", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1, method: "text", confidence: 0.98,
+    text: ["Kapittel: 33 Brannslokking", "33.335.1 UE2.11111112A", "SPRINKLER", "Antall stk 20",
+      "33.335.2 UE2.11111112A", "SPRINKLER", "Antall stk 30",
+      "33.335.3 UE2.11111112A", "SPRINKLER", "K-faktor: 80", "Antall stk"].join("\n")
+  }]);
+  assert.equal(result.materialLines.length, 3);
+  assert.equal(result.materialLines[2].quantity, undefined);
+  assert.ok(result.materialLines[2].reviewFlags.includes("missing-quantity"));
+  assert.ok(result.warnings.some((item) => item.code === "MISSING_QUANTITY"));
+});
+
+test("warns when unreadable pages remain in an otherwise readable document", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    { pageNumber: 1, method: "text", confidence: 0.98, text: "Readable cover" },
+    { pageNumber: 2, method: "ocr", confidence: 0, text: "", status: "failed", errorCode: "ocr_failed" }
+  ]);
+  assert.ok(result.warnings.some((item) => item.code === "PAGE_EXTRACTION_INCOMPLETE" && item.sourcePage === 2));
+});
+
+const fixturePages: TechnicalDescriptionPage[] = [
+  {
+    pageNumber: 1,
+    method: "ocr",
+    confidence: 0.92,
+    text: [
+      "Prosjekt: C.2.3 Teknisk beskrivelse - Oppgradering SOP - Røranlegg Side 33-6",
+      "Kapittel: 33 Brannslokking",
+      "UE2.11111112A",
+      "SPRINKLER",
+      "Antall stk 20",
+      "Sprinkleranlegg: Våtanlegg",
+      "Type sprinkler: Konvensjonell sprinkler",
+      "Plassering: Stående",
+      "K-faktor: 80",
+      "Trykk: Min PN 16",
+      "Gjengedimensjon (DN): DN 15",
+      "Hoder som er til overs benyttes som reservehoder.",
+      "Sprinklersystemet skal utføres i overensstemmelse med NS-EN 12845."
+    ].join("\n")
+  },
+  {
+    pageNumber: 2,
+    method: "ocr",
+    confidence: 0.92,
+    text: [
+      "33.335.2 | UE2.11111212A",
+      "SPRINKLER",
+      "Antall stk 20",
+      "Sprinkleranlegg: Våtanlegg",
+      "Plassering: Hengende i tak",
+      "33.335.3 | UE2.11111112A",
+      "SPRINKLER",
+      "Sprinkleranlegg: Våtanlegg",
+      "Plassering: Stående",
+      "Demontering av eksisterende hoder"
+    ].join("\n")
+  }
+];
+
+test("extracts technical-description material lines and rule hints", () => {
+  const result = extractTechnicalDescriptionFromPages(fixturePages, {
+    fileName: "Sprinkler.pdf"
+  });
+
+  assert.equal(result.document.extractionMethod, "ocr");
+  assert.equal(result.project.projectNumber, "C.2.3");
+  assert.equal(result.project.chapter, "33 Brannslokking");
+  assert.deepEqual(result.standards, ["NS-EN-12845"]);
+  assert.equal(result.materialLines.length, 3);
+  assert.deepEqual(
+    result.materialLines.map((line) => ({
+      postNumber: line.postNumber,
+      quantity: line.quantity,
+      operation: line.operation
+    })),
+    [
+      { postNumber: "33.335.1", quantity: 20, operation: "install" },
+      { postNumber: "33.335.2", quantity: 20, operation: "install" },
+      { postNumber: "33.335.3", quantity: undefined, operation: "remove" }
+    ]
+  );
+  assert.equal(result.materialLines[0].category, "sprinkler_head");
+  assert.equal(result.materialLines[0].attributes["k-faktor"], "80");
+  assert.equal(result.ruleHints[0]?.key, "sprinkler_head_reserve");
+  assert.equal(
+    result.warnings.some((warning) => warning.code === "INFERRED_POST_NUMBER"),
+    true
+  );
+});
+
+test("classifies a sprinkler capacity meter as control equipment, not a sprinkler head", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "120000.30.332.4.1",
+      "33_Kapasitetsmåler sprinkler DN80",
+      "stk 1 0,00 0,00"
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines.length, 1);
+  assert.equal(result.materialLines[0].category, "control");
+});
+
+test("keeps visually aligned Ahlsell article numbers, posts and quantities together", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 3,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Kapittel: 30 VVS - 33 Brannslokking - 332 Installasjon med sprinkler - 3325 Utstyr",
+      "K-30 Brannslokkingsanlegg",
+      "Postnr. NS-kode/Firmakode/Spesifikasjon Enhet Mengde",
+      "2 UC1.51124A",
+      "INNENDØRS STENGEVENTIL",
+      "Ventiltype: Dreiespjeldventil",
+      "2.1 Dimensjon: DN65 VIC 705, overvåket åpen 9253497 stk 2 0 0",
+      "2.2 Dimensjon: DN100 VIC 705, overvåket åpen 9253499 stk 2 0 0",
+      "2.3 Dimensjon: DN150 VIC 705, overvåket åpen 9253502 stk 2 0 0"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    quantity: line.quantity,
+    unit: line.unit,
+    category: line.category,
+    description: line.description
+  })), [
+    { postNumber: "2.1", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN65 VIC 705, overvåket åpen 9253497" },
+    { postNumber: "2.2", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN100 VIC 705, overvåket åpen 9253499" },
+    { postNumber: "2.3", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN150 VIC 705, overvåket åpen 9253502" }
+  ]);
+  assert.equal(result.materialLines[0].attributes.dimensjon, "DN65");
+  assert.equal(result.materialLines[0].attributes.kapittelpost, "3325 Utstyr");
+});
+
+test("extracts NS 3420 table quantities and pipe lengths", () => {
+  const pages: TechnicalDescriptionPage[] = [
+    {
+      pageNumber: 9,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "1403.33.332.",
+        "1",
+        "UB1.31114921934A",
+        "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+        "Slokkeanlegg/-medium: Sprinkler",
+        "Materiale: Stål – malingsbehandlet",
+        "Plassering: Under dekke",
+        "Montasje: Vertikalt og Horisontalt",
+        "Skjøt: Rilleskjøt",
+        "Trykk: 12 bar",
+        "Materialkvalitet: Pulverlakkerte sorte stålrør og deler inkl.",
+        "oppheng. Leveres i RAL3001.",
+        "Dimensjon: iht. underposter",
+        "Andre krav:",
+        "Skal følge NFPA 13:2025.",
+        "Sum denne side:"
+      ].join("\n")
+    },
+    {
+      pageNumber: 10,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Prosjekt: 100870, entreprise E04 Vedlikeholdsbygg Side 1403-10",
+        "1403.33.332.",
+        "1.1",
+        "Rillede rør for sprinkleranl. Pulverlakkert DN100",
+        "m 29,16 0,00 0,00",
+        "1403.33.332.",
+        "1.2",
+        "Rillerør Bend DN100",
+        "stk 10 0,00 0,00",
+        "1403.33.332.",
+        "7.1",
+        "%SMA.067 - Stengeventil med gir, overvåket DN65 - Stengeventil A10 stk 1 0,00 0,00",
+        "1403.33.332.",
+        "9.1",
+        "%XHZ.006 - Påveggs roterende akustisk/ optisk",
+        "alarmapparat stk 2 0,00 0,00"
+      ].join("\n")
+    },
+    {
+      pageNumber: 13,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "1403.33.332.",
+        "2.1",
+        "Red pipe sprinkler(Gjennomføring) DN40",
+        "Antall m 0,81 0,00 0,00",
+        "1403.33.332.",
+        "23.1",
+        "%UZA.403 - Tørr Sprinkler nedadrettet, QR, K=80, 68°C",
+        "(Våtanlegg) stk 3 0,00 0,00",
+        "1403.33.332.",
+        "24",
+        "UL2.1999A",
+        "MERKING AV INNENDØRS RØRLEDNING",
+        "Antall stk 10 0,00 0,00",
+        "Lokalisering: Rørnett"
+      ].join("\n")
+    }
+  ];
+
+  const result = extractTechnicalDescriptionFromPages(pages, {
+    fileName: "1403 AB - 33 Rev03.pdf"
+  });
+
+  assert.equal(result.project.projectNumber, "100870");
+  assert.equal(result.materialLines.length, 7);
+  assert.deepEqual(
+    result.materialLines.map((line) => ({
+      postNumber: line.postNumber,
+      quantity: line.quantity,
+      unit: line.unit,
+      category: line.category
+    })),
+    [
+      { postNumber: "1403.33.332.1.1", quantity: 29.16, unit: "m", category: "pipe" },
+      { postNumber: "1403.33.332.1.2", quantity: 10, unit: "st", category: "fitting" },
+      { postNumber: "1403.33.332.7.1", quantity: 1, unit: "st", category: "valve" },
+      { postNumber: "1403.33.332.9.1", quantity: 2, unit: "st", category: "control" },
+      { postNumber: "1403.33.332.2.1", quantity: 0.81, unit: "m", category: "pipe" },
+      { postNumber: "1403.33.332.23.1", quantity: 3, unit: "st", category: "sprinkler_head" },
+      { postNumber: "1403.33.332.24", quantity: 10, unit: "st", category: "pipe" }
+    ]
+  );
+  assert.equal(result.materialLines[0].parentPostNumber, "1403.33.332.1");
+  assert.equal(result.materialLines[0].nsCode, "UB1.31114921934A");
+  assert.equal(result.materialLines[0].attributes.dimensjon, "DN100");
+  assert.equal(result.materialLines[0].attributes.trykk, "12 bar");
+  assert.equal(
+    result.materialLines[0].attributes.materialkvalitet,
+    "Pulverlakkerte sorte stålrør og deler inkl. oppheng. Leveres i RAL3001."
+  );
+  assert.deepEqual(result.materialLines[0].standardRefs, ["NFPA-13:2025"]);
+  assert.match(
+    result.materialLines[0].technicalSpecification ?? "",
+    /Materiale: Stål – malingsbehandlet[\s\S]*UNDERPOST[\s\S]*Rillede rør/
+  );
+  assert.equal(result.materialLines[5].attributes["k-faktor"], "80");
+  assert.equal(
+    result.materialLines[5].attributes["utløsningstemperatur"],
+    "68 °C"
+  );
+  assert.equal(
+    result.warnings.some((warning) => warning.code === "MISSING_QUANTITY"),
+    false
+  );
+});
+
+test("extracts GAB rows where quantity precedes a wrapped post number", () => {
+  const pages: TechnicalDescriptionPage[] = [
+    {
+      pageNumber: 4,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Prosjekt: Bybanen BTR.4_D34 Tekniske Installasjoner Haukeland Side 33-4",
+        "Kapittel: 33 Brannslokking",
+        "0.33.332.3",
+        "322.1",
+        "UB1.1194300932A",
+        "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+        "Slokkeanlegg/-medium: Sprinkler",
+        "Materiale: Stål",
+        "Trykk: 12 bar",
+        "m 274 0 0 0.33.332.3",
+        "322.1.1",
+        "DN25",
+        "m 65 0 0 0.33.332.3",
+        "322.1.2",
+        "DN32",
+        "Sum denne side:"
+      ].join("\n")
+    }
+  ];
+
+  const result = extractTechnicalDescriptionFromPages(pages, {
+    fileName: "ANBUDSBESKRIVELSE.pdf"
+  });
+
+  assert.deepEqual(
+    result.materialLines.map((line) => ({
+      postNumber: line.postNumber,
+      parentPostNumber: line.parentPostNumber,
+      description: line.description,
+      quantity: line.quantity,
+      unit: line.unit,
+      nsCode: line.nsCode
+    })),
+    [
+      {
+        postNumber: "0.33.332.3322.1.1",
+        parentPostNumber: "0.33.332.3322.1",
+        description: "DN25",
+        quantity: 274,
+        unit: "m",
+        nsCode: "UB1.1194300932A"
+      },
+      {
+        postNumber: "0.33.332.3322.1.2",
+        parentPostNumber: "0.33.332.3322.1",
+        description: "DN32",
+        quantity: 65,
+        unit: "m",
+        nsCode: "UB1.1194300932A"
+      }
+    ]
+  );
+  assert.equal(result.materialLines[0].attributes.trykk, "12 bar");
+  assert.equal(result.warnings.length, 0);
+});
+
+test("keeps all quantified rows when full and split post formats are mixed", () => {
+  const pages: TechnicalDescriptionPage[] = [
+    {
+      pageNumber: 28,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.332.9 UE2.11112592",
+        "SPRINKLER",
+        "Sprinkleranlegg: Våtanlegg",
+        "K-faktor: 80",
+        "33.332.9.1 Sprinkler hvit inkl. rosett",
+        "Antall stk 8",
+        "33.332.9.2 Sprinkler sort inkl. rosett",
+        "Antall stk 19",
+        "33.332.11 UB1.33119925932",
+        "INNENDØRS RØRLEDNING – BRANNSLOKKING – SLANGE",
+        "Slokkeanlegg/-medium: Sprinkler",
+        "33.332.11.",
+        "1",
+        "Sprinklerslange 1 x 1/2 x 1200 mm",
+        "Antall stk 28",
+        "Sum denne side:"
+      ].join("\n")
+    }
+  ];
+
+  const result = extractTechnicalDescriptionFromPages(pages, {
+    fileName: "Equinor.pdf"
+  });
+
+  assert.deepEqual(
+    result.materialLines.map((line) => ({
+      postNumber: line.postNumber,
+      quantity: line.quantity,
+      unit: line.unit,
+      category: line.category
+    })),
+    [
+      { postNumber: "33.332.9.1", quantity: 8, unit: "st", category: "sprinkler_head" },
+      { postNumber: "33.332.9.2", quantity: 19, unit: "st", category: "sprinkler_head" },
+      { postNumber: "33.332.11.1", quantity: 28, unit: "st", category: "sprinkler_hose" }
+    ]
+  );
+  assert.equal(result.materialLines[0].attributes["k-faktor"], "80");
+  assert.equal(result.warnings.length, 0);
+});
+
+test("uses UB1.3311 to classify a sprinkler hose instead of rigid pipe", () => {
+  const pages: TechnicalDescriptionPage[] = [{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.99,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "30.332.6 UB1.33114699900A",
+      "INNENDØRS RØRLEDNING - BRANNSLOKKING - SLANGE",
+      "Slokkeanlegg/-medium: Sprinkler",
+      "Materiale: Stål - rustfritt",
+      "Plassering: Over systemhimling",
+      "Montasje: Festes i systemhimling",
+      "Skjøt: Valgfri",
+      "Dimensjon: DN25",
+      "Trykk: 12 bar",
+      "Omfatter også: Flexislanger skal være av typen braided-utførelse.",
+      "Antall stk 132",
+      "Sum denne side:"
+    ].join("\n")
+  }];
+
+  const result = extractTechnicalDescriptionFromPages(pages, {
+    fileName: "Sprinkler_Vågå svømmehall.pdf"
+  });
+
+  assert.equal(result.materialLines.length, 1);
+  assert.equal(result.materialLines[0].nsCode, "UB1.33114699900A");
+  assert.equal(result.materialLines[0].category, "sprinkler_hose");
+  assert.equal(result.materialLines[0].attributes.dimensjon, "DN25");
+  assert.equal(result.materialLines[0].quantity, 132);
+  assert.equal(result.materialLines[0].reviewFlags.includes("pipe-unit-not-length"), false);
+});
+
+test("joins project-prefixed post numbers split across lines", () => {
+  const pages: TechnicalDescriptionPage[] = [
+    {
+      pageNumber: 14,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Prosjekt: Fornebubanen Side 33-14",
+        "Kapittel: 33 Brannslokking",
+        "120000.30.",
+        "331.2",
+        "UB1.32114399932",
+        "INNENDØRS RØRLEDNING – BRANNSLOKKING – RØR",
+        "Slokkeanlegg/-medium: Sprinkler",
+        "Materiale: Stål",
+        "m 35,4 0 0 120000.30.",
+        "331.2.1",
+        "DN25 stålrør",
+        "Sum denne side:"
+      ].join("\n")
+    }
+  ];
+
+  const result = extractTechnicalDescriptionFromPages(pages, {
+    fileName: "Brann_120000_Base_K5B.pdf"
+  });
+
+  assert.equal(result.project.name, "Fornebubanen");
+  assert.equal(result.materialLines.length, 1);
+  assert.equal(result.materialLines[0].postNumber, "120000.30.331.2.1");
+  assert.equal(result.materialLines[0].parentPostNumber, "120000.30.331.2");
+  assert.equal(result.materialLines[0].quantity, 35.4);
+  assert.equal(result.materialLines[0].unit, "m");
+  assert.equal(result.warnings.length, 0);
+});
+
+test("reads project identity from an Ahlsell request cover sheet", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt prisforespørsel leverandører - Ahlsell Vest.",
+      "Anlegg : A113849 26052 Askøy kommune - ombygging omsorgsplasser",
+      "Anleggsadresse/sted: Kleppestø"
+    ].join("\n")
+  }]);
+
+  assert.equal(
+    result.project.name,
+    "A113849 26052 Askøy kommune - ombygging omsorgsplasser"
+  );
+  assert.equal(result.project.projectNumber, "A113849");
+  assert.equal(result.materialLines.length, 0);
+});
+
+test("extracts scanned NS 3420 pipe rows with delimiters and OCR lm units", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 2,
+    method: "ocr",
+    confidence: 0.93,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "33.332.2 | UB1.31114499934A",
+      "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+      "Materiale: Stål – varmforsinket",
+      "Trykk: PN16",
+      "33.332.2.1| Dimensjon: DN100",
+      "Lengde Im 45,00",
+      "33.332.2.2| Dimensjon: DN80",
+      "Lengde Im 35,00",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    description: line.description,
+    quantity: line.quantity,
+    unit: line.unit,
+    category: line.category,
+    dimension: line.attributes.dimensjon
+  })), [
+    {
+      postNumber: "33.332.2.1",
+      description: "Dimensjon: DN100",
+      quantity: 45,
+      unit: "m",
+      category: "pipe",
+      dimension: "DN100"
+    },
+    {
+      postNumber: "33.332.2.2",
+      description: "Dimensjon: DN80",
+      quantity: 35,
+      unit: "m",
+      category: "pipe",
+      dimension: "DN80"
+    }
+  ]);
+});
+
+test("recovers missing OCR post numbers from the next numbered row", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 4,
+      method: "ocr",
+      confidence: 0.9,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "UE2.11111312",
+        "SPRINKLER",
+        "Antall stk 5",
+        "K-faktor: 160",
+        "UE2.11111112",
+        "SPRINKLER",
+        "Antall stk 95",
+        "K-faktor: 80"
+      ].join("\n")
+    },
+    {
+      pageNumber: 5,
+      method: "ocr",
+      confidence: 0.9,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.332.4.3| UE2.11111512",
+        "SPRINKLER",
+        "Antall stk 3"
+      ].join("\n")
+    }
+  ]);
+
+  assert.deepEqual(
+    result.materialLines.map((line) => line.postNumber),
+    ["33.332.4.1", "33.332.4.2", "33.332.4.3"]
+  );
+  assert.equal(
+    result.materialLines.slice(0, 2).every((line) =>
+      line.reviewFlags.includes("inferred-post-number")
+    ),
+    true
+  );
+});
+
+test("joins specifications that continue on the immediately following page", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 10,
+      method: "ocr",
+      confidence: 0.92,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "33.332.11 | UC1.5119918A",
+        "INNENDØRS STENGEVENTIL",
+        "Antall stk 1",
+        "Ventiltype: Dreiespjeldventil"
+      ].join("\n")
+    },
+    {
+      pageNumber: 11,
+      method: "ocr",
+      confidence: 0.92,
+      text: [
+        "Kapittel: 33 Brannslokking",
+        "Trykk: PN16",
+        "Dimensjon, tilkoblinger: DN100",
+        "33.332.12 | UC4.77999951",
+        "INNENDØRS SPESIALVENTIL",
+        "Antall stk 5"
+      ].join("\n")
+    }
+  ]);
+
+  assert.equal(result.materialLines[0].attributes.trykk, "PN16");
+  assert.equal(result.materialLines[0].attributes["dimensjon, tilkoblinger"], "DN100");
+  assert.match(result.materialLines[0].technicalSpecification ?? "", /FORTSETTELSE SIDE 11/);
+});
+
+test("keeps embedded bend angles out of the quantity field", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 11,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "33.332.13 | UB1.31114423932A",
+      "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+      "RS",
+      "Sprinklerrør legges om med 4 stk 90 gr. bend og inntil 2 m rør."
+    ].join("\n")
+  }]);
+
+  assert.notEqual(result.materialLines[0]?.quantity, 90);
+});
+
+test("classifies a hand extinguisher separately from sprinkler heads", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 3,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "33.500.6 | UE6.1913",
+      "HANDSLOKKER",
+      "Antall stk 2",
+      "Slokkemiddel: Skum"
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines[0].category, "other");
+  assert.equal(result.materialLines[0].system, "foam-extinguisher");
+});
+
+test("reconnects visually wrapped post columns without shifting descriptions", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 13,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt: 100870 Vedlikeholdsbygg Side 1403-13",
+      "Kapittel: 33 Brannslokking",
+      "1403.33.332. UB1.31113324334",
+      "2 INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT",
+      "Materiale: PP-R",
+      "Dimensjon: Iht. underposter",
+      "1403.33.332. Red pipe sprinkler(Gjennomføring) DN40",
+      "2.1 Antall m 0,81 0,00 0,00",
+      "1403.33.332. Red pipe sprinkler(Gjennomføring) DN32",
+      "2.2 Antall m 1,70 0,00 0,00",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    parentPostNumber: line.parentPostNumber,
+    description: line.description,
+    quantity: line.quantity,
+    unit: line.unit,
+    category: line.category
+  })), [
+    {
+      postNumber: "1403.33.332.2.1",
+      parentPostNumber: "1403.33.332.2",
+      description: "Red pipe sprinkler(Gjennomføring) DN40",
+      quantity: 0.81,
+      unit: "m",
+      category: "pipe"
+    },
+    {
+      postNumber: "1403.33.332.2.2",
+      parentPostNumber: "1403.33.332.2",
+      description: "Red pipe sprinkler(Gjennomføring) DN32",
+      quantity: 1.7,
+      unit: "m",
+      category: "pipe"
+    }
+  ]);
+});
+
+test("reconnects wrapped GAB post suffixes printed below quantified rows", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 4,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt: Bybanen Haukeland Side 30-4",
+      "Kapittel: 30 VVS - 33 Brannslokking - 332 Installasjon med sprinkler",
+      "0.33.332.3 UB1.1294300934A",
+      "322.1 INNENDØRS VANNLEDNING - RØR",
+      "Materiale: Stål",
+      "0.33.332.3 DN25 m 274 0 0",
+      "322.1.1",
+      "0.33.332.3 DN32 m 65 0 0",
+      "322.1.2",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    parentPostNumber: line.parentPostNumber,
+    description: line.description,
+    quantity: line.quantity,
+    category: line.category
+  })), [
+    {
+      postNumber: "0.33.332.3322.1.1",
+      parentPostNumber: "0.33.332.3322.1",
+      description: "DN25",
+      quantity: 274,
+      category: "pipe"
+    },
+    {
+      postNumber: "0.33.332.3322.1.2",
+      parentPostNumber: "0.33.332.3322.1",
+      description: "DN32",
+      quantity: 65,
+      category: "pipe"
+    }
+  ]);
+});
+
+test("inherits pipe context for dimension-only rows and reads a descriptive length", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 21,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Prosjekt: Sprinkleranlegg Side 00033-5",
+      "Kapittel: 00033 Brannslokking",
+      "00033.331",
+      ".1",
+      "UB1.113613100A",
+      "VANNLEDNING - KOMPLETT",
+      "Materiale: Stål",
+      "00033.331",
+      ".1.1",
+      "DN 25",
+      "Lengde lm 240,00",
+      "00033.331",
+      ".3.1",
+      "Løpemeter rør som skal demonteres lm 35,00",
+      "Sum denne side:"
+    ].join("\n")
+  }]);
+
+  assert.deepEqual(result.materialLines.map((line) => ({
+    postNumber: line.postNumber,
+    description: line.description,
+    quantity: line.quantity,
+    unit: line.unit,
+    category: line.category,
+    operation: line.operation
+  })), [
+    {
+      postNumber: "00033.331.1.1",
+      description: "DN 25",
+      quantity: 240,
+      unit: "m",
+      category: "pipe",
+      operation: "install"
+    },
+    {
+      postNumber: "00033.331.3.1",
+      description: "Løpemeter rør som skal demonteres",
+      quantity: 35,
+      unit: "m",
+      category: "pipe",
+      operation: "remove"
+    }
+  ]);
+});
+
+test("continues past chapter-only cover pages to find the project identity", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 1,
+      method: "text",
+      confidence: 0.98,
+      text: "Kapittel: 300 Generell del"
+    },
+    {
+      pageNumber: 13,
+      method: "text",
+      confidence: 0.98,
+      text: "Prosjekt: 000670 Protonseter, Helse Bergen. Entreprise K 301 Røranlegg Side 03-153"
+    }
+  ]);
+
+  assert.equal(
+    result.project.name,
+    "000670 Protonseter, Helse Bergen. Entreprise K 301 Røranlegg"
+  );
+  assert.equal(result.project.projectNumber, "000670");
+  assert.equal(result.project.chapter, "300 Generell del");
+  assert.equal(result.project.sourcePage, 13);
+});
+
+test("classifies the product title before incidental component references", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 5,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "Kapittel: 33 Brannslokking",
+      "3.3 XQ1.12123A",
+      "MÅLEINSTRUMENT",
+      "Antall stk 5",
+      "Manometer med stengeventil monteres på rørledningsnett."
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines[0].category, "control");
+});
+
+test("uses the main tender cover instead of project identities in appended reports", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 1,
+      method: "ocr",
+      confidence: 0.91,
+      text: "Sprinkelprosjekt\nInnspurten 15"
+    },
+    {
+      pageNumber: 22,
+      method: "text",
+      confidence: 0.98,
+      text: "SYSTEMBESKRIVELSE SPRINKLERANLEGG\nProsjekt: Helsfyr Atrium parkeringsanlegg.\nProsjekt nr: 80119"
+    }
+  ]);
+
+  assert.deepEqual(result.project, {
+    name: "Sprinkelprosjekt Innspurten 15",
+    sourcePage: 1,
+    confidence: 0.91
+  });
+});
+
+test("reads standalone project and project-number fields from system descriptions", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: "SYSTEMBESKRIVELSE SPRINKLERANLEGG\nProsjekt: Helsfyr Atrium parkeringsanlegg.\nProsjekt nr: 80119"
+  }]);
+
+  assert.equal(result.project.name, "Helsfyr Atrium parkeringsanlegg.");
+  assert.equal(result.project.projectNumber, "80119");
+});
+
+test("does not turn sprinkler drawings and hydraulic reports into material rows", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 24,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "DN100 opp/ned for sammenkobling",
+        "Tegningstittel: Plan 0",
+        "Tegningsnummer: 33-1-00",
+        "Tegningsstatus: Arbeidstegning",
+        "Målestokk As indicated",
+        "Format A0",
+        "Disiplin RIRs"
+      ].join("\n")
+    },
+    {
+      pageNumber: 27,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Sprinkler report",
+        "Calculation date: 10.06.2026",
+        "Property Value Unit",
+        "KR016T: Langsømsveiset EN 10217-1 120"
+      ].join("\n")
+    }
+  ]);
+
+  assert.deepEqual(result.materialLines, []);
+});
+
+test("preserves implausible dry-sprinkler K-factors for manual review", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 3,
+    method: "ocr",
+    confidence: 0.9,
+    text: [
+      "Prosjekt: FB VEST DK JWC Kantine Side 33-6",
+      "Kapittel: 33 Brannslokking",
+      "33.500.5 UE2.11121532",
+      "SPRINKLER",
+      "Antall stk 17",
+      "Type sprinkler: Tørrsprinkler",
+      "K-faktor: 1145"
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines[0].attributes["k-faktor"], "1145");
+  assert.ok(result.materialLines[0].reviewFlags.includes("implausible-k-factor"));
+  assert.ok(result.warnings.some((warning) =>
+    warning.code === "IMPLAUSIBLE_K_FACTOR"
+    && warning.message.includes("K-faktor 1145")
+  ));
+});
+
+test("only flags K-factors above 400", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: [
+      "33.500.1 UE2.11121532",
+      "SPRINKLER",
+      "Antall stk 1",
+      "K-faktor: 400",
+      "33.500.2 UE2.11121532",
+      "SPRINKLER",
+      "Antall stk 1",
+      "K-faktor: 400,1"
+    ].join("\n")
+  }]);
+
+  assert.equal(result.materialLines[0].attributes["k-faktor"], "400");
+  assert.ok(!result.materialLines[0].reviewFlags.includes("implausible-k-factor"));
+  assert.equal(result.materialLines[1].attributes["k-faktor"], "400.1");
+  assert.ok(result.materialLines[1].reviewFlags.includes("implausible-k-factor"));
+  assert.equal(
+    result.warnings.filter((warning) => warning.code === "IMPLAUSIBLE_K_FACTOR").length,
+    1
+  );
+});
+
+test("keeps explicit decimal K-factors while normalizing decimal commas", () => {
+  const commaResult = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "ocr",
+    confidence: 0.9,
+    text: "33.500.1 UE2.11121532\nSPRINKLER\nAntall stk 1\nK-faktor: 114,5"
+  }]);
+  const pointResult = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "ocr",
+    confidence: 0.9,
+    text: "33.500.1 UE2.11121532\nSPRINKLER\nAntall stk 1\nK-faktor: 114.5"
+  }]);
+
+  assert.equal(commaResult.materialLines[0].attributes["k-faktor"], "114.5");
+  assert.equal(pointResult.materialLines[0].attributes["k-faktor"], "114.5");
+});
+
+test("canonicalizes compact and spaced NS standard references", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1,
+    method: "text",
+    confidence: 0.98,
+    text: "Kontrakt etter NS8407 og NS 8407."
+  }]);
+
+  assert.deepEqual(result.standards, ["NS-8407"]);
+});
+
+test("recognizes OCR temperature labels from the Kantine and Vaga documents without changing values", () => {
+  for (const label of ["Utlgsningstemperatur", "Utlosningstemperatur", "Utlesningstemperatur", "Utløsningstemperatur"]) {
+    const result = extractTechnicalDescriptionFromPages([{
+      pageNumber: 2, method: "ocr", confidence: 0.9,
+      text: `Kapittel: 33 Brannslokking\n33.500.3 UE2.11111934\nSPRINKLER\nAntall stk 3\n${label}: 93 °C\nK-faktor: 80`
+    }]);
+    assert.equal(result.materialLines[0].attributes["utløsningstemperatur"], "93 °C");
+    assert.equal(result.materialLines[0].attributes["k-faktor"], "80");
+  }
+});
+
+test("keeps next-page requirements attached to a Sprinkler2 row even when OCR misses its quantity", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    { pageNumber: 10, method: "ocr", confidence: 0.85,
+      text: "30 VVS-installasjoner\n30.332.14 UE2.11112912\nSPRINKLER\nAntall stk\nSum: 0" },
+    { pageNumber: 11, method: "ocr", confidence: 0.9,
+      text: [
+        "30 VVS-installasjoner", "Sprinkleranlegg: Våtanlegg", "Type sprinkler: Spraysprinkler",
+        "Plassering: Hengende synlig i tak", "Utlgsningstemperatur: 68 °C", "K-faktor: 80",
+        "Dekkskive/pyntering (ved innfelling): I.R.", "Beskyttelse: Nei", "Dokumentasjon: Datablad",
+        "30.332.15 UE2.11112912", "SPRINKLER", "Antall stk 80", "Plassering: Innfelt i tak",
+        "Dekkskive/pyntering (ved innfelling): Dobbel rosett"
+      ].join("\n") }
+  ]);
+  const first = result.materialLines.find(line => line.postNumber === "30.332.14")!;
+  assert.ok(first);
+  assert.equal(first.quantity, undefined);
+  assert.ok(first.reviewFlags.includes("missing-quantity"));
+  assert.equal(first.attributes["k-faktor"], "80");
+  assert.equal(first.attributes["utløsningstemperatur"], "68 °C");
+  assert.equal(first.attributes.beskyttelse, "Nei");
+  assert.equal(first.attributes["dekkskive/pyntering (ved innfelling)"], "I.R.");
+  assert.equal(result.materialLines.find(line => line.postNumber === "30.332.15")?.quantity, 80);
+});
+
+test("exposes comments for review without turning their proposed products into specification requirements", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1, method: "text", confidence: 0.98,
+    text: "33.500.1 UE2.11111934\nSPRINKLER\nAntall stk 3\nBeskyttelse: Nei",
+    annotations: [{ id: "note-1", subtype: "Text", text: "9257423\n9254009 Pynteskive\nBeskyttelse: Ja" }]
+  }]);
+  assert.equal(result.materialLines[0].attributes.beskyttelse, "Nei");
+  assert.doesNotMatch(result.materialLines[0].sourceText, /9257423/);
+  const warning = result.warnings.find(w => w.code === "PDF_COMMENTS_REQUIRE_REVIEW");
+  assert.equal(warning?.sourcePage, 1);
+  assert.match(warning?.message ?? "", /9257423/);
+});

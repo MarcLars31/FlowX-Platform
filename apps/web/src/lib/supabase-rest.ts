@@ -1,6 +1,5 @@
 import "server-only";
-import { existsSync, readFileSync } from "node:fs";
-import { basename, relative, resolve } from "node:path";
+import { buildSupabaseHeaders } from "@/lib/supabase-headers";
 
 type SupabaseConfig = {
   url: string;
@@ -31,12 +30,16 @@ type EnvFileDiagnostics = {
 };
 
 export function getSupabaseConfig(): SupabaseConfig {
-  const url = pickEnv(["SUPABASE_URL"]);
-  const key = pickEnv(["SUPABASE_SERVICE_ROLE_KEY"]);
+  const url = pickEnv([
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "VITE_SUPABASE_URL"
+  ]);
+  const key = pickEnv(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
 
   if (!url || !key) {
     throw new Error(
-      "Missing backend Supabase configuration. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the backend environment. The backend import does not use VITE_SUPABASE_PUBLISHABLE_KEY."
+      "Missing backend Supabase configuration. Set SUPABASE_URL and SUPABASE_SECRET_KEY (or the legacy SUPABASE_SERVICE_ROLE_KEY) in the backend environment."
     );
   }
 
@@ -49,14 +52,9 @@ export function getSupabaseConfig(): SupabaseConfig {
 }
 
 export function getSupabaseDiagnostics(): SupabaseDiagnostics {
-  const envFiles = readEnvFileDiagnostics();
-  const backendEnvFile = envFiles.find(
-    (file) => file.hasSupabaseUrl && file.hasServiceRoleKey
-  )?.path;
-  const frontendEnvFile = envFiles.find(
-    (file) => file.hasViteSupabaseUrl && file.hasVitePublishableKey
-  )?.path;
+  const envFiles: EnvFileDiagnostics[] = [];
   const publishableKey = pickEnv([
+    "SUPABASE_PUBLISHABLE_KEY",
     "VITE_SUPABASE_PUBLISHABLE_KEY",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
   ]);
@@ -68,24 +66,24 @@ export function getSupabaseDiagnostics(): SupabaseDiagnostics {
       keyConfigured: true,
       urlSource: config.urlSource,
       keySource: config.keySource,
-      backendEnvFile,
-      frontendEnvFile,
-      cwd: process.cwd(),
+      cwd: "server runtime",
       envFiles,
       hasPublishableKey: Boolean(publishableKey)
     };
   } catch {
-    const url = pickEnv(["SUPABASE_URL"]);
-    const key = pickEnv(["SUPABASE_SERVICE_ROLE_KEY"]);
+    const url = pickEnv([
+      "SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "VITE_SUPABASE_URL"
+    ]);
+    const key = pickEnv(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
 
     return {
       urlConfigured: Boolean(url),
       keyConfigured: Boolean(key),
       urlSource: url?.name,
       keySource: key?.name,
-      backendEnvFile,
-      frontendEnvFile,
-      cwd: process.cwd(),
+      cwd: "server runtime",
       envFiles,
       hasPublishableKey: Boolean(publishableKey)
     };
@@ -99,47 +97,6 @@ function pickEnv(names: string[]) {
   }
 
   return undefined;
-}
-
-function readEnvFileDiagnostics() {
-  const appRoot = process.cwd();
-  const workspaceRoot = resolve(appRoot, "../..");
-  const candidates = [
-    ".env.local",
-    `.env.${process.env.NODE_ENV ?? "development"}.local`,
-    ".env.development.local",
-    ".env",
-    ".env.development"
-  ];
-  const paths = Array.from(
-    new Set([
-      ...candidates.map((fileName) => resolve(appRoot, fileName)),
-      ...candidates.map((fileName) => resolve(workspaceRoot, fileName))
-    ])
-  );
-
-  return paths.map((filePath) => {
-    const exists = existsSync(filePath);
-    const content = exists ? readFileSync(filePath, "utf8") : "";
-    const relativePath = relative(workspaceRoot, filePath) || basename(filePath);
-
-    return {
-      path: relativePath.replaceAll("\\", "/"),
-      exists,
-      hasSupabaseUrl: hasEnvKey(content, "SUPABASE_URL"),
-      hasServiceRoleKey: hasEnvKey(content, "SUPABASE_SERVICE_ROLE_KEY"),
-      hasViteSupabaseUrl: hasEnvKey(content, "VITE_SUPABASE_URL"),
-      hasVitePublishableKey: hasEnvKey(
-        content,
-        "VITE_SUPABASE_PUBLISHABLE_KEY"
-      )
-    };
-  });
-}
-
-function hasEnvKey(content: string, key: string) {
-  const pattern = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`, "m");
-  return pattern.test(content);
 }
 
 export async function insertSupabaseRow(
@@ -251,14 +208,39 @@ export async function selectSupabaseRows<T>(
   return (await response.json()) as T[];
 }
 
+export async function selectSupabaseRowsWithCount<T>(
+  table: string,
+  params?: Record<string, string>
+) {
+  const config = getSupabaseConfig();
+  const url = supabaseTableUrl(config.url, table);
+  url.searchParams.set("select", "*");
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: supabaseHeaders(config, "application/json", "count=exact"),
+    cache: "no-store"
+  });
+
+  if (!response.ok) throw new Error(await readSupabaseError(response));
+  const totalText = response.headers.get("content-range")?.split("/").at(-1);
+  const total = totalText && totalText !== "*" ? Number(totalText) : 0;
+  return {
+    rows: (await response.json()) as T[],
+    total: Number.isFinite(total) ? total : 0
+  };
+}
+
 function supabaseHeaders(
   config: SupabaseConfig,
   accept?: string,
   prefer = "return=minimal"
 ) {
   return {
-    apikey: config.key,
-    Authorization: `Bearer ${config.key}`,
+    ...buildSupabaseHeaders(config.key),
     "Content-Type": "application/json",
     Prefer: prefer,
     ...(accept ? { Accept: accept } : {})
