@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as Re
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
+import { ProductPostComments } from "@/components/ProductPostComments";
 import { ProductAssemblyParts } from "@/components/ProductAssemblyParts";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
 import { isRigidPipeProduct } from "@/lib/pipe-product-family";
@@ -1172,6 +1173,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [accessoryLookupOpen, setAccessoryLookupOpen] = useState(false);
   const [accessoryComponentId, setAccessoryComponentId] = useState<string | null>(null);
   const [suggestedAccessories, setSuggestedAccessories] = useState<AhlsellAccessorySuggestion[]>([]);
+  const [commentDraftDirty, setCommentDraftDirty] = useState(false);
+  const [commentsSaving, setCommentsSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hasUnapprovedChanges, setHasUnapprovedChanges] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
@@ -1189,7 +1192,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const quantity = projectRequirementQuantity(requirement.value_json);
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
-  const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty;
+  const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty || commentDraftDirty;
   const selectedProductAccessories = accessoriesForSelectedProduct({
     currentProductNumber: accessoryOwnerProductNumber,
     nextProductNumber: productNumber,
@@ -1219,6 +1222,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     onDirtyChange(hasUnsavedChanges);
     return () => onDirtyChange(false);
   }, [hasUnsavedChanges, onDirtyChange]);
+
+  useEffect(() => { onSavingChange(commentsSaving); }, [commentsSaving, onSavingChange]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1509,6 +1514,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   async function save() {
+    if (commentDraftDirty || commentsSaving) {
+      onError("Spara kommentarerna eller töm kommentarsfälten före godkännandet.");
+      return;
+    }
     if (manualProductRequired || manualProductDraftDirty) {
       setManualProductOpen(true);
       setManualProductError("Lägg till produkten från kortet innan du godkänner och sparar.");
@@ -1770,7 +1779,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         </div>
       </section>
 
-      <fieldset disabled={saving || attachmentSaving} aria-busy={saving || attachmentSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
+      <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
         <div className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1802,6 +1811,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           )}
 
           <nav aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { document.getElementById(`product-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${productNumber.trim() ? "product" : "post"}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
             <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
               <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
             </Button>
@@ -1907,6 +1917,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </section>
           )}
 
+          <div id={`product-comments-${requirement.id}`} className="scroll-mt-52">
+            <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
+              disabled={saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving} />
+          </div>
+
           {productNumber.trim() && assemblyPlan && <ProductAssemblyParts id={`assembly-parts-${requirement.id}`} plan={assemblyPlan}
             mainProductName={productName || `NRF ${productNumber}`} accessories={selectedProductAccessories} disabled={saving || selectedProductAccessories.length >= 20}
             activeComponentId={accessoryLookupOpen ? accessoryComponentId : null} onChoose={openAccessoryLookup}>
@@ -1991,7 +2006,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <section id={`product-approval-${requirement.id}`} aria-labelledby={`product-approval-title-${requirement.id}`} className="rounded-md border border-flow-300 bg-flow-50 p-4">
               <h5 id={`product-approval-title-${requirement.id}`} className="text-base font-bold text-ink-950">4. Godkänn</h5>
               <p className="mt-1 text-sm leading-6 text-ink-700">Godkänn när du har gått igenom postens krav, valt huvudprodukt och kompletterat med de tillbehör som behövs.</p>
-              <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="mt-3 min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
+              {commentDraftDirty && <p className="mt-2 text-xs font-semibold text-amber-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
+              <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="mt-3 min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
                 {saving ? "Sparar…" : "Godkänn och spara"}
               </Button>

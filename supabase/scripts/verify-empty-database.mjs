@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
+import { verifyProductPostComments } from "./verify-product-post-comments.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const supabaseDirectory = join(scriptDirectory, "..");
@@ -583,6 +584,7 @@ try {
     throw new Error("Failed atomic manual approval left a partial assignment or memory row.");
   }
   process.stdout.write("PASS failure after base manual approval rolls back assignment and product memory\n");
+  await verifyProductPostComments(database, project.id);
 
   await database.exec(`
     insert into public.project_requirements (
