@@ -5,6 +5,7 @@ import {
   buildProjectMaterialRows,
   createProjectMaterialListWorkbook
 } from "./project-material-list-export";
+import type { MaterialListComment } from "./project-material-list-export";
 
 const requirements = [
   {
@@ -164,4 +165,79 @@ test("does not export a suggested product before user approval", () => {
 
   assert.equal(rows[0]?.type, "Ej produktvald");
   assert.equal(rows[0]?.productNumber, "");
+});
+
+const comment = (id: string, requirementId: string, productNumber: string | null, body: string): MaterialListComment => ({
+  id, requirement_id: requirementId, product_number: productNumber,
+  product_name: productNumber ? "Demo sprinkler" : null,
+  body, author_name: "Anna", created_at: "2026-09-17T10:30:00.000Z"
+});
+
+async function commentWorkbook(comments: MaterialListComment[], selected = assignments) {
+  const bytes = await createProjectMaterialListWorkbook({
+    organizationName: "Testorganisation",
+    project: { id: "test", name: "Kommentarstest", project_number: null, customer_name: null,
+      end_customer: null, standard: null, system_type: null, supplier: "Ahlsell", status: "in_review" },
+    rows: buildProjectMaterialRows({ requirements, assignments: selected }), comments
+  });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  return workbook;
+}
+
+test("exports saved post and selected-product comments with author/date without leaking to accessories or other products", async () => {
+  const workbook = await commentWorkbook([
+    comment("1", "requirement-1", null, "Postens kommentar"),
+    comment("2", "requirement-1", "NRF AHL 1001", "Produktens kommentar"),
+    comment("3", "requirement-1", "OLD-1001", "Kommentar på tidigare produkt"),
+    comment("4", "another-requirement", "AHL-1001", "Kommentar på annan post"),
+    comment("5", "requirement-2", null, "Post utan vald produkt"),
+    comment("6", "requirement-3", null, "Kommentar till demontering"),
+    comment("7", "requirement-1", "AHL-2001", "Kommentar hör inte till huvudprodukten")
+  ]);
+  const sheet = workbook.getWorksheet("Materiallista")!;
+  assert.equal(sheet.getCell("N5").value, "Postkommentarer");
+  assert.equal(sheet.getCell("O5").value, "Produktkommentarer");
+  assert.match(sheet.getCell("N6").text, /2026-09-17 10:30 UTC · Anna\nPostens kommentar/);
+  assert.match(sheet.getCell("O6").text, /Produktens kommentar/);
+  assert.equal(sheet.getCell("M6").value, "Kontrollera temperaturklass");
+  assert.equal(sheet.getCell("N7").value, null);
+  assert.equal(sheet.getCell("O7").value, null);
+  assert.match(sheet.getCell("N8").text, /Post utan vald produkt/);
+  assert.equal(sheet.getCell("O8").value, null);
+  assert.match(sheet.getCell("N9").text, /Kommentar till demontering/);
+  assert.equal(sheet.getCell("N6").alignment.wrapText, true);
+  const history = workbook.getWorksheet("Kommentarer")!;
+  assert.equal(history.rowCount, 7);
+  assert.equal(history.getCell("A4").value, "33.335.1");
+  assert.equal(history.getCell("B4").value, "Posten");
+  assert.equal(history.getCell("E4").value, "Anna");
+  assert.equal(history.getCell("F4").value, "2026-09-17 10:30 UTC");
+  assert.equal(history.getCell("G5").value, "Produktens kommentar");
+  assert.ok(!JSON.stringify(history.model).includes("tidigare produkt"));
+  assert.ok(!JSON.stringify(history.model).includes("annan post"));
+});
+
+test("does not present comments about an unapproved product as exported product comments", async () => {
+  const workbook = await commentWorkbook([
+    comment("1", "requirement-1", null, "Postkommentar finns kvar"),
+    comment("2", "requirement-1", "AHL-1001", "Ej godkänd produkt")
+  ], []);
+  assert.equal(workbook.getWorksheet("Materiallista")!.getCell("O6").value, null);
+  assert.equal(workbook.getWorksheet("Kommentarer")!.rowCount, 4);
+});
+
+test("preserves a long comment history in full and writes user text as strings, never formulas", async () => {
+  const comments = Array.from({ length: 60 }, (_, index) => comment(String(index).padStart(3, "0"), "requirement-1", null, `${index}: ${"x".repeat(2990)}`));
+  comments.push(comment("999", "requirement-1", "AHL-1001", '=HYPERLINK("https://example.com","text")'));
+  const workbook = await commentWorkbook(comments);
+  const sheet = workbook.getWorksheet("Materiallista")!;
+  assert.ok(sheet.getCell("N6").text.length < 32767);
+  assert.match(sheet.getCell("N6").text, /60 kommentarer.*fliken Kommentarer/);
+  const history = workbook.getWorksheet("Kommentarer")!;
+  assert.equal(history.rowCount, 64);
+  assert.equal(history.getCell("G63").value, comments[59].body);
+  assert.equal(history.getCell("G64").value, comments[60].body);
+  assert.equal(history.getCell("G64").type, ExcelJS.ValueType.String);
+  assert.equal(history.getCell("G64").formula, undefined);
 });

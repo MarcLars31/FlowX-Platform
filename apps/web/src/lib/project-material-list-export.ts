@@ -3,6 +3,11 @@ import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignme
 import { distributorRequirementOperation } from "@/lib/distributor-requirement-lines";
 import { projectRequirementDetails } from "@/lib/project-requirement-details";
 import { projectRequirementQuantity } from "@/lib/project-requirement-quantity";
+import { normalizeNrfNumber } from "@/lib/product-card-candidates";
+import type { ProductPostComment } from "@/lib/product-post-comments";
+
+export type MaterialListComment = ProductPostComment & { requirement_id: string };
+type ExportComment = MaterialListComment & { postNumber: string };
 
 export type MaterialListProject = {
   id: string;
@@ -33,6 +38,7 @@ export type MaterialListAssignment = {
 };
 
 export type ProjectMaterialRow = {
+  requirementId?: string;
   type: "Huvudprodukt" | "Tillbehör" | "Ej produktvald" | "Demontering";
   postNumber: string;
   chapterPost: string;
@@ -79,6 +85,7 @@ export function buildProjectMaterialRows({
     const details = projectRequirementDetails(requirement);
     const removal = distributorRequirementOperation(requirement) === "remove";
     const requirementFields = {
+      requirementId: requirement.id,
       postNumber: details.postNumber ?? "Saknas",
       chapterPost: details.chapterPost ?? "",
       operation: removal ? "Demontering" as const : "Installation" as const,
@@ -162,11 +169,13 @@ export async function createProjectMaterialListWorkbook({
   organizationName,
   project,
   rows,
+  comments = [],
   generatedAt = new Date()
 }: {
   organizationName: string;
   project: MaterialListProject;
   rows: ProjectMaterialRow[];
+  comments?: MaterialListComment[];
   generatedAt?: Date;
 }) {
   const workbook = new ExcelJS.Workbook();
@@ -178,7 +187,9 @@ export async function createProjectMaterialListWorkbook({
   workbook.modified = generatedAt;
 
   addProjectSheet(workbook, organizationName, project, rows, generatedAt);
-  addMaterialListSheet(workbook, project, rows, generatedAt);
+  const exportComments = applicableMaterialComments(rows, comments);
+  addMaterialListSheet(workbook, project, rows, generatedAt, exportComments);
+  if (exportComments.length) addCommentsSheet(workbook, exportComments);
 
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
@@ -243,7 +254,8 @@ function addMaterialListSheet(
   workbook: ExcelJS.Workbook,
   project: MaterialListProject,
   rows: ProjectMaterialRow[],
-  generatedAt: Date
+  generatedAt: Date,
+  comments: ExportComment[]
 ) {
   const sheet = workbook.addWorksheet("Materiallista", {
     views: [{ state: "frozen", ySplit: 5, showGridLines: false }],
@@ -254,11 +266,11 @@ function addMaterialListSheet(
       margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }
     }
   });
-  sheet.mergeCells("A1:M1");
+  sheet.mergeCells("A1:O1");
   sheet.getCell("A1").value = `Materiallista · ${project.name}`;
   sheet.getCell("A1").style = titleStyle();
   sheet.getRow(1).height = 31;
-  sheet.mergeCells("A2:M2");
+  sheet.mergeCells("A2:O2");
   sheet.getCell("A2").value = [
     project.project_number ? `Projekt ${project.project_number}` : null,
     project.customer_name,
@@ -266,10 +278,16 @@ function addMaterialListSheet(
   ].filter(Boolean).join(" · ");
   sheet.getCell("A2").font = { color: { argb: "FF475569" }, size: 10 };
   sheet.getCell("A2").alignment = { vertical: "middle" };
-  sheet.mergeCells("A3:M3");
+  sheet.mergeCells("A3:O3");
   sheet.getCell("A3").value = "Kontrollera NRF-nummer, antal, pris och tillgänglighet före beställning.";
   sheet.getCell("A3").font = { italic: true, color: { argb: "FF9A3412" }, size: 10 };
 
+  const commentsByRequirement = new Map<string, ExportComment[]>();
+  for (const comment of comments) {
+    const group = commentsByRequirement.get(comment.requirement_id) ?? [];
+    group.push(comment);
+    commentsByRequirement.set(comment.requirement_id, group);
+  }
   const tableRows = rows.map((row, index) => [
     index + 1,
     row.postNumber,
@@ -283,7 +301,9 @@ function addMaterialListSheet(
     valueOrNull(row.manufacturer),
     row.quantity,
     row.unit,
-    valueOrNull(row.notes)
+    valueOrNull(row.notes),
+    row.type === "Tillbehör" ? null : commentSummary(commentsByRequirement.get(row.requirementId ?? "") ?? [], false),
+    row.type === "Huvudprodukt" ? commentSummary(commentsByRequirement.get(row.requirementId ?? "") ?? [], true) : null
   ]);
   const headers = [
     "Rad",
@@ -298,7 +318,9 @@ function addMaterialListSheet(
     "Tillverkare",
     "Antal",
     "Enhet",
-    "Anteckning"
+    "Anteckning",
+    "Postkommentarer",
+    "Produktkommentarer"
   ];
   const headerRow = sheet.getRow(5);
   headerRow.values = headers;
@@ -313,7 +335,7 @@ function addMaterialListSheet(
     sheet.getRow(index + 6).values = values;
   });
 
-  const widths = [7, 16, 20, 14, 17, 42, 17, 30, 19, 20, 11, 10, 34];
+  const widths = [7, 16, 20, 14, 17, 42, 17, 30, 19, 20, 11, 10, 34, 42, 42];
   widths.forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
@@ -322,8 +344,9 @@ function addMaterialListSheet(
     for (let rowIndex = 6; rowIndex <= rows.length + 5; rowIndex += 1) {
       const row = sheet.getRow(rowIndex);
       const sourceRow = rows[rowIndex - 6];
-      row.height = sourceRow ? materialRowHeight(sourceRow) : 32;
-      for (let columnIndex = 1; columnIndex <= 13; columnIndex += 1) {
+      row.height = Math.max(sourceRow ? materialRowHeight(sourceRow) : 32,
+        Math.min(160, Math.max(wrappedLines(row.getCell(14).text, 48), wrappedLines(row.getCell(15).text, 48)) * 15));
+      for (let columnIndex = 1; columnIndex <= 15; columnIndex += 1) {
         const cell = row.getCell(columnIndex);
         cell.alignment = { vertical: "top", wrapText: true };
         cell.border = {
@@ -342,7 +365,68 @@ function addMaterialListSheet(
       row.getCell(12).alignment = { horizontal: "right", vertical: "top" };
     }
   }
-  sheet.autoFilter = `A5:M${Math.max(5, rows.length + 5)}`;
+  sheet.autoFilter = `A5:O${Math.max(5, rows.length + 5)}`;
+  sheet.headerFooter.oddFooter = "Scipx · Sida &P av &N";
+}
+
+function applicableMaterialComments(rows: ProjectMaterialRow[], comments: MaterialListComment[]): ExportComment[] {
+  const mainRows = new Map(rows.filter(row => row.type !== "Tillbehör" && row.requirementId)
+    .map(row => [row.requirementId, row]));
+  return comments.flatMap(comment => {
+    const row = mainRows.get(comment.requirement_id);
+    if (!row) return [];
+    if (comment.product_number !== null && (row.type !== "Huvudprodukt" ||
+      normalizeNrfNumber(comment.product_number) !== normalizeNrfNumber(row.productNumber))) return [];
+    return [{ ...comment, postNumber: row.postNumber }];
+  }).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+}
+
+function commentSummary(comments: ExportComment[], product: boolean) {
+  const matching = comments.filter(comment => (comment.product_number !== null) === product);
+  if (!matching.length) return null;
+  const fullText = matching.map(comment => `${commentDate(comment.created_at)} · ${comment.author_name}\n${comment.body}`).join("\n\n");
+  // Excel cells have a 32,767 character limit. The dedicated sheet always
+  // contains the full text, one comment at a time, including long histories.
+  return fullText.length <= 2000 ? fullText : `${fullText.slice(0, 1800)}…\n\n${matching.length} kommentarer. Hela texten finns på fliken Kommentarer.`;
+}
+
+function commentDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+function wrappedLines(value: string, width: number) {
+  return value.split(/\r?\n/).reduce((count, line) => count + Math.max(1, Math.ceil(line.length / width)), 0);
+}
+
+function addCommentsSheet(workbook: ExcelJS.Workbook, comments: ExportComment[]) {
+  const sheet = workbook.addWorksheet("Kommentarer", {
+    views: [{ state: "frozen", ySplit: 3, showGridLines: false }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+  });
+  sheet.mergeCells("A1:G1");
+  sheet.getCell("A1").value = "Kommentarer till exporterade poster och produkter";
+  sheet.getCell("A1").style = titleStyle();
+  sheet.getRow(1).height = 30;
+  sheet.columns = [16, 20, 18, 32, 24, 24, 80].map(width => ({ width }));
+  const header = sheet.getRow(3);
+  header.values = ["PDF-postnummer", "Gäller", "NRF-nummer", "Produkt", "Skriven av", "Datum (UTC)", "Kommentar"];
+  header.height = 28;
+  header.eachCell(cell => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F81BD" } };
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.alignment = { vertical: "middle", wrapText: true };
+  });
+  for (const comment of comments) {
+    const row = sheet.addRow([comment.postNumber, comment.product_number === null ? "Posten" : "Vald produkt",
+      comment.product_number, comment.product_name, comment.author_name, commentDate(comment.created_at), comment.body]);
+    row.height = Math.min(409, Math.max(48, wrappedLines(comment.body, 90) * 15 + 10));
+    row.eachCell({ includeEmpty: true }, cell => {
+      cell.alignment = { vertical: "top", wrapText: true };
+      cell.border = { bottom: { style: "thin", color: { argb: "FFD7E3F1" } } };
+    });
+  }
+  sheet.autoFilter = `A3:G${sheet.rowCount}`;
   sheet.headerFooter.oddFooter = "Scipx · Sida &P av &N";
 }
 

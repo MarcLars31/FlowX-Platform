@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
   createProjectMaterialListWorkbook,
-  type MaterialListProject
+  type MaterialListProject,
+  type MaterialListComment
 } from "@/lib/project-material-list-export";
 import { loadProjectMaterialListData } from "@/lib/project-material-list-data";
-import { UserSupabaseError } from "@/lib/supabase-user-rest";
+import { selectAllUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,8 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const authorization = await requireOrganizationApi(["material_list.export"]);
     if (authorization.error) return authorization.error;
-    if (!authorization.context.permissions.includes("project.product_suggestion.view")) {
+    if (!authorization.context.permissions.includes("project.product_suggestion.view") ||
+        !authorization.context.permissions.includes("project.requirement.view")) {
       return NextResponse.json(
         { error: "Du har inte behörighet att läsa projektets produktval." },
         { status: 403 }
@@ -39,10 +41,17 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
+    const comments = await selectAllUserRows<MaterialListComment>("product_post_comments", {
+      select: "id,requirement_id,body,product_number,product_name,author_name,created_at",
+      project_id: `eq.${id}`,
+      organization_id: `eq.${organizationId}`,
+      order: "created_at.asc,id.asc"
+    });
     const bytes = await createProjectMaterialListWorkbook({
       organizationName: authorization.context.organization.name,
       project,
-      rows
+      rows,
+      comments
     });
     const filename = exportFilename(project);
 

@@ -21,6 +21,22 @@ Historiken hämtas vid öppning och via **Uppdatera kommentarer**. Äldre
 kommentarer kan hämtas 50 åt gången. Detta är sparade projektkommentarer,
 inte en automatisk realtidssynk mellan öppna webbläsare.
 
+## Excel-export
+
+Materiallistan innehåller separata kolumner för post- och produktkommentarer.
+Postkommentarer följer även poster utan godkänd produkt och demonteringsposter.
+Produktkommentarer exporteras bara för huvudproduktens aktuella, godkända NRF
+på samma kravpost. De kopieras inte till tillbehör eller till en annan post
+med samma artikel. Kommentarer till tidigare eller ej godkända produktval
+finns kvar i appen men ingår inte som kommentarer till den exporterade produkten.
+
+När relevanta kommentarer finns läggs fliken **Kommentarer** till med full
+text, PDF-postnummer, produkt, NRF, författare och datum i UTC. Mycket lång
+historik sammanfattas i materiallistans celler med hänvisning till denna
+flik för att inte överskrida Excels cellgräns. Alla sparade kommentarer hämtas
+sidvis vid export; sparfel eller läsfel ger ett exportfel i stället för en
+fil med tyst utelämnade kommentarer. Osparade utkast ingår inte.
+
 ## Driftsättning och verifiering
 
 Kör `20260917120000_add_product_post_comments.sql` före frontendpublicering.
