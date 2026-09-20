@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { complementMldlCandidates, findAhlsellHybridCandidates } from "./ahlsell-hybrid-matching";
+import { assessAhlsellLookupCandidates, complementMldlCandidates, findAhlsellHybridCandidates } from "./ahlsell-hybrid-matching";
 import { findMldlOnlyCandidates } from "./ahlsell-mldl-matching";
 import { ahlsellCandidateMatchState, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
 import { ahlsellMldlCandidate, ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
@@ -15,6 +15,17 @@ test("uses a positioned comment's article as a search hint without copying its d
   } } });
   assert.equal(guide.searchQueries[0], "1118636");
   assert.ok(guide.searchQueries.slice(1).every(query => !/DN100|eksempel/.test(query)));
+});
+
+test("manual article lookup retains a wrong-family result with a conflict instead of silently hiding it", () => {
+  const requirement = { category: "pipe", value_text: "DN 80 stålrør", value_json: { unit: "m", attributes: { dimensjon: "DN80", materiale: "Stål" } } };
+  const meter = candidate("4011976", "Vannmengdemåler Turbo Lux 3");
+  assert.deepEqual(complementMldlCandidates(requirement, [], [meter]), []);
+  const result = assessAhlsellLookupCandidates(requirement, [meter]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].articleNumber, "4011976");
+  assert.equal(ahlsellCandidateMatchState(result[0]), "mismatch");
+  assert.ok(result[0].matchWarnings?.some(warning => /Fel produkttyp/.test(warning)));
 });
 
 test("complementary PN and material evidence clears only missing product-data warnings", () => {
@@ -200,6 +211,8 @@ test("searches the exact MLDL article, finds public-only articles, and ranks tec
   const queries: string[] = [];
   const result = await findAhlsellHybridCandidates({ ...requirement, project_name: "PRIVATE_PROJECT", source_excerpt: "PRIVATE_PDF" }, async input => {
     const url = new URL(String(input));
+    if (url.pathname.startsWith("/productVariantProxy/")) return new Response(null, { status: 404 });
+    if (url.pathname === "/api/search/variants") return Response.json({ settings: { headers: {} }, items: [] });
     if (url.pathname.startsWith("/products/")) {
       const article = url.pathname.split("/").filter(Boolean).at(-1)!;
       return new Response(html(article, `1/2&quot; sprinklerhode K80 SSP 68C QR. mess`), { headers: { "Content-Type": "text/html" } });

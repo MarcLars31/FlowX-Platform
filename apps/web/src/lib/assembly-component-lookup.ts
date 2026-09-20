@@ -13,7 +13,7 @@ export async function lookupAssemblyComponents({ requirement, component, mainArt
   query: unknown; automatic: boolean; market: AhlsellMarket; signal?: AbortSignal; fetchImpl?: typeof fetch;
   store?: AhlsellEvidenceStore;
 }): Promise<AhlsellLookupResult> {
-  const article = typeof mainArticleNumber === "string" && /^\d{7,12}(?:N5)?$/i.test(mainArticleNumber.trim()) ? mainArticleNumber.trim() : "";
+  const article = typeof mainArticleNumber === "string" && /^\d{6,12}(?:N5)?$/i.test(mainArticleNumber.trim()) ? mainArticleNumber.trim() : "";
   let main: AhlsellLookupProduct | null = article ? ahlsellMldlCandidate(article) : null;
   if (!main && article) {
     const result = await lookupAhlsellProduct({ query: article, market, signal, fetchImpl, store }).catch(() => null);

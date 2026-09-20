@@ -1,5 +1,7 @@
 "use client";
 
+
+
 import { type FormEvent, useEffect, useState } from "react";
 import { AlertTriangle, Calculator, FileSearch, Upload } from "lucide-react";
 import { Button } from "@/components/Button";
@@ -171,8 +173,9 @@ export default function TechnicalDescriptionsPage() {
           <div>
             <h2 className="font-semibold text-ink-950">Extrahera materiallista</h2>
             <p className="mt-1 text-sm text-ink-600">
-              Bildbaserade dokument OCR-tolkas med norska och engelska språkmodeller.
-              Alla rader ska granskas innan de används i ett projekt.
+
+              Teksten i dokumentet leses automatisk.
+              Alle rader skal gjennomgås før de brukes i et prosjekt.
             </p>
           </div>
         </div>
@@ -189,7 +192,7 @@ export default function TechnicalDescriptionsPage() {
             <Button type="submit" disabled={isExtracting || !file}>
               <Upload className="h-4 w-4" aria-hidden="true" />
               {isExtracting
-                ? analysisProgress ?? "Extraherar..."
+                ? analysisProgress ?? "0 %"
                 : "Extrahera och spara"}
             </Button>
           </div>
@@ -206,6 +209,7 @@ export default function TechnicalDescriptionsPage() {
             <div>
               <h2 className="font-semibold text-ink-950">Indikativt materialestimat</h2>
               <p className="mt-1 text-sm text-ink-600">
+
                 Ange byggytan och den kvot som ska användas. Kvoten är inte en automatisk
                 projekteringsregel och måste verifieras av behörig projektör.
               </p>
@@ -329,6 +333,7 @@ function ExtractionResult({ result }: { result: ExtractionResponse }) {
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
           <div className="flex gap-2 text-sm font-semibold text-amber-900">
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+
             Granskning krävs ({result.warnings.length})
           </div>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">

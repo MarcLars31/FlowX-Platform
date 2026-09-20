@@ -6,6 +6,8 @@ import {
   createProjectMaterialListWorkbook
 } from "./project-material-list-export";
 import type { MaterialListComment } from "./project-material-list-export";
+import { validateDistributorProductMapping } from "./distributor-product-mapping";
+import { newProductAccessoryDraft, productAccessoryPayload, readProductAccessoryDrafts } from "./product-card-accessories";
 
 const requirements = [
   {
@@ -146,6 +148,46 @@ test("creates a valid xlsx workbook without an overlapping table filter", async 
   assert.ok((sheet?.getRow(8).height ?? 0) > 32);
   assert.equal(sheet?.getCell("B9").value, "33.335.3");
   assert.equal(sheet?.getCell("D9").value, "Demontering");
+});
+
+test("five total fittings on 68 metres export as five, including after reload and with manual main quantity", async () => {
+  const accessoryDraft = { ...newProductAccessoryDraft(), name: "T-stykke DN32", productNumber: "7654321", quantity: "5" };
+  const validation = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111", userApproved: true, entryMethod: "catalog",
+    productNumber: "1234567", orderQuantity: { quantity: "12", unit: "st" }, accessories: productAccessoryPayload([accessoryDraft])
+  });
+  assert.ok("data" in validation);
+  const snapshot = { ...assignments[0].product_snapshot, orderQuantity: validation.data.orderQuantity, accessories: validation.data.accessories };
+  const reloaded = readProductAccessoryDrafts(snapshot.accessories);
+  assert.equal(reloaded[0].quantity, "5");
+  assert.equal(reloaded[0].quantityBasis, "total");
+  const pipe = { ...requirements[0], value_json: { quantity: 68, unit: "m", postNumber: "33.2.2.2" } };
+  const rows = buildProjectMaterialRows({ requirements: [pipe], assignments: [{ ...assignments[0], product_snapshot: snapshot }] });
+  assert.deepEqual(rows.map(row => [row.quantity, row.unit]), [[12, "st"], [5, "st"]]);
+  assert.equal(pipe.value_json.quantity, 68);
+  const bytes = await createProjectMaterialListWorkbook({ organizationName: "Test", project: {
+    id: "project", name: "Mängdtest", project_number: "1", customer_name: null, end_customer: null,
+    standard: null, system_type: null, supplier: "Ahlsell", status: "draft"
+  }, rows, generatedAt: new Date("2026-09-20T10:00:00Z") });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  const sheet = workbook.getWorksheet("Materiallista")!;
+  assert.equal(sheet.getCell("K6").value, 12);
+  assert.equal(sheet.getCell("K7").value, 5);
+});
+
+test("total accessories export even when PDF quantity is missing; legacy per-unit accessories keep their meaning", () => {
+  const snapshot = { ...assignments[0].product_snapshot, accessories: [
+    { name: "Total", productNumber: "A", quantity: 5, unit: "st", notes: "", quantityBasis: "total" },
+    { name: "Legacy", productNumber: "B", quantity: 2, unit: "st", notes: "" }
+  ] };
+  const assignment = { ...assignments[0], product_snapshot: snapshot };
+  const withQuantity = buildProjectMaterialRows({ requirements: [requirements[0]], assignments: [assignment] });
+  assert.deepEqual(withQuantity.map(row => row.quantity), [12, 5, 24]);
+  const missing = { ...requirements[0], value_json: { postNumber: "33.2.2.2", unit: "m" } };
+  const withoutQuantity = buildProjectMaterialRows({ requirements: [missing], assignments: [assignment] });
+  assert.deepEqual(withoutQuantity.map(row => row.quantity), [null, 5, null]);
+  assert.equal(withoutQuantity[1].notes, "");
 });
 
 test("does not export a suggested product before user approval", () => {

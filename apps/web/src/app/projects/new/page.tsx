@@ -1,5 +1,7 @@
 "use client";
 
+
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
@@ -89,6 +91,7 @@ export default function CreateProjectPage() {
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-bold text-white transition hover:border-cyan-300/60 hover:bg-white/15"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+
           Till projekt
         </Link>
       </ScipxPageHeader>
@@ -134,6 +137,7 @@ export default function CreateProjectPage() {
 
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs leading-5 text-ink-500">
+
               Projektet skapas först när PDF-filen har validerats och kunnat läsas.
             </p>
             <Button type="submit" disabled={creating || !selectedFile}>
@@ -143,7 +147,7 @@ export default function CreateProjectPage() {
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               )}
               {creating
-                ? analysisProgress ?? "Läser och skapar projekt…"
+                ? analysisProgress ?? "0 %"
                 : "Ladda upp och skapa projekt"}
             </Button>
           </div>

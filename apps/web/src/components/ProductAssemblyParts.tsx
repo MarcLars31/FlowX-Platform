@@ -1,5 +1,7 @@
 "use client";
 
+
+
 import type { AssemblyComponent, ProductAssemblyPlan } from "@/lib/product-assembly-plan";
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -11,6 +13,7 @@ export function ProductAssemblyParts({ id, plan, mainProductName, accessories = 
   activeComponentId?: string | null;
   children?: ReactNode;
 }) {
+  if (!plan.components.length) return null;
   return <section id={id} className="scroll-mt-80 overflow-hidden rounded-md border border-flow-300 bg-white lg:scroll-mt-52" aria-labelledby={`${id}-title`}>
     <div className="border-b border-flow-200 bg-flow-50 p-4">
       <h5 id={`${id}-title`} className="text-base font-bold text-ink-950">3. Komplettera med tillbehör</h5>
@@ -20,7 +23,6 @@ export function ProductAssemblyParts({ id, plan, mainProductName, accessories = 
       {plan.kind === "pipe"
         ? <p className="mt-1 text-xs font-semibold leading-5 text-ink-700">Rörlängden gäller huvudprodukten. Antalet böjar, T-stycken, ändlock och fästen behöver mängdas separat från ritningen. Mängdfälten lämnas tomma tills du fyller i dem.</p>
         : <p className="mt-1 text-xs leading-5 text-ink-700">Delar som redan ingår i huvudproduktens leverans behöver inte läggas till igen.</p>}
-      {!plan.components.length && <p className="mt-2 text-sm font-semibold text-ink-800">Inga separata tillbehör har identifierats i posten. Fortsätt till godkännandet när produktvalet är klart.</p>}
     </div>
     <ul className="divide-y divide-ink-200">
       {plan.components.map(component => {

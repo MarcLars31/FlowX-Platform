@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { parseProductOrderQuantity, parseProductQuantity } from "./product-order-quantity";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
 import { distributorRequirementOperation } from "@/lib/distributor-requirement-lines";
 import { projectRequirementDetails } from "@/lib/project-requirement-details";
@@ -130,15 +131,16 @@ export function buildProjectMaterialRows({
       continue;
     }
 
+    const orderQuantity = parseProductOrderQuantity(snapshot.orderQuantity);
     rows.push({
       type: "Huvudprodukt",
       ...requirementFields,
       productName: text(snapshot.name),
       productNumber: text(snapshot.productNumber),
       manufacturer: text(snapshot.manufacturer),
-      quantity: mainQuantity,
-      unit: requiredQuantity.unit,
-      notes: joinNotes(text(snapshot.notes), missingQuantityNote),
+      quantity: orderQuantity?.quantity ?? mainQuantity,
+      unit: orderQuantity?.unit ?? requiredQuantity.unit,
+      notes: joinNotes(text(snapshot.notes), orderQuantity ? "" : missingQuantityNote),
       distributor: text(snapshot.distributor) || "Ahlsell"
     });
 
@@ -152,11 +154,13 @@ export function buildProjectMaterialRows({
         productName: name,
         productNumber: text(accessory.productNumber),
         manufacturer: "",
-        quantity: mainQuantity === null
+        quantity: accessory.quantityBasis === "total"
+          ? parseProductQuantity(accessory.quantity)
+          : mainQuantity === null
           ? null
           : mainQuantity * positiveNumber(accessory.quantity, 1),
         unit: text(accessory.unit) || "st",
-        notes: joinNotes(text(accessory.notes), missingQuantityNote),
+        notes: joinNotes(text(accessory.notes), accessory.quantityBasis === "total" ? "" : missingQuantityNote),
         distributor: text(snapshot.distributor) || "Ahlsell"
       });
     }

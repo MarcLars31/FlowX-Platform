@@ -1,7 +1,10 @@
 "use client";
 
+
+
 import { useState } from "react";
 import { AhlsellTechnicalEvidence } from "@/components/AhlsellTechnicalEvidence";
+import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleX, ExternalLink, PackagePlus } from "lucide-react";
 import { ahlsellCandidateMatchState } from "@/lib/ahlsell-candidate-ranking";
 import { technicalConflictWarnings } from "@/lib/ahlsell-technical-conflicts";
@@ -31,11 +34,12 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
     const assessedState = ahlsellCandidateMatchState(candidate);
     const state = !allowMatches && assessedState !== "mismatch" ? "review" : assessedState;
     const matched = state === "exact" || state === "matched";
-    const background = matched ? "bg-emerald-50" : state === "mismatch" ? "bg-rose-50/40" : selected ? "bg-cyan-50" : "bg-white";
+    const background = selected ? "bg-flow-100" : matched ? "bg-emerald-50" : state === "mismatch" ? "bg-rose-50/40" : "bg-white";
     return (
-      <article key={candidate.articleNumber} className={`${background} px-3 py-3 sm:px-4`}>
-        <div className="flex items-center gap-3">
+      <article key={candidate.articleNumber} className={`${background} border-l-4 ${selected ? "border-l-flow-700 ring-2 ring-inset ring-flow-700" : "border-l-transparent"} px-3 py-3 sm:px-4`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1">
+            {selected && <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-flow-900"><CheckCircle2 className="h-5 w-5" aria-hidden="true" />Valgt hovedprodukt</p>}
             <p className="text-sm font-bold leading-5 text-ink-950">{candidate.productName}</p>
             {candidate.description && candidate.description !== candidate.productName && (
               <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-ink-700" title={candidate.description}>{candidate.description}</p>
@@ -55,13 +59,8 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             <AhlsellTechnicalEvidence candidate={candidate} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-flow-800">
-              <input type="checkbox" name={`ahlsell-product-${requirementId}`} value={candidate.articleNumber}
-                checked={selected} disabled={disabled} onChange={() => onSelect(candidate)}
-                aria-label={`${selected ? "Ta bort valet av" : "Välj"} ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
-                className="h-5 w-5 shrink-0 cursor-pointer rounded border-ink-300 text-flow-700 focus:ring-flow-600 disabled:cursor-not-allowed" />
-              <span aria-hidden="true">{selected ? "Ta bort val" : "Välj"}</span>
-            </label>
+            <ProductSelectionCheckbox name={`ahlsell-product-${requirementId}`} checked={selected} disabled={disabled}
+              label={`${candidate.productName}, NRF-nummer ${candidate.articleNumber}`} onChange={() => onSelect(candidate)} />
             <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
               <ExternalLink className="h-4 w-4" aria-hidden="true" />

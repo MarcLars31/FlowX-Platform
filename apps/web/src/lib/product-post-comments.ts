@@ -8,6 +8,7 @@ export type ProductPostComment = {
   product_name: string | null;
   author_name: string;
   created_at: string;
+  can_delete?: boolean;
 };
 
 export function validateProductPostComment(value: unknown) {

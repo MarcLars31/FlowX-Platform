@@ -71,6 +71,6 @@ test("colors only approved product rows green", () => {
   );
   assert.equal(
     productTableRowClass({ approved: true, selected: true }),
-    "bg-emerald-100/80 hover:bg-emerald-100"
+    "bg-emerald-100 hover:bg-emerald-200"
   );
 });

@@ -16,6 +16,8 @@ const MAX_CANVAS_PIXELS = 5_000_000;
 
 export type BrowserOcrProgress = {
   label: string;
+  /** Completed share of the requested pages, not the PDF page number. */
+  progress?: number;
   pageNumber?: number;
   totalPages?: number;
 };
@@ -25,7 +27,7 @@ export async function extractPdfPagesWithBrowserOcr(
   requestedPageNumbers: readonly number[],
   onProgress?: (progress: BrowserOcrProgress) => void
 ): Promise<ClientOcrPage[]> {
-  onProgress?.({ label: "Förbereder OCR…" });
+  onProgress?.({ label: "Förbereder OCR…", progress: 0 });
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     "/ocr/pdf.worker.min.mjs",
@@ -74,6 +76,7 @@ export async function extractPdfPagesWithBrowserOcr(
         const percentage = Math.round(Math.min(Math.max(message.progress, 0), 1) * 100);
         onProgress?.({
           label: `OCR sida ${activePageNumber} av ${document.numPages} · ${percentage}%`,
+          progress: (activePageIndex + percentage / 100) / pageNumbers.length,
           pageNumber: activePageNumber,
           totalPages: document.numPages
         });
@@ -86,6 +89,7 @@ export async function extractPdfPagesWithBrowserOcr(
       activePageNumber = pageNumber;
       onProgress?.({
         label: `OCR sida ${pageNumber} av ${document.numPages}…`,
+        progress: activePageIndex / pageNumbers.length,
         pageNumber,
         totalPages: document.numPages
       });
@@ -152,6 +156,12 @@ export async function extractPdfPagesWithBrowserOcr(
         page.cleanup();
       }
       activePageIndex += 1;
+      onProgress?.({
+        label: `OCR sida ${pageNumber} klar`,
+        progress: activePageIndex / pageNumbers.length,
+        pageNumber,
+        totalPages: document.numPages
+      });
     }
     return extractedPages;
   } finally {

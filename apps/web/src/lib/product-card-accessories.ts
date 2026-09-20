@@ -1,13 +1,14 @@
 import type { DistributorAccessoryInput } from "./distributor-product-mapping";
 import type { AhlsellAccessorySuggestion } from "./ahlsell-public-match";
 import { normalizeNrfNumber } from "./product-card-candidates";
+import { parseProductQuantity } from "./product-order-quantity";
 
 export type ProductAccessoryDraft = Omit<DistributorAccessoryInput, "quantity"> & {
   quantity: string;
 };
 
 export function newProductAccessoryDraft(): ProductAccessoryDraft {
-  return { name: "", productNumber: "", quantity: "1", unit: "st", notes: "" };
+  return { name: "", productNumber: "", quantity: "", quantityBasis: "total", unit: "st", notes: "" };
 }
 
 export function readProductAccessoryDrafts(value: unknown): ProductAccessoryDraft[] {
@@ -22,6 +23,7 @@ export function readProductAccessoryDrafts(value: unknown): ProductAccessoryDraf
       name,
       productNumber: text(accessory.productNumber),
       quantity: String(positiveNumber(accessory.quantity, 1)),
+      ...(accessory.quantityBasis === "total" ? { quantityBasis: "total" as const } : {}),
       unit: text(accessory.unit) || "st",
       notes: text(accessory.notes)
     }];
@@ -50,8 +52,8 @@ export function productAccessoryDraftError(accessories: ProductAccessoryDraft[])
     const accessory = accessories[index];
     const name = accessory.name.trim();
     if (!name) return `Fyll i namnet på tillbehör ${index + 1} eller ta bort raden.`;
-    const quantity = Number(accessory.quantity);
-    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 100000) {
+    const quantity = parseProductQuantity(accessory.quantity);
+    if (quantity === null) {
       return `Ange en giltig mängd för tillbehöret ${name}.`;
     }
 
@@ -68,7 +70,8 @@ export function productAccessoryPayload(accessories: ProductAccessoryDraft[]): D
   return accessories.map((accessory) => ({
     name: accessory.name.trim(),
     productNumber: accessory.productNumber.trim(),
-    quantity: Number(accessory.quantity),
+    quantity: parseProductQuantity(accessory.quantity) ?? NaN,
+    ...(accessory.quantityBasis ? { quantityBasis: accessory.quantityBasis } : {}),
     unit: accessory.unit.trim() || "st",
     notes: accessory.notes.trim()
   }));
@@ -87,7 +90,8 @@ export function hasSuggestedProductAccessory(
 export function toggleSuggestedProductAccessory(
   accessories: readonly ProductAccessoryDraft[],
   suggestion: AhlsellAccessorySuggestion,
-  selected: boolean
+  selected: boolean,
+  postQuantity?: number | null
 ): ProductAccessoryDraft[] {
   const alreadySelected = hasSuggestedProductAccessory(accessories, suggestion);
   if (!selected) {
@@ -100,7 +104,9 @@ export function toggleSuggestedProductAccessory(
   return [...accessories, {
     name: suggestion.productName,
     productNumber: suggestion.articleNumber,
-    quantity: String(suggestion.quantity),
+    quantity: postQuantity === undefined ? String(suggestion.quantity)
+      : postQuantity === null ? "" : String(suggestion.quantity * postQuantity),
+    ...(postQuantity !== undefined ? { quantityBasis: "total" as const } : {}),
     unit: suggestion.unit || "st",
     notes: `ScipX-förslag: ${suggestion.reason}`
   }];

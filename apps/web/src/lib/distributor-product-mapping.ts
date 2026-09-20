@@ -1,9 +1,11 @@
 import { parseRequirementReview, type RequirementReviewDraft } from "./product-requirement-review";
+import { parseProductOrderQuantity, parseProductQuantity, type ProductOrderQuantity } from "./product-order-quantity";
 
 export type DistributorAccessoryInput = {
   name: string;
   productNumber: string;
   quantity: number;
+  quantityBasis?: "total" | "per_unit";
   unit: string;
   notes: string;
 };
@@ -22,6 +24,7 @@ export type DistributorProductMappingInput = {
   currency: string;
   notes: string;
   accessories: DistributorAccessoryInput[];
+  orderQuantity?: ProductOrderQuantity;
   requirementReview?: RequirementReviewDraft;
 };
 
@@ -69,6 +72,8 @@ export function validateDistributorProductMapping(
   const currency = currencyCode(rawCurrency);
   if (rawCurrency && !currency) return { error: "Valutan måste anges med en giltig kod, till exempel NOK." };
   const notes = text(value.notes, 2000);
+  const orderQuantity = value.orderQuantity == null ? null : parseProductOrderQuantity(value.orderQuantity);
+  if (value.orderQuantity != null && !orderQuantity) return { error: "Ange en giltig total mängd och enhet för produkten." };
   const requirementReview = value.requirementReview == null ? null : parseRequirementReview(value.requirementReview);
   if (value.requirementReview != null && !requirementReview) return { error: "Kravgenomgången har ogiltigt format." };
   if (!isUuid(requirementId)) return { error: "Ogiltigt krav-id." };
@@ -96,12 +101,12 @@ export function validateDistributorProductMapping(
     if (!isRecord(accessory)) return { error: "Ett tillbehör har ogiltigt format." };
     const name = text(accessory.name, 240);
     if (!name) continue;
-    const rawQuantity =
-      typeof accessory.quantity === "number"
-        ? accessory.quantity
-        : Number(accessory.quantity ?? 1);
-    if (!Number.isFinite(rawQuantity) || rawQuantity <= 0 || rawQuantity > 100000) {
+    const rawQuantity = parseProductQuantity(accessory.quantity ?? 1);
+    if (rawQuantity === null) {
       return { error: `Ogiltig mängd för tillbehöret ${name}.` };
+    }
+    if (accessory.quantityBasis != null && accessory.quantityBasis !== "total" && accessory.quantityBasis !== "per_unit") {
+      return { error: `Ogiltig mängdtyp för tillbehöret ${name}.` };
     }
     const productNumber = text(accessory.productNumber, 120);
     const normalizedProductNumber = normalizedIdentity(productNumber, true);
@@ -116,6 +121,7 @@ export function validateDistributorProductMapping(
       name,
       productNumber,
       quantity: rawQuantity,
+      ...(accessory.quantityBasis ? { quantityBasis: accessory.quantityBasis } : {}),
       unit: text(accessory.unit, 30) || "st",
       notes: text(accessory.notes, 500)
     });
@@ -136,6 +142,7 @@ export function validateDistributorProductMapping(
       currency,
       notes,
       accessories,
+      ...(orderQuantity ? { orderQuantity } : {}),
       ...(requirementReview ? { requirementReview } : {})
     }
   };

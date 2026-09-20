@@ -1,5 +1,6 @@
 import { AhlsellCatalogError, fetchAhlsellCandidateVariants, searchAhlsellPublicCatalog, type AhlsellMarket } from "./ahlsell-public-catalog";
-import { applyAhlsellProductDetails, fetchAhlsellProductDetails, fetchAhlsellProductPage, parseAhlsellProductDetails, parseAhlsellProductSubtitle, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
+import { applyAhlsellProductDetails, fetchAhlsellProductDetails, fetchAhlsellProductPage, parseAhlsellProductArticleNumber, parseAhlsellProductDetails, parseAhlsellProductSubtitle, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
+import { ahlsellLookupArticleNumber } from "./ahlsell-lookup-input";
 import type { AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
@@ -15,8 +16,7 @@ export function parseAhlsellLookupQuery(value: unknown, market: AhlsellMarket) {
     if (!url) throw new AhlsellLookupInputError("Klistra in en produktlänk från ahlsell.no eller ahlsell.se.");
     return { query: url, url, market: new URL(url).hostname.endsWith(".se") ? "se" as const : "no" as const, articleNumber: null };
   }
-  const number = query.replace(/^nrf\s*(?:[- ]?(?:nr|nummer))?\.?\s*:?\s*/i, "").replace(/[\s-]/g, "");
-  const articleNumber = /^\d{7}$/.test(number) ? number : null;
+  const articleNumber = ahlsellLookupArticleNumber(query);
   if (query.length < 2 || query.length > 180) throw new AhlsellLookupInputError("Ange minst två tecken och högst 180 tecken för sökningen.");
   return { query: articleNumber ?? query, url: null, market, articleNumber };
 }
@@ -29,37 +29,50 @@ export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, s
   store?: AhlsellEvidenceStore;
 }): Promise<AhlsellLookupResult> {
   const input = parseAhlsellLookupQuery(query, market);
-  if (input.url) {
-    const page = await fetchAhlsellProductPage({ productUrl: input.url, fetchImpl, signal });
-    if (!page) throw new AhlsellCatalogError("Produktsidan kunde inte hämtas från Ahlsell. Försök söka på NRF-numret.");
-    const product = parseAhlsellLookupPage(page.html, page.url);
-    if (!product) throw new AhlsellCatalogError("Produktens namn och NRF-nummer kunde inte läsas. Sök på NRF-numret i stället.");
-    // An old article URL may redirect to its replacement. Do not silently import it.
-    const requestedNumber = new URL(input.url).pathname.split("/").filter(Boolean).at(-1)?.match(/^(\d{7})(?:---|$)/)?.[1];
-    if (requestedNumber && product.articleNumber !== requestedNumber) {
-      return { products: [], searchUrl: page.url, message: `Länken avser NRF ${requestedNumber}, men Ahlsell visar NRF ${product.articleNumber}. Öppna Ahlsell och kopiera länken till den artikel du vill välja.` };
+  const requestedNumber = input.articleNumber ?? (input.url
+    ? new URL(input.url).pathname.split("/").filter(Boolean).at(-1)?.match(/^(\d{6,12})(?:---|$)/)?.[1] ?? null : null);
+  // The public article redirect resolves the exact product without depending on
+  // the search index or which family variant happens to rank first today.
+  const productUrl = input.url ?? (requestedNumber ? `https://www.ahlsell.${input.market}/productVariantProxy/${requestedNumber}` : null);
+  let pageUnavailable = false;
+  signal?.throwIfAborted();
+  if (productUrl) {
+    const page = await fetchAhlsellProductPage({ productUrl, fetchImpl, signal, reportFailures: true }).catch(() => {
+      signal?.throwIfAborted();
+      pageUnavailable = true;
+      return null;
+    });
+    signal?.throwIfAborted();
+    const product = page ? parseAhlsellLookupPage(page.html, page.url) : null;
+    const missingArticle = page && requestedNumber && [...page.html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").matchAll(/<h[12]\b[^>]*>([\s\S]*?)<\/h[12]>/gi)]
+      .some(heading => cleanText(heading[1]).includes(`ikke finne en artikkel med det nummeret ${requestedNumber}`));
+    if (page && !product && !missingArticle) pageUnavailable = true;
+    if (page && product) {
+      // An old article URL may redirect to its replacement. Do not silently import it.
+      if (requestedNumber && product.articleNumber !== requestedNumber) {
+        return { products: [], searchUrl: page.url, message: `Sökningen avser artikel ${requestedNumber}, men Ahlsell visar artikel ${product.articleNumber}. Kontrollera vilken artikel du vill välja.` };
+      }
+      const detail = parseAhlsellProductDetails(page.html, product.articleNumber, page.url);
+      if (store && detail?.snapshot) await store.write(input.market, product.articleNumber, detail.snapshot).catch(() => undefined);
+      return { products: [applyAhlsellProductDetails(product, detail)], searchUrl: page.url };
     }
-    const detail = parseAhlsellProductDetails(page.html, product.articleNumber, page.url);
-    if (store && detail?.snapshot) await store.write(input.market, product.articleNumber, detail.snapshot).catch(() => undefined);
-    return { products: [applyAhlsellProductDetails(product, detail)], searchUrl: page.url };
+    if (!requestedNumber) throw new AhlsellCatalogError("Produktens uppgifter kunde inte hämtas från Ahlsell. Sök på artikelnumret eller försök igen.");
   }
 
-  const result = await searchAhlsellPublicCatalog({ market: input.market, query: input.query, maxCandidates: 12, fetchImpl });
+  const result = await searchAhlsellPublicCatalog({ market: input.market, query: requestedNumber ?? input.query, maxCandidates: 12, fetchImpl });
   signal?.throwIfAborted();
   let products: AhlsellLookupProduct[] = result.candidates;
   // Even a card with variantCount=1 can contain more variants in Ahlsell's API.
   // Explicit NRF searches must check those variants rather than rank substitutes.
-  if (input.articleNumber) {
-    const exact = products.find((product) => product.articleNumber === input.articleNumber);
+  if (requestedNumber) {
+    const exact = products.find((product) => product.articleNumber === requestedNumber);
     const families = exact ? [exact] : products.slice(0, 4);
-    const variants = (await Promise.all(families.map((candidate) =>
-      fetchAhlsellCandidateVariants({ candidate, market: input.market, fetchImpl }).catch((error) => {
-        if (exact) return [];
-        throw error;
-      })
-    ))).flat();
-    products = variants.filter((product) => product.articleNumber === input.articleNumber);
+    const variantResults = await Promise.allSettled(families.map(candidate => fetchAhlsellCandidateVariants({ candidate, market: input.market, fetchImpl })));
+    products = variantResults.flatMap(result => result.status === "fulfilled" ? result.value : []).filter(product => product.articleNumber === requestedNumber);
     if (!products.length && exact) products = [exact];
+    if (!products.length && (pageUnavailable || variantResults.some(result => result.status === "rejected"))) {
+      throw new AhlsellCatalogError("Alla produktuppgifter kunde inte hämtas från Ahlsell. Försök igen om en stund.");
+    }
   }
   products = [...new Map(products.map((product) => [product.articleNumber, product])).values()];
   const details = await fetchAhlsellProductDetails({ items: products.slice(0, 6), fetchImpl, signal, store });
@@ -68,8 +81,8 @@ export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, s
   return {
     products,
     searchUrl: result.searchUrl,
-    message: products.length ? undefined : input.articleNumber
-      ? `Ingen exakt träff för NRF ${input.articleNumber} hos Ahlsell. Kontrollera numret eller klistra in produktens Ahlsell-länk.`
+    message: products.length ? undefined : requestedNumber
+      ? `Ingen exakt träff för artikel ${requestedNumber} hos Ahlsell. Kontrollera numret eller klistra in produktens Ahlsell-länk.`
       : "Inga produkter hittades hos Ahlsell. Prova andra sökord eller klistra in en produktlänk."
   };
 }
@@ -81,10 +94,9 @@ export function parseAhlsellLookupPage(html: string, productUrl: string): Ahlsel
   const visible = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
   const heading = /<h1\b(?=[^>]*\bdata-test\s*=\s*["']product-name["'])[^>]*>([\s\S]*?)<\/h1>/i.exec(visible);
   if (!heading) return null;
-  const header = visible.slice(heading.index + heading[0].length, heading.index + heading[0].length + 12_000).split(/<h[12]\b/i)[0];
-  const articleNumber = /<span\b[^>]*class=["'][^"']*\btext-card-item-number\b[^"']*["'][^>]*>\s*(?:<span\b[^>]*>\s*)?(\d{7})\s*<\/span>/i.exec(header)?.[1] ?? "";
+  const articleNumber = parseAhlsellProductArticleNumber(visible);
   const productName = cleanText(heading[1]).slice(0, 500);
-  if (!/^\d{7}$/.test(articleNumber) || !productName) return null;
+  if (!articleNumber || !productName) return null;
   return { articleNumber, productName, subtitle: parseAhlsellProductSubtitle(visible) ?? undefined, manufacturer: "", productUrl: safeUrl, specifications: [], source: "catalog_search" };
 }
 

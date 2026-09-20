@@ -1,9 +1,15 @@
 "use client";
 
+
+
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
+import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
+import { ProductQuantityFields } from "@/components/ProductQuantityFields";
+import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
+import { groupProductRequirementsByMainPost } from "@/lib/product-post-groups";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { ProductAssemblyParts } from "@/components/ProductAssemblyParts";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -50,7 +56,6 @@ import {
   PRODUCT_REQUIREMENT_CATEGORIES,
   productRequirementCategory,
   productRequirementCategoryLabel,
-  sortProductRequirementsByCategory,
   type ProductRequirementCategory
 } from "@/lib/product-requirement-category";
 import {
@@ -84,6 +89,8 @@ type ProductSelection = {
   currency: string;
 };
 type ManualProductDraft = {
+  quantity: string;
+  unit: string;
   productNumber: string;
   manufacturerArticleNumber: string;
   manufacturerName: string;
@@ -293,6 +300,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     ...redRequirements.map((requirement) => [requirement.id, "red"] as const)
   ]), [greenRequirements, redRequirements, yellowRequirements]);
   const [selectedProductCategories, setSelectedProductCategories] = useState<ProductRequirementCategory[] | null>(null);
+  const [expandedMainPosts, setExpandedMainPosts] = useState<Set<string>>(() => new Set());
   const [productTableSort, setProductTableSort] = useState<ProductTableSort | null>(null);
   const [productTableLayout, setProductTableLayout] = useState<ProductTableLayout>(() => normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
   const [productTableLayoutLoaded, setProductTableLayoutLoaded] = useState(false);
@@ -340,10 +348,14 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       // The customized table still works for this session when browser storage is unavailable.
     }
   }, [productTableLayout, productTableLayoutLoaded]);
-  const allQueueRequirements = useMemo(
-    () => sortProductRequirementsByCategory(productRequirements),
+  const allMainPostGroups = useMemo(
+    () => groupProductRequirementsByMainPost(productRequirements),
     [productRequirements]
   );
+  const allQueueRequirements = useMemo(() => allMainPostGroups.flatMap(group => group.requirements), [allMainPostGroups]);
+  const approvedMainPostKeys = useMemo(() => new Set(allMainPostGroups
+    .filter(group => group.requirements.every(requirement => approvedRequirementIds.has(requirement.id)))
+    .map(group => group.key)), [allMainPostGroups, approvedRequirementIds]);
   const productCategoryCounts = useMemo(() => {
     const counts = new Map<ProductRequirementCategory, number>();
     for (const requirement of allQueueRequirements) {
@@ -374,7 +386,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     }
     return selections;
   }, [groupByRequirementId, handledRequirementIds, memoriesByFingerprint, productRequirements]);
-  const queueRequirements = useMemo(() => {
+  const filteredQueueRequirements = useMemo(() => {
     const filteredRequirements = selectedProductCategories === null
       ? allQueueRequirements
       : allQueueRequirements.filter((requirement) => selectedProductCategories.includes(productRequirementCategory(requirement)));
@@ -410,6 +422,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       })
       .map(({ requirement }) => requirement);
   }, [allQueueRequirements, approvedAssignmentByRequirementId, approvedRequirementIds, bulkApprovalSelectionByRequirementId, groupByRequirementId, preferredMemoryByFingerprint, productLabelsByRequirementId, productTableSort, selectedProductCategories]);
+  const mainPostGroups = useMemo(() => groupProductRequirementsByMainPost(filteredQueueRequirements, {
+    allRequirements: allQueueRequirements, preserveRowOrder: Boolean(productTableSort)
+  }), [filteredQueueRequirements, allQueueRequirements, productTableSort]);
+  const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
+  const expandedQueueRequirements = mainPostGroups.filter(group => expandedMainPosts.has(group.key)).flatMap(group => group.requirements);
   const queuePositionById = useMemo(
     () => new Map(allQueueRequirements.map((requirement, index) => [requirement.id, index + 1])),
     [allQueueRequirements]
@@ -450,7 +467,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     return () => controller.abort();
   }, [projectId, productLabelRequestKey]);
 
-  const bulkEligibleVisibleRequirements = queueRequirements.filter((requirement) =>
+  const bulkEligibleVisibleRequirements = expandedQueueRequirements.filter((requirement) =>
     bulkApprovalSelectionByRequirementId.has(requirement.id)
   );
   const selectedVisibleRequirements = bulkEligibleVisibleRequirements.filter((requirement) =>
@@ -460,8 +477,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     () => previousBulkProductApprovals(productRequirements, bulkApprovalSelectionByRequirementId),
     [bulkApprovalSelectionByRequirementId, productRequirements]
   );
-  const allVisibleRequirementsSelected = bulkEligibleVisibleRequirements.length > 0
-    && selectedVisibleRequirements.length === bulkEligibleVisibleRequirements.length;
   const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
   const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
@@ -515,6 +530,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     if (activeRequirementId && activeRequirementId !== requirementId && !confirmDiscardProductChanges()) return;
     setProductCardDirty(false);
     setActiveRequirementId(requirementId);
+    const mainPost = mainPostGroups.find(group => group.requirements.some(item => item.id === requirementId));
+    if (mainPost) setExpandedMainPosts(current => new Set(current).add(mainPost.key));
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => document.getElementById("product-card-scroll")?.scrollTo({ top: 0, behavior: "smooth" }));
@@ -565,10 +582,24 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     });
   }
 
-  function toggleAllVisibleRequirements(selected: boolean) {
-    setSelectedRequirementIds(selected
-      ? new Set(bulkEligibleVisibleRequirements.map((requirement) => requirement.id))
-      : new Set());
+  function toggleMainPost(key: string) {
+    setExpandedMainPosts(current => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleGroupRequirements(requirementIds: string[], selected: boolean) {
+    setSelectedRequirementIds(current => {
+      const next = new Set(current);
+      for (const id of requirementIds) {
+        if (selected) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
   }
 
   async function approveSelectedGreenProducts() {
@@ -752,6 +783,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               {remainingRequirements.length === 0 ? "Alla produktposter är hanterade" : `Hantera ${remainingRequirements.length} ${remainingRequirements.length === 1 ? "produktpost" : "produktposter"}`}
             </h2>
             <p className="mt-3 text-base leading-7 text-slate-300">
+
               Kontrollera PDF-kravet och godkänn rätt artikel. Om Ahlsell saknar varan kan du märka posten som ”Inte i sortiment”.
             </p>
           </div>
@@ -772,6 +804,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
           <div className="flex flex-col gap-2 border-b border-ink-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h3>
+              <p className="mt-1 text-sm text-ink-700">Klikk på et hovedpostnummer for å vise og velge en underpost.</p>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">
                 {catalogChecksRemaining > 0
                   ? `Scipx söker automatiskt på Ahlsells webbplats för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
@@ -781,7 +814,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {selectedVisibleRequirements.length > 0 && <span className="rounded-full bg-flow-100 px-2.5 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length} valda</span>}
+              {selectedVisibleRequirements.length > 0 && <span className="rounded-full bg-flow-100 px-2.5 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length}  valda</span>}
               <Button
                 type="button"
                 className="min-h-9 px-3 py-1.5 text-sm"
@@ -823,6 +856,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                 onClick={() => setProductTableLayoutEditorOpen((open) => !open)}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+
                 Anpassa tabell
               </Button>
             </div>
@@ -844,6 +878,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                 </div>
                 <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-sm" onClick={resetProductTableLayout}>
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+
                   Återställ standardvy
                 </Button>
               </div>
@@ -897,11 +932,29 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
 
           {queueRequirements.length > 0 ? (
             productTableLayoutLoaded ? (
-            <div className="overflow-x-auto" tabIndex={0}>
+            <div className="divide-y divide-ink-200">
+              {mainPostGroups.map((mainPost, index) => {
+                const expanded = expandedMainPosts.has(mainPost.key);
+                const mainPostApproved = approvedMainPostKeys.has(mainPost.key);
+                const label = mainPost.postNumber ?? "Hovedpost mangler";
+                const regionId = `main-post-${index}-products`;
+                const headingId = `main-post-${index}-heading`;
+                const eligibleIds = mainPost.requirements.filter(item => bulkApprovalSelectionByRequirementId.has(item.id)).map(item => item.id);
+                const allGroupSelected = eligibleIds.length > 0 && eligibleIds.every(id => selectedRequirementIds.has(id));
+                return <section key={mainPost.key} aria-labelledby={headingId}>
+                  <h4 id={headingId}>
+                    <button type="button" aria-expanded={expanded} aria-controls={regionId}
+                      aria-label={`Hovedpost ${label}`} onClick={() => toggleMainPost(mainPost.key)}
+                      className={`flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left text-base font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-flow-600 ${mainPostApproved ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200" : expanded ? "bg-flow-50 text-flow-900 hover:bg-flow-50" : "bg-white text-flow-900 hover:bg-flow-50"}`}>
+                      <span className="flex items-center gap-2">{mainPostApproved && <><CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /><span className="sr-only">Godkjent · </span></>}{label}</span>
+                      <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                    </button>
+                  </h4>
+                  {expanded && <div id={regionId} role="region" aria-labelledby={headingId} className="overflow-x-auto border-t border-ink-200" tabIndex={0}>
               <table className="w-full border-collapse whitespace-nowrap text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
-                    <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label="Välj alla synliga gröna produktposter som kan godkännas direkt" checked={allVisibleRequirementsSelected} disabled={bulkEligibleVisibleRequirements.length === 0 || bulkApproving} onChange={(event) => toggleAllVisibleRequirements(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-40" /></th>
+                    <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label={`Velg alle grønne produktposter under hovedpost ${label} som kan godkjennes direkte`} checked={allGroupSelected} disabled={eligibleIds.length === 0 || bulkApproving} onChange={(event) => toggleGroupRequirements(eligibleIds, event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-40" /></th>
                     {visibleProductTableColumns.map((columnId) => {
                       const column = PRODUCT_TABLE_COLUMNS[columnId];
                       return (
@@ -928,7 +981,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                   </tr>
                 </thead>
                 <tbody>
-                  {queueRequirements.map((requirement) => (
+                  {mainPost.requirements.map((requirement) => (
                     <RequirementQueueRow
                       key={requirement.id}
                       requirement={requirement}
@@ -949,10 +1002,14 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                   ))}
                 </tbody>
               </table>
+                  </div>}
+                </section>;
+              })}
             </div>
             ) : (
               <div className="flex min-h-28 items-center justify-center gap-2 p-5 text-sm font-bold text-ink-700" role="status">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+
                 Laddar din tabellvy…
               </div>
             )
@@ -978,8 +1035,9 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
         <div className="space-y-6">
           {activeRequirement && (() => {
             const requirement = activeRequirement;
-            const activeGroup = groupByRequirementId.get(requirement.id) ?? "yellow";
             const assignment = approvedAssignmentByRequirementId.get(requirement.id);
+            const activeApproved = Boolean(assignment) && !productCardDirty;
+            const activeGroup = activeApproved ? "green" : assignment && productCardDirty ? "yellow" : groupByRequirementId.get(requirement.id) ?? "yellow";
             const activeResolution = productRequirementResolution(requirement);
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint);
             return (
@@ -993,15 +1051,15 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                 }}
               >
                 <div id="product-work-queue" className="flex h-full w-full flex-col overflow-hidden">
-                  <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-ink-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
+                  <nav aria-label="Navigera mellan produktposter" className={`shrink-0 border-b border-ink-200 px-3 py-2.5 sm:px-4 sm:py-3 ${activeApproved ? "bg-emerald-100" : "bg-white"}`}>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-center gap-3">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink-50">
                           {activeGroup === "green" ? <CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /> : activeGroup === "red" ? <CircleX className="h-5 w-5 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
                         </span>
                         <div>
-                          <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-emerald-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeResolution ? `Posten är hanterad · ${activeResolution.label}` : assignment ? "Produkten är godkänd" : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : "Produkten måste ses över"}</p>
-                          <p className="mt-0.5 text-sm font-bold text-ink-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount} kvar i visningen</p>
+                          <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-emerald-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeApproved ? "Produkten är godkänd" : productCardDirty ? "Osparade ändringar" : activeResolution ? `Posten är hanterad · ${activeResolution.label}` : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : "Produkten måste ses över"}</p>
+                          <p className="mt-0.5 text-sm font-bold text-ink-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount}  kvar i visningen</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1066,7 +1124,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 p-5 sm:p-6">
                 <div>
                 <p className="text-sm font-bold uppercase tracking-[0.08em] text-amber-800">Demontering</p>
-                <h3 className="mt-1 text-xl font-bold text-amber-950">{removalRequirements.length} {removalRequirements.length === 1 ? "post" : "poster"} utan nytt produktval</h3>
+                <h3 className="mt-1 text-xl font-bold text-amber-950">{removalRequirements.length} {removalRequirements.length === 1 ? "post" : "poster"}  utan nytt produktval</h3>
                 <p className="mt-1 text-sm text-amber-900">De följer med i Excel men behöver inget produktval.</p>
                 </div>
                 <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold text-amber-900">Visa poster<ChevronDown className="h-5 w-5 transition group-open:rotate-180" aria-hidden="true" /></span>
@@ -1084,7 +1142,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 p-5 sm:p-6">
                 <div>
                   <p className="text-sm font-bold uppercase tracking-[0.08em] text-slate-700">Arbetsmoment</p>
-                  <h3 className="mt-1 text-xl font-bold text-ink-950">{workRequirements.length} {workRequirements.length === 1 ? "post" : "poster"} ska inte sökas som Ahlsell-produkter</h3>
+                  <h3 className="mt-1 text-xl font-bold text-ink-950">{workRequirements.length} {workRequirements.length === 1 ? "post" : "poster"}  ska inte sökas som Ahlsell-produkter</h3>
                   <p className="mt-1 text-sm text-ink-700">Exempelvis håltagning, schaktning och totalsummor följer med i resultatet men påverkar inte produktträffarna.</p>
                 </div>
                 <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold text-ink-800">Visa poster<ChevronDown className="h-5 w-5 transition group-open:rotate-180" aria-hidden="true" /></span>
@@ -1140,6 +1198,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   onError: (message: string) => void;
 }) {
   const currentSnapshot = record(assignment?.product_snapshot);
+  const quantity = projectRequirementQuantity(requirement.value_json);
+  const [orderQuantity, setOrderQuantity] = useState<{ quantity: string; unit: string } | null>(() => {
+    const saved = parseProductOrderQuantity(currentSnapshot.orderQuantity);
+    return saved ? { quantity: String(saved.quantity), unit: saved.unit } : null;
+  });
   const [selectionReview, setSelectionReview] = useState<ProductSelectionReview | null>(() => readProductSelectionReview(currentSnapshot.notes));
   const defaultCurrency = normalizeCurrencyCode(currency) || "NOK";
   const [productName, setProductName] = useState(String(currentSnapshot.name ?? ""));
@@ -1160,6 +1223,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [manualProductDraftDirty, setManualProductDraftDirty] = useState(false);
   const [manualProductError, setManualProductError] = useState<string | null>(null);
   const [manualProductDraft, setManualProductDraft] = useState<ManualProductDraft>(() => ({
+    quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""),
+    unit: orderQuantity?.unit ?? (quantity.unit || "st"),
     productNumber: String(currentSnapshot.productNumber ?? ""),
     manufacturerArticleNumber: String(currentSnapshot.manufacturerArticleNumber ?? ""),
     manufacturerName: String(currentSnapshot.manufacturer ?? ""),
@@ -1189,7 +1254,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const details = projectRequirementDetails(requirement);
   const dataWarnings = projectRequirementDataWarnings(requirement);
-  const quantity = projectRequirementQuantity(requirement.value_json);
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
   const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty || commentDraftDirty;
@@ -1200,6 +1264,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   });
   const accessoryError = productAccessoryDraftError(selectedProductAccessories);
   const assemblyPlan = productAssemblyPlan(requirement);
+  const hasAccessoryStep = Boolean(assemblyPlan?.components.length || suggestedAccessories.length || selectedProductAccessories.length);
   const accessoryComponent = assemblyPlan?.components.find(component => component.id === accessoryComponentId);
   const accessoryQuery = accessoryComponent
     ? assemblyComponentSearch(accessoryComponent, `${productName} ${productSubtitle} ${manufacturerName}`) : "";
@@ -1280,6 +1345,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setProductName(selection.productName);
     setProductSubtitle(selection.productSubtitle);
     setProductNumber(selection.productNumber);
+    if (normalizeNrfNumber(selection.productNumber) !== normalizeNrfNumber(productNumber)) setOrderQuantity(null);
     setManufacturerArticleNumber(selection.manufacturerArticleNumber);
     setManufacturerName(selection.manufacturerName);
     setDeliveryTimeDays(selection.deliveryTimeDays);
@@ -1300,9 +1366,18 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setSuggestedAccessories(accessorySuggestions);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
-    if (assemblyPlan?.kind === "pipe") window.requestAnimationFrame(() => {
-      document.getElementById(`selected-pipe-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      document.getElementById(`selected-pipe-${requirement.id}`)?.focus({ preventScroll: true });
+    window.requestAnimationFrame(() => {
+      const selectedCard = document.getElementById(`selected-pipe-${requirement.id}`);
+      const panel = selectedCard?.closest("fieldset");
+      const scrollContainer = panel && window.getComputedStyle(panel).overflowY === "auto" ? panel : document.getElementById("product-card-scroll");
+      const header = document.getElementById(`product-selection-header-${requirement.id}`);
+      if (selectedCard && scrollContainer) {
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollTop + selectedCard.getBoundingClientRect().top - scrollContainer.getBoundingClientRect().top - (header?.offsetHeight ?? 0) - 16,
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"
+        });
+      }
+      selectedCard?.focus({ preventScroll: true });
     });
   }
 
@@ -1338,6 +1413,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setProductName("");
     setProductSubtitle("");
     setProductNumber("");
+    setOrderQuantity(null);
     setManufacturerArticleNumber("");
     setManufacturerName("");
     setDeliveryTimeDays("");
@@ -1352,6 +1428,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   function openManualProductCard() {
     setManualProductDraft({
+      quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""),
+      unit: orderQuantity?.unit ?? (quantity.unit || "st"),
       productNumber,
       manufacturerArticleNumber,
       manufacturerName,
@@ -1379,6 +1457,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function applyManualProduct() {
+    const amount = parseProductOrderQuantity(manualProductDraft);
+    if (!amount) {
+      setManualProductError("Angi en gyldig total mengde (0,001–100 000) og enhet for produktet.");
+      return;
+    }
     const validation = validateManualDistributorProduct({
       ...manualProductDraft
     }, defaultCurrency);
@@ -1399,11 +1482,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       unitPrice: String(manualProduct.unitPrice),
       currency: manualProduct.currency
     }, `Produkten med NRF-nummer ${manualProduct.productNumber} har lagts till för kontroll.`, true);
+    setOrderQuantity({ quantity: String(amount.quantity), unit: amount.unit });
     setManualProductOpen(false);
     setManualProductDraftDirty(false);
     setManualProductError(null);
     onError("");
-    window.requestAnimationFrame(() => document.getElementById(`manual-product-trigger-${requirement.id}`)?.focus());
   }
 
   function showAllProductAlternatives() {
@@ -1416,7 +1499,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function openAccessoryLookup(component?: AssemblyComponent) {
-    if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
+    if (!hasAccessoryStep || !productNumber.trim() || selectedProductAccessories.length >= 20) return;
     if (component && accessoryLookupOpen && accessoryComponentId === component.id) {
       setAccessoryLookupOpen(false);
       return;
@@ -1430,7 +1513,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     });
   }
 
-  function applyAhlsellAccessory(candidate: AhlsellLookupProduct) {
+  function applyAhlsellAccessory(candidate: AhlsellLookupProduct, amount: { quantity: string; unit: string }) {
     if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
     if (selectedProductAccessories.some((accessory) => normalizeNrfNumber(accessory.productNumber) === normalizeNrfNumber(candidate.articleNumber))) {
       onError(`Tillbehöret med NRF-nummer ${candidate.articleNumber} är redan tillagt.`);
@@ -1439,21 +1522,25 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setAccessories([...selectedProductAccessories, {
       ...newProductAccessoryDraft(), name: candidate.subtitle || candidate.productName,
       productNumber: candidate.articleNumber,
-      ...(assemblyPlan?.kind === "pipe" || accessoryComponent?.quantityNeedsReview ? { quantity: "" } : {}),
-      ...(accessoryComponent?.kind === "pipe" ? { quantity: "", unit: "m" } : {}),
+      ...amount,
       notes: `${accessoryComponent ? `Kravdel: ${accessoryComponent.label}. ` : ""}Valt från Ahlsell: ${candidate.productUrl}`
     }]);
     setAccessoryOwnerProductNumber(productNumber);
     setAccessoriesExpanded(true);
-    setAccessoryLookupOpen(false);
     setHasUnapprovedChanges(true);
     setDraftNotice(`Tillbehöret med NRF-nummer ${candidate.articleNumber} har lagts till för kontroll.`);
     onError("");
-    if (accessoryComponent) window.requestAnimationFrame(() => {
-      const trigger = document.getElementById(`assembly-parts-${requirement.id}-${accessoryComponent.id}-trigger`);
-      trigger?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      trigger?.focus({ preventScroll: true });
-    });
+  }
+
+  function updateLookupAccessory(candidate: AhlsellLookupProduct, amount: { quantity: string; unit: string }) {
+    setAccessories(current => current.map(accessory => normalizeNrfNumber(accessory.productNumber) === normalizeNrfNumber(candidate.articleNumber)
+      ? { ...accessory, ...amount, quantityBasis: "total" } : accessory));
+    setHasUnapprovedChanges(true);
+  }
+
+  function updateOrderQuantity(amount: { quantity: string; unit: string }) {
+    setOrderQuantity(amount);
+    setHasUnapprovedChanges(true);
   }
 
   function addManualAccessory() {
@@ -1492,7 +1579,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function toggleSuggestedAccessory(suggestion: AhlsellAccessorySuggestion, selected: boolean) {
-    const next = toggleSuggestedProductAccessory(selectedProductAccessories, suggestion, selected);
+    const next = toggleSuggestedProductAccessory(selectedProductAccessories, suggestion, selected, quantity.quantity);
     setAccessories(next);
     setAccessoryOwnerProductNumber(next.length > 0 ? productNumber : "");
     setAccessoriesExpanded(next.length > 0);
@@ -1514,6 +1601,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   async function save() {
+    if (orderQuantity && !parseProductOrderQuantity(orderQuantity)) {
+      onError("Angi en gyldig total mengde (0,001–100 000) og enhet for hovedproduktet.");
+      return;
+    }
     if (commentDraftDirty || commentsSaving) {
       onError("Spara kommentarerna eller töm kommentarsfälten före godkännandet.");
       return;
@@ -1534,6 +1625,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       }, priceCurrency || defaultCurrency);
       if ("error" in manualValidation) {
         setManualProductDraft({
+          quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""),
+          unit: orderQuantity?.unit ?? (quantity.unit || "st"),
           productNumber,
           manufacturerArticleNumber,
           manufacturerName,
@@ -1602,7 +1695,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           sameApprovedProduct && typeof currentSnapshot.notes === "string"
             ? currentSnapshot.notes
             : ""),
-        accessories: productAccessoryPayload(selectedProductAccessories)
+        accessories: productAccessoryPayload(selectedProductAccessories),
+        ...(orderQuantity ? { orderQuantity } : {})
       };
       const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
         method: "POST",
@@ -1689,40 +1783,52 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     void saveResolution("not_in_assortment");
   }
 
-  const accessoryLookup = accessoryLookupOpen && productNumber.trim() ? (
+  const accessoryLookup = hasAccessoryStep && accessoryLookupOpen && productNumber.trim() ? (
     <section id={`accessory-lookup-card-${requirement.id}`} aria-label={accessoryComponent ? `Produktalternativ för ${accessoryComponent.label}` : "Lägg till tillbehör från Ahlsell"} className="scroll-mt-24 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h5 className="text-sm font-bold text-ink-950">{accessoryComponent ? `Alternativ för ${accessoryComponent.label}` : "Lägg till tillbehör"}</h5>
         <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => setAccessoryLookupOpen(false)}>Stäng tillbehörssökning</Button>
       </div>
-      <AhlsellProductLookup key={`${productNumber}:${accessoryComponentId ?? "manual"}`} projectId={projectId} requirementId={requirement.id} id={`ahlsell-accessory-lookup-${requirement.id}`} accessory automaticQuery={accessoryQuery} componentKind={accessoryComponent?.kind} componentId={accessoryComponent?.id} mainArticleNumber={productNumber} disabled={saving || selectedProductAccessories.length >= 20} onSelect={applyAhlsellAccessory} />
+      <AhlsellProductLookup key={`${productNumber}:${accessoryComponentId ?? "manual"}`} projectId={projectId} requirementId={requirement.id} id={`ahlsell-accessory-lookup-${requirement.id}`}
+        accessory automaticQuery={accessoryQuery} componentKind={accessoryComponent?.kind} componentId={accessoryComponent?.id} mainArticleNumber={productNumber}
+        disabled={saving} selectionLimitReached={selectedProductAccessories.length >= 20} defaultUnit={accessoryComponent?.kind === "pipe" ? "m" : "st"}
+        selections={selectedProductAccessories.map(item => ({ ...item, quantity: item.quantityBasis === "total" ? item.quantity
+          : quantity.quantity === null ? "" : String(Number(item.quantity) * quantity.quantity) }))}
+        onSelect={applyAhlsellAccessory} onQuantityChange={updateLookupAccessory}
+        onDeselect={candidate => removeAccessory(selectedProductAccessories.findIndex(item => normalizeNrfNumber(item.productNumber) === normalizeNrfNumber(candidate.articleNumber)))} />
       <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addManualAccessory} disabled={saving || selectedProductAccessories.length >= 20}>Registrera tillbehör manuellt</Button>
     </section>
   ) : null;
 
   return (
-    <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
+    <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
+      disabled={saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
+      {({ postComments, productComments }) => <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-ink-200 bg-ink-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-wrap items-center gap-2">
-            {resolution ? (
+            {isApproved ? (
+              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
+            ) : resolution ? (
               <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
-            ) : isApproved && selectionReview ? (
-              <span className={`inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold ${selectionReview.status === "mismatch" ? "border-rose-300 bg-rose-50 text-rose-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />{selectionReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL}</span>
-            ) : isApproved ? (
-              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
             ) : (
               <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Inte godkänd</span>
             )}
             {sourcePdfHref && (
               <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-ink-200 bg-white px-2.5 py-1 text-xs font-bold text-flow-800 transition hover:border-flow-500 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+
                 Öppna PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
               </a>
             )}
           </div>
 
-          {dataWarnings.length > 0 && (
+          {dataWarnings.length > 0 && (isApproved ? (
+            <details className="mt-4 rounded-md border border-ink-200 bg-white p-3">
+              <summary className="cursor-pointer text-sm font-bold text-ink-800">Lagrede merknader til PDF-grunnlaget</summary>
+              <ul className="mt-2 list-disc space-y-2 pl-4 text-xs text-ink-700">{dataWarnings.map(warning => <li key={warning.code}>{warning.message}</li>)}</ul>
+            </details>
+          ) : (
             <div className="mt-4 space-y-2" role="alert">
               {dataWarnings.map((warning) => (
                 <div key={warning.code} className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-amber-950">
@@ -1734,7 +1840,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                 </div>
               ))}
             </div>
-          )}
+          ))}
 
           <div className="mt-4">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produkt {position} av {totalPosts}</p>
@@ -1756,16 +1862,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
               {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
               {pdfArticleNumber && <SpecificationRow label="NRF-nummer i PDF" value={pdfArticleNumber} />}
-              {details.sourcePage && <SpecificationRow label="Källsida" value={String(details.sourcePage)} />}
               {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
             </dl>
           </div>
-          {details.sourceExcerpt && (
-            <details className="mt-3 rounded-md border border-ink-200 bg-white p-4">
-              <summary className="cursor-pointer text-sm font-bold text-flow-800">Hela PDF-texten och tilläggskraven</summary>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-800">{details.sourceExcerpt}</p>
-            </details>
-          )}
+          <div id={`post-comments-${requirement.id}`} className="mt-4 scroll-mt-4">{postComments}</div>
           {Boolean(ahlsellGuide.interpretationNotes?.length || ahlsellGuide.interpretationWarnings?.length) && (
             <section aria-label="Så tolkas PDF-kraven" className="rounded-md border border-flow-200 bg-flow-50 p-4">
               <h4 className="text-sm font-bold text-ink-950">Så tolkas PDF-kraven</h4>
@@ -1780,44 +1880,64 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       </section>
 
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
-        <div className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+        <div id={`product-selection-header-${requirement.id}`} className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">2. Välj huvudprodukt</p>
               <h4 className="mt-0.5 text-base font-bold text-ink-950">Produkter för PDF-post {details.postNumber ?? position}</h4>
-              <p className="mt-0.5 text-xs font-semibold text-ink-600">{hasUnsavedChanges ? "Osparade ändringar" : isApproved && selectionReview ? "Manuellt produktval sparat" : isApproved ? "Produkten är godkänd" : "Ingen produkt är godkänd ännu"}</p>
+              <p className={`mt-1 flex items-center gap-2 text-sm font-bold ${isApproved ? "text-emerald-800" : productNumber.trim() ? "text-flow-800" : "text-ink-600"}`}>
+                {productNumber.trim() && <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />}
+                {isApproved ? "Produkten är godkänd" : productNumber.trim() ? "Produkt valgt – ikke godkjent ennå" : "Ingen produkt valgt"}
+              </p>
+              {productNumber.trim() && <p className="mt-1 line-clamp-2 break-words text-xs font-semibold text-ink-700">{productName || "Hovedprodukt"} · NRF {productNumber}</p>}
             </div>
           </div>
-          <p className="mt-2 text-xs leading-5 text-ink-600">Arbetsflöde: gå igenom postens krav → välj huvudprodukt → komplettera med tillbehör → godkänn.</p>
+          <p className="mt-2 text-xs leading-5 text-ink-600">{hasAccessoryStep
+            ? "Arbetsflöde: gå igenom postens krav → välj huvudprodukt → komplettera med tillbehör → godkänn."
+            : "Arbetsflöde: gå igenom postens krav → välj huvudprodukt → godkänn."}</p>
         </div>
 
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
-          {((draftNotice && hasUnapprovedChanges) || manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
-            <section id={`product-selection-${requirement.id}`}>
-              {draftNotice && hasUnapprovedChanges && (
-                <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5" role="status" aria-live="polite">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
-                  <p className="text-xs font-semibold leading-5 text-emerald-900">{draftNotice} Kontrollera produktvalet och godkänn sedan produkten.</p>
+          <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
+          {productNumber.trim() && (
+            <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className={`scroll-mt-80 overflow-hidden rounded-lg border-2 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 lg:scroll-mt-60 ${isApproved ? "border-emerald-600 bg-emerald-100" : "border-flow-700 bg-flow-50"}`}>
+              <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${isApproved ? "bg-emerald-700" : "bg-flow-800"}`}>
+                <p className="flex items-center gap-2 text-lg font-bold text-white"><CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />{isApproved ? "Godkjent hovedprodukt" : "Produkt valgt"}</p>
+                <ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} />
+              </div>
+              <div className="space-y-4 p-4">
+                <div>
+                  <h5 className="break-words text-xl font-bold leading-snug text-ink-950">{productName || `NRF ${productNumber}`}</h5>
+                  {productSubtitle && <p className="mt-1 text-sm text-ink-700">{productSubtitle}</p>}
+                  <p className="mt-2 inline-flex rounded-md border border-ink-200 bg-white px-2.5 py-1 text-sm font-bold text-ink-800">NRF {productNumber}</p>
                 </div>
-              )}
-              {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
-                <dl className="mt-3 grid overflow-hidden rounded-md border border-ink-200 bg-white sm:grid-cols-3">
-                  {manufacturerArticleNumber && <CompactProductDetail label="Artikelnummer" value={manufacturerArticleNumber} />}
-                  {deliveryTimeDays && <CompactProductDetail label="Leveranstid" value={`${deliveryTimeDays} dagar`} />}
-                  {unitPrice && <CompactProductDetail label="Pris" value={formatUnitPrice(unitPrice, priceCurrency)} />}
-                </dl>
-              )}
+                {!isApproved && <p className="text-sm font-semibold leading-5 text-flow-900">{hasAccessoryStep ? "Hovedproduktet er valgt. Legg til nødvendige tilbehør, og trykk deretter Godkjenn og lagre." : "Hovedproduktet er valgt. Kontroller valget, og trykk deretter Godkjenn og lagre."}</p>}
+                <div>
+                  <ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
+                    onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
+                    onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} />
+                  <p className="mt-1 text-xs text-ink-600">PDF-posten: {formatProjectQuantity(quantity)}. Total mengde og enhet ovenfor følger med til Excel.</p>
+                </div>
+                {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
+                  <dl className="grid overflow-hidden rounded-md border border-ink-200 bg-white sm:grid-cols-3">
+                    {manufacturerArticleNumber && <CompactProductDetail label="Artikelnummer" value={manufacturerArticleNumber} />}
+                    {deliveryTimeDays && <CompactProductDetail label="Leveranstid" value={`${deliveryTimeDays} dagar`} />}
+                    {unitPrice && <CompactProductDetail label="Pris" value={formatUnitPrice(unitPrice, priceCurrency)} />}
+                  </dl>
+                )}
+                <Button type="button" variant="secondary" disabled={saving} onClick={showAllProductAlternatives}>Bytt hovedprodukt</Button>
+              </div>
             </section>
           )}
 
           <nav aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { document.getElementById(`product-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${productNumber.trim() ? "product" : "post"}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { const scope = productNumber.trim() ? "product" : "post"; document.getElementById(`${scope}-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${scope}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
             <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
               <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
             </Button>
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={!productNumber.trim() || selectedProductAccessories.length >= 20} title={!productNumber.trim() ? "Välj en huvudprodukt först" : selectedProductAccessories.length >= 20 ? "Högst 20 tillbehör" : "Lägg till tillbehör på den valda produkten"}>
+            {hasAccessoryStep && Boolean(productNumber.trim()) && <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20} title={selectedProductAccessories.length >= 20 ? "Högst 20 tillbehör" : "Lägg till tillbehör på den valda produkten"}>
               <PackagePlus className="h-4 w-4" aria-hidden="true" />Lägg till delprodukt / tillbehör
-            </Button>
+            </Button>}
             <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={showAllProductAlternatives}>
               <Search className="h-4 w-4" aria-hidden="true" />Visa alternativ
             </Button>
@@ -1837,13 +1957,18 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </a>
           </nav>
 
-          {productNumber.trim() && selectionReview && (
+          {productNumber.trim() && selectionReview && (isApproved ? (
+            <details className="rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-700">
+              <summary className="cursor-pointer font-bold">Lagrede kontrollmerknader · NRF {productNumber}</summary>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{selectionReview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
+            </details>
+          ) : (
             <div role="status" className={`rounded-md border px-4 py-3 text-sm ${selectionReview.status === "mismatch" ? "border-rose-300 bg-rose-50 text-rose-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}>
               <p className="font-bold">{selectionReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL} · NRF {productNumber}</p>
               <p className="mt-1 text-xs">{isApproved ? "Valet är sparat med denna märkning." : "När du godkänner sparas valet med denna märkning."}</p>
               <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{selectionReview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
             </div>
-          )}
+          ))}
 
           {manualProductOpen && (
             <section id={`manual-product-card-${requirement.id}`} aria-labelledby={`manual-product-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border-2 border-flow-300 bg-white shadow-sm">
@@ -1858,7 +1983,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                 </button>
               </div>
               <div className="p-4">
-                <AhlsellProductLookup projectId={projectId} requirementId={requirement.id} id={`ahlsell-product-lookup-${requirement.id}`} disabled={saving} onSelect={(candidate) => applyAhlsellCandidate(candidate, candidate.subtitle)} />
+                <AhlsellProductLookup projectId={projectId} requirementId={requirement.id} id={`ahlsell-product-lookup-${requirement.id}`} disabled={saving}
+                  defaultQuantity={String(quantity.quantity ?? "")} defaultUnit={quantity.unit || "st"}
+                  selections={productNumber ? [{ productNumber, quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: orderQuantity?.unit ?? (quantity.unit || "st") }] : []}
+                  onSelect={(candidate, amount) => { applyAhlsellCandidate(candidate, candidate.subtitle); updateOrderQuantity(amount); }}
+                  onDeselect={clearSelectedProduct} onQuantityChange={(_candidate, amount) => updateOrderQuantity(amount)} />
               </div>
               <details className="border-t border-ink-200">
                 <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-flow-800">Registrera produkt manuellt</summary>
@@ -1870,6 +1999,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                   <ProductFormInput id={`manual-product-delivery-${requirement.id}`} label="Leveranstid (dagar)" type="number" min="0" max="3650" step="1" inputMode="numeric" value={manualProductDraft.deliveryTimeDays} onChange={(value) => updateManualProductDraft("deliveryTimeDays", value)} required />
                   <ProductFormInput id={`manual-product-price-${requirement.id}`} label={`Pris per enhet (${normalizeCurrencyCode(manualProductDraft.currency) || defaultCurrency})`} inputMode="decimal" placeholder="0,00" value={manualProductDraft.unitPrice} onChange={(value) => updateManualProductDraft("unitPrice", value)} required />
                 </div>
+                <ProductQuantityFields id={`manual-product-${requirement.id}`} quantity={manualProductDraft.quantity} unit={manualProductDraft.unit} disabled={saving}
+                  onQuantityChange={value => updateManualProductDraft("quantity", value)} onUnitChange={value => updateManualProductDraft("unit", value)} />
                 {manualProductError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900">{manualProductError}</p>}
                 <div className="flex flex-col-reverse gap-2 border-t border-ink-100 pt-4 sm:flex-row sm:justify-end">
                   <Button type="button" variant="secondary" className="justify-center" onClick={closeManualProductCard}>Avbryt</Button>
@@ -1880,7 +2011,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </section>
           )}
 
-          <div id={`ahlsell-products-${requirement.id}`} hidden={Boolean(productNumber.trim() && assemblyPlan?.kind === "pipe")} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
+          <div id={`ahlsell-products-${requirement.id}`} hidden={isApproved || Boolean(productNumber.trim() && assemblyPlan?.kind === "pipe")} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
             <AhlsellPublicMatchPanel
               projectId={projectId}
               requirementId={requirement.id}
@@ -1904,25 +2035,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             />
           </div>
 
-          {productNumber.trim() && assemblyPlan?.kind === "pipe" && (
-            <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valt rör" className="scroll-mt-80 rounded-md border border-flow-300 bg-flow-50 p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600 lg:scroll-mt-52">
-              <p className="text-xs font-bold uppercase tracking-wide text-flow-800">Valt rör</p>
-              <h5 className="mt-1 text-base font-bold text-ink-950">{productName || `NRF ${productNumber}`}</h5>
-              {productSubtitle && <p className="mt-1 text-sm text-ink-700">{productSubtitle}</p>}
-              <p className="mt-1 text-sm font-semibold text-flow-800">NRF {productNumber}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" onClick={showAllProductAlternatives}>Byt rör</Button>
-                <Button type="button" variant="ghost" onClick={clearSelectedProduct}>Ta bort val</Button>
-              </div>
-            </section>
-          )}
-
           <div id={`product-comments-${requirement.id}`} className="scroll-mt-52">
-            <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
-              disabled={saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving} />
+            {productComments}
           </div>
 
-          {productNumber.trim() && assemblyPlan && <ProductAssemblyParts id={`assembly-parts-${requirement.id}`} plan={assemblyPlan}
+          {productNumber.trim() && assemblyPlan && assemblyPlan.components.length > 0 && <ProductAssemblyParts id={`assembly-parts-${requirement.id}`} plan={assemblyPlan}
             mainProductName={productName || `NRF ${productNumber}`} accessories={selectedProductAccessories} disabled={saving || selectedProductAccessories.length >= 20}
             activeComponentId={accessoryLookupOpen ? accessoryComponentId : null} onChoose={openAccessoryLookup}>
             {accessoryLookup}
@@ -1942,17 +2059,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                   return (
                     <article key={suggestion.articleNumber} className={checked ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4"}>
                       <div className="flex items-start gap-3">
-                        <label className="mt-0.5 flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-flow-800">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={saving || (!checked && selectedProductAccessories.length >= 20)}
-                            onChange={(event) => toggleSuggestedAccessory(suggestion, event.target.checked)}
-                            aria-label={`Välj tillbehör ${suggestion.productName}, NRF-nummer ${suggestion.articleNumber}`}
-                            className="h-5 w-5 rounded border-ink-300 text-flow-700 focus:ring-flow-600 disabled:cursor-not-allowed"
-                          />
-                          <span aria-hidden="true">{checked ? "Valt" : "Välj"}</span>
-                        </label>
+                        <ProductSelectionCheckbox checked={checked} disabled={saving || (!checked && selectedProductAccessories.length >= 20)}
+                          label={`${suggestion.productName}, NRF-nummer ${suggestion.articleNumber}`} onChange={checked => toggleSuggestedAccessory(suggestion, checked)} />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-bold leading-5 text-ink-950">{suggestion.productName}</p>
                           <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {suggestion.articleNumber}</p>
@@ -1977,8 +2085,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <section id={`product-accessories-${requirement.id}`} aria-labelledby={`product-accessories-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border border-flow-300 bg-white">
               <div className="flex flex-col gap-3 border-b border-flow-200 bg-flow-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h5 id={`product-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Delprodukter och tillbehör till posten</h5>
-                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Artiklarna sparas tillsammans med huvudprodukten. Mängden anges per enhet av PDF-posten, exempelvis per skåp eller per meter rör.</p>
+                  <h5 id={`product-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Valgte tilbehør ({selectedProductAccessories.length})</h5>
+                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Angi total mengde for hele posten. For eksempel gir 5 T-stykker 5 i Excel.</p>
                 </div>
                 <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20}>
                   <Plus className="h-4 w-4" aria-hidden="true" />Lägg till ett till
@@ -1986,14 +2094,26 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               </div>
               <div className="space-y-3 p-3">
                 {selectedProductAccessories.map((accessory, index) => (
-                  <div key={index} className="grid gap-3 rounded-md border border-ink-200 bg-ink-50 p-3 md:grid-cols-[minmax(180px,1.7fr)_minmax(140px,1.2fr)_minmax(120px,0.8fr)_minmax(90px,0.6fr)_auto]">
+                  <div key={index} className="space-y-3 rounded-md border-2 border-flow-300 bg-flow-50/40 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-flow-800">Tilbehør {index + 1}</p>
+                      <ProductSelectionCheckbox checked disabled={saving} label={accessory.name || `tilbehør ${index + 1}`} onChange={() => removeAccessory(index)} />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
                     <AccessoryInput id={`accessory-name-${requirement.id}-${index}`} label="Delprodukt / tillbehör" value={accessory.name} required onChange={(value) => updateAccessory(index, "name", value)} />
                     <AccessoryInput id={`accessory-nrf-${requirement.id}-${index}`} label="NRF-nummer" value={accessory.productNumber} onChange={(value) => updateAccessory(index, "productNumber", value)} />
-                    <AccessoryInput id={`accessory-quantity-${requirement.id}-${index}`} label={assemblyPlan?.kind === "pipe" ? "Mängd per meter rör" : "Mängd per postenhet"} type="number" min="0.001" max="100000" step="0.001" value={accessory.quantity} onChange={(value) => updateAccessory(index, "quantity", value)} />
-                    <AccessoryInput id={`accessory-unit-${requirement.id}-${index}`} label="Enhet" value={accessory.unit} onChange={(value) => updateAccessory(index, "unit", value)} />
-                    <button type="button" aria-label={`Ta bort tillbehör ${index + 1}`} title="Ta bort tillbehör" onClick={() => removeAccessory(index)} className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-transparent text-ink-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
+                    </div>
+                    {accessory.quantityBasis === "total" ? <ProductQuantityFields id={`accessory-${requirement.id}-${index}`} quantity={accessory.quantity} unit={accessory.unit} disabled={saving}
+                      onQuantityChange={value => updateAccessory(index, "quantity", value)} onUnitChange={value => updateAccessory(index, "unit", value)} /> : <div className="space-y-2">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <AccessoryInput id={`accessory-quantity-${requirement.id}-${index}`} label="Tidligere mengde per postenhet" type="number" min="0.001" max="100000" step="0.001" value={accessory.quantity} onChange={value => updateAccessory(index, "quantity", value)} />
+                        <AccessoryInput id={`accessory-unit-${requirement.id}-${index}`} label="Enhet" value={accessory.unit} onChange={value => updateAccessory(index, "unit", value)} />
+                      </div>
+                      <button type="button" disabled={saving} className="text-xs font-bold text-flow-800 underline" onClick={() => {
+                        setAccessories(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, quantityBasis: "total", quantity: quantity.quantity === null ? "" : String(Number(item.quantity) * quantity.quantity) } : item));
+                        setHasUnapprovedChanges(true);
+                      }}>Endre til total mengde for posten</button>
+                    </div>}
                   </div>
                 ))}
                 {accessoryError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{accessoryError}</p>}
@@ -2004,8 +2124,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
           {productNumber.trim() && (
             <section id={`product-approval-${requirement.id}`} aria-labelledby={`product-approval-title-${requirement.id}`} className="rounded-md border border-flow-300 bg-flow-50 p-4">
-              <h5 id={`product-approval-title-${requirement.id}`} className="text-base font-bold text-ink-950">4. Godkänn</h5>
-              <p className="mt-1 text-sm leading-6 text-ink-700">Godkänn när du har gått igenom postens krav, valt huvudprodukt och kompletterat med de tillbehör som behövs.</p>
+              <h5 id={`product-approval-title-${requirement.id}`} className="text-base font-bold text-ink-950">{hasAccessoryStep ? "4. Godkänn" : "3. Godkänn"}</h5>
+              <p className="mt-1 text-sm leading-6 text-ink-700">{hasAccessoryStep
+                ? "Godkänn när du har gått igenom postens krav, valt huvudprodukt och kompletterat med de tillbehör som behövs."
+                : "Godkänn när du har gått igenom postens krav och valt huvudprodukt."}</p>
               {commentDraftDirty && <p className="mt-2 text-xs font-semibold text-amber-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
               <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="mt-3 min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
@@ -2063,6 +2185,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                     </label>
                     <div className="flex flex-wrap gap-2">
                       <Button type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
+
                         Rensa
                       </Button>
                       <Button type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
@@ -2103,7 +2226,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
         )}
       </fieldset>
-    </article>
+    </article>}
+    </ProductPostComments>
   );
 }
 
@@ -2219,6 +2343,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
             )}
             {hasNrfFilter && (
               <button type="button" className="font-bold text-flow-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600" onClick={clearSelection}>
+
                 Rensa NRF
               </button>
             )}
@@ -2236,7 +2361,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       {catalogError && (
         <div className="border-t border-amber-300 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950 sm:px-4" role="alert">
           <p className="font-bold">Produktlistan kunde inte hämtas.</p>
-          <p>{catalogError} Du kan söka manuellt via ”Lägg till produkt”.</p>
+          <p>{catalogError}  Du kan söka manuellt via ”Lägg till produkt”.</p>
         </div>
       )}
 
@@ -2250,6 +2375,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
 
       {!loadingCatalog && !catalogError && catalogResult?.truncated && (
         <div className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-950 sm:px-4">
+
           Fler träffar finns hos Ahlsell. Listan innehåller alla matchande produkter från den avgränsade sökningen.
         </div>
       )}
@@ -2389,7 +2515,6 @@ function NonProductRequirementCard({ requirement, position, totalPosts, kind }: 
             {details.nsCode && <NsCodeSpecification code={details.nsCode} />}
             {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
             {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
-            {details.sourcePage && <SpecificationRow label="Källsida" value={String(details.sourcePage)} />}
             {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
           </dl>
           {details.sourceExcerpt && <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-ink-100 bg-ink-50 p-4 font-sans text-sm leading-6 text-ink-700">{details.sourceExcerpt}</pre>}
@@ -2419,7 +2544,6 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
   const dataWarnings = projectRequirementDataWarnings(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
   const productSnapshot = record(assignment?.product_snapshot);
-  const savedReview = readProductSelectionReview(productSnapshot.notes);
   const resolution = productRequirementResolution(requirement);
   const productName = String(productSnapshot.name ?? "").trim();
   const productSubtitle = String(productSnapshot.subtitle ?? "").trim();
@@ -2445,12 +2569,10 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     if (columnId === "control") {
       return (
         <td key={columnId} className="px-2 py-2.5 text-center align-middle">
-          {resolution ? (
-            <span title={resolution.label} className="inline-flex text-slate-700"><Tag className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{resolution.label}</span></span>
-          ) : approved && savedReview ? (
-            <span title={savedReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL} className={`inline-flex ${savedReview.status === "mismatch" ? "text-rose-600" : "text-amber-600"}`}><AlertTriangle className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{savedReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL}</span></span>
-          ) : approved ? (
+          {approved ? (
             <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
+          ) : resolution ? (
+            <span title={resolution.label} className="inline-flex text-slate-700"><Tag className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{resolution.label}</span></span>
           ) : group === "red" ? (
             <span title="Ingen match bland kontrollerade produkter" className="inline-flex text-rose-600"><CircleX className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Ingen match bland kontrollerade produkter</span></span>
           ) : group === "green" ? (
@@ -2464,7 +2586,17 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     if (columnId === "post") {
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle">
-          {sourcePdfHref ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`}
+              onClick={onOpen}
+              className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600"
+            >
+              {details.postNumber ?? position}
+            </button>
+          {sourcePdfHref && (
             <a
               href={sourcePdfHref}
               target="_blank"
@@ -2473,20 +2605,10 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
               title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
               className="inline-flex items-center gap-1 text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
             >
-              {details.postNumber ?? position}
               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
             </a>
-          ) : (
-            <button
-              type="button"
-              aria-haspopup="dialog"
-              aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`}
-              onClick={onOpen}
-              className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline"
-            >
-              {details.postNumber ?? position}
-            </button>
           )}
+          </div>
         </td>
       );
     }
@@ -2503,7 +2625,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle">
           <button type="button" aria-haspopup="dialog" onClick={onOpen} className="text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{productTableRequirementLabel(requirement)}</button>
-          {dataWarnings.map((warning) => (
+          {!approved && dataWarnings.map((warning) => (
             <span key={warning.code} title={warning.message} className="mt-0.5 flex items-center gap-1 text-[10px] font-bold leading-4 text-amber-800">
               <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
               {warning.label}

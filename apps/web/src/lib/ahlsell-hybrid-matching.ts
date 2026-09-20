@@ -110,6 +110,13 @@ export function complementMldlCandidates(requirement: Record<string, unknown>, l
     mergeAhlsellCandidates([...reassessedLocal.values()], rankedPublic)));
 }
 
+/** Manual lookup reports what Ahlsell found, retaining technical conflicts.
+ * Automatic recommendations still exclude unrelated product families. */
+export function assessAhlsellLookupCandidates(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
+  const complemented = new Map(complementMldlCandidates(requirement, [], candidates).map(candidate => [articleKey(candidate.articleNumber), candidate]));
+  return candidates.map(candidate => complemented.get(articleKey(candidate.articleNumber)) ?? rankAhlsellCandidates(requirement, [candidate])[0]);
+}
+
 function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
   const intent = ahlsellRequirementIntent(requirement);
   if (["shower_set", "toilet", "manifold_cabinet", "alarm_device", "pressure_switch", "flow_meter", "shutoff_valve", "pipe"].includes(intent)) {

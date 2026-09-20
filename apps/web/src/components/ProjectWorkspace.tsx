@@ -1,4 +1,7 @@
 "use client";
+import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
+
+
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -404,6 +407,7 @@ export function ProjectWorkspace({
         className="inline-flex min-h-11 items-center gap-2 text-base font-semibold text-ink-700 transition hover:text-flow-700"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+
         Alla projekt
       </Link>
 
@@ -479,6 +483,7 @@ export function ProjectWorkspace({
                       className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-flow-600 px-5 py-3 text-base font-bold text-white shadow-sm transition hover:bg-flow-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
                     >
                       <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+
                       Starta en ny analys
                     </Link>
                   )}
@@ -493,6 +498,7 @@ export function ProjectWorkspace({
           </section>
           <details className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
             <summary className="flex min-h-14 cursor-pointer items-center justify-between px-5 py-4 text-base font-bold text-ink-900 sm:px-6">
+
               Visa eller ändra projektuppgifter
               <span className="text-sm font-semibold text-flow-700">Öppna</span>
             </summary>
@@ -581,6 +587,7 @@ export function ProjectWorkspace({
           )}
           <details className="rounded-xl border border-ink-200 bg-white shadow-sm">
             <summary className="flex min-h-14 cursor-pointer items-center justify-between px-5 py-4 text-base font-bold text-ink-900 sm:px-6">
+
               Projekthistorik
               <span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-bold text-ink-700">{counts.decisions}</span>
             </summary>
@@ -607,7 +614,7 @@ export function ProjectWorkspace({
                 />
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm font-medium text-slate-300">Endast en PDF kan kopplas till projektet.</p>
-                  <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="submit" disabled={uploading || !selectedFile}><Upload className="h-5 w-5" aria-hidden="true" />{uploading ? analysisProgress ?? "Läser PDF och skapar poster..." : "Läs PDF och fortsätt"}</Button>
+                  <Button className="min-h-14 w-full justify-center px-6 text-lg sm:w-auto" type="submit" disabled={uploading || !selectedFile}><Upload className="h-5 w-5" aria-hidden="true" />{uploading ? analysisProgress ?? "0 %" : "Läs PDF och fortsätt"}</Button>
                 </div>
               </form>
             </section>
@@ -634,6 +641,7 @@ export function ProjectWorkspace({
                 <p className="mt-1 text-sm text-flow-800">Nästa steg är att registrera Ahlsells produkt och tillbehör för varje extraherad rad.</p>
               </div>
               <Button className="min-h-12 justify-center text-base" onClick={() => selectTab("products")}>
+
                 Nästa: välj produkter
                 <ChevronRight className="h-5 w-5" aria-hidden="true" />
               </Button>
@@ -652,7 +660,7 @@ export function ProjectWorkspace({
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-700 text-white"><Trash2 className="h-6 w-6" aria-hidden="true" /></span>
                     <div>
                       <h2 id="delete-project-title" className="text-xl font-bold text-rose-950">Vill du avsluta projektet?</h2>
-                      <p className="mt-2 max-w-2xl text-base leading-7 text-rose-900"><strong>{data.project.name}</strong> flyttas till papperskorgen. PDF, produktval och projektdata sparas där och kan återställas av en administratör.</p>
+                      <p className="mt-2 max-w-2xl text-base leading-7 text-rose-900"><strong>{data.project.name}</strong>  flyttas till papperskorgen. PDF, produktval och projektdata sparas där och kan återställas av en administratör.</p>
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
@@ -813,7 +821,7 @@ function summarizeSelectedProducts(
     const requirement = typeof assignment.requirement_id === "string"
       ? requirementsById.get(assignment.requirement_id)
       : undefined;
-    const required = projectRequirementQuantity(requirement?.value_json);
+    const required = parseProductOrderQuantity(snapshot.orderQuantity) ?? projectRequirementQuantity(requirement?.value_json);
     const key = `${productNumber || assignment.id}:${required.unit}`;
     const current = summaries.get(key);
     summaries.set(key, {

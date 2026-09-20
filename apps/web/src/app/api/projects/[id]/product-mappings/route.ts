@@ -59,10 +59,11 @@ export async function POST(request: Request, context: RouteContext) {
       ? validateRequirementReview(requirement, input, input.requirementReview)
       : { data: null };
     if ("error" in review) return NextResponse.json({ error: review.error }, { status: 400 });
-    // Manual preparation is part of the v2 database transaction. Keeping it
-    // out of this preflight means an unavailable or failed v2 RPC leaves no
+    // Manual/quantity preparation is part of the database transaction. Keeping it
+    // out of this preflight means an unavailable or failed approval RPC leaves no
     // promoted requirement or partially approved product behind.
-    if (input.entryMethod === "catalog" && !review.data) {
+    if (input.entryMethod === "catalog" && !review.data && !input.orderQuantity
+      && !input.accessories.some(accessory => accessory.quantityBasis)) {
       await callUserRpc<string>(
         "prepare_requirement_for_direct_product_mapping",
         {
@@ -96,7 +97,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (error instanceof UserSupabaseError) {
       const denied =
         error.status === 401 || error.status === 403 || error.code === "42501";
-      const unavailable = error.code === MANUAL_PRODUCT_APPROVAL_UNAVAILABLE || error.code === "REQUIREMENT_REVIEW_UNAVAILABLE";
+      const unavailable = error.code === MANUAL_PRODUCT_APPROVAL_UNAVAILABLE || error.code === "REQUIREMENT_REVIEW_UNAVAILABLE" || error.code === "PRODUCT_QUANTITIES_UNAVAILABLE";
       return NextResponse.json(
         {
           error: unavailable
@@ -187,6 +188,29 @@ async function saveExplicitlyApprovedMapping(
     requested_notes: input.notes || null,
     requested_accessories: input.accessories
   };
+
+  if (input.orderQuantity || input.accessories.some(accessory => accessory.quantityBasis)) {
+    try {
+      return await callUserRpc<Record<string, unknown>>("approve_distributor_product_mapping_v4", {
+        ...mappingPayload,
+        requested_user_approved: input.userApproved,
+        requested_entry_method: input.entryMethod,
+        requested_product_subtitle: input.productSubtitle || null,
+        requested_manufacturer_article_number: input.manufacturerArticleNumber || null,
+        requested_delivery_time_days: input.deliveryTimeDays,
+        requested_unit_price: input.unitPrice,
+        requested_currency: input.currency || null,
+        requested_requirement_review: requirementReview,
+        requested_requirement_updated_at: requirementUpdatedAt,
+        requested_order_quantity: input.orderQuantity ?? null
+      });
+    } catch (error) {
+      if (!(error instanceof UserSupabaseError) || !["PGRST202", "42883"].includes(error.code ?? "")) throw error;
+      // Approval and quantities must commit together; a legacy fallback would
+      // silently turn total quantities into per-unit multipliers.
+      throw new UserSupabaseError("Mengdene kan ikke lagres før databasen er oppdatert. Produktvalget er ikke godkjent.", 503, "PRODUCT_QUANTITIES_UNAVAILABLE");
+    }
+  }
 
   if (requirementReview) {
     try {

@@ -17,6 +17,20 @@ omfattas av produktkortets befintliga varning för osparade ändringar. Ett
 misslyckat anrop lämnar texten kvar, och samma kommentar-id används vid
 omförsök för att undvika dubbletter.
 
+Sparade kommentarer visas före skrivfältet som läsbara kort med författare,
+datum och antal visade kommentarer. Produktkommentarer visar NRF och om de
+gäller det aktuella eller ett tidigare produktval. **Skriv kommentar**
+fokuserar skrivfältet. Historiken har ingen separat, liten rullningsruta.
+
+Författaren kan ta bort sina egna kommentarer via **Ta bort** och en
+bekräftelse direkt på kommentaren. Samma skrivbehörighet och projekttillgång
+som vid skapandet krävs. API och databas kontrollerar ägarskapet; gränssnittet
+visar endast borttagningsknappen när servern anger `can_delete`. Andras
+kommentarer kan läsas men inte tas bort. Ett misslyckat anrop behåller
+kommentaren och alla påbörjade utkast. Borttagningen ändrar inte produktval
+eller godkännande, och kommentaren utelämnas ur kommande Excel-exporter.
+Redan nedladdade Excel-filer ändras inte.
+
 Historiken hämtas vid öppning och via **Uppdatera kommentarer**. Äldre
 kommentarer kan hämtas 50 åt gången. Detta är sparade projektkommentarer,
 inte en automatisk realtidssynk mellan öppna webbläsare.
@@ -40,6 +54,7 @@ fil med tyst utelämnade kommentarer. Osparade utkast ingår inte.
 ## Driftsättning och verifiering
 
 Kör `20260917120000_add_product_post_comments.sql` före frontendpublicering.
+För borttagning krävs även `20260920140000_allow_own_product_comment_deletion.sql`.
 Tabellen använder användarens Supabase-session och RLS: rätt projekt,
 organisation, kravpost och behörighet krävs både vid läsning och skrivning.
 Anonyma användare kan inte läsa eller skriva. Författar-id och tid sätts av

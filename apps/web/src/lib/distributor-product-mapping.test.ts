@@ -8,6 +8,29 @@ import {
 } from "./distributor-product-mapping";
 import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProductApprovals } from "./bulk-product-approval";
 
+test("preserves total order quantities and accessory basis without multiplying or rounding them", () => {
+  const result = validateDistributorProductMapping({
+    requirementId: "11111111-1111-4111-8111-111111111111", userApproved: true,
+    entryMethod: "catalog", productNumber: "1234567",
+    orderQuantity: { quantity: "12,125", unit: " st " },
+    accessories: [{ name: "T-stykke", productNumber: "7654321", quantity: "5", unit: "st", quantityBasis: "total" }]
+  });
+  assert.ok("data" in result);
+  assert.deepEqual(result.data.orderQuantity, { quantity: 12.125, unit: "st" });
+  assert.equal(result.data.accessories[0].quantity, 5);
+  assert.equal(result.data.accessories[0].quantityBasis, "total");
+});
+
+test("rejects invalid total quantities and unknown accessory quantity bases", () => {
+  const input = { requirementId: "11111111-1111-4111-8111-111111111111", userApproved: true, entryMethod: "catalog", productNumber: "1234567" };
+  for (const quantity of ["", 0, -1, 100001, true, Infinity, "no", 0.0001]) {
+    assert.ok("error" in validateDistributorProductMapping({ ...input, orderQuantity: { quantity, unit: "st" } }), String(quantity));
+    assert.ok("error" in validateDistributorProductMapping({ ...input, accessories: [{ name: "T-stykke", quantity, quantityBasis: "total" }] }), String(quantity));
+  }
+  assert.ok("error" in validateDistributorProductMapping({ ...input, orderQuantity: { quantity: 5, unit: "" } }));
+  assert.ok("error" in validateDistributorProductMapping({ ...input, accessories: [{ name: "T-stykke", quantity: 5, quantityBasis: "unknown" }] }));
+});
+
 test("accepts canonical project UUIDs used by product mapping routes", () => {
   assert.equal(isUuid("5bc86407-0c26-43b7-b302-e65ad1a881fe"), true);
   assert.equal(isUuid("5bc86407-0c26-43b7-b302e65ad1a881fe"), false);

@@ -106,7 +106,7 @@ export function productTableRowClass({
   approved: boolean;
   selected: boolean;
 }) {
-  if (approved) return "bg-emerald-100/80 hover:bg-emerald-100";
+  if (approved) return "bg-emerald-100 hover:bg-emerald-200";
   if (selected) return "bg-cyan-50 ring-1 ring-inset ring-flow-500";
   return "bg-white hover:bg-ink-50/80";
 }

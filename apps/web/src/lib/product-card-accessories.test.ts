@@ -45,15 +45,15 @@ test("requires complete, valid and unique accessory drafts", () => {
     quantity: "0"
   }]) ?? "", /giltig mängd/);
   assert.match(productAccessoryDraftError([
-    { ...newProductAccessoryDraft(), name: "Rosett vit", productNumber: "765 4321" },
-    { ...newProductAccessoryDraft(), name: "Annat namn", productNumber: "7654321" }
+    { ...newProductAccessoryDraft(), name: "Rosett vit", productNumber: "765 4321", quantity: "1" },
+    { ...newProductAccessoryDraft(), name: "Annat namn", productNumber: "7654321", quantity: "1" }
   ]) ?? "", /redan tillagt/);
   assert.equal(productAccessoryDraftError([
-    { ...newProductAccessoryDraft(), name: "Rosett" }
+    { ...newProductAccessoryDraft(), name: "Rosett", quantity: "1" }
   ]), null);
   assert.equal(productAccessoryDraftError(Array.from({ length: 20 }, (_, index) => ({
     ...newProductAccessoryDraft(),
-    name: `Tillbehör ${index + 1}`
+    name: `Tillbehör ${index + 1}`, quantity: "1"
   }))), null);
   assert.match(productAccessoryDraftError(Array.from({ length: 21 }, (_, index) => ({
     ...newProductAccessoryDraft(),
@@ -95,4 +95,19 @@ test("adds and removes a database-suggested accessory as a separate selection", 
   assert.equal(selected[0]?.productNumber, "9254009");
   assert.match(selected[0]?.notes ?? "", /ScipX-förslag/);
   assert.deepEqual(toggleSuggestedProductAccessory(selected, suggestion, false), []);
+  const total = toggleSuggestedProductAccessory([], suggestion, true, 14);
+  assert.equal(total[0].quantity, "14");
+  assert.equal(total[0].quantityBasis, "total");
+  assert.equal(toggleSuggestedProductAccessory([], suggestion, true, null)[0].quantity, "");
+});
+
+test("manual accessories require an entered total and keep it through save and reload", () => {
+  const draft = { ...newProductAccessoryDraft(), name: "T-stykke", productNumber: "7654321" };
+  assert.ok(productAccessoryDraftError([draft]));
+  draft.quantity = "5,5";
+  assert.equal(productAccessoryDraftError([draft]), null);
+  const payload = productAccessoryPayload([draft]);
+  assert.equal(payload[0].quantity, 5.5);
+  assert.equal(payload[0].quantityBasis, "total");
+  assert.deepEqual(readProductAccessoryDrafts(payload)[0], { ...draft, quantity: "5.5" });
 });

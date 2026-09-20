@@ -301,12 +301,13 @@ export function applyAhlsellProductDetails<T extends AhlsellPublicCandidate>(can
 
 /** Public product pages only; every redirect uses the same host/path checks. */
 export async function fetchAhlsellProductPage({
-  productUrl, articleNumber, fetchImpl = fetch, signal: externalSignal
+  productUrl, articleNumber, fetchImpl = fetch, signal: externalSignal, reportFailures = false
 }: {
   productUrl: string;
   articleNumber?: string;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  reportFailures?: boolean;
 }): Promise<{ html: string; url: string } | null> {
   const safeUrl = safeAhlsellProductUrl(productUrl, articleNumber);
   if (!safeUrl) return null;
@@ -354,9 +355,15 @@ export async function fetchAhlsellProductPage({
         continue;
       }
 
-      if (!response.ok) return null;
+      if (!response.ok) {
+        if (reportFailures && response.status !== 404 && response.status !== 410) throw new Error(`Ahlsell svarade med HTTP ${response.status}.`);
+        return null;
+      }
       const contentType = response.headers.get("content-type")?.toLocaleLowerCase("en-US") ?? "";
-      if (contentType && !contentType.includes("text/html")) return null;
+      if (contentType && !contentType.includes("text/html")) {
+        if (reportFailures) throw new Error("Ahlsell returnerade inte en produktsida.");
+        return null;
+      }
       const html = await readResponseTextWithinLimit(response, MAX_RESPONSE_BYTES);
       return html === null ? null : { html, url: currentUrl };
     }
@@ -372,13 +379,18 @@ export function safeAhlsellProductUrl(value: unknown, articleNumber?: string) {
   if (!rawUrl) return null;
   try {
     const url = new URL(rawUrl);
+    // Ahlsell's public article redirect still emits legacy /33/category/article
+    // links. Resolve them to the canonical public product path before fetching.
+    if (/^\/33\/(?:[^/]+\/)+\d{6,12}(?:---[^/]*)?\/?$/i.test(url.pathname)) {
+      url.pathname = url.pathname.replace(/^\/33\//, "/products/");
+    }
     if (
       url.protocol !== "https:"
       || url.username
       || url.password
       || url.port
       || !ALLOWED_AHLSELL_HOSTS.has(url.hostname.toLocaleLowerCase("en-US"))
-      || !url.pathname.toLocaleLowerCase("en-US").startsWith("/products/")
+      || !(url.pathname.toLocaleLowerCase("en-US").startsWith("/products/") || /^\/productVariantProxy\/\d{6,12}\/?$/i.test(url.pathname))
       || /%2f|%5c/i.test(url.pathname)
       || rawUrl.includes("\\")
       || (articleNumber !== undefined && !urlPathContainsArticleNumber(url.pathname, articleNumber))

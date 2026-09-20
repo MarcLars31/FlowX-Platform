@@ -199,7 +199,9 @@ async function fetchAhlsellPage(
   const promise = fetchAhlsellPageUncached(fetchImpl, origin, url);
   pageCache.set(cacheKey, { expiresAt: Date.now() + PUBLIC_CACHE_TTL_MS, promise });
   trimCache(pageCache);
-  promise.catch(() => pageCache.delete(cacheKey));
+  const evict = () => { if (pageCache.get(cacheKey)?.promise === promise) pageCache.delete(cacheKey); };
+  // An empty search response must not keep a temporarily missing article hidden.
+  void promise.then(payload => { if (!Array.isArray(payload.productCards) || payload.productCards.length === 0) evict(); }, evict);
   return promise;
 }
 
@@ -226,7 +228,7 @@ async function fetchAhlsellPageUncached(fetchImpl: typeof fetch, origin: string,
       throw new AhlsellCatalogError("Ahlsell returnerade inte produktdata.");
     }
     const payload = await response.json().catch(() => null);
-    if (!isRecord(payload)) throw new AhlsellCatalogError("Ahlsells produktsvar kunde inte läsas.");
+    if (!isRecord(payload) || !Array.isArray(payload.productCards)) throw new AhlsellCatalogError("Ahlsells produktsvar kunde inte läsas.");
     return payload;
   } catch (error) {
     if (error instanceof AhlsellCatalogError) throw error;
@@ -428,7 +430,8 @@ async function fetchVariantPayload(fetchImpl: typeof fetch, origin: string, url:
   const promise = fetchVariantPayloadUncached(fetchImpl, origin, url);
   variantCache.set(cacheKey, { expiresAt: Date.now() + PUBLIC_CACHE_TTL_MS, promise });
   trimCache(variantCache);
-  promise.catch(() => variantCache.delete(cacheKey));
+  const evict = () => { if (variantCache.get(cacheKey)?.promise === promise) variantCache.delete(cacheKey); };
+  void promise.then(payload => { if (!payload || !Array.isArray(payload.items) || payload.items.length === 0) evict(); }, evict);
   return promise;
 }
 
@@ -446,8 +449,11 @@ async function fetchVariantPayloadUncached(fetchImpl: typeof fetch, origin: stri
       redirect: "error",
       signal: controller.signal
     });
-    if (!response.ok || !(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) return null;
-    return await response.json().catch(() => null) as AhlsellVariantPayload | null;
+    if (!response.ok) throw new AhlsellCatalogError(`Ahlsell svarade med HTTP ${response.status} för produktvarianterna.`);
+    if (!(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) throw new AhlsellCatalogError("Ahlsell returnerade inte variantdata.");
+    const payload = await response.json().catch(() => null);
+    if (!isRecord(payload) || !isRecord(payload.settings) || !Array.isArray(payload.items)) throw new AhlsellCatalogError("Ahlsells produktvarianter kunde inte läsas.");
+    return payload as AhlsellVariantPayload;
   } finally {
     clearTimeout(timeout);
   }

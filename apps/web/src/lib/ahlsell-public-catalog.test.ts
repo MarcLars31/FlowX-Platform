@@ -2,9 +2,34 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ahlsellMarketFromSearchUrl,
+  fetchAhlsellCandidateVariants,
   searchAhlsellPublicCatalog,
   searchAhlsellPublicCatalogQueries
 } from "./ahlsell-public-catalog";
+
+test("does not cache an empty search response or a failed variant response", async t => {
+  let searchCalls = 0, variantCalls = 0;
+  t.mock.method(globalThis, 'fetch', async (input: URL | RequestInfo) => {
+    if (String(input).includes('/variants?')) {
+      variantCalls++;
+      return variantCalls === 1 ? new Response(null, { status: 503 }) : Response.json({ settings: { headers: {} }, items: [variant('9254042', 'Messing')] });
+    }
+    searchCalls++;
+    return Response.json({ productCount: searchCalls === 1 ? 0 : 1, productCards: searchCalls === 1 ? [] : [product('4011976', 'Vannmåler', '')] });
+  });
+  const first = await searchAhlsellPublicCatalog({ market: 'no', query: 'cache-recovery-4011976' });
+  const second = await searchAhlsellPublicCatalog({ market: 'no', query: 'cache-recovery-4011976' });
+  assert.equal(first.candidates.length, 0); assert.equal(second.candidates[0].articleNumber, '4011976');
+  assert.equal(searchCalls, 2);
+  const item = { articleNumber: '9254042', productName: 'Sprinkler', manufacturer: '', productUrl: 'https://www.ahlsell.no/products/sprinkler/9254042', specifications: [], source: 'catalog_search' as const, familyCode: 'cache-recovery-variants' };
+  await assert.rejects(fetchAhlsellCandidateVariants({ candidate: item, market: 'no' }), /HTTP 503/);
+  assert.equal((await fetchAhlsellCandidateVariants({ candidate: item, market: 'no' })).length, 1);
+  assert.equal(variantCalls, 2);
+});
+
+test("does not treat malformed HTTP 200 JSON as a completed empty search", async () => {
+  await assert.rejects(searchAhlsellPublicCatalog({ market: 'no', query: '4011976', fetchImpl: async () => Response.json({ error: 'backend unavailable' }) }), /kunde inte läsas/);
+});
 
 test("keeps a successful synonym search when another query fails", async () => {
   const result = await searchAhlsellPublicCatalogQueries({ market: "no", queries: ["failed", "works"], fetchImpl: async input => {

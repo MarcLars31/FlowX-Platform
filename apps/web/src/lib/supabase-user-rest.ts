@@ -154,6 +154,22 @@ export async function deleteUserRows(
   if (!response.ok) throw await readUserSupabaseError(response);
 }
 
+export async function deleteUserRowsReturning<T>(
+  table: string,
+  filters: Record<string, string>
+) {
+  const config = await getUserSupabaseConfig();
+  const url = restUrl(config.url, table);
+  Object.entries(filters).forEach(([key, value]) => url.searchParams.set(key, value));
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: userHeaders(config, "return=representation"),
+    cache: "no-store"
+  });
+  if (!response.ok) throw await readUserSupabaseError(response);
+  return (await response.json()) as T[];
+}
+
 export async function callUserRpc<T>(
   functionName: string,
   payload: Record<string, unknown>

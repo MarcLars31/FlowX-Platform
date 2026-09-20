@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { AhlsellCatalogError, ahlsellMarketFromSearchUrl } from "@/lib/ahlsell-public-catalog";
 import { AhlsellLookupInputError, lookupAhlsellProduct, parseAhlsellLookupQuery } from "@/lib/ahlsell-product-lookup";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
-import { complementMldlCandidates } from "@/lib/ahlsell-hybrid-matching";
+import { assessAhlsellLookupCandidates } from "@/lib/ahlsell-hybrid-matching";
 import { productAssemblyPlan } from "@/lib/product-assembly-plan";
 import { lookupAssemblyComponents } from "@/lib/assembly-component-lookup";
 import { isUuid } from "@/lib/distributor-product-mapping";
@@ -46,7 +46,7 @@ export async function POST(request: Request, context: RouteContext) {
     // do not compare an escutcheon with the head's K-factor or temperature.
     const products = body?.accessory === true
       ? result.products
-      : complementMldlCandidates(requirement, [], result.products)
+      : assessAhlsellLookupCandidates(requirement, result.products)
       .map(candidate => ({ ...candidate, subtitle: result.products.find(product => product.articleNumber === candidate.articleNumber)?.subtitle }));
     return NextResponse.json({ ...result, products }, { headers });
   } catch (error) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AhlsellLookupInputError, lookupAhlsellProduct, parseAhlsellLookupPage, parseAhlsellLookupQuery } from "./ahlsell-product-lookup";
 import { fetchAhlsellProductPage } from "./ahlsell-product-subtitle";
+import { isAutomaticAhlsellLookup } from "./ahlsell-lookup-input";
 
 const productUrl = "https://www.ahlsell.no/products/sprinkler/9257423---white/";
 const page = (number = "9257423") => `<h1 data-test="product-name">Sprinkler &amp; tillbehör</h1><div>1/2&quot; Vit 68°C</div><span class="text-card-item-number text-gray">Artikkelnr:<div><span class="text-card-item-number text-primary-main"><span>${number}</span></span></div></span>`;
@@ -34,9 +35,9 @@ test("looks up the exact NRF even when Ahlsell returns another active variant an
     const url = new URL(String(input)); calls.push(url);
     return Response.json(url.pathname.endsWith("/variants") ? variants : { productCount: 1, productCards: [card()] });
   } });
-  assert.equal(calls.length, 3);
-  assert.ok(calls[2].pathname.includes("9257423"));
-  assert.equal(calls[0].searchParams.get("parameters.SearchPhrase"), "9257423");
+  assert.equal(calls.length, 4);
+  assert.ok(calls[3].pathname.includes("9257423"));
+  assert.equal(calls[1].searchParams.get("parameters.SearchPhrase"), "9257423");
   assert.deepEqual(result.products.map((item) => item.articleNumber), ["9257423"]);
   assert.equal(result.products[0].productName, "Vit");
   assert.deepEqual(result.products[0].specifications, ["Tillverkare: Victaulic", "Farge: Hvit"]);
@@ -44,7 +45,7 @@ test("looks up the exact NRF even when Ahlsell returns another active variant an
 });
 
 test("does not return a replacement as an exact NRF match", async () => {
-  const result = await lookupAhlsellProduct({ query: "9254064", market: "no", fetchImpl: async (input) => Response.json(String(input).includes("/variants?") ? variants : { productCount: 1, productCards: [card()] }) });
+  const result = await lookupAhlsellProduct({ query: "9254064", market: "no", fetchImpl: async (input) => String(input).includes('/productVariantProxy/') ? new Response(null, { status: 404 }) : Response.json(String(input).includes("/variants?") ? variants : { productCount: 1, productCards: [card()] }) });
   assert.deepEqual(result.products, []);
   assert.match(result.message ?? "", /Ingen exakt träff.*9254064/);
 });
@@ -95,4 +96,113 @@ test("blocks redirects outside public Ahlsell product pages", async () => {
     assert.equal(result, null);
     assert.equal(calls, 1);
   }
+});
+
+test("automatically looks up six- and eight-digit Ahlsell articles as well as NRF numbers", () => {
+  for (const query of ["955911", "Art.nr: 955 911", "4011976", "NRF 401 19 76", "10000483"]) {
+    assert.ok(parseAhlsellLookupQuery(query, "no").articleNumber);
+    assert.equal(isAutomaticAhlsellLookup(query), true);
+  }
+  assert.equal(isAutomaticAhlsellLookup("https://www.ahlsell.no/productVariantProxy/4011976"), true);
+  assert.equal(isAutomaticAhlsellLookup("vannmåler DN80"), false);
+  assert.equal(isAutomaticAhlsellLookup("https://example.com/productVariantProxy/4011976"), false);
+});
+
+test("resolves a known article directly even when it is absent from the search index", async () => {
+  const calls: string[] = [];
+  const result = await lookupAhlsellProduct({ query: "4011976", market: "no", fetchImpl: async input => {
+    const url = new URL(String(input)); calls.push(url.pathname);
+    if (url.pathname === "/productVariantProxy/4011976") return new Response(null, { status: 302, headers: { Location: "/products/instrumenter/4011976" } });
+    if (url.pathname === "/products/instrumenter/4011976") return new Response(page("4011976"), { headers: { "Content-Type": "text/html" } });
+    assert.fail("A verified product page needs no search or variant request");
+  } });
+  assert.deepEqual(result.products.map(product => product.articleNumber), ["4011976"]);
+  assert.equal(calls.length, 2);
+});
+
+test("accepts public article redirect links and reads shorter visible article identities", async () => {
+  // Synthetic six-digit fixture: verifies supported format, not that 955911 exists.
+  const result = await lookupAhlsellProduct({ query: "https://www.ahlsell.no/productVariantProxy/955911?utm_source=share", market: "no", fetchImpl: async input => {
+    assert.equal(new URL(String(input)).search, "");
+    return new Response(page("955911"), { headers: { "Content-Type": "text/html" } });
+  } });
+  assert.equal(result.products[0].articleNumber, "955911");
+});
+
+test("falls back to exact search when a product page is temporarily unavailable", async () => {
+  for (const query of ["4011976", "https://www.ahlsell.no/products/instrumenter/4011976"]) {
+    const result = await lookupAhlsellProduct({ query, market: "no", fetchImpl: async input => {
+      const url = new URL(String(input));
+      if (url.pathname === "/api/search") return Response.json({ productCount: 1, productCards: [card("4011976")] });
+      return new Response(null, { status: 503 });
+    } });
+    assert.equal(result.products[0].articleNumber, "4011976");
+  }
+});
+
+test("retains an exact variant from a successful family if another family fails", async () => {
+  const result = await lookupAhlsellProduct({ query: "9257423", market: "no", fetchImpl: async input => {
+    const url = new URL(String(input));
+    if (url.pathname.includes('/productVariantProxy/')) return new Response(null, { status: 404 });
+    if (url.pathname === '/api/search/variants') return url.searchParams.get('productCode') === 'broken'
+      ? new Response(null, { status: 503 }) : Response.json(variants);
+    return Response.json({ productCount: 2, productCards: [{...card('9257391'), code: 'broken'}, card()] });
+  } });
+  assert.deepEqual(result.products.map(product => product.articleNumber), ['9257423']);
+});
+
+test("distinguishes unavailable product data from a completed search without matches", async () => {
+  await assert.rejects(lookupAhlsellProduct({ query: '4011976', market: 'no', fetchImpl: async input =>
+    String(input).includes('/api/search?') ? Response.json({ productCount: 0, productCards: [] }) : new Response(null, { status: 503 })
+  }), /kunde inte hämtas/);
+  const missing = await lookupAhlsellProduct({ query: '955911', market: 'no', fetchImpl: async input =>
+    String(input).includes('/api/search?') ? Response.json({ productCount: 0, productCards: [] }) : new Response(null, { status: 404 })
+  });
+  assert.deepEqual(missing.products, []);
+  assert.match(missing.message ?? '', /Ingen exakt träff.*955911/);
+});
+
+test("never substitutes the product a public article link redirects to", async () => {
+  const result = await lookupAhlsellProduct({ query: '4011976', market: 'no', fetchImpl: async () => new Response(page('4011975'), { headers: { 'Content-Type': 'text/html' } }) });
+  assert.deepEqual(result.products, []);
+  assert.match(result.message ?? '', /4011976.*4011975/);
+});
+
+test("public article redirects retain host, path and article validation", async () => {
+  for (const query of ['https://www.ahlsell.no/productVariantProxy/private', 'https://www.ahlsell.no/productVariantProxy/4011976/other', 'https://www.ahlsell.no/productVariantProxy/4011976%2fadmin']) {
+    await assert.rejects(lookupAhlsellProduct({ query, market: 'no', fetchImpl: async () => { assert.fail('Unexpected request'); } }), AhlsellLookupInputError);
+  }
+  let calls = 0;
+  assert.equal(await fetchAhlsellProductPage({ productUrl: 'https://www.ahlsell.no/productVariantProxy/4011976', fetchImpl: async () => {
+    calls++; return new Response(null, { status: 302, headers: { Location: 'https://example.com/products/4011976' } });
+  } }), null);
+  assert.equal(calls, 1);
+});
+
+test("does not start a fallback request after the user cancels a lookup", async () => {
+  const controller = new AbortController(); let calls = 0;
+  await assert.rejects(lookupAhlsellProduct({ query: '4011976', market: 'no', signal: controller.signal, fetchImpl: async () => {
+    calls++; controller.abort(); throw controller.signal.reason;
+  } }), /abort/i);
+  assert.equal(calls, 1);
+});
+
+test("resolves Ahlsell's live legacy redirect without querying the search index", async () => {
+  const result = await lookupAhlsellProduct({ query: '4011976', market: 'no', fetchImpl: async input => {
+    const url = new URL(String(input));
+    if (url.pathname === '/productVariantProxy/4011976') return new Response(null, { status: 302, headers: { Location: '/33/sprinkler-og-rillesystemer/instrumenter/4011976/?' } });
+    if (url.pathname === '/products/sprinkler-og-rillesystemer/instrumenter/4011976/') return new Response(null, { status: 308, headers: { Location: '/products/sprinkler-og-rillesystemer/instrumenter/4011976' } });
+    assert.equal(url.pathname, '/products/sprinkler-og-rillesystemer/instrumenter/4011976');
+    return new Response(page('4011976'), { headers: { 'Content-Type': 'text/html' } });
+  } });
+  assert.equal(result.products[0].articleNumber, '4011976');
+});
+
+test("recognizes Ahlsell's explicit missing-article page even when served as HTTP 200", async () => {
+  const result = await lookupAhlsellProduct({ query: '955911', market: 'no', fetchImpl: async input =>
+    String(input).includes('/api/search?') ? Response.json({ productCount: 0, productCards: [] })
+      : new Response('<h2>Vi kan dessverre ikke finne en artikkel med det nummeret 955911.</h2>', { headers: { 'Content-Type': 'text/html' } })
+  });
+  assert.deepEqual(result.products, []);
+  assert.match(result.message ?? '', /Ingen exakt träff.*955911/);
 });
