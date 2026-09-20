@@ -939,14 +939,19 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                 const label = mainPost.postNumber ?? "Hovedpost mangler";
                 const regionId = `main-post-${index}-products`;
                 const headingId = `main-post-${index}-heading`;
+                const mainPostCategories = new Set((allMainPostGroups.find(group => group.key === mainPost.key)?.requirements ?? mainPost.requirements).map(productRequirementCategory));
+                const categoryLabels = PRODUCT_REQUIREMENT_CATEGORIES.filter(category => mainPostCategories.has(category.id)).map(category => category.shortLabel).join(" · ");
                 const eligibleIds = mainPost.requirements.filter(item => bulkApprovalSelectionByRequirementId.has(item.id)).map(item => item.id);
                 const allGroupSelected = eligibleIds.length > 0 && eligibleIds.every(id => selectedRequirementIds.has(id));
                 return <section key={mainPost.key} aria-labelledby={headingId}>
                   <h4 id={headingId}>
                     <button type="button" aria-expanded={expanded} aria-controls={regionId}
-                      aria-label={`Hovedpost ${label}`} onClick={() => toggleMainPost(mainPost.key)}
+                      aria-label={`Hovedpost ${label}`} aria-describedby={`${headingId}-category`} onClick={() => toggleMainPost(mainPost.key)}
                       className={`flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left text-base font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-flow-600 ${mainPostApproved ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200" : expanded ? "bg-flow-50 text-flow-900 hover:bg-flow-50" : "bg-white text-flow-900 hover:bg-flow-50"}`}>
-                      <span className="flex items-center gap-2">{mainPostApproved && <><CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /><span className="sr-only">Godkjent · </span></>}{label}</span>
+                      <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="flex items-center gap-2">{mainPostApproved && <><CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /><span className="sr-only">Godkjent · </span></>}{label}</span>
+                        <span id={`${headingId}-category`} className="text-sm font-semibold">{categoryLabels}</span>
+                      </span>
                       <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
                     </button>
                   </h4>
@@ -1060,6 +1065,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                         <div>
                           <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-emerald-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeApproved ? "Produkten är godkänd" : productCardDirty ? "Osparade ändringar" : activeResolution ? `Posten är hanterad · ${activeResolution.label}` : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : "Produkten måste ses över"}</p>
                           <p className="mt-0.5 text-sm font-bold text-ink-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount}  kvar i visningen</p>
+                          <p className="mt-1 text-sm font-semibold text-flow-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1234,7 +1240,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }));
   const [accessories, setAccessories] = useState<ProductAccessoryDraft[]>(() => readProductAccessoryDrafts(currentSnapshot.accessories));
   const [accessoryOwnerProductNumber, setAccessoryOwnerProductNumber] = useState(() => accessories.length > 0 ? productNumber : "");
-  const [accessoriesExpanded, setAccessoriesExpanded] = useState(() => accessories.length > 0);
+  const [accessoryStepOpen, setAccessoryStepOpen] = useState(false);
   const [accessoryLookupOpen, setAccessoryLookupOpen] = useState(false);
   const [accessoryComponentId, setAccessoryComponentId] = useState<string | null>(null);
   const [suggestedAccessories, setSuggestedAccessories] = useState<AhlsellAccessorySuggestion[]>([]);
@@ -1265,6 +1271,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const accessoryError = productAccessoryDraftError(selectedProductAccessories);
   const assemblyPlan = productAssemblyPlan(requirement);
   const hasAccessoryStep = Boolean(assemblyPlan?.components.length || suggestedAccessories.length || selectedProductAccessories.length);
+  const remainingSuggestedAccessories = suggestedAccessories.filter(suggestion => !hasSuggestedProductAccessory(selectedProductAccessories, suggestion));
   const accessoryComponent = assemblyPlan?.components.find(component => component.id === accessoryComponentId);
   const accessoryQuery = accessoryComponent
     ? assemblyComponentSearch(accessoryComponent, `${productName} ${productSubtitle} ${manufacturerName}`) : "";
@@ -1359,13 +1366,17 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setManualProductError(null);
     setAccessories(nextAccessories);
     setAccessoryOwnerProductNumber(nextAccessories.length > 0 ? selection.productNumber : "");
-    setAccessoriesExpanded(nextAccessories.length > 0);
-    const firstComponent = assemblyPlan?.kind === "pipe" ? undefined : assemblyPlan?.components.find(component => !component.optional);
+    setAccessoryStepOpen(Boolean(assemblyPlan?.components.length || accessorySuggestions.length || nextAccessories.length));
+    const firstComponent = assemblyPlan?.components.find(component => !component.optional);
     setAccessoryComponentId(firstComponent?.id ?? null);
     setAccessoryLookupOpen(Boolean(firstComponent));
     setSuggestedAccessories(accessorySuggestions);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
+    focusSelectedProduct();
+  }
+
+  function focusSelectedProduct() {
     window.requestAnimationFrame(() => {
       const selectedCard = document.getElementById(`selected-pipe-${requirement.id}`);
       const panel = selectedCard?.closest("fieldset");
@@ -1410,6 +1421,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   function clearSelectedProduct() {
     setSelectionReview(null);
     setAccessoryLookupOpen(false);
+    setAccessoryStepOpen(false);
+    setAccessoryComponentId(null);
     setProductName("");
     setProductSubtitle("");
     setProductNumber("");
@@ -1498,8 +1511,22 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     openAccessoryLookup();
   }
 
+  function finishAccessories() {
+    if (accessoryError) return;
+    setAccessoryStepOpen(false);
+    setAccessoryLookupOpen(false);
+    setAccessoryComponentId(null);
+    focusSelectedProduct();
+  }
+
+  function editAccessories() {
+    setAccessoryStepOpen(true);
+    window.requestAnimationFrame(() => document.getElementById(`accessory-step-${requirement.id}`)?.focus({ preventScroll: true }));
+  }
+
   function openAccessoryLookup(component?: AssemblyComponent) {
     if (!hasAccessoryStep || !productNumber.trim() || selectedProductAccessories.length >= 20) return;
+    setAccessoryStepOpen(true);
     if (component && accessoryLookupOpen && accessoryComponentId === component.id) {
       setAccessoryLookupOpen(false);
       return;
@@ -1526,10 +1553,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       notes: `${accessoryComponent ? `Kravdel: ${accessoryComponent.label}. ` : ""}Valt från Ahlsell: ${candidate.productUrl}`
     }]);
     setAccessoryOwnerProductNumber(productNumber);
-    setAccessoriesExpanded(true);
+    setAccessoryStepOpen(true);
+    setAccessoryLookupOpen(false);
+    setAccessoryComponentId(null);
     setHasUnapprovedChanges(true);
     setDraftNotice(`Tillbehöret med NRF-nummer ${candidate.articleNumber} har lagts till för kontroll.`);
     onError("");
+    window.requestAnimationFrame(() => document.getElementById(`accessory-${requirement.id}-${selectedProductAccessories.length}-quantity`)?.focus());
   }
 
   function updateLookupAccessory(candidate: AhlsellLookupProduct, amount: { quantity: string; unit: string }) {
@@ -1549,7 +1579,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     const nextIndex = selectedProductAccessories.length;
     setAccessories([...selectedProductAccessories, { ...newProductAccessoryDraft(), ...(assemblyPlan?.kind === "pipe" ? { quantity: "" } : {}) }]);
     setAccessoryOwnerProductNumber(productNumber);
-    setAccessoriesExpanded(true);
+    setAccessoryStepOpen(true);
     setAccessoryLookupOpen(false);
     setHasUnapprovedChanges(true);
     onError("");
@@ -1571,7 +1601,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     const next = accessories.filter((_, itemIndex) => itemIndex !== index);
     setAccessories(next);
     if (next.length === 0) {
-      setAccessoriesExpanded(false);
       setAccessoryOwnerProductNumber("");
     }
     setHasUnapprovedChanges(true);
@@ -1582,7 +1611,9 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     const next = toggleSuggestedProductAccessory(selectedProductAccessories, suggestion, selected, quantity.quantity);
     setAccessories(next);
     setAccessoryOwnerProductNumber(next.length > 0 ? productNumber : "");
-    setAccessoriesExpanded(next.length > 0);
+    setAccessoryStepOpen(true);
+    setAccessoryLookupOpen(false);
+    setAccessoryComponentId(null);
     setHasUnapprovedChanges(true);
     onError("");
   }
@@ -1646,7 +1677,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       return;
     }
     if (accessoryError) {
-      setAccessoriesExpanded(true);
+      setAccessoryStepOpen(true);
       onError(accessoryError);
       return;
     }
@@ -1796,7 +1827,121 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           : quantity.quantity === null ? "" : String(Number(item.quantity) * quantity.quantity) }))}
         onSelect={applyAhlsellAccessory} onQuantityChange={updateLookupAccessory}
         onDeselect={candidate => removeAccessory(selectedProductAccessories.findIndex(item => normalizeNrfNumber(item.productNumber) === normalizeNrfNumber(candidate.articleNumber)))} />
-      <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addManualAccessory} disabled={saving || selectedProductAccessories.length >= 20}>Registrera tillbehör manuellt</Button>
+    </section>
+  ) : null;
+
+  const accessorySection = hasAccessoryStep && productNumber.trim() ? (
+    <section id={`accessory-step-${requirement.id}`} tabIndex={-1} aria-labelledby={`accessory-step-title-${requirement.id}`} className="border-t border-ink-200 bg-white p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h5 id={`accessory-step-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-ink-950"><PackagePlus className="h-5 w-5" aria-hidden="true" />{accessoryStepOpen ? "3. Välj tillbehör" : `Dina tillbehör (${selectedProductAccessories.length})`}</h5>
+          <p className="mt-1 text-sm text-ink-700">{accessoryStepOpen ? "Välj tillbehör nedan. Tryck på Klar med tillbehör när dina val är färdiga." : "Huvudprodukten och tillbehören sparas tillsammans när du godkänner."}</p>
+        </div>
+        {!accessoryStepOpen && <Button type="button" variant="secondary" onClick={editAccessories}>Ändra tillbehör</Button>}
+      </div>
+      {accessoryStepOpen && <div className="mb-4 space-y-4">
+          {productNumber.trim() && assemblyPlan && assemblyPlan.components.length > 0 && <ProductAssemblyParts id={`assembly-parts-${requirement.id}`} plan={assemblyPlan}
+            accessories={selectedProductAccessories} disabled={saving || selectedProductAccessories.length >= 20}
+            activeComponentId={accessoryLookupOpen ? accessoryComponentId : null} onChoose={openAccessoryLookup}>
+            {accessoryLookup}
+          </ProductAssemblyParts>}
+
+          {accessoryLookup && !accessoryComponent && <div className="rounded-md border-2 border-flow-300 bg-white p-4">{accessoryLookup}</div>}
+
+          {remainingSuggestedAccessories.length > 0 && (
+            <section aria-labelledby={`suggested-accessories-title-${requirement.id}`} className="overflow-hidden rounded-md border border-cyan-300 bg-white">
+              <div className="border-b border-cyan-200 bg-cyan-50 px-3 py-3 sm:px-4">
+                <h5 id={`suggested-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Tillbehör som kan behövas</h5>
+                <p className="mt-0.5 text-xs leading-5 text-ink-600">ScipX har sökt i hela MLDL-databasen efter tillbehör till NRF {productNumber.trim()}. Markera de tillbehör som ska sparas tillsammans med huvudprodukten.</p>
+              </div>
+              <div className="divide-y divide-ink-200">
+                {remainingSuggestedAccessories.map((suggestion) => {
+                  const checked = hasSuggestedProductAccessory(selectedProductAccessories, suggestion);
+                  return (
+                    <article key={suggestion.articleNumber} className={checked ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4"}>
+                      <div className="flex items-start gap-3">
+                        <ProductSelectionCheckbox checked={checked} disabled={saving || (!checked && selectedProductAccessories.length >= 20)}
+                          label={`${suggestion.productName}, NRF-nummer ${suggestion.articleNumber}`} onChange={checked => toggleSuggestedAccessory(suggestion, checked)} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold leading-5 text-ink-950">{suggestion.productName}</p>
+                          <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {suggestion.articleNumber}</p>
+                          <p className="mt-1 text-xs leading-5 text-ink-600">{suggestion.reason}</p>
+                          <p className={suggestion.compatibility === "compatible" ? "mt-1 text-xs font-bold text-emerald-800" : "mt-1 text-xs font-bold text-amber-900"}>
+                            {suggestion.required ? "Tillbehör krävs enligt montage/krav · " : "Möjligt tillbehör · "}
+                            {suggestion.compatibility === "compatible" ? "stark katalogkoppling" : "kompatibilitet måste kontrolleras"}
+                          </p>
+                        </div>
+                        <a href={suggestion.productUrl} target="_blank" rel="noreferrer" aria-label={`Sök Ahlsell tillbehör ${suggestion.articleNumber}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+                          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                        </a>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20}><Search className="h-4 w-4" aria-hidden="true" />Sök andra tillbehör</Button>
+          <Button type="button" variant="secondary" onClick={addManualAccessory} disabled={selectedProductAccessories.length >= 20}><Plus className="h-4 w-4" aria-hidden="true" />Registrera tillbehör manuellt</Button>
+        </div>
+      </div>}
+      <div id={`accessory-summary-${requirement.id}`} tabIndex={-1} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600">
+          {selectedProductAccessories.length > 0 && (
+            <section id={`product-accessories-${requirement.id}`} aria-label="Valda tillbehör" className="scroll-mt-24 overflow-hidden rounded-md border border-flow-300 bg-white">
+              {accessoryStepOpen && <div className="flex flex-col gap-3 border-b border-flow-200 bg-flow-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h5 id={`product-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Valgte tilbehør ({selectedProductAccessories.length})</h5>
+                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Angi total mengde for hele posten. For eksempel gir 5 T-stykker 5 i Excel.</p>
+                </div>
+                {accessoryStepOpen && <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20}>
+                  <Plus className="h-4 w-4" aria-hidden="true" />Lägg till ett till
+                </Button>}
+              </div>}
+              <div className="space-y-3 p-3">
+                {selectedProductAccessories.map((accessory, index) => (
+                  <div key={index} className="space-y-3 rounded-md border-2 border-flow-300 bg-flow-50/40 p-3">
+                    {accessoryStepOpen ? <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-flow-800">Tilbehør {index + 1}</p>
+                      <ProductSelectionCheckbox checked disabled={saving} label={accessory.name || `tilbehør ${index + 1}`} onChange={() => removeAccessory(index)} />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                    <AccessoryInput id={`accessory-name-${requirement.id}-${index}`} label="Delprodukt / tillbehör" value={accessory.name} required onChange={(value) => updateAccessory(index, "name", value)} />
+                    <AccessoryInput id={`accessory-nrf-${requirement.id}-${index}`} label="NRF-nummer" value={accessory.productNumber} onChange={(value) => updateAccessory(index, "productNumber", value)} />
+                    </div>
+                    {accessory.quantityBasis === "total" ? <ProductQuantityFields id={`accessory-${requirement.id}-${index}`} quantity={accessory.quantity} unit={accessory.unit} disabled={saving}
+                      onQuantityChange={value => updateAccessory(index, "quantity", value)} onUnitChange={value => updateAccessory(index, "unit", value)} /> : <div className="space-y-2">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <AccessoryInput id={`accessory-quantity-${requirement.id}-${index}`} label="Tidligere mengde per postenhet" type="number" min="0.001" max="100000" step="0.001" value={accessory.quantity} onChange={value => updateAccessory(index, "quantity", value)} />
+                        <AccessoryInput id={`accessory-unit-${requirement.id}-${index}`} label="Enhet" value={accessory.unit} onChange={value => updateAccessory(index, "unit", value)} />
+                      </div>
+                      <button type="button" disabled={saving} className="text-xs font-bold text-flow-800 underline" onClick={() => {
+                        setAccessories(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, quantityBasis: "total", quantity: quantity.quantity === null ? "" : String(Number(item.quantity) * quantity.quantity) } : item));
+                        setHasUnapprovedChanges(true);
+                      }}>Endre til total mengde for posten</button>
+                    </div>}
+                    </> : <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-bold text-ink-950">{accessory.name}</p>
+                        {accessory.productNumber && <p className="mt-1 text-xs font-semibold text-flow-800">NRF {accessory.productNumber}</p>}
+                      </div>
+                      <p className="text-sm font-semibold text-ink-800">{accessory.quantityBasis === "total" ? accessory.quantity : quantity.quantity === null ? "Mängd behöver kontrolleras" : String(Number(accessory.quantity) * quantity.quantity)} {accessory.unit}</p>
+                    </div>}
+                  </div>
+                ))}
+                {accessoryError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{accessoryError}</p>}
+                <p className="text-xs leading-5 text-ink-500">Tillbehören följer bara den valda huvudprodukten. Om huvudproduktens NRF-nummer ändras rensas tillbehören.</p>
+              </div>
+            </section>
+          )}
+
+
+        {!selectedProductAccessories.length && <p className="text-sm text-ink-600">Inga tillbehör valda.</p>}
+      </div>
+      {accessoryStepOpen && <Button type="button" className="mt-4 w-full justify-center sm:w-auto" disabled={Boolean(accessoryError)} onClick={finishAccessories}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Klar med tillbehör</Button>}
     </section>
   ) : null;
 
@@ -1883,13 +2028,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         <div id={`product-selection-header-${requirement.id}`} className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">2. Välj huvudprodukt</p>
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">{!productNumber.trim() ? "2. Välj huvudprodukt" : accessoryStepOpen ? "3. Välj tillbehör" : "Ditt produktval"}</p>
               <h4 className="mt-0.5 text-base font-bold text-ink-950">Produkter för PDF-post {details.postNumber ?? position}</h4>
               <p className={`mt-1 flex items-center gap-2 text-sm font-bold ${isApproved ? "text-emerald-800" : productNumber.trim() ? "text-flow-800" : "text-ink-600"}`}>
                 {productNumber.trim() && <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />}
                 {isApproved ? "Produkten är godkänd" : productNumber.trim() ? "Produkt valgt – ikke godkjent ennå" : "Ingen produkt valgt"}
               </p>
-              {productNumber.trim() && <p className="mt-1 line-clamp-2 break-words text-xs font-semibold text-ink-700">{productName || "Hovedprodukt"} · NRF {productNumber}</p>}
             </div>
           </div>
           <p className="mt-2 text-xs leading-5 text-ink-600">{hasAccessoryStep
@@ -1899,7 +2043,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
           <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
-          {productNumber.trim() && (
+          {productNumber.trim() && !manualProductOpen && (
             <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className={`scroll-mt-80 overflow-hidden rounded-lg border-2 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 lg:scroll-mt-60 ${isApproved ? "border-emerald-600 bg-emerald-100" : "border-flow-700 bg-flow-50"}`}>
               <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${isApproved ? "bg-emerald-700" : "bg-flow-800"}`}>
                 <p className="flex items-center gap-2 text-lg font-bold text-white"><CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />{isApproved ? "Godkjent hovedprodukt" : "Produkt valgt"}</p>
@@ -1908,10 +2052,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               <div className="space-y-4 p-4">
                 <div>
                   <h5 className="break-words text-xl font-bold leading-snug text-ink-950">{productName || `NRF ${productNumber}`}</h5>
-                  {productSubtitle && <p className="mt-1 text-sm text-ink-700">{productSubtitle}</p>}
+                  {productSubtitle && productSubtitle.trim() !== productName.trim() && <p className="mt-1 text-sm text-ink-700">{productSubtitle}</p>}
                   <p className="mt-2 inline-flex rounded-md border border-ink-200 bg-white px-2.5 py-1 text-sm font-bold text-ink-800">NRF {productNumber}</p>
                 </div>
-                {!isApproved && <p className="text-sm font-semibold leading-5 text-flow-900">{hasAccessoryStep ? "Hovedproduktet er valgt. Legg til nødvendige tilbehør, og trykk deretter Godkjenn og lagre." : "Hovedproduktet er valgt. Kontroller valget, og trykk deretter Godkjenn og lagre."}</p>}
+                {!isApproved && <p className="text-sm font-semibold leading-5 text-flow-900">{accessoryStepOpen ? "Huvudprodukten är vald. Välj tillbehör direkt nedan." : hasAccessoryStep ? "Kontrollera huvudprodukten och tillbehören nedan. Tryck sedan på Godkänn och spara." : "Kontrollera huvudprodukten. Tryck sedan på Godkänn och spara."}</p>}
                 <div>
                   <ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
                     onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
@@ -1927,20 +2071,15 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                 )}
                 <Button type="button" variant="secondary" disabled={saving} onClick={showAllProductAlternatives}>Bytt hovedprodukt</Button>
               </div>
+              {accessorySection}
             </section>
           )}
 
           <nav aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
             <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { const scope = productNumber.trim() ? "product" : "post"; document.getElementById(`${scope}-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${scope}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
-            <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
+            {!productNumber.trim() && <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
               <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
-            </Button>
-            {hasAccessoryStep && Boolean(productNumber.trim()) && <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20} title={selectedProductAccessories.length >= 20 ? "Högst 20 tillbehör" : "Lägg till tillbehör på den valda produkten"}>
-              <PackagePlus className="h-4 w-4" aria-hidden="true" />Lägg till delprodukt / tillbehör
             </Button>}
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={showAllProductAlternatives}>
-              <Search className="h-4 w-4" aria-hidden="true" />Visa alternativ
-            </Button>
             {!resolution && (
               <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
                 <Tag className="h-4 w-4" aria-hidden="true" />Inte i sortiment
@@ -2011,7 +2150,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </section>
           )}
 
-          <div id={`ahlsell-products-${requirement.id}`} hidden={isApproved || Boolean(productNumber.trim() && assemblyPlan?.kind === "pipe")} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
+          <div id={`ahlsell-products-${requirement.id}`} hidden={Boolean(productNumber.trim()) || manualProductOpen} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
             <AhlsellPublicMatchPanel
               projectId={projectId}
               requirementId={requirement.id}
@@ -2035,94 +2174,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             />
           </div>
 
-          <div id={`product-comments-${requirement.id}`} className="scroll-mt-52">
-            {productComments}
-          </div>
-
-          {productNumber.trim() && assemblyPlan && assemblyPlan.components.length > 0 && <ProductAssemblyParts id={`assembly-parts-${requirement.id}`} plan={assemblyPlan}
-            mainProductName={productName || `NRF ${productNumber}`} accessories={selectedProductAccessories} disabled={saving || selectedProductAccessories.length >= 20}
-            activeComponentId={accessoryLookupOpen ? accessoryComponentId : null} onChoose={openAccessoryLookup}>
-            {accessoryLookup}
-          </ProductAssemblyParts>}
-
-          {accessoryLookup && !accessoryComponent && <div className="rounded-md border-2 border-flow-300 bg-white p-4">{accessoryLookup}</div>}
-
-          {productNumber.trim() && suggestedAccessories.length > 0 && (
-            <section aria-labelledby={`suggested-accessories-title-${requirement.id}`} className="overflow-hidden rounded-md border border-cyan-300 bg-white">
-              <div className="border-b border-cyan-200 bg-cyan-50 px-3 py-3 sm:px-4">
-                <h5 id={`suggested-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Tillbehör som kan behövas</h5>
-                <p className="mt-0.5 text-xs leading-5 text-ink-600">ScipX har sökt i hela MLDL-databasen efter tillbehör till NRF {productNumber.trim()}. Markera de tillbehör som ska sparas tillsammans med huvudprodukten.</p>
-              </div>
-              <div className="divide-y divide-ink-200">
-                {suggestedAccessories.map((suggestion) => {
-                  const checked = hasSuggestedProductAccessory(selectedProductAccessories, suggestion);
-                  return (
-                    <article key={suggestion.articleNumber} className={checked ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4"}>
-                      <div className="flex items-start gap-3">
-                        <ProductSelectionCheckbox checked={checked} disabled={saving || (!checked && selectedProductAccessories.length >= 20)}
-                          label={`${suggestion.productName}, NRF-nummer ${suggestion.articleNumber}`} onChange={checked => toggleSuggestedAccessory(suggestion, checked)} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold leading-5 text-ink-950">{suggestion.productName}</p>
-                          <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {suggestion.articleNumber}</p>
-                          <p className="mt-1 text-xs leading-5 text-ink-600">{suggestion.reason}</p>
-                          <p className={suggestion.compatibility === "compatible" ? "mt-1 text-xs font-bold text-emerald-800" : "mt-1 text-xs font-bold text-amber-900"}>
-                            {suggestion.required ? "Tillbehör krävs enligt montage/krav · " : "Möjligt tillbehör · "}
-                            {suggestion.compatibility === "compatible" ? "stark katalogkoppling" : "kompatibilitet måste kontrolleras"}
-                          </p>
-                        </div>
-                        <a href={suggestion.productUrl} target="_blank" rel="noreferrer" aria-label={`Sök Ahlsell tillbehör ${suggestion.articleNumber}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-                          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                        </a>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {accessoriesExpanded && selectedProductAccessories.length > 0 && (
-            <section id={`product-accessories-${requirement.id}`} aria-labelledby={`product-accessories-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border border-flow-300 bg-white">
-              <div className="flex flex-col gap-3 border-b border-flow-200 bg-flow-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h5 id={`product-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Valgte tilbehør ({selectedProductAccessories.length})</h5>
-                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Angi total mengde for hele posten. For eksempel gir 5 T-stykker 5 i Excel.</p>
-                </div>
-                <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20}>
-                  <Plus className="h-4 w-4" aria-hidden="true" />Lägg till ett till
-                </Button>
-              </div>
-              <div className="space-y-3 p-3">
-                {selectedProductAccessories.map((accessory, index) => (
-                  <div key={index} className="space-y-3 rounded-md border-2 border-flow-300 bg-flow-50/40 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-bold text-flow-800">Tilbehør {index + 1}</p>
-                      <ProductSelectionCheckbox checked disabled={saving} label={accessory.name || `tilbehør ${index + 1}`} onChange={() => removeAccessory(index)} />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                    <AccessoryInput id={`accessory-name-${requirement.id}-${index}`} label="Delprodukt / tillbehör" value={accessory.name} required onChange={(value) => updateAccessory(index, "name", value)} />
-                    <AccessoryInput id={`accessory-nrf-${requirement.id}-${index}`} label="NRF-nummer" value={accessory.productNumber} onChange={(value) => updateAccessory(index, "productNumber", value)} />
-                    </div>
-                    {accessory.quantityBasis === "total" ? <ProductQuantityFields id={`accessory-${requirement.id}-${index}`} quantity={accessory.quantity} unit={accessory.unit} disabled={saving}
-                      onQuantityChange={value => updateAccessory(index, "quantity", value)} onUnitChange={value => updateAccessory(index, "unit", value)} /> : <div className="space-y-2">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <AccessoryInput id={`accessory-quantity-${requirement.id}-${index}`} label="Tidligere mengde per postenhet" type="number" min="0.001" max="100000" step="0.001" value={accessory.quantity} onChange={value => updateAccessory(index, "quantity", value)} />
-                        <AccessoryInput id={`accessory-unit-${requirement.id}-${index}`} label="Enhet" value={accessory.unit} onChange={value => updateAccessory(index, "unit", value)} />
-                      </div>
-                      <button type="button" disabled={saving} className="text-xs font-bold text-flow-800 underline" onClick={() => {
-                        setAccessories(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, quantityBasis: "total", quantity: quantity.quantity === null ? "" : String(Number(item.quantity) * quantity.quantity) } : item));
-                        setHasUnapprovedChanges(true);
-                      }}>Endre til total mengde for posten</button>
-                    </div>}
-                  </div>
-                ))}
-                {accessoryError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{accessoryError}</p>}
-                <p className="text-xs leading-5 text-ink-500">Tillbehören följer bara den valda huvudprodukten. Om huvudproduktens NRF-nummer ändras rensas tillbehören.</p>
-              </div>
-            </section>
-          )}
-
-          {productNumber.trim() && (
+          {productNumber.trim() && !accessoryStepOpen && (
             <section id={`product-approval-${requirement.id}`} aria-labelledby={`product-approval-title-${requirement.id}`} className="rounded-md border border-flow-300 bg-flow-50 p-4">
               <h5 id={`product-approval-title-${requirement.id}`} className="text-base font-bold text-ink-950">{hasAccessoryStep ? "4. Godkänn" : "3. Godkänn"}</h5>
               <p className="mt-1 text-sm leading-6 text-ink-700">{hasAccessoryStep
@@ -2135,6 +2187,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               </Button>
             </section>
           )}
+          <div id={`product-comments-${requirement.id}`} className="scroll-mt-52">
+            {productComments}
+          </div>
+
         </div>
 
         {attachmentExpanded && (

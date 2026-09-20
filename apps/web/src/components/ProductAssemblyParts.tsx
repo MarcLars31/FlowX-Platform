@@ -6,8 +6,8 @@ import type { AssemblyComponent, ProductAssemblyPlan } from "@/lib/product-assem
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-export function ProductAssemblyParts({ id, plan, mainProductName, accessories = [], disabled, onChoose, activeComponentId, children }: {
-  id: string; plan: ProductAssemblyPlan; mainProductName: string; disabled: boolean;
+export function ProductAssemblyParts({ id, plan, accessories = [], disabled, onChoose, activeComponentId, children }: {
+  id: string; plan: ProductAssemblyPlan; disabled: boolean;
   onChoose: (component: AssemblyComponent) => void;
   accessories?: readonly { productNumber: string; name: string; notes: string }[];
   activeComponentId?: string | null;
@@ -16,8 +16,7 @@ export function ProductAssemblyParts({ id, plan, mainProductName, accessories = 
   if (!plan.components.length) return null;
   return <section id={id} className="scroll-mt-80 overflow-hidden rounded-md border border-flow-300 bg-white lg:scroll-mt-52" aria-labelledby={`${id}-title`}>
     <div className="border-b border-flow-200 bg-flow-50 p-4">
-      <h5 id={`${id}-title`} className="text-base font-bold text-ink-950">3. Komplettera med tillbehör</h5>
-      <p className="mt-1 text-sm font-semibold text-flow-900">Huvudprodukt: {mainProductName || plan.mainLabel}</p>
+      <h5 id={`${id}-title`} className="text-sm font-bold text-ink-950">Välj tillbehörsgrupp</h5>
       {plan.guidance && <p className="mt-2 text-xs leading-5 text-ink-700">{plan.guidance}</p>}
       <p className="mt-2 text-sm leading-5 text-ink-700">Klicka på en tillbehörsgrupp för att se alternativen som programmet söker fram till din huvudprodukt.</p>
       {plan.kind === "pipe"
@@ -34,7 +33,7 @@ export function ProductAssemblyParts({ id, plan, mainProductName, accessories = 
             <span className="min-w-0">
               <span className="block text-sm font-bold text-ink-950">{component.label}</span>
               <span className="mt-1 block text-xs text-ink-600">{component.optional ? "Valfritt" : component.conditional ? "Kontrollera montagevillkoret" : "Ingår i postens omfattning"}</span>
-              {selected.map(item => <span key={item.productNumber} className="mt-2 block text-xs font-semibold text-flow-800">Vald för kontroll: {item.name || `NRF ${item.productNumber}`}</span>)}
+              {selected.length > 0 && <span className="mt-2 block text-xs font-semibold text-flow-800">{selected.length} valda</span>}
             </span>
             {expanded ? <ChevronDown className="h-5 w-5 shrink-0 text-flow-800" aria-hidden="true" /> : <ChevronRight className="h-5 w-5 shrink-0 text-flow-800" aria-hidden="true" />}
           </button>
