@@ -1,4 +1,5 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import { buildAhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
 
 export type AhlsellMarket = "no" | "se";
 
@@ -409,7 +410,10 @@ async function fetchCandidateVariantsDetailed({ candidate, market, fetchImpl }: 
       productName: best.productName || candidate.productName,
       productUrl: best.productUrl,
       imageUrl: best.imageUrl ?? candidate.imageUrl,
-      specifications: [...new Set([...candidate.specifications, ...best.specifications])]
+      specifications: [...new Set([...candidate.specifications, ...best.specifications])],
+      technicalEvidence: buildAhlsellTechnicalEvidence({ articleNumber: best.articleNumber, sourceUrl: best.productUrl,
+        retrievedAt: new Date().toISOString(), productName: best.productName || candidate.productName, subtitle: null,
+        description: null, specifications: best.specifications, sourceKind: "variant_table" })
     } satisfies AhlsellPublicCandidate,
     variant: best
   }));

@@ -15,7 +15,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test:ns-codes": "node --import tsx --test src/lib/ns3420-code-catalog.test.ts",
-    "test:ahlsell-lookup": "node --import tsx --test src/lib/ahlsell-product-lookup.test.ts src/lib/ahlsell-public-catalog.test.ts src/lib/ahlsell-product-subtitle.test.ts src/lib/product-card-accessories.test.ts",
+    "test:ahlsell-lookup": "node --import tsx --test src/lib/ahlsell-product-lookup.test.ts src/lib/ahlsell-technical-evidence.test.ts src/lib/ahlsell-public-catalog.test.ts src/lib/ahlsell-product-subtitle.test.ts src/lib/product-card-accessories.test.ts",
     "test:ahlsell-hybrid": "node --import tsx --test src/lib/ahlsell-hybrid-matching.test.ts",
     "test:authz": "node --import tsx --test src/lib/platform-role.test.ts src/lib/administration-access.test.ts src/lib/backend-route-guards.test.ts src/lib/supabase-auth-config.test.ts src/lib/supabase-headers.test.ts",
     "test:security": "node --import tsx --test src/lib/request-rate-limit.test.ts src/lib/pdf-security.test.ts src/lib/request-body.test.ts src/lib/demo-data.test.ts",

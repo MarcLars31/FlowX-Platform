@@ -1,3 +1,6 @@
+import { AHLSELL_EVIDENCE_TTL_MS, AHLSELL_EVIDENCE_VERSION, buildAhlsellTechnicalEvidence, mergeAhlsellTechnicalEvidence, technicalEvidenceWarnings, type AhlsellEvidenceSnapshot, type AhlsellEvidenceStore, type AhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
+import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
+
 export const MAX_AHLSELL_PRODUCT_SUBTITLE_ITEMS = 6;
 
 export type AhlsellProductSubtitleItem = {
@@ -14,6 +17,9 @@ export type AhlsellProductDetails = {
   articleNumber: string;
   subtitle: string | null;
   specifications: string[];
+  description?: string;
+  technicalEvidence?: AhlsellTechnicalEvidence;
+  snapshot?: AhlsellEvidenceSnapshot;
 };
 
 const ALLOWED_AHLSELL_HOSTS = new Set([
@@ -119,11 +125,13 @@ export async function fetchAhlsellProductSubtitles({
 export async function fetchAhlsellProductDetails({
   items,
   fetchImpl = fetch,
-  signal
+  signal,
+  store
 }: {
   items: AhlsellProductSubtitleItem[];
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  store?: AhlsellEvidenceStore;
 }) {
   const subtitles: Record<string, AhlsellProductDetails | null> = {};
   let cursor = 0;
@@ -133,16 +141,45 @@ export async function fetchAhlsellProductDetails({
     while (cursor < items.length) {
       const item = items[cursor];
       cursor += 1;
-      subtitles[item.articleNumber] = await fetchAhlsellProductSubtitle(
-        item.articleNumber,
-        item.productUrl,
-        fetchImpl,
-        signal
-      ).catch(() => null);
+      subtitles[item.articleNumber] = await fetchStoredProductDetails(item, fetchImpl, signal, store).catch(() => null);
     }
   }));
 
   return subtitles;
+}
+
+async function fetchStoredProductDetails(item: AhlsellProductSubtitleItem, fetchImpl: typeof fetch, signal?: AbortSignal, store?: AhlsellEvidenceStore) {
+  signal?.throwIfAborted();
+  const url = safeAhlsellProductUrl(item.productUrl, item.articleNumber);
+  if (!url) return null;
+  const market = new URL(url).hostname.endsWith(".no") ? "no" : "se";
+  if (store) {
+    const cached = restoreAhlsellEvidenceSnapshot(await store.read(market, item.articleNumber).catch(() => null), item.articleNumber, market);
+    signal?.throwIfAborted();
+    if (cached) return cached;
+  }
+  const detail = await fetchAhlsellProductSubtitle(item.articleNumber, url, fetchImpl, signal);
+  signal?.throwIfAborted();
+  if (store && detail?.snapshot) await store.write(market, item.articleNumber, detail.snapshot).catch(() => undefined);
+  return detail;
+}
+
+/** Reparse saved raw fields after validation; never trust arbitrary stored
+ * normalized values or a different market/article. Expired data is refetched. */
+export function restoreAhlsellEvidenceSnapshot(value: unknown, requestedArticle: string, market: "no" | "se", now = Date.now()): AhlsellProductDetails | null {
+  if (!isRecord(value) || value.version !== AHLSELL_EVIDENCE_VERSION || typeof value.articleNumber !== "string"
+    || !samePageArticle(requestedArticle, value.articleNumber) || typeof value.sourceUrl !== "string"
+    || typeof value.retrievedAt !== "string" || typeof value.productName !== "string" || value.productName.length > 500
+    || (value.subtitle !== null && (typeof value.subtitle !== "string" || value.subtitle.length > 500))
+    || (value.description !== null && (typeof value.description !== "string" || value.description.length > 2000))
+    || !Array.isArray(value.specifications) || value.specifications.length > 60
+    || value.specifications.some(s => typeof s !== "string" || s.length > 400)) return null;
+  const sourceUrl = safeAhlsellProductUrl(value.sourceUrl, requestedArticle) ?? safeAhlsellProductUrl(value.sourceUrl, value.articleNumber);
+  const age = now - Date.parse(value.retrievedAt);
+  if (!sourceUrl || !new URL(sourceUrl).hostname.endsWith(`.${market}`) || !Number.isFinite(age) || age < 0 || age > AHLSELL_EVIDENCE_TTL_MS) return null;
+  const snapshot = value as unknown as AhlsellEvidenceSnapshot;
+  return { articleNumber: snapshot.articleNumber, subtitle: snapshot.subtitle, specifications: snapshot.specifications,
+    description: snapshot.description ?? undefined, technicalEvidence: buildAhlsellTechnicalEvidence(snapshot), snapshot };
 }
 
 async function fetchAhlsellProductSubtitle(
@@ -213,24 +250,53 @@ async function fetchAhlsellProductSubtitleUncached(
   externalSignal?: AbortSignal
 ) {
   const page = await fetchAhlsellProductPage({ productUrl, articleNumber, fetchImpl, signal: externalSignal });
-  return page ? parseAhlsellProductDetails(page.html, articleNumber) : null;
+  return page ? parseAhlsellProductDetails(page.html, articleNumber, page.url) : null;
 }
 
-export function parseAhlsellProductDetails(html: string, requestedArticle: string): AhlsellProductDetails | null {
+export function parseAhlsellProductDetails(html: string, requestedArticle: string, sourceUrl?: string): AhlsellProductDetails | null {
   const visible = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
   const articleNumber = parseAhlsellProductArticleNumber(visible);
   if (!articleNumber) return null;
-  const requestedKey = normalizeArticleToken(requestedArticle);
-  const visibleKey = normalizeArticleToken(articleNumber);
   // Ahlsell search uses e.g. 9254111N5 for a page displaying NRF 9254111.
   // Accept that known catalogue suffix only with matching visible page identity;
   // never strip suffixes globally or accept a replacement with different digits.
-  if (requestedKey !== visibleKey && !(/^\d{7}n5$/.test(requestedKey) && requestedKey === `${visibleKey}n5`)) return null;
+  if (!samePageArticle(requestedArticle, articleNumber)) return null;
   const information = visible.split(/data-test=["']information-table["']/i)[1]?.split(/<h[12]\b/i)[0] ?? "";
-  const technicalList = /Teknisk[ae] data\s*<ul\b[^>]*>([\s\S]*?)<\/ul>/i.exec(information)?.[1] ?? "";
+  const technicalList = /Teknisk[ae] data\s*(?:<\/[^>]+>\s*)*<ul\b[^>]*>([\s\S]*?)<\/ul>/i.exec(information)?.[1] ?? "";
   const specifications = [...technicalList.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
     .slice(0, 60).map(match => stripMarkup(match[1]).slice(0, 400)).filter(Boolean);
-  return { articleNumber, subtitle: parseAhlsellProductSubtitle(visible), specifications };
+  const subtitle = parseAhlsellProductSubtitle(visible);
+  if (!sourceUrl) return { articleNumber, subtitle, specifications };
+  const safeUrl = safeAhlsellProductUrl(sourceUrl, requestedArticle) ?? safeAhlsellProductUrl(sourceUrl, articleNumber);
+  if (!safeUrl) return null;
+  const productName = stripMarkup(/<h1\b(?=[^>]*\bdata-test\s*=\s*["']product-name["'])[^>]*>([\s\S]*?)<\/h1>/i.exec(visible)?.[1] ?? "").slice(0, 500);
+  const description = information.includes("<ul") ? stripMarkup(information.split(/<ul\b/i)[0].replace(/^["']?>/, "")).slice(0, 2000) || null : null;
+  const snapshot: AhlsellEvidenceSnapshot = { version: AHLSELL_EVIDENCE_VERSION, articleNumber, sourceUrl: safeUrl,
+    retrievedAt: new Date().toISOString(), productName, subtitle, description, specifications };
+  return { articleNumber, subtitle, specifications, description: description ?? undefined,
+    technicalEvidence: buildAhlsellTechnicalEvidence(snapshot), snapshot };
+}
+
+function samePageArticle(requested: string, visible: string) {
+  const requestedKey = normalizeArticleToken(requested);
+  const visibleKey = normalizeArticleToken(visible);
+  return requestedKey === visibleKey || /^\d{7}n5$/.test(requestedKey) && requestedKey === `${visibleKey}n5`;
+}
+
+export function applyAhlsellProductDetails<T extends AhlsellPublicCandidate>(candidate: T, detail?: AhlsellProductDetails | null): T {
+  if (!detail || !samePageArticle(candidate.articleNumber, detail.articleNumber)) return candidate;
+  // A validated N5 page alias establishes that both sources describe this NRF.
+  const matchingEvidence = candidate.technicalEvidence && samePageArticle(candidate.articleNumber, candidate.technicalEvidence.articleNumber);
+  const existing = matchingEvidence ? { ...candidate.technicalEvidence!, articleNumber: detail.articleNumber } : undefined;
+  const identityWarnings = candidate.technicalEvidence && !matchingEvidence
+    ? technicalEvidenceWarnings(candidate.articleNumber, candidate.technicalEvidence) : [];
+  return { ...candidate, articleNumber: detail.articleNumber, subtitle: detail.subtitle ?? undefined,
+    description: detail.subtitle ?? detail.description ?? candidate.description,
+    specifications: [...new Set([...candidate.specifications, ...detail.specifications,
+      ...(detail.subtitle ? [detail.subtitle] : []), ...(detail.description ? [detail.description] : [])])],
+    technicalEvidence: mergeAhlsellTechnicalEvidence(existing, detail.technicalEvidence),
+    ...(identityWarnings.length ? { matchWarnings: [...new Set([...(candidate.matchWarnings ?? []), ...identityWarnings])] } : {})
+  };
 }
 
 /** Public product pages only; every redirect uses the same host/path checks. */

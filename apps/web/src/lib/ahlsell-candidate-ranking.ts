@@ -15,6 +15,7 @@ import { mainProductText, productRequirementAttributes, productTechnicalSpecific
 import { pipeJointTypes, requirementJointText, stainlessSteelGrade, type PipeJoint } from "./pipe-technical-terms";
 import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
 import { productAssemblyPlan } from "./product-assembly-plan";
+import { technicalEvidenceSpecifications, technicalEvidenceWarnings } from "./ahlsell-technical-evidence";
 import { resolvedSprinklerOrientation, sprinklerOrientationSignals } from "@/lib/sprinkler-orientation-lexicon";
 import {
   sprinklerCoverageFromText,
@@ -72,6 +73,11 @@ export function rankAhlsellCandidates(requirement: Record<string, unknown>, cand
   const profile = requirementProfile(requirement);
   return orderAhlsellCandidatesForDisplay(
     candidates.map(candidate => {
+      const evidence = candidate.technicalEvidence;
+      candidate = { ...candidate,
+        specifications: [...new Set([...candidate.specifications, ...technicalEvidenceSpecifications(evidence?.articleNumber === candidate.articleNumber ? evidence : undefined)])],
+        matchWarnings: [...new Set([...(candidate.matchWarnings ?? []), ...technicalEvidenceWarnings(candidate.articleNumber, evidence)])]
+      };
       const verified = verifiedVictaulicCandidate(candidate);
       // Fill sparse public cards before assessment, retaining conflicts from
       // both the public description and the independently verified article.

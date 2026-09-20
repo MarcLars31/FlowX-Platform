@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellCandidateWarnings } from "@/components/AhlsellCandidateList";
+import { AhlsellTechnicalEvidence } from "@/components/AhlsellTechnicalEvidence";
 import type { AhlsellLookupProduct, AhlsellLookupResult } from "@/lib/ahlsell-product-lookup";
 import type { AssemblyComponentKind } from "@/lib/product-assembly-plan";
 
@@ -82,6 +83,7 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
           <p className="mt-1 text-sm font-semibold text-flow-800">NRF-nummer {product.articleNumber}{product.manufacturer ? ` · ${product.manufacturer}` : ""}</p>
           {product.specifications.length > 0 && <p className="mt-1 text-xs leading-5 text-ink-600">{product.specifications.join(" · ")}</p>}
           {(!accessory || componentKind) && <AhlsellCandidateWarnings candidate={product} />}
+          <AhlsellTechnicalEvidence candidate={product} />
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <a href={product.productUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-flow-800 underline">Visa hos Ahlsell<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
             <Button type="button" disabled={disabled} className="min-h-9 px-3 py-1.5 text-xs" onClick={() => onSelect(product)}>{accessory ? "Välj tillbehör" : "Välj produkt"}</Button>

@@ -25,6 +25,7 @@ import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
 import { manifoldCabinetRequirementGuide } from "./ahlsell-manifold-cabinet";
 import { pipeJointTypes, pipeJointSearchTerm, requirementJointText, stainlessSteelGrade, type PipeJoint } from "./pipe-technical-terms";
 import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
+import type { AhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -34,6 +35,7 @@ export type AhlsellPublicCandidate = {
   description?: string;
   imageUrl?: string;
   specifications: string[];
+  technicalEvidence?: AhlsellTechnicalEvidence;
   source: "public_verified" | "verified_database" | "structured_database" | "pdf_reference" | "catalog_search" | "confirmed_history";
   evidenceSources?: AhlsellCandidateEvidenceSource[];
   verifiedAt?: string;

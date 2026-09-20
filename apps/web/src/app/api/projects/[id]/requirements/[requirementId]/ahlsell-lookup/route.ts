@@ -1,3 +1,4 @@
+import { ahlsellEvidenceStore } from "@/lib/ahlsell-evidence-store.server";
 import { NextResponse } from "next/server";
 import { AhlsellCatalogError, ahlsellMarketFromSearchUrl } from "@/lib/ahlsell-public-catalog";
 import { AhlsellLookupInputError, lookupAhlsellProduct, parseAhlsellLookupQuery } from "@/lib/ahlsell-product-lookup";
@@ -37,10 +38,10 @@ export async function POST(request: Request, context: RouteContext) {
     if (component) {
       const result = await lookupAssemblyComponents({ requirement, component, mainArticleNumber: body?.mainArticleNumber,
         query: body?.query, automatic: body?.automatic === true,
-        market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal });
+        market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, store: ahlsellEvidenceStore() });
       return NextResponse.json(result, { headers });
     }
-    const result = await lookupAhlsellProduct({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal });
+    const result = await lookupAhlsellProduct({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, store: ahlsellEvidenceStore() });
     // Accessories have their own compatibility check against the chosen head;
     // do not compare an escutcheon with the head's K-factor or temperature.
     const products = body?.accessory === true

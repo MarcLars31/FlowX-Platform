@@ -34,7 +34,8 @@ test("looks up the exact NRF even when Ahlsell returns another active variant an
     const url = new URL(String(input)); calls.push(url);
     return Response.json(url.pathname.endsWith("/variants") ? variants : { productCount: 1, productCards: [card()] });
   } });
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
+  assert.ok(calls[2].pathname.includes("9257423"));
   assert.equal(calls[0].searchParams.get("parameters.SearchPhrase"), "9257423");
   assert.deepEqual(result.products.map((item) => item.articleNumber), ["9257423"]);
   assert.equal(result.products[0].productName, "Vit");

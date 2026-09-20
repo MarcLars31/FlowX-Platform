@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AhlsellTechnicalEvidence } from "@/components/AhlsellTechnicalEvidence";
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleX, ExternalLink, PackagePlus } from "lucide-react";
 import { ahlsellCandidateMatchState } from "@/lib/ahlsell-candidate-ranking";
 import { technicalConflictWarnings } from "@/lib/ahlsell-technical-conflicts";
@@ -51,6 +52,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             ) : null}
             <p className="mt-1 text-xs leading-5 text-ink-600">{candidateSourceLabel(candidate)}</p>
             <AhlsellCandidateWarnings candidate={candidate} />
+            <AhlsellTechnicalEvidence candidate={candidate} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-flow-800">

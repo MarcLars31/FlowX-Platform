@@ -7,11 +7,12 @@ import { findMldlOnlyCandidates } from "./ahlsell-mldl-matching";
 import { ahlsellMarketFromSearchUrl, searchAhlsellPublicCatalogQueries, type AhlsellCatalogResult } from "./ahlsell-public-catalog";
 import { buildAhlsellRequirementGuide, type AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { lookupAhlsellProduct } from "./ahlsell-product-lookup";
-import { fetchAhlsellProductDetails, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
+import { applyAhlsellProductDetails, fetchAhlsellProductDetails, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
+import { mergeAhlsellTechnicalEvidence, type AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
 import { technicalConflictWarnings, withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 
 /** MLDL is always available. Only product search terms/NRFs go to Ahlsell. */
-export async function findAhlsellHybridCandidates(requirement: Record<string, unknown>, fetchImpl: typeof fetch = fetch): Promise<AhlsellCatalogResult> {
+export async function findAhlsellHybridCandidates(requirement: Record<string, unknown>, fetchImpl: typeof fetch = fetch, store?: AhlsellEvidenceStore): Promise<AhlsellCatalogResult> {
   const guide = buildAhlsellRequirementGuide(requirement);
   const local = findMldlOnlyCandidates(requirement);
   const market = ahlsellMarketFromSearchUrl(guide.searchUrl);
@@ -23,7 +24,7 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
   // broader family search, which may return a different variant of that family.
   const [search, exact] = await Promise.allSettled([
     searchAhlsellPublicCatalogQueries({ market, queries: guide.searchQueries, fetchImpl, maxCandidates: 40, maxPages: 2, maxVariantFamilies: 4 }),
-    primaryArticle ? lookupAhlsellProduct({ query: primaryArticle, market, fetchImpl }) : Promise.resolve(null)
+    primaryArticle ? lookupAhlsellProduct({ query: primaryArticle, market, fetchImpl, store }) : Promise.resolve(null)
   ]);
   const result = search.status === "fulfilled" ? search.value : null;
   const exactProducts = exact.status === "fulfilled" ? (exact.value?.products ?? [])
@@ -39,15 +40,8 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
     .filter(candidate => safeAhlsellProductUrl(candidate.productUrl, candidate.articleNumber)).slice(0, 6);
   // The subtitle is technical evidence, so retrieve it BEFORE final ranking.
   // The fetcher validates both URL and visible article identity, and caches it.
-  const details = await fetchAhlsellProductDetails({ items: detailCandidates, fetchImpl });
-  const detailed = publicCandidates.map(candidate => {
-    const detail = details[candidate.articleNumber];
-    return { ...candidate,
-      articleNumber: detail?.articleNumber ?? candidate.articleNumber,
-      description: detail?.subtitle ?? candidate.description,
-      specifications: [...candidate.specifications, ...(detail?.specifications ?? []), ...(detail?.subtitle ? [detail.subtitle] : [])]
-    };
-  });
+  const details = await fetchAhlsellProductDetails({ items: detailCandidates, fetchImpl, store });
+  const detailed = publicCandidates.map(candidate => applyAhlsellProductDetails(candidate, details[candidate.articleNumber]));
   const aliases = new Map(Object.entries(details).flatMap(([catalogArticle, detail]) =>
     detail && articleKey(catalogArticle) !== articleKey(detail.articleNumber)
       ? [[articleKey(detail.articleNumber), catalogArticle] as const] : []));
@@ -57,7 +51,8 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
     const hasDetails = Boolean(details[publicCandidates[index].articleNumber]);
     detailedByArticle.set(articleKey(candidate.articleNumber), previous ? {
       ...(hasDetails ? previous : candidate), ...(hasDetails ? candidate : previous),
-      specifications: [...new Set([...previous.specifications, ...candidate.specifications])]
+      specifications: [...new Set([...previous.specifications, ...candidate.specifications])],
+      technicalEvidence: mergeAhlsellTechnicalEvidence(previous.technicalEvidence, candidate.technicalEvidence)
     } : candidate);
   }
   const candidates = complementMldlCandidates(requirement, local, [...detailedByArticle.values()], aliases);
@@ -87,6 +82,8 @@ export function complementMldlCandidates(requirement: Record<string, unknown>, l
     if (!database) return publicAssessment;
     const [combined] = rankAhlsellCandidates(requirement, [{
       ...database,
+      articleNumber: publicCandidate.articleNumber,
+      technicalEvidence: publicCandidate.technicalEvidence,
       description: [database.description, publicCandidate.productName, publicCandidate.description].filter(Boolean).join(" · "),
       specifications: [...new Set([...database.specifications, ...publicCandidate.specifications])],
       // Only missing-value warnings are regenerated. Variant ambiguity and

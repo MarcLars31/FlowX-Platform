@@ -1,6 +1,7 @@
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
+import { mergeAhlsellTechnicalEvidence, technicalEvidenceWarnings } from "./ahlsell-technical-evidence";
 
 /**
  * Combines the structured, verified database assessment with live Ahlsell
@@ -40,7 +41,9 @@ function mergeCandidate(
   ]);
   const databaseAndPublic = evidenceSources.includes("mldl_database")
     && evidenceSources.includes("ahlsell_public");
-  const warnings = uniqueText([...(verified.matchWarnings ?? []), ...(live.matchWarnings ?? [])]);
+  const technicalEvidence = mergeAhlsellTechnicalEvidence(verified.technicalEvidence, live.technicalEvidence);
+  const warnings = uniqueText([...(verified.matchWarnings ?? []), ...(live.matchWarnings ?? []),
+    ...technicalEvidenceWarnings(verified.articleNumber, technicalEvidence)]);
   const requiresAccessoryReview = Boolean(verified.requiresAccessoryReview || live.requiresAccessoryReview);
   const requiresProductSelection = Boolean(verified.requiresProductSelection || live.requiresProductSelection);
   const baseScore = hasVerifiedAssessment ? verified.matchScore : live.matchScore;
@@ -64,6 +67,7 @@ function mergeCandidate(
     imageUrl: live.imageUrl ?? verified.imageUrl,
     description: live.description ?? verified.description,
     specifications: uniqueText([...verified.specifications, ...live.specifications]),
+    ...(technicalEvidence ? { technicalEvidence } : {}),
     source: verified.source,
     evidenceSources,
     exactMatch: !requiresAccessoryReview && !requiresProductSelection && warnings.length === 0 && (hasVerifiedAssessment ? verified.exactMatch === true : live.exactMatch === true),

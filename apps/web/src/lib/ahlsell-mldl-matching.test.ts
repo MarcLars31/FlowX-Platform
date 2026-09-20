@@ -56,8 +56,8 @@ test("table labels stay local while automatic classification and product cards s
   const candidateRoute = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-candidates/route.ts", import.meta.url), "utf8");
   assert.doesNotMatch(candidateRoute, /findMldlOnlyCandidates/);
   assert.match(candidateRoute, /classification: ahlsellCatalogStatusFromPayload\(result\)/);
-  assert.match(candidateRoute, /await findAhlsellHybridCandidates\(requirement\)/);
-  assert.ok(candidateRoute.indexOf("await findAhlsellHybridCandidates(requirement)") < candidateRoute.indexOf("if (classificationMode)"));
+  const searchCall = candidateRoute.indexOf("await findAhlsellHybridCandidates(requirement");
+  assert.ok(searchCall >= 0 && searchCall < candidateRoute.indexOf("if (classificationMode)"));
   const manualLookup = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-lookup/route.ts", import.meta.url), "utf8");
   assert.match(manualLookup, /lookupAhlsellProduct/);
 });

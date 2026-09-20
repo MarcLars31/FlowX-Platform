@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { AHLSELL_MLDL_CATALOG_VERSION, AHLSELL_MLDL_PRODUCT_COUNT } from "@/lib/ahlsell-mldl-catalog";
 import { findAhlsellHybridCandidates } from "@/lib/ahlsell-hybrid-matching";
+import { ahlsellEvidenceStore } from "@/lib/ahlsell-evidence-store.server";
 import { ahlsellCatalogStatusFromPayload } from "@/lib/ahlsell-match-groups";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
@@ -53,7 +54,7 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404 });
     }
 
-    const result = await findAhlsellHybridCandidates(requirement);
+    const result = await findAhlsellHybridCandidates(requirement, fetch, ahlsellEvidenceStore());
     if (classificationMode) {
       // The automatic queue searches the same public assortment as the card,
       // including products that have no MLDL entry.

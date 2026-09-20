@@ -1,5 +1,6 @@
 import { AhlsellCatalogError, fetchAhlsellCandidateVariants, searchAhlsellPublicCatalog, type AhlsellMarket } from "./ahlsell-public-catalog";
-import { fetchAhlsellProductPage, parseAhlsellProductSubtitle, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
+import { applyAhlsellProductDetails, fetchAhlsellProductDetails, fetchAhlsellProductPage, parseAhlsellProductDetails, parseAhlsellProductSubtitle, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
+import type { AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
 export type AhlsellLookupProduct = AhlsellPublicCandidate & { subtitle?: string };
@@ -20,11 +21,12 @@ export function parseAhlsellLookupQuery(value: unknown, market: AhlsellMarket) {
   return { query: articleNumber ?? query, url: null, market, articleNumber };
 }
 
-export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, signal }: {
+export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, signal, store }: {
   query: unknown;
   market: AhlsellMarket;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  store?: AhlsellEvidenceStore;
 }): Promise<AhlsellLookupResult> {
   const input = parseAhlsellLookupQuery(query, market);
   if (input.url) {
@@ -37,7 +39,9 @@ export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, s
     if (requestedNumber && product.articleNumber !== requestedNumber) {
       return { products: [], searchUrl: page.url, message: `Länken avser NRF ${requestedNumber}, men Ahlsell visar NRF ${product.articleNumber}. Öppna Ahlsell och kopiera länken till den artikel du vill välja.` };
     }
-    return { products: [product], searchUrl: page.url };
+    const detail = parseAhlsellProductDetails(page.html, product.articleNumber, page.url);
+    if (store && detail?.snapshot) await store.write(input.market, product.articleNumber, detail.snapshot).catch(() => undefined);
+    return { products: [applyAhlsellProductDetails(product, detail)], searchUrl: page.url };
   }
 
   const result = await searchAhlsellPublicCatalog({ market: input.market, query: input.query, maxCandidates: 12, fetchImpl });
@@ -58,6 +62,9 @@ export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, s
     if (!products.length && exact) products = [exact];
   }
   products = [...new Map(products.map((product) => [product.articleNumber, product])).values()];
+  const details = await fetchAhlsellProductDetails({ items: products.slice(0, 6), fetchImpl, signal, store });
+  products = products.map(product => applyAhlsellProductDetails(product, details[product.articleNumber]));
+  signal?.throwIfAborted();
   return {
     products,
     searchUrl: result.searchUrl,
