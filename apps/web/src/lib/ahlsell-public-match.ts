@@ -17,12 +17,14 @@ import {
 } from "@/lib/sprinkler-technical-rules";
 import { ahlsellRequirementIntent, type AhlsellProductIntent } from "./ahlsell-requirement-intent";
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
-import { valveMonitoringRequirement } from "./ahlsell-requirement-context";
+import { productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
 import { manifoldCabinetRequirementGuide } from "./ahlsell-manifold-cabinet";
+import { pipeJointTypes, pipeJointSearchTerm, requirementJointText, stainlessSteelGrade, type PipeJoint } from "./pipe-technical-terms";
+import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -118,6 +120,7 @@ type SprinklerCandidateDefinition = AhlsellPublicCandidate & {
   finish: Finish;
 };
 
+
 const AHLSELL_SWEDEN_SEARCH_URL = "https://www.ahlsell.se/search";
 const AHLSELL_NORWAY_SEARCH_URL = "https://www.ahlsell.no/search";
 const VERIFIED_AT = "2026-08-22";
@@ -140,18 +143,17 @@ export function buildAhlsellRequirementGuide(
   requirement: Record<string, unknown>
 ): AhlsellRequirementGuide {
   const value = record(requirement.value_json);
-  const attributes = normalizedAttributeMap(Object.fromEntries(Object.entries(record(value.attributes))
-    .filter(([key]) => !["pdf-kommentar", "generelle krav"].includes(key))));
+  const attributes = normalizedAttributeMap(productRequirementAttributes(requirement));
   const category = text(requirement.category) ?? text(requirement.requirement_key) ?? "unknown";
   const description = text(requirement.value_text) ?? text(requirement.display_name) ?? "Teknisk produkt";
-  const technicalSpecification = text(value.technicalSpecification) ?? text(requirement.source_excerpt) ?? "";
+  const technicalSpecification = productTechnicalSpecification(requirement);
   const rowSourceText = text(value.sourceText) ?? text(requirement.source_excerpt) ?? "";
   const attributeText = [...attributes].map(([key, attributeValue]) => `${key} ${attributeValue}`).join(" ");
   const primarySourceText = `${description} ${attributeText}`;
   const sourceLanguageText = `${primarySourceText} ${rowSourceText} ${technicalSpecification}`;
   const primaryCombined = normalize(primarySourceText);
   const combined = normalize(sourceLanguageText);
-  const isNorwegianSource = isNorwegianTechnicalText(sourceLanguageText);
+  const isNorwegianSource = isNorwegianTechnicalText(`${sourceLanguageText} ${[...normalizedAttributeMap(record(value.attributes))].map(([key, item]) => `${key} ${item}`).join(" ")}`);
   const ahlsellSearchUrl = isNorwegianSource
     ? AHLSELL_NORWAY_SEARCH_URL
     : AHLSELL_SWEDEN_SEARCH_URL;
@@ -289,7 +291,10 @@ export function buildAhlsellRequirementGuide(
         sprinklerHeadType,
         isSprinklerAccessory,
         outsideDiameters,
-        pn
+        pn,
+        pipeJoints: pipeJointTypes(requirementJointText(Object.fromEntries(attributes), description)),
+        pipeMaterial: normalize(firstAttribute(attributes, ["materiale", "material", "materialkvalitet"]) ?? description),
+        materialGrade: stainlessSteelGrade(firstAttribute(attributes, ["materialkvalitet", "materiale"]) ?? "")
       });
   const comment = String(record(value.attributes)["pdf-kommentar"] ?? "");
   // Comments are unverified search hints, never substitutions for the PDF's
@@ -313,6 +318,7 @@ export function buildAhlsellRequirementGuide(
       : null,
     ...(intent === "sprinkler_head" ? installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)) : []),
     ...dataWarnings.map((warning) => warning.message),
+    ...requirementExtractionWarnings(requirement),
     orientationResult.mixed
       ? "PDF-posten innehåller både stående och hängande sprinkler. Dela eller välj rätt variant manuellt."
       : null,
@@ -438,6 +444,7 @@ export function buildAhlsellRequirementGuide(
     directCandidates: directCandidates.filter(item => item.source !== "pdf_reference" && ahlsellMldlProduct(item.articleNumber))
       .map(withVerifiedWorkingPressure).map((item) => {
       const checks = engineeringRequirementWarnings(requirement, item);
+      checks.push(...requirementExtractionWarnings(requirement));
       if (intent === "sprinkler_head") checks.push(...installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)));
       if (intent === "sprinkler_head" && sprinklerNeedsHydraulicReview(sourceLanguageText)) {
         checks.push("Hydrauliska villkor och produktens listning måste verifieras innan slutligt produktval.");
@@ -465,10 +472,16 @@ function buildCatalogQueries({
   sprinklerHeadType,
   isSprinklerAccessory,
   outsideDiameters,
-  pn
+  pn,
+  pipeJoints,
+  pipeMaterial,
+  materialGrade
 }: {
   category: string;
   intent: AhlsellProductIntent;
+  pipeJoints: PipeJoint[];
+  pipeMaterial: string;
+  materialGrade: string | null;
   description: string;
   combined: string;
   criteria: string[];
@@ -581,14 +594,23 @@ function buildCatalogQueries({
     ];
   }
   if (intent === "pipe") {
-    if (/\b(?:rustfritt|rustfri|stainless)\b/.test(combined)) {
-      return [compact(["Rustfrie rør", outsideDiameterTerm]).join(" "),
-        compact(["Rustfritt rør rillet", dnTerm]).join(" "), compact(["Rustfritt stålrør", dnTerm]).join(" ")];
-    }
+    const material = /\b(?:rustfritt|rustfri|rustfrie|stainless)\b/.test(pipeMaterial) ? "Rustfritt stålrør"
+      : /\b(?:pp r|ppr)\b/.test(pipeMaterial) ? "PP-R rør"
+      : /\b(?:alupex|multilayer|komposit\w*)\b/.test(pipeMaterial) ? "Alupex rør"
+      : /\b(?:pe\s*\d*|polyetylen|polyethylene)\b/.test(pipeMaterial) ? "PE rør"
+      : /\b(?:pex|pe x)\b/.test(pipeMaterial) ? "PEX rør"
+      : /\bpvc\b/.test(pipeMaterial) ? "PVC rør"
+      : /\b(?:kobber\w*|koppar\w*|copper)\b/.test(pipeMaterial) ? "Kobberrør" : "Stålrør sprinkler";
+    // The steel DN/OD table does not define plastic or copper pipe sizes.
+    const alternateDimension = material.includes("stålrør") || material === "Stålrør sprinkler"
+      ? outsideDiameterTerm ?? dnTerm : dnTerm ?? outsideDiameterTerm;
+    const joints = pipeJoints.map(joint => pipeJointSearchTerm[joint]);
     return [
-      compact(["Rør sprinkler", outsideDiameterTerm]).join(" "),
-      compact(["Rillede rør", outsideDiameterTerm]).join(" "),
-      compact(["Stålrør sprinkler", dnTerm]).join(" ")
+      ...(!joints.length && !materialGrade && material === "Stålrør sprinkler"
+        ? [compact(["Rør sprinkler", outsideDiameterTerm ?? dnTerm]).join(" ")] : []),
+      compact([material, materialGrade, dnTerm ?? outsideDiameterTerm, joints[0], pressureTerm]).join(" "),
+      compact([material, materialGrade, alternateDimension, joints[1] ?? joints[0]]).join(" "),
+      compact([material, materialGrade, dnTerm]).join(" ")
     ];
   }
   if (intent === "coupling") {
@@ -641,6 +663,8 @@ function buildCatalogQueries({
   if (intent === "custom_fabrication") {
     return ["Dreneringskar sprinkler"];
   }
+  if (intent === "key_switch") return ["Nøkkelbryter sprinkler", "Nøkkelboks sprinkler"];
+  if (intent === "valve_actuator") return [searchDescription ?? description, "Ventilaktuator"];
 
   if (intent === "sprinkler_head" && kFactor !== null) {
     const responseCode = response === "standard" ? "SR" : response === "quick" ? "QR" : null;
@@ -840,7 +864,8 @@ function intentLabel(intent: AhlsellProductIntent, category: string, description
     pump: "Pump",
     strainer: "Sil/filter",
     support: "Rörupphängning",
-    custom_fabrication: "Specialtillverkad produkt"
+    custom_fabrication: "Specialtillverkad produkt",
+    key_switch: "Nyckelbrytare/nyckelbox", valve_actuator: "Ventilställdon"
   } as Partial<Record<AhlsellProductIntent, string>>)[intent];
   return label ?? categoryLabel(category, description);
 }

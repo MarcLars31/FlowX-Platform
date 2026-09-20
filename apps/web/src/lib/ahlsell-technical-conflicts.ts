@@ -3,7 +3,7 @@ import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 /** Confirmed incompatibilities rank below incomplete but plausible products. */
 export function technicalConflictWarnings(candidate: Pick<AhlsellPublicCandidate, "matchWarnings">): string[] {
   return (candidate.matchWarnings ?? []).filter(warning => !/Databasvärdet saknas\./i.test(warning) && (
-    /^(?:Fel (?:K-faktor|temperatur|dimension|böjvinkel|produkttyp|mätområde|ventilövervakning)|För lågt arbetstryck):/i.test(warning)
+    /^(?:Fel (?:K-faktor|temperatur|dimension|böjvinkel|produkttyp|mätområde|ventilövervakning|materialkvalitet)|För lågt arbetstryck):/i.test(warning)
     || /^(?:Sprinklerns (?:responstid|monteringsriktning)|Färg eller ytfinish|Utlösningstemperaturen|Responstiden|Monteringsriktningen) stämmer inte/i.test(warning)
     || /^PDF-kravet anger .+, men träffen är (?:en |ett )?(?:dold|konventionell|torr|öppen)/i.test(warning)
     || /^Träffen är .+, inte /i.test(warning)

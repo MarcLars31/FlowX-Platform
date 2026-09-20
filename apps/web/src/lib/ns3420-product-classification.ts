@@ -17,6 +17,8 @@ export function ns3420ProductFamily(value: unknown, description = ""): Ns3420Pro
   if (typeof value !== "string") return null;
   const normalized = value.toLocaleUpperCase("nb-NO").replace(/\bUB\s*1\s*\.\s*/g, "UB1.");
   if (/(?:^|[^A-Z0-9])UB1\.3311[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)) return "sprinkler_hose";
+  // This code names the rigid pipe itself; a downstream hose is a separate part.
+  if (/(?:^|[^A-Z0-9])UB1\.3211[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)) return "pipe";
   if (/(?:^|[^A-Z0-9])UB1\.3111[A-Z0-9]*(?:$|[^A-Z0-9])/.test(normalized)
     && isCompletePipeLengthDescription(description)) return "pipe";
   // Pipe-length subposts inherit this code even when their short description

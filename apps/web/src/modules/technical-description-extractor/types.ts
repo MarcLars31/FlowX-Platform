@@ -33,6 +33,9 @@ export type TechnicalDescriptionMaterialLine = {
   id: string;
   postNumber?: string;
   parentPostNumber?: string;
+  parentDescription?: string;
+  /** Chapter/section identity; short post numbers may repeat within a PDF. */
+  postScope?: string;
   nsCode?: string;
   category: TechnicalDescriptionCategory;
   description: string;
@@ -41,6 +44,8 @@ export type TechnicalDescriptionMaterialLine = {
   quantityText?: string;
   unit?: string;
   attributes: Record<string, string>;
+  /** Origin of each own or inherited requirement, before any user correction. */
+  attributeSources?: Record<string, { postNumber: string; sourcePage: number }>;
   system?: string;
   standardRefs: string[];
   technicalSpecification?: string;
@@ -76,6 +81,15 @@ export type TechnicalDescriptionWarning = {
 };
 
 export type TechnicalDescriptionExtractionResult = {
+  pageChecks?: Array<{
+    sourcePage: number;
+    observedQuantityRows: number;
+    extractedQuantityRows: number;
+    productRows: number;
+    workRows: number;
+    removalRows: number;
+    unresolvedQuantityRows: number;
+  }>;
   document: {
     fileName?: string;
     pageCount: number;

@@ -715,7 +715,10 @@ export async function POST(request: Request) {
         raw_value: line.description,
         normalized_value: {
           postNumber: line.postNumber ?? null,
+          postScope: line.postScope ?? null,
           parentPostNumber: line.parentPostNumber ?? null,
+          parentDescription: line.parentDescription ?? null,
+          attributeSources: line.attributeSources ?? {},
           nsCode: line.nsCode ?? null,
           operation: line.operation,
           quantity: line.quantity ?? null,
@@ -751,7 +754,10 @@ export async function POST(request: Request) {
           value_text: line.description,
           value_json: {
             postNumber: line.postNumber ?? null,
+            postScope: line.postScope ?? null,
             parentPostNumber: line.parentPostNumber ?? null,
+          parentDescription: line.parentDescription ?? null,
+          attributeSources: line.attributeSources ?? {},
             nsCode: line.nsCode ?? null,
             operation: line.operation,
             quantity: line.quantity ?? null,

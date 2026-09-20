@@ -11,7 +11,7 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
   const source = `${own} ${value.technicalSpecification ?? ""} ${requirement.source_excerpt ?? ""}`;
   const components: AssemblyComponent[] = [];
   if (intent === "sprinkler_head") {
-    const installation = sprinklerInstallationRequirements(attributes, own);
+    const installation = sprinklerInstallationRequirements(attributes, source);
     for (const part of installation.accessories) {
       if (["not_required", "not_applicable"].includes(part.status)) continue;
       const cover = part.kind === "cover";
@@ -21,8 +21,28 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
         requirement: `${part.label}: ${part.value}. ${part.status === "review" ? "Kontrollera först om montagevillkoret gäller. " : ""}Kontrollera exakt sprinklerutförande, tillverkarens kompatibilitet, ytfinish och om delen redan ingår i huvudproduktens leverans.`
       });
     }
+    if (/inkludert\s+sprinklerslange|inkl\.?\s+sprinklerslange|sprinklerslange\s+(?:komplett|komplet)\s+med\s+feste/i.test(source)) components.push({
+      id: "sprinkler-hose", kind: "sprinkler_hose", label: "Sprinklerslang med infästning", optional: false,
+      searchTerm: "Sprinklerslange med feste", quantityNeedsReview: true,
+      requirement: "Slang och infästning ingår i postens leveransomfattning. Kontrollera längd, anslutningar, godkännande och kompatibilitet med exakt vald sprinkler och taksystem. Kontrollera om infästningen ingår i slangpaketet."
+    });
     return { kind: "sprinkler", mainLabel: "Sprinklerhuvud", components,
       guidance: "Välj först sprinklerhuvudet utifrån K-faktor, gängdimension, respons, temperatur och montage. Tillbehören måste passa exakt vald modell." };
+  }
+  if (intent === "sprinkler_hose") {
+    if (/festeanordning|feste\s+i\s+himling|tilhørende\s+feste|tilhorende\s+feste/i.test(source)) components.push({
+      id: "hose-support", kind: "support", label: "Infästning för sprinklerslang", optional: false,
+      searchTerm: "Feste sprinklerslange", quantityNeedsReview: true,
+      requirement: "Kontrollera infästningens kompatibilitet med vald slang och taksystem, antal och om den redan ingår i slangens leverans."
+    });
+    return { kind: "sprinkler", mainLabel: "Sprinklerslang", components };
+  }
+  if (["butterfly_valve", "shutoff_valve", "check_valve", "ball_valve"].includes(intent)) {
+    if (/\bmotflenser\b/i.test(source)) components.push({ id: "counter-flanges", kind: "flange", label: "Motflänsar", optional: false,
+      searchTerm: "Motflens", quantityNeedsReview: true, requirement: "Motflänsar enligt PDF-posten. Kontrollera DN, tryckklass, flänsstandard och leveransomfattning mot exakt vald ventil." });
+    if (/\bbolter\b/i.test(source) && /\bpakninger\b/i.test(source)) components.push({ id: "flange-fasteners", kind: "fastener", label: "Bultar och packningar", optional: false,
+      searchTerm: "Boltesett pakning flens", quantityNeedsReview: true, requirement: "Kontrollera antal, dimensioner, material och packning mot exakt vald ventil, fläns och medium. Kontrollera vad som redan ingår." });
+    if (components.length) return { kind: "sprinkler", mainLabel: "Ventil med anslutningsdelar", components };
   }
   if (intent === "wet_alarm_valve" || intent === "dry_alarm_valve") {
     if (/retarda(?:sjons|tions?)kamm(?:er|are)|retard(?:ing)? chamber/i.test(source)) components.push({

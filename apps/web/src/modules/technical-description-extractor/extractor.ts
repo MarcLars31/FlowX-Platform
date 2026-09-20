@@ -12,6 +12,8 @@ import {
 } from "@/lib/project-requirement-data-warnings";
 import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 import { isManifoldCabinetProduct } from "@/lib/ahlsell-manifold-cabinet";
+import { distributorRequirementKind } from "@/lib/distributor-requirement-lines";
+import { conflictingMaterialRequirement } from "@/lib/requirement-extraction-warnings";
 
 type ExtractOptions = {
   fileName?: string;
@@ -25,7 +27,7 @@ const STANDARD_PATTERN =
   /\b((?:NS(?:[-\s]?EN)?|NFPA)\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
 const ATTRIBUTE_PATTERN = /^\s*([^:]{2,60}):\s*(.*?)\s*$/;
 const NS3420_CODE_PATTERN =
-  /^(%?[A-ZÆØÅ][A-ZÆØÅ0-9]*\.[A-ZÆØÅ0-9.]+[A-ZÆØÅ]?|[A-ZÆØÅ]{2}\d[A-Z]?|RQA?|AOA)(?=\s|$)\s*(?:-\s*)?(.*)$/i;
+  /^(%?[A-ZÆØÅ]{2}\d(?:\.[A-ZÆØÅ0-9]+)*[A-ZÆØÅ]?|RQA?|AOA)(?=\s|$)\s*(?:-\s*)?(.*)$/i;
 const QUANTITY_UNIT_SOURCE = String.raw`(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|liter|l)`;
 const QUANTITY_NUMBER_SOURCE = String.raw`(?:\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)`;
 const TABLE_QUANTITY_PATTERN = new RegExp(
@@ -63,6 +65,7 @@ export function extractTechnicalDescriptionFromPages(
   const warnings: TechnicalDescriptionWarning[] = [];
   const project = extractProject(pages);
   const materialLines = extractMaterialLines(pages, warnings);
+  const pageChecks = reconcilePageQuantities(pages, materialLines, warnings);
   appendMaterialLineValidationWarnings(materialLines, warnings);
   const standards = unique(
     pages.flatMap((page) =>
@@ -140,6 +143,7 @@ export function extractTechnicalDescriptionFromPages(
   }
 
   return {
+    pageChecks,
     document: {
       fileName: options.fileName,
       pageCount: pages.length,
@@ -160,6 +164,15 @@ function appendMaterialLineValidationWarnings(
   warnings: TechnicalDescriptionWarning[]
 ) {
   for (const line of lines) {
+    const conflict = conflictingMaterialRequirement(line.attributes, line.technicalSpecification ?? line.sourceText);
+    if (conflict) {
+      line.reviewFlags.push("conflicting-material-requirement");
+      warnings.push({ id: `material-conflict-${line.id}`, code: "CONFLICTING_MATERIAL_REQUIREMENT", message: conflict,
+        sourcePage: line.sourcePage, sourceText: line.sourceText, severity: "warning" });
+    }
+    if (line.reviewFlags.includes("inferred-parent-context")) warnings.push({ id: `parent-context-${line.id}`, code: "INFERRED_PARENT_CONTEXT",
+      message: `Post ${line.postNumber} har avvikande numrering. Gemensamma rörkrav har preliminärt kopplats från ${line.parentPostNumber}; kontrollera original-PDF:n.`,
+      sourcePage: line.sourcePage, sourceText: line.sourceText, severity: "warning" });
     const kFactor = numericAttributeValue(line.attributes, "k-faktor");
     if (kFactor === null || kFactor <= MAX_SUPPORTED_SPRINKLER_K_FACTOR) continue;
 
@@ -286,8 +299,14 @@ function extractMaterialLines(
     const retained = legacyLines.filter((line) =>
       line.postNumber
       && !line.reviewFlags.includes("inferred-post-number")
-      && !structuredLines.some((item) => item.postNumber === line.postNumber
-        || item.postNumber?.startsWith(`${line.postNumber}.`))
+      && !structuredLines.some((item) => item.sourcePage === line.sourcePage && (
+        item.postNumber === line.postNumber
+        || item.postNumber?.startsWith(`${line.postNumber}.`)
+        // A wrapped post's left-column fragment is not another material row.
+        || (item.postNumber?.startsWith(line.postNumber!) && item.nsCode === line.nsCode
+          && (line.quantity === undefined || item.quantity === line.quantity))
+        || item.sourceText.replace(/\s+/g, " ").includes(line.sourceText.replace(/\s+/g, " "))
+      ))
       && ((line.quantity !== undefined && line.quantity > 0)
         || (line.quantity === undefined && /\b(?:Antall|Lengde)\b/i.test(line.sourceText)))
     );
@@ -453,12 +472,21 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   let previousMaterialLine: TechnicalDescriptionMaterialLine | undefined;
   let previousContext: TableParentContext | undefined;
   let pipeSection: { number: string; sourcePage: number; text: string } | undefined;
+  let postScope = "";
 
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
     const page = pages[pageIndex];
     if (isNonMaterialReferencePage(page.text)) continue;
     const pageLines = prepared.pageLines[pageIndex];
     const pageText = pageLines.join("\n");
+    const scope = extractPostScope(pageLines);
+    if (scope && scope !== postScope) {
+      parentContexts.clear();
+      previousContext = undefined;
+      previousMaterialLine = undefined;
+      pipeSection = undefined;
+      postScope = scope;
+    }
     const inFireProtectionSection = isFireProtectionPage(pageText)
       || isFireProtectionPage(prepared.pageLines[pageIndex - 1]?.join("\n") ?? "")
       || isFireProtectionPage(prepared.pageLines[pageIndex + 1]?.join("\n") ?? "");
@@ -520,7 +548,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const description = parsedDescription.description
         || (start.quantity ? start.description.trim() : "");
       const sourceText = pageLines.slice(start.lineIndex, blockEnd).join("\n");
-      const ownAttributes = {
+      const ownAttributes: Record<string, string> = {
         ...(chapterPost ? { kapittelpost: chapterPost } : {}),
         ...extractTableAttributes(blockLines),
         ...extractInlineAttributes(description)
@@ -530,14 +558,24 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
           normalizeStandard(match[1])
         )
       );
-      const parent = findTableParent(parentContexts, fullPostNumber);
+      const numberedParent = findTableParent(parentContexts, fullPostNumber);
+      const adjacentPipeParent = !numberedParent && quantity?.unit === "m"
+        && /^DN\s*\d+\s+komplett med deler\b/i.test(description)
+        ? [...parentContexts.values()].reverse().find(context => context.sourcePage === page.pageNumber
+          && context.category === "pipe" && context.isSpecification
+          && context.postNumber.split(".").slice(0, -1).join(".") === fullPostNumber.split(".").slice(0, -2).join("."))
+        : undefined;
+      const parent = numberedParent ?? adjacentPipeParent;
+      const dimensionOnly = /^(?:Dimensjon\s*:\s*)?DN\s*\d+\b/i.test(description || String(ownAttributes.dimensjon ?? ""));
+      const missingParent = !parent?.nsCode && !nsCode && dimensionOnly
+        && !Object.keys(ownAttributes).some(key => /^(?:materiale|skjøt|type sprinkler|type ventil)$/i.test(key));
       const effectiveNsCode = nsCode ?? parent?.nsCode;
       const ownCategory = ns3420ProductFamily(effectiveNsCode, description)
         ?? inferStructuredCategory(description, sourceText);
       const inheritedCategory = parent?.category === "unknown"
         ? inferCategory(parent.sourceText.toLocaleLowerCase())
         : parent?.category;
-      const category = resolveStructuredCategory(ownCategory, inheritedCategory, description);
+      const category = missingParent && quantity?.unit === "m" ? "pipe" : resolveStructuredCategory(ownCategory, inheritedCategory, description);
       const system = inferSystem(`${description}\n${sourceText}`.toLocaleLowerCase()) ?? parent?.system;
 
       if (
@@ -549,11 +587,17 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         const context = {
           postNumber: fullPostNumber,
           sourcePage: page.pageNumber,
+          description,
           nsCode: effectiveNsCode,
           category,
+          isSpecification: !quantity || quantity.unit === "RS",
           attributes: {
             ...(parent?.attributes ?? {}),
             ...ownAttributes
+          },
+          attributeSources: {
+            ...(parent?.attributeSources ?? {}),
+            ...Object.fromEntries(Object.keys(ownAttributes).map(key => [key, { postNumber: fullPostNumber, sourcePage: page.pageNumber }]))
           },
           system,
           standardRefs: unique([...(parent?.standardRefs ?? []), ...ownStandardRefs]),
@@ -567,15 +611,16 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
       const normalizedText = `${description}\n${sourceText}\n${parent?.sourceText ?? ""}`.toLocaleLowerCase();
       const operation = inferOperation(normalizedText, Boolean(quantity));
-      const hasMissingQuantityMarker = /^\d+(?:\.\d+)+$/.test(fullPostNumber)
+      const hasMissingQuantityMarker = new RegExp(`^${STRUCTURED_POST_SOURCE}$`, "i").test(fullPostNumber)
         && blockLines.some(line => new RegExp(
         String.raw`^(?:Antall|Lengde)(?:\s+${QUANTITY_UNIT_SOURCE}\.?)?\s*$`, "i"
       ).test(line.trim()));
       if ((!quantity && operation !== "remove" && !hasMissingQuantityMarker) || (quantity && quantity.quantity <= 0)) {
         continue;
       }
+      if (!quantity && /^BYGNINGSMESSIGE ARBEIDER\b/i.test(description)) continue;
 
-      const key = fullPostNumber;
+      const key = `${postScope}|${fullPostNumber}`;
       if (seen.has(key)) {
         continue;
       }
@@ -590,6 +635,8 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const comments = (page.annotations ?? []).filter(comment => comment.postNumber === fullPostNumber);
       if (comments.length) attributes["pdf-kommentar"] = comments.map(comment => comment.text).join("\n\n");
       const reviewFlags: string[] = [];
+      if (missingParent) reviewFlags.push("missing-parent-context");
+      if (adjacentPipeParent) reviewFlags.push("inferred-parent-context");
       if (category === "unknown") reviewFlags.push("unknown-category");
       if (page.method === "ocr") reviewFlags.push("ocr-source");
       if (prepared.inferredPostNumbers.has(fullPostNumber)) {
@@ -609,6 +656,8 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         id: `technical-material-${page.pageNumber}-${fullPostNumber.replace(/[^a-zA-Z0-9]+/g, "-")}`,
         postNumber: fullPostNumber,
         parentPostNumber: parent?.postNumber,
+        parentDescription: parent?.description,
+        postScope: postScope || undefined,
         nsCode: effectiveNsCode,
         category,
         description: description
@@ -618,6 +667,10 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         quantityText: quantity?.text,
         unit: quantity?.unit,
         attributes,
+        attributeSources: {
+          ...(parent?.attributeSources ?? {}),
+          ...Object.fromEntries(Object.keys(ownAttributes).map(key => [key, { postNumber: fullPostNumber, sourcePage: page.pageNumber }]))
+        },
         system: inferSystem(normalizedText) ?? parent?.system,
         standardRefs: unique([
           ...(parent?.standardRefs ?? []),
@@ -651,7 +704,8 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
     line.quantity !== undefined
     || line.operation === "remove"
     || !materialLines.some((child) =>
-      child.quantity !== undefined && child.postNumber?.startsWith(`${line.postNumber}.`)
+      child.quantity !== undefined && child.postScope === line.postScope
+      && child.postNumber?.startsWith(`${line.postNumber}.`)
     )
   );
 }
@@ -672,29 +726,35 @@ type StructuredPostStart = {
 
 const STRUCTURED_NUMBER_SOURCE = QUANTITY_NUMBER_SOURCE;
 const STRUCTURED_UNIT_SOURCE = QUANTITY_UNIT_SOURCE;
+const STRUCTURED_POST_SOURCE = String.raw`(?:[A-Z]\d*\.)?\d+(?:\.\d+){1,10}`;
 const LEADING_QUANTITY_POST_PATTERN = new RegExp(
-  String.raw`^(?:(?:Antall|Lengde)\s+)?(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})(?:\s+${STRUCTURED_NUMBER_SOURCE}){1,3}\s+(?<post>\d+(?:\.\d+){1,7}\.?)\s*(?<description>.*)$`,
+  String.raw`^(?:(?:Antall|Lengde)\s+)?(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})(?:\s+${STRUCTURED_NUMBER_SOURCE}){1,3}\s+(?<post>${STRUCTURED_POST_SOURCE}\.?)\s*(?<description>.*)$`,
   "i"
 );
 const LEADING_LUMP_SUM_POST_PATTERN = new RegExp(
-  String.raw`^RS(?:\s+${STRUCTURED_NUMBER_SOURCE}){1,3}\s+(?<post>\d+(?:\.\d+){1,7}\.?)\s*(?<description>.*)$`,
+  String.raw`^RS(?:\s+${STRUCTURED_NUMBER_SOURCE}){0,3}\s+(?<post>${STRUCTURED_POST_SOURCE}\.?)\s*(?<description>.*)$`,
   "i"
+);
+const SHORT_LEADING_QUANTITY_POST_PATTERN = new RegExp(
+  String.raw`^(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})\s+(?<post>\d{1,4})\s+(?<description>[A-ZÆØÅ].*)$`, "i"
 );
 const TRAILING_QUANTITY_POST_PATTERN = new RegExp(
-  String.raw`^(?<post>\d+(?:\.\d+){1,7}\.?)\s+(?<description>.+?)\s+(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})(?:\s+${STRUCTURED_NUMBER_SOURCE}){0,3}$`,
+  String.raw`^(?<post>${STRUCTURED_POST_SOURCE}\.?)\s+(?<description>.+?)\s+(?<unit>${STRUCTURED_UNIT_SOURCE})\.?\s+(?<quantity>${STRUCTURED_NUMBER_SOURCE})(?:\s+${STRUCTURED_NUMBER_SOURCE}){0,3}$`,
   "i"
 );
-const FULL_POST_LINE_PATTERN = /^(\d+(?:\.\d+){1,7})(?:\s*[|)]{1,2}\s*|\s+)(.+)$/;
-const PARENT_POST_LINE_PATTERN = /^(\d{1,4})\s+((?:%?[A-ZÆØÅ]{1,10}\d[\w.%-]*|[A-ZÆØÅ][A-ZÆØÅ /-]{4,}))$/;
-const EXACT_POST_LINE_PATTERN = /^(\d+(?:\.\d+){1,7}\.?)\s*[|)]{0,2}$/;
+const FULL_POST_LINE_PATTERN = new RegExp(String.raw`^(${STRUCTURED_POST_SOURCE})(?:\s*[|)]{1,2}\s*|\s+)(.+)$`, "i");
+const PARENT_POST_LINE_PATTERN = /^(\d{1,4})\s+((?:%?[A-ZÆØÅ]{1,10}\d[\w.%-]*|RQA?|AOA|[A-ZÆØÅ][A-ZÆØÅ /-]{4,}))$/;
+const EXACT_POST_LINE_PATTERN = new RegExp(String.raw`^(${STRUCTURED_POST_SOURCE}\.?)\s*[|)]{0,2}$`, "i");
 const POST_CONTINUATION_PATTERN = /^(\.?\d+(?:\.\d+)*)\s*(.*)$/;
-const EXPLICIT_POST_AT_START_PATTERN = /^(\d+(?:\.\d+){1,7})(?=\s|[|)])/;
+const EXPLICIT_POST_AT_START_PATTERN = new RegExp(String.raw`^(${STRUCTURED_POST_SOURCE})(?=\s|[|)])`, "i");
 
 function parseStructuredPostStart(
   lines: string[],
   lineIndex: number
 ): StructuredPostStart | undefined {
   const line = lines[lineIndex];
+  // A reference printed on its own line is not the row's identity.
+  if (/(?:beskrevet\s+under\s+post|se\s+post|henvises\s+til\s+post)\s*$/i.test(lines[lineIndex - 1] ?? "")) return undefined;
   const wrapped = parseWrappedVisualPostStart(lines, lineIndex);
   if (wrapped) return wrapped;
 
@@ -717,7 +777,7 @@ function parseStructuredPostStart(
     });
   }
 
-  const leadingQuantity = line.match(LEADING_QUANTITY_POST_PATTERN);
+  const leadingQuantity = line.match(LEADING_QUANTITY_POST_PATTERN) ?? line.match(SHORT_LEADING_QUANTITY_POST_PATTERN);
   if (leadingQuantity?.groups) {
     const quantityValue = parseLocalizedNumber(leadingQuantity.groups.quantity);
     if (quantityValue === undefined) return undefined;
@@ -789,7 +849,7 @@ function parseWrappedVisualPostStart(
   lineIndex: number
 ): StructuredPostStart | undefined {
   const baseMatch = lines[lineIndex].match(
-    /^(\d+(?:\.\d+){2,7}\.?)\s+(.+)$/
+    new RegExp(String.raw`^(${STRUCTURED_POST_SOURCE}\.?)\s*[|)]{0,2}\s+(.+)$`, "i")
   );
   const continuationMatch = lines[lineIndex + 1]?.match(
     /^(\.?\d+(?:\.\d+)*)(?:\s+(.+))?$/
@@ -801,8 +861,8 @@ function parseWrappedVisualPostStart(
   const baseParts = base.replace(/\.$/, "").split(".");
   const continuationWithoutDot = continuation.replace(/^\./, "");
   if (
-    (baseParts.length < 4 && !base.endsWith("."))
-    || (!continuation.includes(".") && !base.endsWith("."))
+    (baseParts.length < 3 && !base.endsWith("."))
+    || (!continuation.includes(".") && !base.endsWith(".") && !/^[A-Z]/i.test(base))
     // A new post in the same chapter (including siblings and parents) is
     // never a wrapped suffix of the preceding post number.
     || continuationWithoutDot.startsWith(`${baseParts[0]}.`)
@@ -815,7 +875,9 @@ function parseWrappedVisualPostStart(
   return {
     lineIndex,
     consumedLineCount: 2,
-    postNumber: composeWrappedPostNumber(base, continuation),
+    postNumber: composeWrappedPostNumber(base,
+      /^[A-Z]/i.test(base) && !continuation.includes(".") && /^Dimensjon\b/i.test(baseMatch[2])
+        ? `.${continuation}` : continuation),
     description: [quantity ? quantity.descriptionPrefix : baseMatch[2], continuationMatch[2]]
       .filter(Boolean)
       .join(" ")
@@ -1002,6 +1064,7 @@ function mergeLeadingPageContinuation({
   );
   if (previousContext && previousContext.sourcePage === page.pageNumber - 1) {
     Object.assign(previousContext.attributes, attributes);
+    Object.assign(previousContext.attributeSources, Object.fromEntries(Object.keys(attributes).map(key => [key, { postNumber: previousContext.postNumber, sourcePage: page.pageNumber }])));
     previousContext.standardRefs = unique([...previousContext.standardRefs, ...standards]);
     previousContext.sourceText += `\n\nFORTSETTELSE SIDE ${page.pageNumber}\n${continuationText}`;
   }
@@ -1011,6 +1074,8 @@ function mergeLeadingPageContinuation({
     && (!previousContext || previousMaterialLine.postNumber === previousContext.postNumber)
   ) {
     Object.assign(previousMaterialLine.attributes, attributes);
+    previousMaterialLine.attributeSources = { ...previousMaterialLine.attributeSources,
+      ...Object.fromEntries(Object.keys(attributes).map(key => [key, { postNumber: previousMaterialLine.postNumber!, sourcePage: page.pageNumber }])) };
     previousMaterialLine.standardRefs = unique([
       ...previousMaterialLine.standardRefs,
       ...standards
@@ -1068,9 +1133,12 @@ function isNonMaterialReferencePage(text: string) {
 type TableParentContext = {
   postNumber: string;
   sourcePage: number;
+  description: string;
   nsCode?: string;
   category: TechnicalDescriptionCategory;
+  isSpecification?: boolean;
   attributes: Record<string, string>;
+  attributeSources: NonNullable<TechnicalDescriptionMaterialLine["attributeSources"]>;
   system?: string;
   standardRefs: string[];
   sourceText: string;
@@ -1083,8 +1151,41 @@ function normalizedPageLines(text: string) {
     .filter(Boolean);
 }
 
+function reconcilePageQuantities(pages: TechnicalDescriptionPage[], lines: TechnicalDescriptionMaterialLine[], warnings: TechnicalDescriptionWarning[]) {
+  return pages.filter(page => isFireProtectionPage(page.text) && !isNonMaterialReferencePage(page.text)).flatMap(page => {
+    const pageLines = normalizedPageLines(page.text);
+    // "Rund sum" in the measurement rules repeats the RS table cell; it is
+    // not a second quantity. Also count rows whose unit precedes the post.
+    const observed = pageLines.filter((text, index) => !/^Rund\s+sum\s*$/i.test(text)
+      && (parseStructuredPostStart(pageLines, index)?.quantity?.quantity ?? findTableQuantity([text])?.quantity ?? 0) > 0).length;
+    const extracted = lines.filter(line => line.sourcePage === page.pageNumber);
+    if (!observed && !extracted.length) return [];
+    const quantified = extracted.filter(line => line.quantity !== undefined).length;
+    const unresolved = Math.max(0, observed - quantified);
+    if (unresolved) {
+      for (const line of extracted) line.reviewFlags = unique([...line.reviewFlags, "unresolved-source-quantity"]);
+      warnings.push({
+      id: `page-quantity-check-${page.pageNumber}`, code: "UNRESOLVED_QUANTITY_ROWS", sourcePage: page.pageNumber,
+      message: `Sida ${page.pageNumber}: ${observed} mängdrader identifierades men ${quantified} poster med mängd skapades. Kontrollera de ${unresolved} återstående raderna i PDF-filen.`, severity: "warning"
+      });
+    }
+    const kinds = extracted.map(line => distributorRequirementKind({ id: line.id, category: line.category, value_text: line.description, source_excerpt: line.sourceText, value_json: line }));
+    return [{ sourcePage: page.pageNumber, observedQuantityRows: observed, extractedQuantityRows: quantified,
+      productRows: kinds.filter(kind => kind === "product").length, workRows: kinds.filter(kind => kind === "work").length,
+      removalRows: kinds.filter(kind => kind === "remove").length, unresolvedQuantityRows: unresolved }];
+  });
+}
+
+function extractPostScope(lines: string[]) {
+  const chapter = lines.find(line => /^Kapittel:/i.test(line));
+  if (!chapter) return undefined;
+  const path = chapter.replace(/^Kapittel:\s*/i, "").replace(/(?:\s*-)+\s*$/, "").trim();
+  return path.toLocaleLowerCase("nb-NO").replace(/\s+/g, " ");
+}
+
 function normalizeOcrArtifacts(value: string) {
   return value
+    .replace(/^((?:[A-Z]\d*\.)?\d+(?:\.\d+)+)\s*\]/i, "$1 | ")
     .replace(/\bDNB(\d{2,3})\b/gi, "DN$1")
     .replace(/\bDNS0\b/gi, "DN50")
     .replace(/\bDN6S5\b/gi, "DN65");
@@ -1164,7 +1265,9 @@ function tableDescription(parts: string[]) {
     .filter((part) => Boolean(part) && !/^(?:Antall(?: prøver)?|Lengde|Mengde|Rund sum)$/i.test(part));
   let nsCode: string | undefined;
 
-  for (let index = 0; index < cleaned.length; index += 1) {
+  // The code belongs at the start of the description column. Hazard classes
+  // such as OH1 deep inside chapter prose are not this row's NS code.
+  for (let index = 0; index < Math.min(cleaned.length, 2); index += 1) {
     const codeMatch = cleaned[index].match(NS3420_CODE_PATTERN);
     if (!codeMatch) continue;
     nsCode = codeMatch[1];
@@ -1204,7 +1307,7 @@ function extractTableAttributes(lines: string[]) {
       continue;
     }
 
-    if (/^(?:[a-z]\)|Andre krav|Merket\b|Sum\b|Akkumulert|Kopi-)/i.test(line)
+    if (/^(?:[a-z]\)|Andre krav|Merket\b|Sum\b|Akkumulert|Kopi-|Prisen\b|Det skal\b|Alle\b|Tilbehør\b)/i.test(line)
       || /^(?:Antall|Lengde|Mengde)\s*$/i.test(line)) activeKey = null;
     if (
       activeKey &&

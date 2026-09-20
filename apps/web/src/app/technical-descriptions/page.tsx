@@ -338,6 +338,20 @@ function ExtractionResult({ result }: { result: ExtractionResponse }) {
           </ul>
         </div>
       )}
+      {Boolean(result.pageChecks?.length) && (
+        <details className="rounded-lg border border-ink-200 p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-ink-900">Avstämning per PDF-sida</summary>
+          <p className="mt-2 text-sm text-ink-600">Jämförelsen visar lästa mängdrader och skapade poster. Rader för arbete och demontering ingår i avstämningen.</p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead><tr>{["Sida", "Mängdrader", "Poster med mängd", "Produkter", "Arbete", "Demontering", "Ej kopplade mängdrader"].map(label => <th key={label} className="p-2 font-semibold">{label}</th>)}</tr></thead>
+              <tbody>{result.pageChecks?.map(check => <tr key={check.sourcePage} className={check.unresolvedQuantityRows ? "bg-amber-50" : ""}>
+                {[check.sourcePage, check.observedQuantityRows, check.extractedQuantityRows, check.productRows, check.workRows, check.removalRows, check.unresolvedQuantityRows].map((value, index) => <td key={index} className="border-t border-ink-100 p-2">{value}</td>)}
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </details>
+      )}
       <MaterialTable lines={result.materialLines} />
     </section>
   );

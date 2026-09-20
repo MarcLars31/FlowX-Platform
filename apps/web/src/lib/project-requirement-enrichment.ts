@@ -43,18 +43,22 @@ export function enrichProjectRequirements(
     const details = projectRequirementDetails(requirement);
     const description = normalized(stringValue(requirement.value_text));
     const sourcePage = numberValue(requirement.source_page);
+    const currentValue = record(requirement.value_json);
+    const matchingPosts = details.postNumber ? lines.filter(candidate => candidate.postNumber === details.postNumber
+      && (!currentValue.postScope || candidate.postScope === currentValue.postScope)) : [];
+    const matchingDescriptions = lines.filter(candidate => candidate.sourcePage === sourcePage
+      && normalized(candidate.description) === description
+      && (currentValue.quantity == null || candidate.quantity === numberValue(currentValue.quantity)));
     const line =
-      (details.postNumber
-        ? lines.find((candidate) => candidate.postNumber === details.postNumber)
-        : undefined) ??
-      lines.find(
-        (candidate) =>
-          candidate.sourcePage === sourcePage &&
-          normalized(candidate.description) === description
-      );
+      matchingPosts.find(candidate => candidate.sourcePage === sourcePage) ??
+      (matchingDescriptions.length === 1 ? matchingDescriptions[0] : undefined)
+      ?? (matchingPosts.length === 1 ? matchingPosts[0] : undefined);
     if (!line) return requirement;
 
-    const currentValue = record(requirement.value_json);
+    const attributes = mergedAttributes(line.attributes, record(currentValue.attributes));
+    const changedRequirements = Object.keys(line.attributes).filter(key =>
+      normalized(String(attributes[key])) !== normalized(line.attributes[key]));
+
     return {
       ...requirement,
       requirement_key:
@@ -62,29 +66,31 @@ export function enrichProjectRequirements(
       value_json: {
         ...currentValue,
         postNumber: line.postNumber ?? currentValue.postNumber ?? null,
+        postScope: line.postScope ?? currentValue.postScope ?? null,
         parentPostNumber:
           line.parentPostNumber ?? currentValue.parentPostNumber ?? null,
+        parentDescription: line.parentDescription ?? null,
+        attributeSources: Object.fromEntries(Object.entries(line.attributeSources ?? {})
+          .filter(([key]) => !changedRequirements.includes(key))),
         nsCode: line.nsCode ?? currentValue.nsCode ?? null,
         operation: line.operation,
         quantity: line.quantity ?? currentValue.quantity ?? null,
         quantityText: line.quantityText ?? currentValue.quantityText ?? null,
         unit: line.unit ?? currentValue.unit ?? null,
-        attributes: mergedAttributes(
-          line.attributes,
-          record(currentValue.attributes)
-        ),
+        attributes,
         system: line.system ?? currentValue.system ?? null,
         standardRefs: line.standardRefs.length
           ? line.standardRefs
           : currentValue.standardRefs ?? [],
         reviewFlags: mergedReviewFlags(
-          line.reviewFlags,
+          [...line.reviewFlags, ...(changedRequirements.length ? ["reextracted-requirement-conflict"] : [])],
           currentValue.reviewFlags
         ),
         technicalSpecification:
           line.technicalSpecification ??
           currentValue.technicalSpecification ??
-          line.sourceText
+          line.sourceText,
+        sourceText: line.sourceText
       },
       source_excerpt:
         stringValue(requirement.source_excerpt) ?? line.sourceText
@@ -93,10 +99,12 @@ export function enrichProjectRequirements(
 }
 
 function mergedReviewFlags(extracted: string[], current: unknown) {
+  const extractionFlags = new Set(["unknown-category", "inferred-post-number", "inferred-parent-context", "missing-parent-context",
+    "missing-post-number", "missing-quantity", "ocr-source", "pipe-unit-not-length", "unresolved-source-quantity", "reextracted-requirement-conflict"]);
   const stored = Array.isArray(current)
     ? current.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
     : [];
-  return [...new Set([...stored, ...extracted])];
+  return [...new Set([...stored.filter(flag => !extractionFlags.has(flag)), ...extracted])];
 }
 
 function technicalDescriptionPages(value: unknown) {

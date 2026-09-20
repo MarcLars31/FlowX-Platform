@@ -3,12 +3,15 @@ import { isAssemblyComponentCandidate, productAssemblyPlan, type AssemblyCompone
 import type { AhlsellLookupProduct } from "./ahlsell-product-lookup";
 import { technicalConflictWarnings } from "./ahlsell-technical-conflicts";
 import { normalizeTechnicalText } from "./ahlsell-requirement-context";
+import { pipeJointTypes, pipeJointSearchTerm } from "./pipe-technical-terms";
 
 export function assessAssemblyComponents(requirement: Record<string, unknown>, component: AssemblyComponent, products: AhlsellLookupProduct[], main?: AhlsellLookupProduct | null): AhlsellLookupProduct[] {
   const family = products.filter(product => isAssemblyComponentCandidate(component.kind, `${product.productName} ${product.subtitle ?? ""}`));
   const plan = productAssemblyPlan(requirement);
   if (plan?.kind === "cabinet") return family;
-  if (plan?.kind !== "pipe") return family.filter(product => !main || !explicitModelConflict(main, product)).map(product => ({ ...product, exactMatch: false, recommendation: "possible",
+  if (plan?.kind !== "pipe") return family.filter(product => (!main || !explicitModelConflict(main, product))
+    && (component.kind !== "flange" || !main || pipeDn(main) === null || pipeDn(product) === null || pipeDn(main) === pipeDn(product))
+  ).map(product => ({ ...product, exactMatch: false, recommendation: "possible",
     matchWarnings: [...(product.matchWarnings ?? []), "Kontrollera tillverkarens kompatibilitet med exakt vald huvudprodukt och om tillbehöret redan ingår i leveransen.",
       ...(!main ? ["Huvudproduktens tekniska uppgifter kunde inte verifieras hos Ahlsell. Kontrollera dess datablad före tillbehörsval."] : [])]
   }));
@@ -21,7 +24,7 @@ export function assessAssemblyComponents(requirement: Record<string, unknown>, c
   const scoped = { value_text: component.searchTerm, category: component.kind === "support" ? "support" : "fitting",
     value_json: { attributes: { ...(dn ? { dimensjon: dn } : {}),
       ...(component.kind !== "support" && pressure ? { trykk: pressure } : {}),
-      ...(component.kind !== "support" && joint ? { skjøt: joint === "threaded" ? "Gjenget" : "Rillet" } : {}) } } };
+      ...(component.kind !== "support" && joint ? { skjøt: pipeJointSearchTerm[joint] } : {}) } } };
   const fittingPressure = Number(String(pressure ?? "").match(/\bPN\s*(\d+)/i)?.[1]);
   return rankAhlsellCandidates(scoped, family.map(product => ({ ...product,
     productName: `${product.productName} ${product.subtitle ?? ""}`.trim(),
@@ -47,10 +50,8 @@ function productText(product: AhlsellLookupProduct) {
 }
 
 function pipeConnection(text: string) {
-  const value = normalizeTechnicalText(text);
-  const threaded = /\b(?:gjenget|gjengede|gangad|gangade|threaded)\b/.test(value);
-  const grooved = /\b(?:rillet|rillede|rillad|rillade|grooved|igs|ogs)\b/.test(value);
-  return threaded === grooved ? null : threaded ? "threaded" : "grooved";
+  const joints = pipeJointTypes(text);
+  return joints.length === 1 ? joints[0] : null;
 }
 
 function pipeDn(product: AhlsellLookupProduct) {

@@ -308,8 +308,9 @@ test("creates an Ahlsell search for non-sprinkler-head material rows", () => {
   });
 
   assert.equal(guide.directCandidates.length, 0);
-  assert.equal(guide.searchQuery, "Rør sprinkler 114.3mm");
-  assert.match(decodeURIComponent(guide.searchUrl), /114.3mm/);
+  assert.equal(guide.searchQuery, "Stålrør sprinkler DN100 rillet");
+  assert.match(guide.searchQueries.join(" "), /114\.3mm/);
+  assert.match(decodeURIComponent(guide.searchUrl), /DN100/);
 });
 
 test("searches a foam hand extinguisher as fire equipment instead of a sprinkler product", () => {
@@ -561,6 +562,20 @@ test("prioritizes the row's explicit outside diameter over dimensions in parent 
 
   assert.equal(guide.searchQuery, "Rør sprinkler 42.4mm");
   assert.doesNotMatch(guide.searchQuery, /DN150|168.3/);
+});
+
+test("pipe searches preserve explicit material without borrowing steel sizes or parent materials", () => {
+  for (const [material, expected] of [["PE100", "PE rør"], ["PVC", "PVC rør"], ["Kobber", "Kobberrør"], ["Alupex", "Alupex rør"], ["PP-R", "PP-R rør"]]) {
+    const guide = buildAhlsellRequirementGuide({
+      category: "pipe", value_text: "Rør DN65", value_json: {
+        unit: "m", attributes: { materiale: material, dimensjon: "DN65" },
+        technicalSpecification: "Rør tilkobles eksisterende rustfritt stålrør."
+      }
+    });
+    assert.ok(guide.searchQueries.every(query => query.startsWith(expected)), guide.searchQueries.join(" | "));
+    assert.ok(guide.searchQueries.every(query => query.includes("DN65")));
+    assert.doesNotMatch(guide.searchQueries.join(" "), /76[.,]1mm/);
+  }
 });
 
 test("uses fitting subtype and both dimensions for reductions", () => {

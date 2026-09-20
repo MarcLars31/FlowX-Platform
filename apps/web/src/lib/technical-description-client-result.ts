@@ -6,6 +6,7 @@ export function clientTechnicalDescriptionResult(
   return {
     document: result.document,
     project: result.project,
+    pageChecks: result.pageChecks,
     materialLines: result.materialLines.map((line) => {
       const clientLine = { ...line };
       delete clientLine.technicalSpecification;

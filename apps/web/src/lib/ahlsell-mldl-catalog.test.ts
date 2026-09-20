@@ -11,7 +11,7 @@ test("retrieves the main equipment family instead of a mentioned component", () 
     ["INNENDØRS PARTIKKELUTSKILLER", { "type partikkelutskiller": "Sil (netting)", dimensjon: "DN100" }, "strainer"],
     ["INNENDØRS STENGEVENTIL", { ventiltype: "Kuleventil", dimensjon: "DN100" }, "ball_valve"],
     ["KONTROLLVENTILSETT FOR SPRINKLERANLEGG", { "type kontrollventilsett": "Våt alarmventil", dimensjon: "DN100" }, "wet_alarm_valve"],
-    ["INNENDØRS RØRLEDNING - BRANNSLOKKING - RØR", { "slokkeanlegg/-medium": "Vannmåler" }, "water_meter"]
+    ["INNENDØRS RØRLEDNING - BRANNSLOKKING - RØR", { "slokkeanlegg/-medium": "Vannmåler" }, "pipe"]
   ] as const) {
     const requirement = { category: "control", value_text: description, value_json: { attributes: attrs }, source_excerpt: "Inkl. stengeventiler og manometer." };
     assert.equal(ahlsellRequirementIntent(requirement), intent);
@@ -189,7 +189,7 @@ test("selects NRF 9253499 for the supervised-open DN100 handwheel valve", () => 
   assert.ok(candidates.slice(1, 4).every((candidate) => candidate.recommendation !== "recommended"));
 });
 
-test("selects the LC Eidsvoll V2763 brass head for PDF post 33.500.2", () => {
+test("retains the LC Eidsvoll V2763 head as a DN correction proposal without inventing a brass finish requirement", () => {
   const candidates = findAhlsellMldlCandidates({
     category: "sprinkler_head",
     requirement_key: "UE2.11111232",
@@ -209,9 +209,11 @@ test("selects the LC Eidsvoll V2763 brass head for PDF post 33.500.2", () => {
     } }
   });
 
-  assert.equal(candidates[0]?.articleNumber, "9257387");
-  assert.equal(candidates[0]?.assortmentPriority, 1);
-  assert.ok(candidates[0]?.matchReasons?.some((reason) => reason.includes("LC Eidsvoll")));
-  assert.ok(candidates[0]?.matchWarnings?.some((warning) => warning.includes("DN25") && warning.includes("DN15")));
+  const brass = candidates.find(candidate => candidate.articleNumber === "9257387");
+  assert.ok(brass);
+  assert.equal(brass.assortmentPriority, 1);
+  assert.ok(brass.matchReasons?.some((reason) => reason.includes("LC Eidsvoll")));
+  assert.ok(brass.matchWarnings?.some((warning) => warning.includes("DN25") && warning.includes("DN15")));
+  assert.notEqual(ahlsellCandidateMatchState(brass), "matched");
   assert.ok(candidates.slice(0, 3).every((candidate) => !/skjult|concealed/i.test(`${candidate.productName} ${candidate.description}`)));
 });

@@ -1,8 +1,9 @@
 import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
 import { sprinklerAssemblyPlan } from "./sprinkler-assembly-plan";
+import { pipeJointTypes, pipeJointSearchTerm } from "./pipe-technical-terms";
 
 export type AssemblyComponentKind = "manifold" | "drainage" | "connection" | "pipe" | "valve" | "bend" | "tee" | "cap" | "coupling" | "support"
-  | "retard_chamber" | "alarm_device" | "escutcheon" | "guard";
+  | "retard_chamber" | "alarm_device" | "escutcheon" | "guard" | "sprinkler_hose" | "flange" | "fastener";
 export type AssemblyComponent = {
   id: string; kind: AssemblyComponentKind; label: string; requirement: string;
   optional: boolean; searchTerm: string;
@@ -87,18 +88,16 @@ function pipeAssemblyPlan(requirement: Record<string, unknown>): ProductAssembly
 
 /** Only known product-system tokens go to the external search, never PDF prose. */
 export function assemblyComponentSearch(component: AssemblyComponent, mainProduct: string) {
-  if (["retard_chamber", "alarm_device", "escutcheon", "guard"].includes(component.kind)) {
+  if (["retard_chamber", "alarm_device", "escutcheon", "guard", "sprinkler_hose"].includes(component.kind)) {
     const brand = mainProduct.match(/\b(Victaulic|Tyco|Reliable|Viking|Potter)\b/i)?.[1] ?? "";
     // A brand and explicit model are search hints, never proof of compatibility.
     const model = mainProduct.match(/\b(?:V\d{3,4}|(?:S|Series\s*)751|AV[- ]?1|F1FR\d+|KIT\s*5)\b/i)?.[0] ?? "";
     return `${component.searchTerm} ${brand} ${model}`.replace(/\s+/g, " ").trim();
   }
   if (component.quantityFromDrawing) {
-    const primary = normalize(mainProduct);
     if (component.kind === "support") return component.searchTerm;
-    const threaded = /\b(?:gjenget|gjengede|gjeng|gangad|gangade|threaded)\b/.test(primary);
-    const grooved = /\b(?:rillet|rillede|rillad|rillade|grooved|igs|ogs)\b/.test(primary);
-    const connection = threaded !== grooved ? threaded ? "gjenget" : "rillet" : "";
+    const joints = pipeJointTypes(mainProduct);
+    const connection = joints.length === 1 ? pipeJointSearchTerm[joints[0]] : "";
     return `${component.searchTerm} ${connection}`.trim();
   }
   const system = mainProduct.match(/\b(Sanipex|Uponor|Roth|Wavin)\b/i)?.[1]
@@ -108,7 +107,7 @@ export function assemblyComponentSearch(component: AssemblyComponent, mainProduc
 
 export function isAssemblyComponentCandidate(kind: AssemblyComponentKind, productName: string) {
   const text = normalize(productName);
-  const pipePart = ["bend", "tee", "cap", "coupling", "support", "retard_chamber", "alarm_device", "escutcheon", "guard"].includes(kind);
+  const pipePart = ["bend", "tee", "cap", "coupling", "support", "retard_chamber", "alarm_device", "escutcheon", "guard", "sprinkler_hose", "flange", "fastener"].includes(kind);
   if (/\b(?:skilt\w*|skylt\w*)\b/.test(text)) return false;
   if (!pipePart && /\b(?:sprinkler\w*|spjeldventil|firelock)\b/.test(text)) return false;
   const primary = text.split(/\b(?:for|til)\b/)[0];
@@ -122,14 +121,19 @@ export function isAssemblyComponentCandidate(kind: AssemblyComponentKind, produc
     tee: /\b(?:t ror|t stykke|t stycke|tee)\b/,
     cap: /\b(?:endelo?kk?|endebunn|andlock|end cap|blindflens|plugg)\b/,
     coupling: /\b(?:kupling|kobling|rorkobling|rillekobling|koppling|muffe|coupling)\b/,
-    support: /\b(?:rorklammer|klammer|roroppheng|oppheng|rorstotte|rorbarer|pipe support|pipe hanger)\b/,
+    support: /\b(?:rorklammer|klammer|roroppheng|oppheng|rorstotte|rorbarer|pipe support|pipe hanger|feste|festebrakett|slangeholder)\b/,
     retard_chamber: /\b(?:retardasjonskammer|retardasjonsbeholder|retardationskammare|retard(?:ing)? chamber)\b/,
     alarm_device: /\b(?:alarmgiver|alarmpressostat|pressostat|trykkbryter|pressure switch)\b/,
     escutcheon: /\b(?:dekkskive[rn]?|dekkplate[rn]?|pyntering(?:er)?|(?:sprinkler)?rosett(?:er)?|escutcheons?|cover plates?|coverplate|tackbricka|tacklock)\b/,
-    guard: /\b(?:sprinklergitter|beskyttelsesgitter|gitter|skyddskorg|guard|vannskjerm|water shield)\b/
+    guard: /\b(?:sprinklergitter|beskyttelsesgitter|gitter|skyddskorg|guard|vannskjerm|water shield)\b/,
+    sprinkler_hose: /\b(?:sprinklerslange|fleksibelslange|koblingsslange|vicflex|sprinkler hose)\b/,
+    flange: /\b(?:motflens|flens|flenser|flange|flensadapter)\b/,
+    fastener: /\b(?:bolt|bolter|pakning|pakninger|packning|gasket|boltesett)\b/
   };
   const match = patterns[kind].exec(primary);
   if (!match) return false;
+  if (kind === "support" && /\b(?:sprinklerslange|koblingsslange|sprinklerhode)\b/.test(primary.slice(0, match.index))) return false;
+  if (kind === "sprinkler_hose" && /\b(?:feste|festebrakett|slangeholder|brakett|bracket)\b/.test(primary.slice(0, match.index))) return false;
   if (["retard_chamber", "alarm_device", "escutcheon", "guard"].includes(kind)
     && /\b(?:ventilsett|alarmventil|sprinklerhode|pakningssett|reservedel|verktoy)\b/.test(primary.slice(0, match.index))) return false;
   if (/\b(?:\w*skap|holder|skapmuffe|ramme|dor|tilbehor)\b/.test(primary.slice(0, match.index))) return false;

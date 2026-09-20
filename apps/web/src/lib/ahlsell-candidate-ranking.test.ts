@@ -163,7 +163,7 @@ test("does not recommend a dry valve for a wet alarm requirement", () => {
   assert.ok(ranked.matchWarnings?.some((warning) => warning.includes("torrt system")));
 });
 
-test("ranks K80 68C upright highest but requires system and construction before exact match", () => {
+test("ranks K80 68C upright highest but requires system and construction before any green match", () => {
   const [ranked] = rankAhlsellCandidates({
     category: "sprinkler_head",
     value_text: "SPRINKLER",
@@ -179,7 +179,8 @@ test("ranks K80 68C upright highest but requires system and construction before 
     specifications: ["K-faktor: 80", "Gjengedimensjon: DN15", "Responstemperatur: 68 °C", "Responstid: Standardrespons", "Farge: Messing"]
   }]);
 
-  assert.equal(ranked.recommendation, "recommended");
+  assert.equal(ranked.recommendation, "possible");
+  assert.equal(ahlsellCandidateMatchState(ranked), "review");
   assert.equal(isExactAhlsellCandidate(ranked), false);
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("K80")));
   assert.ok(ranked.matchReasons?.some((reason) => reason.includes("68")));
@@ -711,7 +712,8 @@ test("separates a wet installation from its required dry sprinkler head", () => 
   ]);
 
   assert.equal(ranked[0].articleNumber, "dry");
-  assert.equal(ranked[0].recommendation, "recommended");
+  assert.equal(ranked[0].recommendation, "possible");
+  assert.match(ranked[0].matchWarnings?.join(" ") ?? "", /täckningsklass/);
   assert.ok(ranked[0].matchReasons?.some((reason) => reason.includes("Torrsprinklerutförandet")));
   assert.ok(ranked[1].matchWarnings?.some((warning) => warning.includes("konventionell sprinkler")));
 });

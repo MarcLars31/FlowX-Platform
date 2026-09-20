@@ -2,6 +2,7 @@
 
 import {
   isBetterOcrText,
+  needsStructuredOcrRecovery,
   layoutTextFromOcrBlocks,
   shouldPreferOcrLayoutText
 } from "@/modules/technical-description-extractor/pdf-layout";
@@ -61,7 +62,7 @@ export async function extractPdfPagesWithBrowserOcr(
   let activePageIndex = 0;
   let worker: Worker | undefined;
   try {
-    const { createWorker, OEM } = await import("tesseract.js");
+    const { createWorker, OEM, PSM } = await import("tesseract.js");
     worker = await createWorker("nor+eng", OEM.LSTM_ONLY, {
       workerPath: "/ocr/worker.min.js",
       // Let Tesseract choose the local SIMD/relaxed-SIMD LSTM core when supported.
@@ -79,7 +80,7 @@ export async function extractPdfPagesWithBrowserOcr(
       }
     });
 
-    await worker.setParameters({ preserve_interword_spaces: "1" });
+    await worker.setParameters({ preserve_interword_spaces: "1", tessedit_pageseg_mode: PSM.AUTO });
     const extractedPages: ClientOcrPage[] = [];
     for (const pageNumber of pageNumbers) {
       activePageNumber = pageNumber;
@@ -90,7 +91,7 @@ export async function extractPdfPagesWithBrowserOcr(
       });
       if (activePageIndex > 0) {
         await worker.reinitialize("nor+eng", OEM.LSTM_ONLY);
-        await worker.setParameters({ preserve_interword_spaces: "1" });
+        await worker.setParameters({ preserve_interword_spaces: "1", tessedit_pageseg_mode: PSM.AUTO });
       }
 
       const page = await document.getPage(pageNumber);
@@ -109,7 +110,7 @@ export async function extractPdfPagesWithBrowserOcr(
           canvas.height = 0;
           canvas = await renderPdfPage(page, OCR_RETRY_SCALE);
           await worker.reinitialize("nor+eng", OEM.LSTM_ONLY);
-          await worker.setParameters({ preserve_interword_spaces: "1" });
+          await worker.setParameters({ preserve_interword_spaces: "1", tessedit_pageseg_mode: PSM.AUTO });
           const retryResult = await worker.recognize(
             canvas,
             {},
@@ -122,6 +123,19 @@ export async function extractPdfPagesWithBrowserOcr(
           if (isBetterOcrText(retryText, text)) {
             result = retryResult;
             text = retryText;
+          }
+        }
+
+        if (needsStructuredOcrRecovery(text)) {
+          // Sparse text segmentation can recover isolated quantities and the
+          // narrow post column which the normal page segmentation omitted.
+          await worker.reinitialize("nor+eng", OEM.LSTM_ONLY);
+          await worker.setParameters({ preserve_interword_spaces: "1", tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+          const recovered = await worker.recognize(canvas, {}, { text: true, blocks: true });
+          const recoveredText = preferredOcrText(recovered.data.text, recovered.data.blocks);
+          if (isBetterOcrText(recoveredText, text)) {
+            result = recovered;
+            text = recoveredText;
           }
         }
 

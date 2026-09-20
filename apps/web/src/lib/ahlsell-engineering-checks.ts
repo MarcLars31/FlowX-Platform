@@ -3,7 +3,7 @@ import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
 import { MANIFOLD_CABINET_REVIEW_WARNING } from "./ahlsell-manifold-cabinet";
 import { isCompletePipeLengthDescription } from "./ns3420-product-classification";
-import { normalizeTechnicalText, valveMonitoringRequirement } from "./ahlsell-requirement-context";
+import { normalizeTechnicalText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 
 /** Cross-catalogue checks that must also run on directly verified products. */
 export function engineeringRequirementWarnings(
@@ -14,8 +14,8 @@ export function engineeringRequirementWarnings(
   const value = record(requirement.value_json);
   const attributes = record(value.attributes);
   const ownText = `${requirement.value_text ?? ""} ${requirement.display_name ?? ""}`;
-  const requirementText = `${ownText} ${Object.entries(attributes).filter(([key]) => !["generelle krav", "pdf-kommentar"].includes(key)).map(([key, item]) => `${key} ${item}`).join(" ")}`;
-  const detail = `${value.technicalSpecification ?? ""} ${value.sourceText ?? ""} ${requirement.source_excerpt ?? ""}`.replace(/\s+/g, " ");
+  const requirementText = `${ownText} ${Object.entries(productRequirementAttributes(requirement)).map(([key, item]) => `${key} ${item}`).join(" ")}`;
+  const detail = productTechnicalSpecification(requirement).replace(/\s+/g, " ");
   const intent = ahlsellRequirementIntent(requirement);
   // Cabinet, manifolds and supply pipes need separate evidence. A cabinet
   // family match cannot verify the whole assembly or inherit pipe dimensions.
@@ -118,7 +118,8 @@ export function engineeringRequirementWarnings(
   if (requiredDns.length > 1) {
     const candidateDns = dimensions(productText);
     const missing = requiredDns.filter((dn) => !candidateDns.includes(dn));
-    if (missing.length > 0) warnings.push(`Alla anslutningar är inte verifierade: PDF kräver ${requiredDns.map((dn) => `DN${dn}`).join(" / ")}; produktinformationen bekräftar inte ${missing.map((dn) => `DN${dn}`).join(" / ")}.`);
+    const wrong = candidateDns.filter(dn => !requiredDns.includes(dn));
+    if (missing.length > 0) warnings.push(`${candidateDns.length >= requiredDns.length && wrong.length ? "Fel dimension: alla anslutningar stämmer inte" : "Alla anslutningar är inte verifierade"}: PDF kräver ${requiredDns.map((dn) => `DN${dn}`).join(" / ")}; produktinformationen bekräftar inte ${missing.map((dn) => `DN${dn}`).join(" / ")}.`);
   }
 
   if (/\b(bend|böj|rørbøy|elbow)\b/i.test(requirementText)) {

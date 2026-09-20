@@ -11,7 +11,10 @@ import {
 import { ahlsellRequirementIntent, type AhlsellProductIntent as ProductIntent } from "./ahlsell-requirement-intent";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { isRigidPipeProduct } from "./pipe-product-family";
-import { valveMonitoringRequirement } from "./ahlsell-requirement-context";
+import { mainProductText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
+import { pipeJointTypes, requirementJointText, stainlessSteelGrade, type PipeJoint } from "./pipe-technical-terms";
+import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
+import { productAssemblyPlan } from "./product-assembly-plan";
 import { resolvedSprinklerOrientation, sprinklerOrientationSignals } from "@/lib/sprinkler-orientation-lexicon";
 import {
   sprinklerCoverageFromText,
@@ -50,8 +53,11 @@ type TechnicalProfile = {
   sprinklerSystem: "wet" | "dry" | null;
   sprinklerHeadType: "standard" | "dry" | "open" | null;
   expectsSteel: boolean;
-  material: "steel" | "stainless_steel" | "ppr" | "brass" | "ductile_iron" | null;
-  joint: "threaded" | "grooved" | "fusion" | "flanged" | null;
+  material: "steel" | "stainless_steel" | "ppr" | "pe" | "pvc" | "copper" | "multilayer" | "brass" | "ductile_iron" | null;
+  joint: PipeJoint | null;
+  allowedJoints: PipeJoint[];
+  materialGrade: string | null;
+  corrosionClass: string | null;
   allowsGroovedPipe: boolean;
   coverage: SprinklerCoverageClass | null;
   requiresAccessoryReview: boolean;
@@ -141,8 +147,7 @@ function confidenceTier(candidate: AhlsellPublicCandidate) {
 function requirementProfile(requirement: Record<string, unknown>): TechnicalProfile {
   const value = record(requirement.value_json);
   const intent = ahlsellRequirementIntent(requirement);
-  const attributes = Object.fromEntries(Object.entries(record(value.attributes))
-    .filter(([key]) => !["pdf-kommentar", "generelle krav"].includes(key)));
+  const attributes = productRequirementAttributes(requirement);
   const semanticText = normalize(flattenText({
     category: requirement.category,
     description: requirement.value_text,
@@ -152,13 +157,16 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   }));
   const primaryText = normalize(`${semanticText} ${flattenText(value.sourceText)}`);
   const sourceOnlyText = normalize(`${requirement.value_text ?? ""} ${flattenText(value.sourceText)} ${requirement.source_excerpt ?? ""}`);
-  const text = normalize(flattenText({ ...requirement, value_json: { ...value, attributes } }));
+  // Only requirement evidence belongs here; previous candidates, comments,
+  // provenance and saved matching scores must not create technical demands.
+  const text = normalize(`${primaryText} ${productTechnicalSpecification(requirement)}`);
   const outsideDiameter = extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
   const dn = intent === "alarm_device" ? null : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
   const placementText = normalize(attributeText(attributes, /\b(?:plassering|placering|orientation|montasje|montering|mounting)\b/));
   const deckPlateText = normalize(attributeText(attributes, /\b(?:dekkskive|pyntering|rosett|escutcheon|cover plate)\b/));
-  const materialText = normalize(attributeText(attributes, /\b(?:materiale|materialkvalitet|material|ror material)\b/));
-  const jointText = normalize(attributeText(attributes, /\b(?:skjot|joint|tilkoblingstype|forbindelse)\b/));
+  const materialText = normalize(attributeText(attributes, /\b(?:materiale|materialkvalitet|material|ror material)\b/)
+    || mainProductText(String(requirement.value_text ?? requirement.display_name ?? "")));
+  const jointText = intent === "alarm_device" ? "" : normalize(requirementJointText(attributes, String(requirement.value_text ?? "")));
   const sprinklerTypeText = normalize(attributeText(attributes, /\b(?:type sprinkler|sprinklertype|dekning|coverage)\b/));
   const sprinklerSystemText = normalize(attributeText(attributes, /\b(?:sprinkleranlegg|anleggstype|systemtype|sprinkler system)\b/));
   const coverageText = `${sprinklerTypeText} ${primaryText}`;
@@ -174,7 +182,8 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     attributeText(attributes, /\b(?:folsomhetsgrad|respons|response)\b/),
     sourceOnlyText
   );
-  const reviewWarnings = projectRequirementDataWarnings(requirement).map((warning) => warning.message);
+  const reviewWarnings = [...projectRequirementDataWarnings(requirement).map((warning) => warning.message), ...requirementExtractionWarnings(requirement)];
+  if (intent === "generic") reviewWarnings.push("Huvudproduktens produktgrupp är inte fastställd. Produktförslaget behöver granskas.");
   if (intent === "sprinkler_head") reviewWarnings.push(...installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)));
   if (intent === "sprinkler_head" && responseResult.conflict) {
     reviewWarnings.push("PDF-posten anger både standard- och quick-respons. Kontrollera originaltexten innan produktval.");
@@ -190,13 +199,13 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     outsideDiameter: outsideDiameter ?? (dn === null ? null : PIPE_OUTSIDE_DIAMETER_BY_DN[dn] ?? null),
     pn: numberAfterLabel(primaryText, /\bpn\s*(\d{1,3})\b/) ?? numberAfterLabel(text, /\bpn\s*(\d{1,3})\b/),
     minimumPressureClass: /\bminimum trykklasse pn\s*\d+\b/.test(generalPipeRules),
-    kFactor: parseSprinklerKFactor(projectRequirementKFactorDisplayValue(requirement))
+    kFactor: intent === "sprinkler_head" ? parseSprinklerKFactor(projectRequirementKFactorDisplayValue(requirement))
       ?? extractKFactor(primaryText)
-      ?? extractKFactor(text),
-    temperatureC: extractTemperature(primaryText) ?? extractTemperature(text),
-    response: responseResult.response,
-    orientation,
-    mount,
+      ?? extractKFactor(text) : null,
+    temperatureC: intent === "sprinkler_head" ? extractTemperature(primaryText) ?? extractTemperature(text) : null,
+    response: intent === "sprinkler_head" ? responseResult.response : null,
+    orientation: intent === "sprinkler_head" ? orientation : null,
+    mount: intent === "sprinkler_head" ? mount : null,
     visibleMount: /\b(synlig|visible|eksponert)\b/.test(placementText)
       || installation.exposed
       || sprinklerExplicitlyExcludesCoverPlate(deckPlateText),
@@ -204,15 +213,18 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     sprinklerHeadType: extractRequiredSprinklerHeadType(sprinklerTypeText),
     expectsSteel: /\b(stalror|stal ror|materiale stal|ror av stal|stal fittings?)\b/.test(primaryText),
     material: extractMaterial(materialText),
+    materialGrade: stainlessSteelGrade(materialText),
+    corrosionClass: text.match(/\bkorrosivitetskategori\s+(c[1-5])\b/)?.[1]?.toUpperCase() ?? null,
     joint: extractJointTypes(jointText)[0] ?? null,
+    allowedJoints: /\b(?:eller|or)\b/.test(jointText) ? extractJointTypes(jointText) : extractJointTypes(jointText).slice(0, 1),
     allowsGroovedPipe: intent === "pipe" && (/\brillede stalror for alle dimensjoner\b/.test(generalPipeRules)
       || (/\b(?:eller|or)\b/.test(jointText) && extractJointTypes(jointText).includes("threaded") && extractJointTypes(jointText).includes("grooved"))),
     coverage: sprinklerCoverageFromText(coverageText),
-    requiresAccessoryReview: sprinklerRequiresAccessoryReview(attributes, sourceOnlyText),
+    requiresAccessoryReview: sprinklerRequiresAccessoryReview(attributes, sourceOnlyText)
+      || Boolean(productAssemblyPlan(requirement)?.components.some(part => !part.optional))
+      || (intent === "pipe" && /\bror inkludert deler\b|\bsprinklerror inkludert deler\b/.test(text)),
     requiresHydraulicReview: sprinklerNeedsHydraulicReview(coverageText),
-    finish: explicitFinish ?? (intent === "sprinkler_head"
-      && !/\b(valgfritt|valfritt|optional)\b/.test(normalize(attributeText(attributes,
-        /\b(?:overflatebehandling|ytbehandling|finish|farge|farg)\b/))) ? "brass" : null),
+    finish: explicitFinish,
     requiresSupervisedOpenValve: valveMonitoringRequirement(`${primaryText} ${sourceOnlyText}`) === "required",
     requiresHandwheelValve: /\b(manuell med ratt|med ratt|rattet|handratt|handwheel|gear operated|girbetjent)\b/.test(`${primaryText} ${sourceOnlyText}`),
     requiresSoftClosingValve: /\b(myk stenging|mjuk stangning|soft clos|slow clos)\b/.test(primaryText)
@@ -232,6 +244,8 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   if (pressure) reasons.push(`Arbetstryck ${pressure.bar} bar är dokumenterat för ${pressure.model} i Victaulic ${pressure.publication}.`);
   const warnings: string[] = [...requirement.reviewWarnings, ...(candidate.matchWarnings ?? [])]
     .filter(message => !isSprinklerAccessoryReviewWarning(message));
+  const missingRequirements = missingProductGroupRequirements(requirement);
+  if (missingRequirements.length) warnings.push(`PDF-kravet behöver kompletteras eller verifieras: ${missingRequirements.join(", ")}.`);
   let score = 0;
   const signage = isAhlsellSignageCandidate(candidate);
   if ((requirement.intent === "wet_alarm_valve" || requirement.intent === "dry_alarm_valve") && signage) {
@@ -352,7 +366,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     score += scoreNamedProductFamily(candidateName, /\b(ror|stalror|sprinklerror|sprinkleror|pipe)\b/, "Produkten är ett rör för sprinkler/rillesystem.", reasons);
     score -= wrongFamilyPenalty(candidateName, /\b(bend|t ror|kupling|ventil|flensadapter|anboringsklammer)\b/, "Träffen är en rördel och inte en rörlängd.", warnings);
   } else if (requirement.intent === "coupling") {
-    score += scoreNamedProductFamily(candidateName, /\b(kupling|rillekobling|coupling)\b/, "Produkttypen är en rillkoppling.", reasons);
+    score += scoreNamedProductFamily(candidateName, PRODUCT_FAMILY_PATTERNS.coupling!, "Produkttypen är en rörkoppling.", reasons);
     score -= wrongFamilyPenalty(candidateName, /\b(spjeldventil|bend|t ror|endelokk)\b/, "Träffen är inte en rillkoppling.", warnings);
   } else if (requirement.intent === "flanged_bend") {
     if (/\b(flensebend|flensbend|bend)\b/.test(candidateText)) {
@@ -364,13 +378,13 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
       warnings.push("PDF-kravet anger stål, men Ahlsell-träffen är av duktilt gjutjärn.");
     }
   } else if (requirement.intent === "bend") {
-    score += scoreNamedProductFamily(candidateName, /\b(bend|rorboy|elbow)\b/, "Produkttypen är en rörböj.", reasons);
+    score += scoreNamedProductFamily(candidateName, PRODUCT_FAMILY_PATTERNS.bend!, "Produkttypen är en rörböj.", reasons);
   } else if (requirement.intent === "tee") {
-    score += scoreNamedProductFamily(candidateName, /\b(t ror|tee)\b/, "Produkttypen är ett T-rör.", reasons);
+    score += scoreNamedProductFamily(candidateName, PRODUCT_FAMILY_PATTERNS.tee!, "Produkttypen är ett T-rör.", reasons);
   } else if (requirement.intent === "reducer") {
     score += scoreNamedProductFamily(candidateName, /\b(reduksjon|reduksjonskupling|redusert|reducer)\b/, "Produkttypen är en dimensionsreduktion.", reasons);
   } else if (requirement.intent === "cap") {
-    score += scoreNamedProductFamily(candidateName, /\b(endelokk|blindflens|plugg|cap)\b/, "Produkttypen är ett ändlock eller en plugg.", reasons);
+    score += scoreNamedProductFamily(candidateName, PRODUCT_FAMILY_PATTERNS.cap!, "Produkttypen är ett ändlock eller en plugg.", reasons);
   } else if (requirement.intent === "branch") {
     score += scoreNamedProductFamily(candidateName, /\b(anboringsklammer|utlopskupling|mekanisk t|branch)\b/, "Produkttypen skapar ett avstick på röret.", reasons);
   } else if (requirement.intent === "flange_adapter") {
@@ -416,6 +430,9 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     score += scoreSprinklerAttributes(candidateText, candidateName, requirement, reasons, warnings);
   } else if (requirement.intent === "custom_fabrication") {
     warnings.push("Posten verkar vara specialtillverkad och måste verifieras via offert eller manuellt produktval.");
+  } else if (requirement.intent === "key_switch" || requirement.intent === "valve_actuator") {
+    score += scoreNamedProductFamily(mainProductText(candidate.productName), PRODUCT_FAMILY_PATTERNS[requirement.intent]!, "Produkten tillhör den efterfrågade produktgruppen.", reasons);
+    warnings.push("Verifiera funktion och kompatibilitet med den utrustning som produkten ska anslutas till.");
   }
 
   if (hasAhlsellProductFamilyMismatch(requirement.intent, candidate.productName)) {
@@ -430,12 +447,16 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     score += scoreMaterialAndJoint(candidateText, requirement, reasons, warnings);
   }
 
+  const completeEvidence = hasCompleteTechnicalEvidence(candidateText, candidateName, requirement);
+  if (!completeEvidence && warnings.length === 0) {
+    warnings.push("Alla nödvändiga tekniska uppgifter är inte verifierade. Kontrollera postens krav och den valda artikelvarianten.");
+  }
   const matchScore = Math.max(0, Math.min(100, score));
-  const requiresAccessoryReview = requirement.intent === "sprinkler_head" && requirement.requiresAccessoryReview;
+  const requiresAccessoryReview = requirement.requiresAccessoryReview;
   const recommendation = matchScore >= 75 && warnings.length === 0 && !requiresAccessoryReview
     ? "recommended"
     : matchScore >= 35 ? "possible" : "unlikely";
-  const exactMatch = !requiresAccessoryReview && !candidate.requiresProductSelection && warnings.length === 0 && (candidate.exactMatch === true || (
+  const exactMatch = completeEvidence && !requiresAccessoryReview && !candidate.requiresProductSelection && warnings.length === 0 && (candidate.exactMatch === true || (
     recommendation === "recommended"
     && matchScore === 100
     && warnings.length === 0
@@ -448,6 +469,19 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
 const SHOWER_PRODUCT_PATTERN = /\b(?:dusj|dusch|handdusj|handdusch|dusjsett|duschset|duschpaket|dusjbatteri|duschblandare|dusjarmatur|duscharmatur|dusjstang|duschstang|dusjhode|duschhuvud|dusjsete|duschsits|shower)\b/;
 
 const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
+  key_switch: /\b(nokkelbryter|nokkelboks|nyckelbrytare|nyckelbox|key switch|key box)\b/,
+  valve_actuator: /\b(aktuator|actuator|ventilmotor)\b/,
+  custom_fabrication: /\b(dren(?:erings)?kar|utjevningskar|oppsamlingskar)\b/,
+  check_valve: /\b(tilbakeslagsventil|backventil|check valve)\b/,
+  pressure_reducing_valve: /\b(trykkreduksjonsventil|reduksjonsventil|pressure reducing valve)\b/,
+  bend: /\b(bend|albue|rorboy|elbow|flensebend|flensbend)\b/,
+  flanged_bend: /\b(bend|rorboy|elbow|flensebend|flensbend)\b/,
+  tee: /\b(t ror|tee|sprinkler t|t stykke)\b/,
+  reducer: /\b(reduksjon|reduksjonskupling|redusert|reducer|overgang)\b/,
+  cap: /\b(endelokk|endebunn|blindflens|plugg|cap)\b/,
+  coupling: /\b(kupling|kobling|coupling|muffe)\b/,
+  branch: /\b(anboringsklammer|anb klammer|utlopskupling|mekanisk t|branch)\b/,
+  flange_adapter: /\b(flensadapter|flenseadapter|flens overgang)\b/,
   alarm_device: /\b(alarmgiver|alarmapparat|alarmkit|alarmpressostat|pressostat|pressure switch)\b/,
   flow_meter: /\b(kapasitetsmaler|stromningsmaler|flowmeter|flow meter|gapmeter|gap meter)\b/,
   pressure_switch: /\b(pressostat|trykkvakt|trykkbryter|pressure switch)\b/,
@@ -473,8 +507,14 @@ const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
 export function hasAhlsellProductFamilyMismatch(intent: ProductIntent, productName: string) {
   if (intent === "pipe") return !isRigidPipeProduct(productName);
   if (intent === "manifold_cabinet") return !isManifoldCabinetProduct(productName);
+  if (intent === "sprinkler_head") {
+    const main = mainProductText(productName);
+    return isAhlsellSignageCandidate({productName, specifications: []})
+      || /\b(?:ventil|spjeldventil|kuleventil|rorklammer|oppheng|rosett|dekkplate|gitter|sprinklerslange|sprinklerklokke|sprinkelklokke|nokkel|kupling)\b/.test(main)
+      || !/\b(?:sprinkler(?:hode[rt]?|huvud| head)?|sprinkelhode[rt]?|v\d{4})\b/.test(main);
+  }
   const pattern = PRODUCT_FAMILY_PATTERNS[intent];
-  return pattern !== undefined && (!pattern.test(normalize(productName))
+  return pattern !== undefined && (!pattern.test(mainProductText(productName))
     || isAhlsellSignageCandidate({ productName, specifications: [] }));
 }
 
@@ -483,6 +523,7 @@ function hasCompleteTechnicalEvidence(
   candidateName: string,
   requirement: TechnicalProfile
 ) {
+  if (missingProductGroupRequirements(requirement).length) return false;
   if (requirement.dn !== null) {
     const candidateDns = extractDnValues(candidateText);
     const diameterMatches = requirement.outsideDiameter !== null
@@ -502,14 +543,17 @@ function hasCompleteTechnicalEvidence(
     if (candidateTemperature === null || !closeEnough(candidateTemperature, requirement.temperatureC)) return false;
   }
   if (requirement.response && extractSprinklerResponse(candidateText) !== requirement.response) return false;
-  if (requirement.orientation && candidateOrientation(candidateName, candidateText) !== requirement.orientation) return false;
+  if (requirement.orientation) {
+    const orientation = candidateOrientation(candidateName, candidateText);
+    if (orientation !== requirement.orientation && !(orientation === "upright_pendent" && requirement.orientation !== "sidewall")) return false;
+  }
   const mountCapabilities = sprinklerMountCapabilities(candidateText);
   if (requirement.mount !== null && !mountCapabilities.has(requirement.mount)) return false;
   if (requirement.visibleMount && mountCapabilities.has("concealed") && !mountCapabilities.has("recessed")) return false;
   if (requirement.finish && extractFinish(candidateText) !== requirement.finish) return false;
   if (!sprinklerHeadTypeMatches(candidateText, requirement.sprinklerHeadType)) return false;
   if (requirement.material && extractMaterial(candidateText) !== requirement.material) return false;
-  if (requirement.joint && !extractJointTypes(candidateText).includes(requirement.joint)
+  if (requirement.joint && !extractJointTypes(candidateText).some(joint => requirement.allowedJoints.includes(joint))
     && !(requirement.allowsGroovedPipe && extractJointTypes(candidateText).includes("grooved"))) return false;
   if (requirement.intent === "sprinkler_head") {
     if ([requirement.kFactor, requirement.dn, requirement.temperatureC, requirement.response, requirement.orientation].some((value) => value === null)) return false;
@@ -522,6 +566,21 @@ function hasCompleteTechnicalEvidence(
     if (requirement.sprinklerSystem === "wet" && restriction === "dry_only") return false;
   }
   return true;
+}
+
+/** Critical fields differ by main product; missing values cannot earn a green score. */
+function missingProductGroupRequirements(profile: TechnicalProfile): string[] {
+  if (profile.intent === "sprinkler_head") {
+    return ([
+      [profile.dn, "gängdimension"], [profile.kFactor, "K-faktor"],
+      [profile.temperatureC, "utlösningstemperatur"], [profile.response, "responstid"],
+      [profile.orientation, "monteringsriktning"], [profile.sprinklerSystem, "anläggningstyp"],
+      [profile.sprinklerHeadType, "sprinklerutförande"], [profile.coverage, "täckningsklass"]
+    ] as const).filter(([value]) => value === null).map(([, label]) => label);
+  }
+  const dimensionedGroups: ProductIntent[] = ["pipe", "ball_valve", "butterfly_valve", "shutoff_valve", "check_valve",
+    "wet_alarm_valve", "dry_alarm_valve", "pressure_reducing_valve", "coupling", "bend", "flanged_bend", "tee", "reducer", "cap", "branch", "flange_adapter"];
+  return dimensionedGroups.includes(profile.intent) && profile.dn === null ? ["anslutningsdimension"] : [];
 }
 
 function scoreWetAlarmValve(candidateText: string, reasons: string[], warnings: string[], requirementText: string, signage: boolean) {
@@ -773,7 +832,9 @@ function scoreDimension(candidateText: string, requirement: TechnicalProfile, re
   const candidateDn = candidateDns[0] ?? null;
   const diameterMatches = requirement.outsideDiameter !== null
     && new RegExp(`\\b${String(requirement.outsideDiameter).replace(".", "[.,]")}\\s*(?:mm)?\\b`).test(candidateText);
-  if (candidateDns.includes(requirement.dn) || diameterMatches) {
+  // An explicit DN for another variant cannot be overridden by an incidental
+  // diameter elsewhere in the product text.
+  if (candidateDns.includes(requirement.dn) || (candidateDn === null && diameterMatches)) {
     reasons.push(`Dimensionen motsvarar DN${requirement.dn}${requirement.outsideDiameter ? ` (${String(requirement.outsideDiameter).replace(".", ",")} mm)` : ""}.`);
     return 25;
   }
@@ -783,6 +844,12 @@ function scoreDimension(candidateText: string, requirement: TechnicalProfile, re
       return -20;
     }
     warnings.push(`Fel dimension: PDF kräver DN${requirement.dn}, träffen anger DN${candidateDn}.`);
+    return -45;
+  }
+  const explicitDiameters = [...candidateText.matchAll(/\b(\d{1,3}[.,]\d+)\s*mm\b/g)].map(match => Number(match[1].replace(",", ".")))
+    .filter(diameter => Object.values(PIPE_OUTSIDE_DIAMETER_BY_DN).some(known => closeEnough(known, diameter)));
+  if (requirement.outsideDiameter !== null && explicitDiameters.length > 0 && !explicitDiameters.some(diameter => closeEnough(diameter, requirement.outsideDiameter!))) {
+    warnings.push(`Fel dimension: PDF kräver DN${requirement.dn} (${requirement.outsideDiameter} mm); träffen anger ${explicitDiameters.join(" / ")} mm.`);
     return -45;
   }
   warnings.push(`Produktens dimension saknas; PDF kräver DN${requirement.dn}.`);
@@ -885,7 +952,7 @@ function scoreMaterialAndJoint(
 
   if (requirement.joint) {
     const candidateJoints = extractJointTypes(candidateText);
-    if (candidateJoints.includes(requirement.joint) || (requirement.allowsGroovedPipe && candidateJoints.includes("grooved"))) {
+    if (candidateJoints.some(joint => requirement.allowedJoints.includes(joint)) || (requirement.allowsGroovedPipe && candidateJoints.includes("grooved"))) {
       score += 10;
       reasons.push("Skarvtypen stämmer med PDF-kravet.");
     } else if (candidateJoints.length > 0) {
@@ -894,6 +961,20 @@ function scoreMaterialAndJoint(
     } else {
       warnings.push("Produktens skarv- eller anslutningstyp behöver verifieras mot PDF-kravet.");
     }
+  }
+  if (requirement.materialGrade) {
+    const grade = stainlessSteelGrade(candidateText);
+    if (grade === requirement.materialGrade) {
+      reasons.push(`Materialkvalitet ${grade} är angiven för produkten.`);
+    } else if (grade) {
+      warnings.push(`Fel materialkvalitet: PDF kräver ${requirement.materialGrade}, träffen anger ${grade}. Eventuell likvärdighet måste dokumenteras.`);
+      score -= 55;
+    } else {
+      warnings.push(`Produktens materialkvalitet ${requirement.materialGrade} eller dokumenterad likvärdighet behöver verifieras.`);
+    }
+  }
+  if (requirement.corrosionClass && !new RegExp(`\\b${requirement.corrosionClass.toLowerCase()}\\b`).test(candidateText)) {
+    warnings.push(`Korrosionsskydd för kategori ${requirement.corrosionClass} behöver verifieras enligt PDF-posten.`);
   }
   return score;
 }
@@ -921,7 +1002,10 @@ function extractDnValues(value: string) {
 }
 
 function extractOutsideDiameter(value: string) {
-  return numberAfterLabel(value, /\b(?:ytre|utvendig|outside)\s*(?:ror)?\s*diameter\s*[=:]?\s*(\d+(?:[.,]\d+)?)/);
+  return numberAfterLabel(value, /\b(?:ytre|utvendig|outside)\s*(?:ror)?\s*diameter\s*[=:]?\s*(\d+(?:[.,]\d+)?)/)
+    ?? [...value.matchAll(/\b(\d{1,3}[.,]\d+)\s*mm\b/g)]
+      .map(match => Number(match[1].replace(",", ".")))
+      .find(diameter => Object.values(PIPE_OUTSIDE_DIAMETER_BY_DN).some(known => closeEnough(known, diameter))) ?? null;
 }
 
 function dnFromOutsideDiameter(outsideDiameter: number | null) {
@@ -958,6 +1042,10 @@ function extractFinish(value: string): TechnicalProfile["finish"] {
 }
 
 function extractMaterial(value: string): TechnicalProfile["material"] {
+  if (/\b(alupex|multilayer|kompositror)\b/.test(value)) return "multilayer";
+  if (/\b(pe(?:100|80)?|pehd|hdpe|polyetylen|polyethylene)\b/.test(value)) return "pe";
+  if (/\b(pvc|pvc u|polyvinylklorid)\b/.test(value)) return "pvc";
+  if (/\b(kobber|kobberror|koppar|copper)\b/.test(value)) return "copper";
   if (/\b(rustfritt|rustfri|rustfrie|rostfritt|rostfri|stainless|304l?|316l?)\b/.test(value)) return "stainless_steel";
   if (/\b(pp\s*r|polypropylen|red pipe)\b/.test(value)) return "ppr";
   if (/\b(duktil|stopejern|gjutjarn)\b/.test(value)) return "ductile_iron";
@@ -967,12 +1055,7 @@ function extractMaterial(value: string): TechnicalProfile["material"] {
 }
 
 function extractJointTypes(value: string): Array<NonNullable<TechnicalProfile["joint"]>> {
-  const joints: Array<NonNullable<TechnicalProfile["joint"]>> = [];
-  if (/\b(gjenget|gjenger|threaded|skrudd|skruforbindelse)\b/.test(value)) joints.push("threaded");
-  if (/\b(rillet|rillede|rilleskjot|rillekobling|rillad|rillade|rillanslutning|grooved)\b/.test(value)) joints.push("grooved");
-  if (/\b(sveis|sveist|sveising|muffesveis|heat fusion|fusion)\b/.test(value)) joints.push("fusion");
-  if (/\b(flens|flanged)\b/.test(value)) joints.push("flanged");
-  return joints;
+  return pipeJointTypes(value);
 }
 
 function extractSprinklerSystem(value: string): TechnicalProfile["sprinklerSystem"] {

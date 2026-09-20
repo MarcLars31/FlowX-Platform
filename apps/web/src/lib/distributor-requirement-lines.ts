@@ -40,10 +40,13 @@ export function distributorRequirementKind(
     value.technicalSpecification
   ].map(flattenText).join(" "));
 
-  if (/\b(?:oppfylling med arbeidsmedium|tetthetsproving|sluttdokumentasjon|kvalitetssikrende tiltak|hulltaking|utsparing|trykktesting av romintegritet|romintegritetstest|maling etter gjennomforing|groft(?:ekasser)?|gravearbeid|uttak og utlegging av losmasser|tilbakefylling|kryssing|langsforing)\b/.test(searchable)) {
+  const ownWorkText = heading || normalize(flattenText(value.sourceText ?? requirement.source_excerpt));
+  if (/\b(?:oppfylling med arbeidsmedium|tetthetsproving|trykkproving|sluttdokumentasjon|kvalitetssikrende tiltak|hulltaking|utsparing|trykktesting av romintegritet|romintegritetstest|maling etter gjennomforing|groft(?:ekasser)?|gravearbeid|uttak og utlegging av losmasser|tilbakefylling|kryssing|langsforing)\b/.test(ownWorkText)) {
     return "work";
   }
-  if (/\bkomplett\b/.test(searchable) && /\brund sum\b/.test(searchable)) return "work";
+  // A measured child retains its own unit even when the parent is priced RS.
+  if (!String(value.unit ?? "").trim()
+    && /\bkomplett\b/.test(searchable) && /\brund sum\b/.test(searchable)) return "work";
   return "product";
 }
 

@@ -109,6 +109,16 @@ export function isBetterOcrText(candidateText: string, currentText: string) {
       && candidate.codes > current.codes);
 }
 
+/** A readable paragraph does not prove that the post and quantity columns survived. */
+export function needsStructuredOcrRecovery(text: string) {
+  const signals = ocrTableSignals(text);
+  const missingQuantity = /^(?:Antall|Lengde)(?:\s+(?:stk|st|m|lm))?\.?\s*$/im.test(text);
+  const standaloneCodes = countMatches(text, /^\s*(?:UE|UB|UC)\d[\w.%-]*/gim);
+  const pricedScope = /^.*\sRS(?:\s+[\d.,]+)*\s*$/im.test(text);
+  return missingQuantity || standaloneCodes > signals.posts
+    || ((signals.quantities > 0 || pricedScope) && signals.posts === 0);
+}
+
 function toPositionedTextItem(value: unknown): PositionedTextItem | null {
   if (!value || typeof value !== "object") return null;
   const item = value as { str?: unknown; transform?: unknown; width?: unknown };
@@ -167,10 +177,10 @@ function ocrTableSignals(text: string) {
   return {
     quantities: countMatches(
       text,
-      new RegExp(String.raw`^(?:Antall|Lengde)?\s*${unit}\.?\s+\d`, "gim")
+      new RegExp(String.raw`^[ \t]*(?:Antall|Lengde)?[ \t]*${unit}\.?[ \t]+\d`, "gim")
     ),
-    posts: countMatches(text, /^\s*\d+(?:\.\d+){2,7}(?:\s*[|)])?/gm),
-    codes: countMatches(text, /^\s*%?[A-ZÆØÅ]{1,10}\d[\w.%-]*/gim)
+    posts: countMatches(text, /^\s*(?:[A-Z]\d*\.)?\d+(?:\.\d+){1,10}(?=\s|[|)\]])/gim),
+    codes: countMatches(text, /(?:^|\s|[|)\]])%?[A-ZÆØÅ]{2}\d[\w.%-]*/gim)
   };
 }
 

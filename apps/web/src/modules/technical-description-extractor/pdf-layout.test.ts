@@ -1,11 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isBetterOcrText,
+  needsStructuredOcrRecovery,
   layoutTextFromOcrBlocks,
   layoutTextFromPdfItems,
   shouldPreferOcrLayoutText,
   shouldPreferPdfLayoutText
 } from "./pdf-layout";
+
+test("OCR quality counts aligned quantity rows, not separate vertical words", () => {
+  const plain = "33.332.11 UE2.11112512\nAntall\nstk\n6";
+  const aligned = "33.332.11 UE2.11112512\nAntall stk 6";
+  assert.equal(shouldPreferOcrLayoutText(plain, aligned), true);
+  assert.equal(isBetterOcrText(aligned, plain), true);
+  assert.equal(needsStructuredOcrRecovery(plain), true);
+  assert.equal(needsStructuredOcrRecovery(aligned), false);
+  assert.equal(isBetterOcrText("33.332.11 UE2.11112512\nAntall stk", aligned), false);
+});
 
 test("rebuilds PDF table rows by visual coordinates", () => {
   const items = [
