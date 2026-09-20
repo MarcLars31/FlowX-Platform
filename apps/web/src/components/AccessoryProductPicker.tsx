@@ -75,27 +75,27 @@ export function AccessoryProductPicker({ projectId, requirementId, mainArticleNu
   return <div id={`accessory-lookup-card-${requirementId}`}>
     <div className="flex flex-wrap items-center justify-between gap-2 py-3">
       <div>
-        <h6 className="text-sm font-bold text-ink-950">Tillbehör från MLDL och Ahlsell</h6>
-        <p className="mt-1 text-xs text-ink-600">{products.length} träffar · välj med kryssrutan och ange sedan antal.</p>
+        <h6 className="text-sm font-bold text-neutral-950">Tillbehör från MLDL och Ahlsell</h6>
+        <p className="mt-1 text-xs text-neutral-600">{products.length} träffar · välj med kryssrutan och ange sedan antal.</p>
       </div>
-      <Button type="button" variant="secondary" disabled={disabled} onClick={() => setSearchOpen(value => !value)} aria-expanded={searchOpen} aria-controls={`${id}-search`}>
+      <Button neutral type="button" variant="secondary" disabled={disabled} onClick={() => setSearchOpen(value => !value)} aria-expanded={searchOpen} aria-controls={`${id}-search`}>
         <Search className="h-4 w-4" aria-hidden="true" />Sök tillbehör
       </Button>
     </div>
     {searchOpen && <form id={`${id}-search`} className="mb-3 space-y-2" onSubmit={event => { event.preventDefault(); if (!disabled && query.trim()) void search(query); }}>
-      <label htmlFor={id} className="block text-sm font-bold text-ink-900">Produktnamn, NRF-nummer eller Ahlsell-länk</label>
+      <label htmlFor={id} className="block text-sm font-bold text-neutral-900">Produktnamn, NRF-nummer eller Ahlsell-länk</label>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <input id={id} type="search" value={query} disabled={disabled} maxLength={2000} className="min-w-0 flex-1 rounded-md border border-ink-300 px-3 py-2 text-sm" onChange={event => {
+        <input id={id} type="search" value={query} disabled={disabled} maxLength={2000} className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-600 focus:ring-neutral-600" onChange={event => {
           request.current?.abort(); if (timer.current) clearTimeout(timer.current);
           setLoading(false); setResult(null); setError(""); setQuery(event.target.value);
         }} />
-        <Button type="submit" variant="secondary" disabled={disabled || loading || !query.trim()}>Sök</Button>
+        <Button neutral type="submit" variant="secondary" disabled={disabled || loading || !query.trim()}>Sök</Button>
       </div>
     </form>}
     <div aria-live="polite" aria-busy={loading}>
-      {loading && <p className="flex items-center gap-2 py-2 text-sm text-flow-800"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Söker i MLDL och hos Ahlsell…</p>}
-      {error && <p role="alert" className="mb-3 text-sm text-rose-900">{error} <button type="button" disabled={disabled || loading} className="font-bold underline" onClick={() => void search(query)}>Försök igen</button></p>}
-      {result?.message && <p className="mb-3 text-sm text-ink-700">{result.message}</p>}
+      {loading && <p className="flex items-center gap-2 py-2 text-sm text-neutral-800"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Söker i MLDL och hos Ahlsell…</p>}
+      {error && <p role="alert" className="mb-3 text-sm text-neutral-900">{error} <button type="button" disabled={disabled || loading} className="font-bold underline" onClick={() => void search(query)}>Försök igen</button></p>}
+      {result?.message && <p className="mb-3 text-sm text-neutral-700">{result.message}</p>}
     </div>
     <AhlsellCandidateList candidates={products} requirementId={requirementId} selectedArticleNumber="" selectedArticleNumbers={selections}
       accessory selectionLimitReached={selectionLimitReached} disabled={disabled} allowMatches={false} showNoMatch={false}

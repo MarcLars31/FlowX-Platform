@@ -111,68 +111,68 @@ export function ProductPostComments({ projectId, requirementId, productNumber, p
     const targetNumber = draft?.target?.number || productNumber;
     const blocked = disabled || saving || loading || (scope === "product" && !targetNumber);
     const label = scope === "post" ? "Skriv en postkommentar" : "Skriv en produktkommentar";
-    return <section aria-label={title} className="overflow-hidden rounded-lg border border-flow-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-flow-200 bg-flow-50 px-4 py-3">
-        <h4 id={`comments-${scope}-title-${requirementId}`} tabIndex={-1} className="flex items-center gap-2 text-base font-bold text-ink-950">
-          <MessageSquare className="h-5 w-5 shrink-0 text-flow-700" aria-hidden="true" />{title}
-          <span className="rounded-full bg-white px-2.5 py-0.5 text-sm text-flow-800" aria-label={`${scopedComments.length} kommentarer visas`}>{scopedComments.length}</span>
+    return <section aria-label={title} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-50 px-4 py-3">
+        <h4 id={`comments-${scope}-title-${requirementId}`} tabIndex={-1} className="flex items-center gap-2 text-base font-bold text-neutral-950">
+          <MessageSquare className="h-5 w-5 shrink-0 text-neutral-700" aria-hidden="true" />{title}
+          <span className="rounded-full bg-white px-2.5 py-0.5 text-sm text-neutral-800" aria-label={`${scopedComments.length} kommentarer visas`}>{scopedComments.length}</span>
         </h4>
         <div className="flex items-center gap-1">
-          <Button type="button" variant="ghost" className="min-h-9 px-2 py-1 text-xs" disabled={blocked}
+          <Button neutral type="button" variant="ghost" className="min-h-9 px-2 py-1 text-xs" disabled={blocked}
             onClick={() => document.getElementById(`comment-${scope}-${requirementId}`)?.focus()}>Skriv kommentar</Button>
-          <Button type="button" variant="ghost" className="min-h-9 px-2 py-1" aria-label="Uppdatera kommentarer" title="Uppdatera kommentarer" onClick={() => void load()} disabled={disabled || loading || saving}>
+          <Button neutral type="button" variant="ghost" className="min-h-9 px-2 py-1" aria-label="Uppdatera kommentarer" title="Uppdatera kommentarer" onClick={() => void load()} disabled={disabled || loading || saving}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
           </Button>
         </div>
       </div>
       <div className="p-4">
-        {showFeedback && error && <p role="alert" className="mb-3 rounded-md bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
-        {showFeedback && notice && <p role="status" className="mb-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{notice}</p>}
-        {loading && <p role="status" className="mb-3 text-sm text-ink-500">Hämtar kommentarer…</p>}
-        {!loading && !error && !scopedComments.length && <p className="mb-4 text-sm text-ink-600">{nextOffset === null ? "Inga kommentarer ännu." : "Inga kommentarer i den här delen bland de hämtade. Visa äldre kommentarer nedan."}</p>}
+        {showFeedback && error && <p role="alert" className="mb-3 rounded-md bg-neutral-50 p-3 text-sm text-neutral-800">{error}</p>}
+        {showFeedback && notice && <p role="status" className="mb-3 rounded-md bg-neutral-50 p-3 text-sm font-semibold text-neutral-800">{notice}</p>}
+        {loading && <p role="status" className="mb-3 text-sm text-neutral-500">Hämtar kommentarer…</p>}
+        {!loading && !error && !scopedComments.length && <p className="mb-4 text-sm text-neutral-600">{nextOffset === null ? "Inga kommentarer ännu." : "Inga kommentarer i den här delen bland de hämtade. Visa äldre kommentarer nedan."}</p>}
         <ul aria-label={`Sparade ${scope === "post" ? "postkommentarer" : "produktkommentarer"}`} className="space-y-3">
-          {scopedComments.map(comment => <li key={comment.id} className="rounded-lg border border-ink-200 bg-ink-50/60 p-4">
+          {scopedComments.map(comment => <li key={comment.id} className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <p className="text-sm font-bold text-ink-950">{comment.author_name}</p>
-                <time className="text-xs text-ink-600" dateTime={comment.created_at}>{new Date(comment.created_at).toLocaleString("sv-SE", { dateStyle: "medium", timeStyle: "short" })}</time>
+                <p className="text-sm font-bold text-neutral-950">{comment.author_name}</p>
+                <time className="text-xs text-neutral-600" dateTime={comment.created_at}>{new Date(comment.created_at).toLocaleString("sv-SE", { dateStyle: "medium", timeStyle: "short" })}</time>
               </div>
-              {comment.can_delete && deleteConfirmation !== comment.id && <Button type="button" variant="ghost" className="min-h-9 gap-1.5 px-2 py-1 text-xs text-ink-600 hover:text-rose-800" disabled={disabled || saving || loading}
+              {comment.can_delete && deleteConfirmation !== comment.id && <Button neutral type="button" variant="ghost" className="min-h-9 gap-1.5 px-2 py-1 text-xs text-neutral-600 hover:text-neutral-800" disabled={disabled || saving || loading}
                 aria-label={`Ta bort kommentar av ${comment.author_name}`} onClick={() => { setDeleteConfirmation(comment.id); setError(null); setNotice(null); setFeedbackScope(scope); }}>
                 <Trash2 className="h-4 w-4" aria-hidden="true" />Ta bort
               </Button>}
             </div>
-            {comment.product_number && <p className="mt-2 rounded-md bg-white px-2 py-1 text-xs font-semibold text-flow-900">
+            {comment.product_number && <p className="mt-2 rounded-md bg-white px-2 py-1 text-xs font-semibold text-neutral-900">
               {normalizeNrfNumber(comment.product_number) === normalizeNrfNumber(productNumber) ? "Vald produkt" : "Tidigare produktval"} · {comment.product_name || "Produkt"} · NRF {comment.product_number}
             </p>}
-            <p className="mt-3 whitespace-pre-wrap break-words text-base leading-6 text-ink-950">{comment.body}</p>
-            {deleteConfirmation === comment.id && <div className="mt-3 rounded-md border border-rose-200 bg-white p-3">
-              <p className="text-sm font-semibold text-ink-900">Ta bort kommentaren?</p>
+            <p className="mt-3 whitespace-pre-wrap break-words text-base leading-6 text-neutral-950">{comment.body}</p>
+            {deleteConfirmation === comment.id && <div className="mt-3 rounded-md border border-neutral-200 bg-white p-3">
+              <p className="text-sm font-semibold text-neutral-900">Ta bort kommentaren?</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <Button type="button" variant="danger" className="min-h-9 px-3 py-1.5 text-xs" disabled={disabled || saving || loading} onClick={() => void remove(comment, scope)}>
+                <Button neutral type="button" variant="danger" className="min-h-9 px-3 py-1.5 text-xs" disabled={disabled || saving || loading} onClick={() => void remove(comment, scope)}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}{saving ? "Tar bort…" : "Ta bort kommentaren"}
                 </Button>
-                <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" disabled={saving} onClick={() => { setDeleteConfirmation(null); setError(null); }}>Avbryt</Button>
+                <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" disabled={saving} onClick={() => { setDeleteConfirmation(null); setError(null); }}>Avbryt</Button>
               </div>
             </div>}
           </li>)}
         </ul>
-        {nextOffset !== null && <Button type="button" variant="ghost" className="mt-3 text-sm" disabled={disabled || loading || saving} onClick={() => void load(nextOffset)}>Visa äldre kommentarer</Button>}
-        <div className="mt-4 border-t border-ink-200 pt-4">
+        {nextOffset !== null && <Button neutral type="button" variant="ghost" className="mt-3 text-sm" disabled={disabled || loading || saving} onClick={() => void load(nextOffset)}>Visa äldre kommentarer</Button>}
+        <div className="mt-4 border-t border-neutral-200 pt-4">
         <form onSubmit={event => { event.preventDefault(); if (draft?.body.trim()) void save(draft, scope); }}>
-          <label htmlFor={`comment-${scope}-${requirementId}`} className="block text-xs font-semibold text-ink-800">{label}</label>
-          {scope === "product" && <p className="mt-1 text-xs text-ink-600">{targetNumber ? `${draft?.target?.name || productName} · NRF ${targetNumber}` : "Välj en huvudprodukt för att kommentera den."}</p>}
-          {scope === "product" && oldTarget && <p className="mt-1 text-xs font-semibold text-amber-900">Utkastet gäller produkten du valde tidigare. Spara det eller töm fältet för att kommentera det nya valet.</p>}
+          <label htmlFor={`comment-${scope}-${requirementId}`} className="block text-xs font-semibold text-neutral-800">{label}</label>
+          {scope === "product" && <p className="mt-1 text-xs text-neutral-600">{targetNumber ? `${draft?.target?.name || productName} · NRF ${targetNumber}` : "Välj en huvudprodukt för att kommentera den."}</p>}
+          {scope === "product" && oldTarget && <p className="mt-1 text-xs font-semibold text-neutral-900">Utkastet gäller produkten du valde tidigare. Spara det eller töm fältet för att kommentera det nya valet.</p>}
           <textarea id={`comment-${scope}-${requirementId}`} rows={3} maxLength={3000} value={draft?.body || ""} disabled={blocked} placeholder={scope === "post" ? "Skriv en kommentar om posten…" : "Skriv en kommentar om produkten…"}
             onChange={event => { const body = event.target.value; setNotice(null); setDraft(body ? { id: draft?.id || crypto.randomUUID(), body,
               target: draft ? draft.target : scope === "product" ? { number: productNumber, name: productName } : null } : null); }}
-            className="mt-2 block w-full resize-y rounded-md border-ink-300 text-sm focus:border-flow-500 focus:ring-flow-500 disabled:bg-ink-50" />
+            className="mt-2 block w-full resize-y rounded-md border-neutral-300 text-sm focus:border-neutral-500 focus:ring-neutral-500 disabled:bg-neutral-50" />
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-xs text-ink-500">{draft?.body.length || 0}/3 000</span>
-            <Button type="submit" className="min-h-10 px-3 py-2 text-sm" disabled={blocked || !draft?.body.trim()}>{scope === "post" ? "Spara postkommentar" : "Spara produktkommentar"}</Button>
+            <span className="text-xs text-neutral-500">{draft?.body.length || 0}/3 000</span>
+            <Button neutral type="submit" className="min-h-10 px-3 py-2 text-sm" disabled={blocked || !draft?.body.trim()}>{scope === "post" ? "Spara postkommentar" : "Spara produktkommentar"}</Button>
           </div>
         </form>
-          <p className="mt-2 text-xs leading-5 text-ink-600">Sparas separat från produktvalet och följer med i Excel för aktuell post och godkänd produkt.</p>
+          <p className="mt-2 text-xs leading-5 text-neutral-600">Sparas separat från produktvalet och följer med i Excel för aktuell post och godkänd produkt.</p>
         </div>
       </div>
   </section>;

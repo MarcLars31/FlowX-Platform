@@ -16,7 +16,6 @@ import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } 
 import { isRigidPipeProduct } from "@/lib/pipe-product-family";
 import { ahlsellRequirementIntent } from "@/lib/ahlsell-requirement-intent";
 import type { AhlsellLookupProduct } from "@/lib/ahlsell-product-lookup";
-import { NsCodeSpecification, NsCodeTableValue } from "@/components/NsCodeExplanation";
 import { ns3420CodeInfo } from "@/lib/ns3420-code-catalog";
 import { buildAhlsellRequirementGuide, type AhlsellAccessorySuggestion, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
@@ -41,7 +40,7 @@ import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
 import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-card-candidates";
-import { candidateSelectionReview, productSelectionReviewNotes, readProductSelectionReview, PRODUCT_DEVIATION_LABEL, PRODUCT_REVIEW_LABEL, type ProductSelectionReview } from "@/lib/product-selection-review";
+import { candidateSelectionReview, productSelectionReviewNotes, readProductSelectionReview, type ProductSelectionReview } from "@/lib/product-selection-review";
 import {
   accessoriesForSelectedProduct,
   newProductAccessoryDraft,
@@ -118,7 +117,7 @@ type ProductTableColumnDefinition = {
 const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefinition> = {
   control: { label: "Kontroll", className: "w-16 text-center", align: "center", minimumWidth: 72 },
   post: { label: "PDF-post", className: "w-28", minimumWidth: 120 },
-  nsCode: { label: "NS-kod / betydelse", className: "min-w-72", minimumWidth: 288 },
+  nsCode: { label: "NS-kod", className: "min-w-40", minimumWidth: 160 },
   requirement: { label: "Produktkrav", className: "min-w-64", minimumWidth: 320 },
   category: { label: "Produktgrupp", className: "w-36", minimumWidth: 160 },
   quantity: { label: "Mängd", className: "w-24", minimumWidth: 104 },
@@ -1047,29 +1046,29 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               <dialog
                 ref={productDialogRef}
                 aria-label={`Produktval för PDF-post ${projectRequirementDetails(requirement).postNumber ?? activeIndex + 1}`}
-                className="fixed inset-0 m-0 h-[100dvh] max-h-none w-screen max-w-none overflow-hidden border-0 bg-white p-0 shadow-none backdrop:bg-ink-950/65 backdrop:backdrop-blur-sm"
+                className="fixed inset-0 m-0 h-[100dvh] max-h-none w-screen max-w-none overflow-hidden border-0 bg-white p-0 text-neutral-900 shadow-none backdrop:bg-neutral-950/65 backdrop:backdrop-blur-sm"
                 onCancel={(event) => {
                   event.preventDefault();
                   closeRequirement();
                 }}
               >
                 <div id="product-work-queue" className="flex h-full w-full flex-col overflow-hidden">
-                  <nav aria-label="Navigera mellan produktposter" className={`shrink-0 border-b border-ink-200 px-3 py-2.5 sm:px-4 sm:py-3 ${activeApproved ? "bg-emerald-100" : "bg-white"}`}>
+                  <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-neutral-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink-50">
-                          {activeGroup === "green" ? <CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /> : activeGroup === "red" ? <CircleX className="h-5 w-5 text-rose-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-neutral-50">
+                          {activeGroup === "green" ? <CheckCircle2 className="h-5 w-5 text-neutral-700" aria-hidden="true" /> : activeGroup === "red" ? <CircleX className="h-5 w-5 text-neutral-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-neutral-600" aria-hidden="true" />}
                         </span>
                         <div>
-                          <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-emerald-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-rose-700" : "text-xs font-bold uppercase tracking-[0.08em] text-amber-800"}>{activeApproved ? "Produkten är godkänd" : productCardDirty ? "Osparade ändringar" : activeResolution ? `Posten är hanterad · ${activeResolution.label}` : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : "Produkten måste ses över"}</p>
-                          <p className="mt-0.5 text-sm font-bold text-ink-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount}  kvar i visningen</p>
-                          <p className="mt-1 text-sm font-semibold text-flow-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
+                          <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-neutral-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-neutral-700" : "text-xs font-bold uppercase tracking-[0.08em] text-neutral-800"}>{activeApproved ? "Produkten är godkänd" : productCardDirty ? "Osparade ändringar" : activeResolution ? `Posten är hanterad · ${activeResolution.label}` : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : "Produkten måste ses över"}</p>
+                          <p className="mt-0.5 text-sm font-bold text-neutral-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount}  kvar i visningen</p>
+                          <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving || activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Föregående</Button>
-                        <Button variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving || activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
-                        <Button autoFocus variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving} onClick={closeRequirement}>{productCardSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}{productCardSaving ? "Sparar…" : "Stäng kortet"}</Button>
+                        <Button neutral variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving || activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Föregående</Button>
+                        <Button neutral variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving || activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+                        <Button neutral autoFocus variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving} onClick={closeRequirement}>{productCardSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}{productCardSaving ? "Sparar…" : "Stäng kortet"}</Button>
                       </div>
                     </div>
                     <div
@@ -1078,12 +1077,12 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                       aria-valuenow={progressPercent}
                       aria-valuemin={0}
                       aria-valuemax={100}
-                      className="mt-2 h-1 overflow-hidden rounded-full bg-ink-100"
+                      className="mt-2 h-1 overflow-hidden rounded-full bg-neutral-100"
                     >
-                      <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
+                      <div className="h-full rounded-full bg-neutral-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
                     </div>
                     {(message || error) && (
-                      <div role="status" aria-live="polite" className={error ? "mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900" : "mt-3 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"}>
+                      <div role="status" aria-live="polite" className={error ? "mt-3 rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-900" : "mt-3 rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-900"}>
                         {error ?? message}
                       </div>
                     )}
@@ -1806,50 +1805,50 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   ) : null;
 
   const accessorySection = hasAccessoryStep && productNumber.trim() ? (
-    <section id={`accessory-step-${requirement.id}`} tabIndex={-1} aria-labelledby={`accessory-step-title-${requirement.id}`} className="border-t border-ink-200 bg-white p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600">
+    <section id={`accessory-step-${requirement.id}`} tabIndex={-1} aria-labelledby={`accessory-step-title-${requirement.id}`} className="border-t border-neutral-200 bg-white p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h5 id={`accessory-step-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-ink-950"><PackagePlus className="h-5 w-5" aria-hidden="true" />{accessoryStepOpen ? "3. Välj tillbehör" : `Dina tillbehör (${selectedProductAccessories.length})`}</h5>
-          <p className="mt-1 text-sm text-ink-700">{accessoryStepOpen ? "Välj tillbehör nedan. Tryck på Klar med tillbehör när dina val är färdiga." : "Huvudprodukten och tillbehören sparas tillsammans när du godkänner."}</p>
+          <h5 id={`accessory-step-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-neutral-950"><PackagePlus className="h-5 w-5" aria-hidden="true" />{accessoryStepOpen ? "3. Välj tillbehör" : `Dina tillbehör (${selectedProductAccessories.length})`}</h5>
+          <p className="mt-1 text-sm text-neutral-700">{accessoryStepOpen ? "Välj tillbehör nedan. Tryck på Klar med tillbehör när dina val är färdiga." : "Huvudprodukten och tillbehören sparas tillsammans när du godkänner."}</p>
         </div>
-        {!accessoryStepOpen && <Button type="button" variant="secondary" onClick={editAccessories}>Ändra tillbehör</Button>}
+        {!accessoryStepOpen && <Button neutral type="button" variant="secondary" onClick={editAccessories}>Ändra tillbehör</Button>}
       </div>
       {accessoryStepOpen && <div className="mb-4 space-y-4">
         {assemblyPlan && assemblyPlan.components.length > 0 && <div>
-          <label htmlFor={"accessory-type-" + requirement.id} className="mb-2 block text-sm font-bold text-ink-900">Tillbehörstyp</label>
+          <label htmlFor={"accessory-type-" + requirement.id} className="mb-2 block text-sm font-bold text-neutral-900">Tillbehörstyp</label>
           <select id={"accessory-type-" + requirement.id} value={accessoryComponentId ?? ""} disabled={saving}
-            className="w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm"
+            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-neutral-600 focus:ring-neutral-600"
             onChange={event => openAccessoryLookup(assemblyPlan.components.find(component => component.id === event.target.value))}>
             {assemblyPlan.components.map(component => <option key={component.id} value={component.id}>{component.label}</option>)}
             <option value="">Övriga tillbehör</option>
           </select>
         </div>}
-        {accessoryComponent && <p className="text-xs leading-5 text-ink-600">{accessoryComponent.requirement}</p>}
+        {accessoryComponent && <p className="text-xs leading-5 text-neutral-600">{accessoryComponent.requirement}</p>}
         {accessoryLookup}
 
         <div className="flex flex-wrap gap-2">
-          {!accessoryLookupOpen && <Button type="button" variant="secondary" onClick={() => openAccessoryLookup(accessoryComponent)} disabled={selectedProductAccessories.length >= 20}><Search className="h-4 w-4" aria-hidden="true" />Välj fler tillbehör</Button>}
-          <Button type="button" variant="secondary" onClick={addManualAccessory} disabled={selectedProductAccessories.length >= 20}><Plus className="h-4 w-4" aria-hidden="true" />Registrera tillbehör manuellt</Button>
+          {!accessoryLookupOpen && <Button neutral type="button" variant="secondary" onClick={() => openAccessoryLookup(accessoryComponent)} disabled={selectedProductAccessories.length >= 20}><Search className="h-4 w-4" aria-hidden="true" />Välj fler tillbehör</Button>}
+          <Button neutral type="button" variant="secondary" onClick={addManualAccessory} disabled={selectedProductAccessories.length >= 20}><Plus className="h-4 w-4" aria-hidden="true" />Registrera tillbehör manuellt</Button>
         </div>
       </div>}
-      <div id={`accessory-summary-${requirement.id}`} tabIndex={-1} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600">
+      <div id={`accessory-summary-${requirement.id}`} tabIndex={-1} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600">
           {selectedProductAccessories.length > 0 && (
-            <section id={`product-accessories-${requirement.id}`} aria-label="Valda tillbehör" className="scroll-mt-24 overflow-hidden rounded-md border border-flow-300 bg-white">
-              {accessoryStepOpen && <div className="flex flex-col gap-3 border-b border-flow-200 bg-flow-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <section id={`product-accessories-${requirement.id}`} aria-label="Valda tillbehör" className="scroll-mt-24 overflow-hidden rounded-md border border-neutral-300 bg-white">
+              {accessoryStepOpen && <div className="flex flex-col gap-3 border-b border-neutral-200 bg-neutral-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h5 id={`product-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Valgte tilbehør ({selectedProductAccessories.length})</h5>
-                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Angi total mengde for hele posten. For eksempel gir 5 T-stykker 5 i Excel.</p>
+                  <h5 id={`product-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-neutral-950"><PackagePlus className="h-4 w-4 text-neutral-800" aria-hidden="true" />Valgte tilbehør ({selectedProductAccessories.length})</h5>
+                  <p className="mt-0.5 text-xs leading-5 text-neutral-600">Angi total mengde for hele posten. For eksempel gir 5 T-stykker 5 i Excel.</p>
                 </div>
-                {accessoryStepOpen && <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20}>
+                {accessoryStepOpen && <Button neutral type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-xs" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20}>
                   <Plus className="h-4 w-4" aria-hidden="true" />Lägg till ett till
                 </Button>}
               </div>}
               <div className="space-y-3 p-3">
                 {selectedProductAccessories.map((accessory, index) => (
-                  <div key={index} className="space-y-3 rounded-md border-2 border-flow-300 bg-flow-50/40 p-3">
+                  <div key={index} className="space-y-3 rounded-md border-2 border-neutral-300 bg-neutral-50/40 p-3">
                     {accessoryStepOpen ? <>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-bold text-flow-800">Tilbehør {index + 1}</p>
+                      <p className="text-xs font-bold text-neutral-800">Tilbehør {index + 1}</p>
                       <ProductSelectionCheckbox checked disabled={saving} label={accessory.name || `tilbehør ${index + 1}`} onChange={() => removeAccessory(index)} />
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1862,30 +1861,30 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                         <AccessoryInput id={`accessory-quantity-${requirement.id}-${index}`} label="Tidligere mengde per postenhet" type="number" min="0.001" max="100000" step="0.001" value={accessory.quantity} onChange={value => updateAccessory(index, "quantity", value)} />
                         <AccessoryInput id={`accessory-unit-${requirement.id}-${index}`} label="Enhet" value={accessory.unit} onChange={value => updateAccessory(index, "unit", value)} />
                       </div>
-                      <button type="button" disabled={saving} className="text-xs font-bold text-flow-800 underline" onClick={() => {
+                      <button type="button" disabled={saving} className="text-xs font-bold text-neutral-800 underline" onClick={() => {
                         setAccessories(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, quantityBasis: "total", quantity: quantity.quantity === null ? "" : String(Number(item.quantity) * quantity.quantity) } : item));
                         setHasUnapprovedChanges(true);
                       }}>Endre til total mengde for posten</button>
                     </div>}
                     </> : <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="break-words text-sm font-bold text-ink-950">{accessory.name}</p>
-                        {accessory.productNumber && <p className="mt-1 text-xs font-semibold text-flow-800">NRF {accessory.productNumber}</p>}
+                        <p className="break-words text-sm font-bold text-neutral-950">{accessory.name}</p>
+                        {accessory.productNumber && <p className="mt-1 text-xs font-semibold text-neutral-800">NRF {accessory.productNumber}</p>}
                       </div>
-                      <p className="text-sm font-semibold text-ink-800">{accessory.quantityBasis === "total" ? accessory.quantity : quantity.quantity === null ? "Mängd behöver kontrolleras" : String(Number(accessory.quantity) * quantity.quantity)} {accessory.unit}</p>
+                      <p className="text-sm font-semibold text-neutral-800">{accessory.quantityBasis === "total" ? accessory.quantity : quantity.quantity === null ? "Mängd behöver kontrolleras" : String(Number(accessory.quantity) * quantity.quantity)} {accessory.unit}</p>
                     </div>}
                   </div>
                 ))}
-                {accessoryError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{accessoryError}</p>}
-                <p className="text-xs leading-5 text-ink-500">Tillbehören följer bara den valda huvudprodukten. Om huvudproduktens NRF-nummer ändras rensas tillbehören.</p>
+                {accessoryError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{accessoryError}</p>}
+                <p className="text-xs leading-5 text-neutral-500">Tillbehören följer bara den valda huvudprodukten. Om huvudproduktens NRF-nummer ändras rensas tillbehören.</p>
               </div>
             </section>
           )}
 
 
-        {!selectedProductAccessories.length && <p className="text-sm text-ink-600">Inga tillbehör valda.</p>}
+        {!selectedProductAccessories.length && <p className="text-sm text-neutral-600">Inga tillbehör valda.</p>}
       </div>
-      {accessoryStepOpen && <Button type="button" className="mt-4 w-full justify-center sm:w-auto" disabled={Boolean(accessoryError)} onClick={finishAccessories}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Klar med tillbehör</Button>}
+      {accessoryStepOpen && <Button neutral type="button" className="mt-4 w-full justify-center sm:w-auto" disabled={Boolean(accessoryError)} onClick={finishAccessories}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Klar med tillbehör</Button>}
     </section>
   ) : null;
 
@@ -1893,18 +1892,18 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
       disabled={saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
       {({ postComments, productComments }) => <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
-      <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-ink-200 bg-ink-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+      <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-neutral-200 bg-neutral-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-wrap items-center gap-2">
             {isApproved ? (
-              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
+              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-300 bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
             ) : resolution ? (
-              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
+              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-bold text-neutral-800"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
             ) : (
-              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Inte godkänd</span>
+              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-300 bg-neutral-50 px-2.5 py-1 text-xs font-bold text-neutral-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Inte godkänd</span>
             )}
             {sourcePdfHref && (
-              <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-ink-200 bg-white px-2.5 py-1 text-xs font-bold text-flow-800 transition hover:border-flow-500 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+              <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-bold text-neutral-800 transition hover:border-neutral-500 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
 
                 Öppna PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
@@ -1913,15 +1912,15 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
 
           {dataWarnings.length > 0 && (isApproved ? (
-            <details className="mt-4 rounded-md border border-ink-200 bg-white p-3">
-              <summary className="cursor-pointer text-sm font-bold text-ink-800">Lagrede merknader til PDF-grunnlaget</summary>
-              <ul className="mt-2 list-disc space-y-2 pl-4 text-xs text-ink-700">{dataWarnings.map(warning => <li key={warning.code}>{warning.message}</li>)}</ul>
+            <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
+              <summary className="cursor-pointer text-sm font-bold text-neutral-800">Lagrede merknader til PDF-grunnlaget</summary>
+              <ul className="mt-2 list-disc space-y-2 pl-4 text-xs text-neutral-700">{dataWarnings.map(warning => <li key={warning.code}>{warning.message}</li>)}</ul>
             </details>
           ) : (
             <div className="mt-4 space-y-2" role="alert">
               {dataWarnings.map((warning) => (
-                <div key={warning.code} className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-amber-950">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+                <div key={warning.code} className="flex items-start gap-2 rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2.5 text-neutral-950">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-neutral-700" aria-hidden="true" />
                   <div>
                     <p className="text-sm font-black">{warning.label}</p>
                     <p className="mt-0.5 text-xs font-semibold leading-5">{warning.message}</p>
@@ -1932,22 +1931,22 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           ))}
 
           <div className="mt-4">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produkt {position} av {totalPosts}</p>
-            <h3 id={`pdf-specification-${requirement.id}`} className="mt-1 text-xl font-bold text-ink-950">PDF-post {details.postNumber ?? "saknas"}</h3>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink-800">{String(requirement.value_text ?? "Tekniskt krav")}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">Produkt {position} av {totalPosts}</p>
+            <h3 id={`pdf-specification-${requirement.id}`} className="mt-1 text-xl font-bold text-neutral-950">PDF-post {details.postNumber ?? "saknas"}</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-neutral-800">{String(requirement.value_text ?? "Tekniskt krav")}</p>
           </div>
 
-          <div className="mt-4 overflow-hidden rounded-md border border-ink-200 bg-white">
-            <div className="border-b border-ink-200 px-4 py-3">
-              <h4 className="text-sm font-bold text-flow-700">1. Gå igenom postens krav</h4>
-              <p className="mt-1 text-xs leading-5 text-ink-600">Alla extraherade krav visas här medan du väljer produkt.</p>
+          <div className="mt-4 overflow-hidden rounded-md border border-neutral-200 bg-white">
+            <div className="border-b border-neutral-200 px-4 py-3">
+              <h4 className="text-sm font-bold text-neutral-700">1. Gå igenom postens krav</h4>
+              <p className="mt-1 text-xs leading-5 text-neutral-600">Alla extraherade krav visas här medan du väljer produkt.</p>
             </div>
             <dl className="grid sm:grid-cols-2">
               <SpecificationRow label="PDF-postnummer" value={details.postNumber ?? "Saknas"} />
               <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
               {details.chapterPost && <SpecificationRow label="Kapitelpost" value={details.chapterPost} />}
               {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
-              {details.nsCode && <NsCodeSpecification code={details.nsCode} />}
+              {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
               {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
               {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
               {pdfArticleNumber && <SpecificationRow label="NRF-nummer i PDF" value={pdfArticleNumber} />}
@@ -1956,12 +1955,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
           <div id={`post-comments-${requirement.id}`} className="mt-4 scroll-mt-4">{postComments}</div>
           {Boolean(ahlsellGuide.interpretationNotes?.length || ahlsellGuide.interpretationWarnings?.length) && (
-            <section aria-label="Så tolkas PDF-kraven" className="rounded-md border border-flow-200 bg-flow-50 p-4">
-              <h4 className="text-sm font-bold text-ink-950">Så tolkas PDF-kraven</h4>
-              <p className="mt-1 text-xs leading-5 text-ink-600">Tolkningen väger ihop villkor, placering och lokalisering. Originaluppgifterna visas ovan.</p>
-              <ul className="mt-2 list-disc space-y-2 pl-4 text-xs leading-5 text-ink-800">
+            <section aria-label="Så tolkas PDF-kraven" className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+              <h4 className="text-sm font-bold text-neutral-950">Så tolkas PDF-kraven</h4>
+              <p className="mt-1 text-xs leading-5 text-neutral-600">Tolkningen väger ihop villkor, placering och lokalisering. Originaluppgifterna visas ovan.</p>
+              <ul className="mt-2 list-disc space-y-2 pl-4 text-xs leading-5 text-neutral-800">
                 {ahlsellGuide.interpretationNotes?.map((note) => <li key={note}>{note}</li>)}
-                {ahlsellGuide.interpretationWarnings?.map((warning) => <li key={warning} className="font-semibold text-amber-900">{warning}</li>)}
+                {ahlsellGuide.interpretationWarnings?.map((warning) => <li key={warning} className="font-semibold text-neutral-900">{warning}</li>)}
               </ul>
             </section>
           )}
@@ -1969,38 +1968,38 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       </section>
 
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
-        <div id={`product-selection-header-${requirement.id}`} className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
-          <nav id={`product-post-actions-${requirement.id}`} aria-label="Åtgärder för produktposten" className="mb-3 flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { const scope = productNumber.trim() ? "product" : "post"; document.getElementById(`${scope}-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${scope}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
-            {!productNumber.trim() && <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
+        <div id={`product-selection-header-${requirement.id}`} className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+          <nav id={`product-post-actions-${requirement.id}`} aria-label="Åtgärder för produktposten" className="mb-3 flex flex-wrap gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+            <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { const scope = productNumber.trim() ? "product" : "post"; document.getElementById(`${scope}-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${scope}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
+            {!productNumber.trim() && <Button neutral id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
               <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
             </Button>}
             {!resolution && (
-              <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
+              <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
                 <Tag className="h-4 w-4" aria-hidden="true" />Inte i sortiment
               </Button>
             )}
-            <a href={productPostMailHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+            <a href={productPostMailHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
               <Mail className="h-4 w-4" aria-hidden="true" />Maila post
             </a>
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
+            <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
               <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
             </Button>
-            <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+            <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
               <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells hemsida
             </a>
           </nav>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">{!productNumber.trim() ? "2. Välj huvudprodukt" : accessoryStepOpen ? "3. Välj tillbehör" : "Ditt produktval"}</p>
-              <h4 className="mt-0.5 text-base font-bold text-ink-950">Produkter för PDF-post {details.postNumber ?? position}</h4>
-              <p className={`mt-1 flex items-center gap-2 text-sm font-bold ${isApproved ? "text-emerald-800" : productNumber.trim() ? "text-flow-800" : "text-ink-600"}`}>
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">{!productNumber.trim() ? "2. Välj huvudprodukt" : accessoryStepOpen ? "3. Välj tillbehör" : "Ditt produktval"}</p>
+              <h4 className="mt-0.5 text-base font-bold text-neutral-950">Produkter för PDF-post {details.postNumber ?? position}</h4>
+              <p className={`mt-1 flex items-center gap-2 text-sm font-bold ${isApproved ? "text-neutral-800" : productNumber.trim() ? "text-neutral-800" : "text-neutral-600"}`}>
                 {productNumber.trim() && <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />}
                 {isApproved ? "Produkten är godkänd" : productNumber.trim() ? "Produkt valgt – ikke godkjent ennå" : "Ingen produkt valgt"}
               </p>
             </div>
           </div>
-          <p className="mt-2 text-xs leading-5 text-ink-600">{hasAccessoryStep
+          <p className="mt-2 text-xs leading-5 text-neutral-600">{hasAccessoryStep
             ? "Arbetsflöde: gå igenom postens krav → välj huvudprodukt → komplettera med tillbehör → godkänn."
             : "Arbetsflöde: gå igenom postens krav → välj huvudprodukt → godkänn."}</p>
         </div>
@@ -2008,32 +2007,32 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
           <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
           {productNumber.trim() && !manualProductOpen && (
-            <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className={`scroll-mt-80 overflow-hidden rounded-lg border-2 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 lg:scroll-mt-60 ${isApproved ? "border-emerald-600 bg-emerald-100" : "border-flow-700 bg-flow-50"}`}>
-              <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${isApproved ? "bg-emerald-700" : "bg-flow-800"}`}>
-                <p className="flex items-center gap-2 text-lg font-bold text-white"><CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />{isApproved ? "Godkjent hovedprodukt" : "Produkt valgt"}</p>
+            <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className={`scroll-mt-80 overflow-hidden rounded-lg border-2 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 lg:scroll-mt-60 border-neutral-400 bg-white`}>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-100 px-4 py-3">
+                <p className="flex items-center gap-2 text-lg font-bold text-neutral-950"><CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />{isApproved ? "Godkjent hovedprodukt" : "Produkt valgt"}</p>
                 <ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} />
               </div>
               <div className="space-y-4 p-4">
                 <div>
-                  <h5 className="break-words text-xl font-bold leading-snug text-ink-950">{productName || `NRF ${productNumber}`}</h5>
-                  {productSubtitle && productSubtitle.trim() !== productName.trim() && <p className="mt-1 text-sm text-ink-700">{productSubtitle}</p>}
-                  <p className="mt-2 inline-flex rounded-md border border-ink-200 bg-white px-2.5 py-1 text-sm font-bold text-ink-800">NRF {productNumber}</p>
+                  <h5 className="break-words text-xl font-bold leading-snug text-neutral-950">{productName || `NRF ${productNumber}`}</h5>
+                  {productSubtitle && productSubtitle.trim() !== productName.trim() && <p className="mt-1 text-sm text-neutral-700">{productSubtitle}</p>}
+                  <p className="mt-2 inline-flex rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-sm font-bold text-neutral-800">NRF {productNumber}</p>
                 </div>
-                {!isApproved && <p className="text-sm font-semibold leading-5 text-flow-900">{accessoryStepOpen ? "Huvudprodukten är vald. Välj tillbehör direkt nedan." : hasAccessoryStep ? "Kontrollera huvudprodukten och tillbehören nedan. Tryck sedan på Godkänn och spara." : "Kontrollera huvudprodukten. Tryck sedan på Godkänn och spara."}</p>}
+                {!isApproved && <p className="text-sm font-semibold leading-5 text-neutral-900">{accessoryStepOpen ? "Huvudprodukten är vald. Välj tillbehör direkt nedan." : hasAccessoryStep ? "Kontrollera huvudprodukten och tillbehören nedan. Tryck sedan på Godkänn och spara." : "Kontrollera huvudprodukten. Tryck sedan på Godkänn och spara."}</p>}
                 <div>
                   <ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
                     onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
                     onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} />
-                  <p className="mt-1 text-xs text-ink-600">PDF-posten: {formatProjectQuantity(quantity)}. Total mengde og enhet ovenfor følger med til Excel.</p>
+                  <p className="mt-1 text-xs text-neutral-600">PDF-posten: {formatProjectQuantity(quantity)}. Total mengde og enhet ovenfor følger med til Excel.</p>
                 </div>
                 {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
-                  <dl className="grid overflow-hidden rounded-md border border-ink-200 bg-white sm:grid-cols-3">
+                  <dl className="grid overflow-hidden rounded-md border border-neutral-200 bg-white sm:grid-cols-3">
                     {manufacturerArticleNumber && <CompactProductDetail label="Artikelnummer" value={manufacturerArticleNumber} />}
                     {deliveryTimeDays && <CompactProductDetail label="Leveranstid" value={`${deliveryTimeDays} dagar`} />}
                     {unitPrice && <CompactProductDetail label="Pris" value={formatUnitPrice(unitPrice, priceCurrency)} />}
                   </dl>
                 )}
-                <Button type="button" variant="secondary" disabled={saving} onClick={showAllProductAlternatives}>Bytt hovedprodukt</Button>
+                <Button neutral type="button" variant="secondary" disabled={saving} onClick={showAllProductAlternatives}>Bytt hovedprodukt</Button>
               </div>
               {accessorySection}
             </section>
@@ -2041,28 +2040,22 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
 
 
-          {productNumber.trim() && selectionReview && (isApproved ? (
-            <details className="rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-700">
-              <summary className="cursor-pointer font-bold">Lagrede kontrollmerknader · NRF {productNumber}</summary>
+          {productNumber.trim() && selectionReview?.status === "mismatch" && (
+            <details className="text-sm text-neutral-700">
+              <summary className="cursor-pointer font-semibold">Avvikelser mot postens krav · NRF {productNumber}</summary>
               <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{selectionReview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
             </details>
-          ) : (
-            <div role="status" className={`rounded-md border px-4 py-3 text-sm ${selectionReview.status === "mismatch" ? "border-rose-300 bg-rose-50 text-rose-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}>
-              <p className="font-bold">{selectionReview.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL} · NRF {productNumber}</p>
-              <p className="mt-1 text-xs">{isApproved ? "Valet är sparat med denna märkning." : "När du godkänner sparas valet med denna märkning."}</p>
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{selectionReview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
-            </div>
-          ))}
+          )}
 
           {manualProductOpen && (
-            <section id={`manual-product-card-${requirement.id}`} aria-labelledby={`manual-product-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border-2 border-flow-300 bg-white shadow-sm">
-              <div className="flex items-start justify-between gap-4 border-b border-flow-200 bg-flow-50 px-4 py-3">
+            <section id={`manual-product-card-${requirement.id}`} aria-labelledby={`manual-product-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border-2 border-neutral-300 bg-white shadow-sm">
+              <div className="flex items-start justify-between gap-4 border-b border-neutral-200 bg-neutral-50 px-4 py-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktval från Ahlsell</p>
-                  <h5 id={`manual-product-title-${requirement.id}`} className="mt-0.5 text-base font-bold text-ink-950">Lägg till produkt</h5>
-                  <p className="mt-1 text-xs leading-5 text-ink-600">Sök på Ahlsells webbplats eller klistra in produktens länk. Produkten sparas när du godkänner valet.</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">Produktval från Ahlsell</p>
+                  <h5 id={`manual-product-title-${requirement.id}`} className="mt-0.5 text-base font-bold text-neutral-950">Lägg till produkt</h5>
+                  <p className="mt-1 text-xs leading-5 text-neutral-600">Sök på Ahlsells webbplats eller klistra in produktens länk. Produkten sparas när du godkänner valet.</p>
                 </div>
-                <button type="button" aria-label="Stäng Lägg till produkt" title="Stäng" onClick={closeManualProductCard} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-ink-600 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+                <button type="button" aria-label="Stäng Lägg till produkt" title="Stäng" onClick={closeManualProductCard} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
@@ -2073,8 +2066,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                   onSelect={(candidate, amount) => { applyAhlsellCandidate(candidate, candidate.subtitle); updateOrderQuantity(amount); }}
                   onDeselect={clearSelectedProduct} onQuantityChange={(_candidate, amount) => updateOrderQuantity(amount)} />
               </div>
-              <details className="border-t border-ink-200">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-flow-800">Registrera produkt manuellt</summary>
+              <details className="border-t border-neutral-200">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-neutral-800">Registrera produkt manuellt</summary>
                 <form className="space-y-4 p-4" onSubmit={(event) => { event.preventDefault(); applyManualProduct(); }}>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ProductFormInput id={`manual-product-nrf-${requirement.id}`} label="NRF-nummer" value={manualProductDraft.productNumber} onChange={(value) => updateManualProductDraft("productNumber", value)} required />
@@ -2085,17 +2078,17 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                 </div>
                 <ProductQuantityFields id={`manual-product-${requirement.id}`} quantity={manualProductDraft.quantity} unit={manualProductDraft.unit} disabled={saving}
                   onQuantityChange={value => updateManualProductDraft("quantity", value)} onUnitChange={value => updateManualProductDraft("unit", value)} />
-                {manualProductError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900">{manualProductError}</p>}
-                <div className="flex flex-col-reverse gap-2 border-t border-ink-100 pt-4 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="secondary" className="justify-center" onClick={closeManualProductCard}>Avbryt</Button>
-                  <Button type="submit" className="justify-center"><Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt</Button>
+                {manualProductError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-900">{manualProductError}</p>}
+                <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end">
+                  <Button neutral type="button" variant="secondary" className="justify-center" onClick={closeManualProductCard}>Avbryt</Button>
+                  <Button neutral type="submit" className="justify-center"><Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt</Button>
                 </div>
               </form>
               </details>
             </section>
           )}
 
-          <div id={`ahlsell-products-${requirement.id}`} hidden={Boolean(productNumber.trim()) || manualProductOpen} className="scroll-mt-24 overflow-hidden rounded-md border border-ink-200 bg-white">
+          <div id={`ahlsell-products-${requirement.id}`} hidden={Boolean(productNumber.trim()) || manualProductOpen} className="scroll-mt-24 overflow-hidden rounded-md border border-neutral-200 bg-white">
             <AhlsellPublicMatchPanel
               projectId={projectId}
               requirementId={requirement.id}
@@ -2120,13 +2113,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
 
           {productNumber.trim() && !accessoryStepOpen && (
-            <section id={`product-approval-${requirement.id}`} aria-labelledby={`product-approval-title-${requirement.id}`} className="rounded-md border border-flow-300 bg-flow-50 p-4">
-              <h5 id={`product-approval-title-${requirement.id}`} className="text-base font-bold text-ink-950">{hasAccessoryStep ? "4. Godkänn" : "3. Godkänn"}</h5>
-              <p className="mt-1 text-sm leading-6 text-ink-700">{hasAccessoryStep
+            <section id={`product-approval-${requirement.id}`} aria-labelledby={`product-approval-title-${requirement.id}`} className="rounded-md border border-neutral-300 bg-neutral-50 p-4">
+              <h5 id={`product-approval-title-${requirement.id}`} className="text-base font-bold text-neutral-950">{hasAccessoryStep ? "4. Godkänn" : "3. Godkänn"}</h5>
+              <p className="mt-1 text-sm leading-6 text-neutral-700">{hasAccessoryStep
                 ? "Godkänn när du har gått igenom postens krav, valt huvudprodukt och kompletterat med de tillbehör som behövs."
                 : "Godkänn när du har gått igenom postens krav och valt huvudprodukt."}</p>
-              {commentDraftDirty && <p className="mt-2 text-xs font-semibold text-amber-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
-              <Button aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="mt-3 min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
+              {commentDraftDirty && <p className="mt-2 text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
+              <Button neutral aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="mt-3 min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
                 {saving ? "Sparar…" : "Godkänn och spara"}
               </Button>
@@ -2143,7 +2136,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <button
               type="button"
               aria-label="Stäng vedlegg"
-              className="absolute inset-0 bg-ink-950/65 backdrop-blur-sm"
+              className="absolute inset-0 bg-neutral-950/65 backdrop-blur-sm"
               onClick={closeAttachmentPanel}
               disabled={attachmentSaving}
             />
@@ -2151,15 +2144,15 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               role="dialog"
               aria-modal="true"
               aria-labelledby={`attachment-dialog-title-${requirement.id}`}
-              className="relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-ink-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
+              className="relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-neutral-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
             >
-              <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-ink-200 bg-white px-4 py-3 sm:px-5">
+              <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-neutral-200 bg-white px-4 py-3 sm:px-5">
                 <div>
-                  <h5 id={`attachment-dialog-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-ink-950">
-                    <Paperclip className="h-4 w-4 text-flow-700" aria-hidden="true" />
+                  <h5 id={`attachment-dialog-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-neutral-950">
+                    <Paperclip className="h-4 w-4 text-neutral-700" aria-hidden="true" />
                     Legg til vedlegg
                   </h5>
-                  <p className="mt-0.5 text-xs leading-5 text-ink-600">Lägg en kommentar och fil till PDF-post {details.postNumber ?? position}.</p>
+                  <p className="mt-0.5 text-xs leading-5 text-neutral-600">Lägg en kommentar och fil till PDF-post {details.postNumber ?? position}.</p>
                 </div>
                 <button
                   type="button"
@@ -2167,7 +2160,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                   title="Stäng"
                   onClick={closeAttachmentPanel}
                   disabled={attachmentSaving}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-ink-600 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 disabled:cursor-wait disabled:opacity-50"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 disabled:cursor-wait disabled:opacity-50"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
@@ -2176,47 +2169,47 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               <div className="space-y-5 p-4 sm:p-5">
                 <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void saveAttachment(); }}>
                   <label className="block" htmlFor={`attachment-comment-${requirement.id}`}>
-                    <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-ink-600"><span>Kommentar <span className="font-normal text-ink-500">(valfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
-                    <textarea id={`attachment-comment-${requirement.id}`} rows={3} maxLength={2000} value={attachmentComment} onChange={(event) => { setAttachmentComment(event.target.value); setAttachmentError(null); setAttachmentMessage(null); }} className="block w-full resize-y rounded-sm border-ink-300 bg-white text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
+                    <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-neutral-600"><span>Kommentar <span className="font-normal text-neutral-500">(valfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
+                    <textarea id={`attachment-comment-${requirement.id}`} rows={3} maxLength={2000} value={attachmentComment} onChange={(event) => { setAttachmentComment(event.target.value); setAttachmentError(null); setAttachmentMessage(null); }} className="block w-full resize-y rounded-sm border-neutral-300 bg-white text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500" />
                   </label>
                   <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                     <label className="block" htmlFor={`attachment-file-${requirement.id}`}>
-                      <span className="mb-1 block text-xs font-semibold text-ink-600">Fil</span>
-                      <input ref={attachmentInputRef} id={`attachment-file-${requirement.id}`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" onChange={(event) => { setAttachmentFile(event.target.files?.[0] ?? null); setAttachmentError(null); setAttachmentMessage(null); }} className="block min-h-10 w-full rounded-sm border border-ink-300 bg-white text-sm text-ink-800 file:mr-3 file:min-h-10 file:border-0 file:border-r file:border-ink-200 file:bg-ink-50 file:px-3 file:text-xs file:font-bold file:text-ink-800 hover:file:bg-flow-50" />
+                      <span className="mb-1 block text-xs font-semibold text-neutral-600">Fil</span>
+                      <input ref={attachmentInputRef} id={`attachment-file-${requirement.id}`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" onChange={(event) => { setAttachmentFile(event.target.files?.[0] ?? null); setAttachmentError(null); setAttachmentMessage(null); }} className="block min-h-10 w-full rounded-sm border border-neutral-300 bg-white text-sm text-neutral-800 file:mr-3 file:min-h-10 file:border-0 file:border-r file:border-neutral-200 file:bg-neutral-50 file:px-3 file:text-xs file:font-bold file:text-neutral-800 hover:file:bg-neutral-50" />
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
+                      <Button neutral type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
 
                         Rensa
                       </Button>
-                      <Button type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
+                      <Button neutral type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
                         {attachmentSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
                         {attachmentSaving ? "Sparar…" : "Spara vedlegg"}
                       </Button>
                     </div>
                   </div>
-                  <p className="text-xs text-ink-500">Max 4 MB. Tillåtna format: PDF, PNG, JPG, WebP, TXT och CSV.</p>
-                  {attachmentError && <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">{attachmentError}</p>}
-                  {attachmentMessage && <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">{attachmentMessage}</p>}
+                  <p className="text-xs text-neutral-500">Max 4 MB. Tillåtna format: PDF, PNG, JPG, WebP, TXT och CSV.</p>
+                  {attachmentError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{attachmentError}</p>}
+                  {attachmentMessage && <p role="status" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{attachmentMessage}</p>}
                 </form>
 
-                <div className="border-t border-ink-200 pt-4">
-                  <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-ink-600">Sparade vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</h5>
+                <div className="border-t border-neutral-200 pt-4">
+                  <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-600">Sparade vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</h5>
                   {attachmentsLoading ? (
-                    <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-ink-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar vedlegg…</p>
+                    <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-neutral-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar vedlegg…</p>
                   ) : attachments.length === 0 ? (
-                    <p className="mt-2 text-xs text-ink-600">Inga vedlegg har sparats för posten.</p>
+                    <p className="mt-2 text-xs text-neutral-600">Inga vedlegg har sparats för posten.</p>
                   ) : (
-                    <div className="mt-2 divide-y divide-ink-200 overflow-hidden rounded-md border border-ink-200 bg-white">
+                    <div className="mt-2 divide-y divide-neutral-200 overflow-hidden rounded-md border border-neutral-200 bg-white">
                       {attachments.map((attachment) => (
                         <article key={attachment.id} className="flex items-start gap-3 p-3">
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-flow-50 text-flow-800"><FileText className="h-4 w-4" aria-hidden="true" /></span>
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-neutral-50 text-neutral-800"><FileText className="h-4 w-4" aria-hidden="true" /></span>
                           <div className="min-w-0 flex-1">
-                            <p className="break-words text-sm font-bold text-ink-950">{attachment.fileName}</p>
-                            <p className="mt-0.5 text-xs text-ink-500">{formatAttachmentSize(attachment.sizeBytes)} · {formatAttachmentDate(attachment.uploadedAt)}</p>
-                            {attachment.comment && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-700">{attachment.comment}</p>}
+                            <p className="break-words text-sm font-bold text-neutral-950">{attachment.fileName}</p>
+                            <p className="mt-0.5 text-xs text-neutral-500">{formatAttachmentSize(attachment.sizeBytes)} · {formatAttachmentDate(attachment.uploadedAt)}</p>
+                            {attachment.comment && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-700">{attachment.comment}</p>}
                           </div>
-                          <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-ink-200 bg-white text-flow-800 hover:border-flow-400 hover:bg-flow-50" aria-label={`Hämta ${attachment.fileName}`} title="Hämta vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
+                          <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400 hover:bg-neutral-50" aria-label={`Hämta ${attachment.fileName}`} title="Hämta vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
                         </article>
                       ))}
                     </div>
@@ -2333,41 +2326,41 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       <header className="px-3 py-3 sm:px-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">Produktval</p>
-            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-ink-950">Automatiska produktförslag från Ahlsell</h4>
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">Produktval</p>
+            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-neutral-950">Automatiska produktförslag från Ahlsell</h4>
           </div>
           <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
             {!loadingCatalog && (
-              <span className="text-ink-600">
+              <span className="text-neutral-600">
                 {filteredResultCount} {filteredResultCount === 1 ? "träff" : "träffar"}
               </span>
             )}
             {hasNrfFilter && (
-              <button type="button" className="font-bold text-flow-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600" onClick={clearSelection}>
+              <button type="button" className="font-bold text-neutral-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600" onClick={clearSelection}>
 
                 Rensa NRF
               </button>
             )}
           </div>
         </div>
-        <p className="mt-1.5 text-xs leading-5 text-ink-600">Scipx söker automatiskt i Ahlsells sortiment utifrån PDF-postens krav. Markera en produkt för att fylla NRF-numret.</p>
+        <p className="mt-1.5 text-xs leading-5 text-neutral-600">Scipx söker automatiskt i Ahlsells sortiment utifrån PDF-postens krav. Markera en produkt för att fylla NRF-numret.</p>
       </header>
 
       {loadingCatalog && (
-        <div className="flex min-h-16 items-center justify-center gap-2 border-t border-ink-200 bg-ink-50 px-3 py-3 text-sm font-bold text-ink-800" role="status">
+        <div className="flex min-h-16 items-center justify-center gap-2 border-t border-neutral-200 bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-800" role="status">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Söker automatiskt på Ahlsells webbplats…
         </div>
       )}
 
       {catalogError && (
-        <div className="border-t border-amber-300 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950 sm:px-4" role="alert">
+        <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-3 text-xs leading-5 text-neutral-950 sm:px-4" role="alert">
           <p className="font-bold">Produktlistan kunde inte hämtas.</p>
           <p>{catalogError}  Du kan söka manuellt via ”Lägg till produkt”.</p>
         </div>
       )}
 
       {!loadingCatalog && catalogResult?.publicSearchStatus && catalogResult.publicSearchStatus !== "available" && (
-        <div className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950 sm:px-4" role="status">
+        <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-xs leading-5 text-neutral-950 sm:px-4" role="status">
           {catalogResult.publicSearchStatus === "unavailable"
             ? "Ahlsells webbplats kunde inte nås. Produktförslagen från MLDL finns kvar."
             : "En del av Ahlsell-sökningen kunde inte slutföras. MLDL och de hämtade webbträffarna visas."}
@@ -2375,31 +2368,31 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       )}
 
       {!loadingCatalog && !catalogError && catalogResult?.truncated && (
-        <div className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-950 sm:px-4">
+        <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold leading-5 text-neutral-950 sm:px-4">
 
           Fler träffar finns hos Ahlsell. Listan innehåller alla matchande produkter från den avgränsade sökningen.
         </div>
       )}
 
       {!loadingCatalog && hasNrfFilter && filteredResultCount === 0 && totalResultCount > 0 && (
-        <div className="flex flex-col gap-3 border-t border-amber-300 bg-amber-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4" role="status">
-          <p className="text-sm font-semibold text-amber-950">Inga hämtade produkter har NRF-nummer {selectedArticleNumber.trim()}.</p>
-          <Button type="button" variant="secondary" className="min-h-9 shrink-0 justify-center px-3 py-1.5 text-xs" onClick={clearSelection}>
+        <div className="flex flex-col gap-3 border-t border-neutral-300 bg-neutral-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4" role="status">
+          <p className="text-sm font-semibold text-neutral-950">Inga hämtade produkter har NRF-nummer {selectedArticleNumber.trim()}.</p>
+          <Button neutral type="button" variant="secondary" className="min-h-9 shrink-0 justify-center px-3 py-1.5 text-xs" onClick={clearSelection}>
             <RotateCcw className="h-4 w-4" aria-hidden="true" />Visa alla produkter
           </Button>
         </div>
       )}
 
       {filteredMemories.length > 0 && (
-        <div className="border-t border-emerald-300" role="group" aria-label="Tidigare bekräftade produkter">
-          <div className={memoriesAreExact ? "bg-emerald-100/80 px-3 py-2 sm:px-4" : "bg-amber-50 px-3 py-2 sm:px-4"}>
-            <p className={memoriesAreExact ? "flex items-center gap-1.5 text-xs font-bold text-emerald-900" : "flex items-center gap-1.5 text-xs font-bold text-amber-900"}>
+        <div className="border-t border-neutral-300" role="group" aria-label="Tidigare bekräftade produkter">
+          <div className={memoriesAreExact ? "bg-neutral-100/80 px-3 py-2 sm:px-4" : "bg-neutral-50 px-3 py-2 sm:px-4"}>
+            <p className={memoriesAreExact ? "flex items-center gap-1.5 text-xs font-bold text-neutral-900" : "flex items-center gap-1.5 text-xs font-bold text-neutral-900"}>
               {memoriesAreExact ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
               {memoriesAreExact ? "Exakt match från tidigare bekräftade val" : "Tidigare val finns, men PDF-uppgifterna måste kontrolleras"}
             </p>
-            <p className="mt-0.5 text-xs text-ink-600">Valet måste godkännas på nytt i detta projekt.</p>
+            <p className="mt-0.5 text-xs text-neutral-600">Valet måste godkännas på nytt i detta projekt.</p>
           </div>
-          <div className="divide-y divide-emerald-200">
+          <div className="divide-y divide-neutral-200">
             {filteredMemories.map((memory) => {
               const articleNumber = String(memory.product_number);
               const productName = String(memory.product_name);
@@ -2408,20 +2401,20 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
               const productSubtitle = resolvedSubtitle;
               const isSelected = normalizeNrfNumber(articleNumber) === normalizeNrfNumber(selectedArticleNumber);
               return (
-                <article key={String(memory.id)} className={memoriesAreExact ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-amber-50/50 px-3 py-3 sm:px-4"}>
+                <article key={String(memory.id)} className={memoriesAreExact ? "bg-neutral-50 px-3 py-3 sm:px-4" : "bg-neutral-50/50 px-3 py-3 sm:px-4"}>
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold leading-5 text-ink-950">{productName}</p>
+                      <p className="text-sm font-bold leading-5 text-neutral-950">{productName}</p>
                       {productSubtitle && (
-                        <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-ink-700" title={productSubtitle}>{productSubtitle}</p>
+                        <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-neutral-700" title={productSubtitle}>{productSubtitle}</p>
                       )}
-                      <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {articleNumber}</p>
-                      <p className={memoriesAreExact ? "mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800" : "mt-1 flex items-center gap-1.5 text-xs font-bold text-amber-900"}>
+                      <p className="mt-0.5 text-xs font-bold text-neutral-800">NRF-nummer {articleNumber}</p>
+                      <p className={memoriesAreExact ? "mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-800" : "mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900"}>
                         {memoriesAreExact ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
                         {memoriesAreExact ? "Exakt match · tidigare bekräftad" : "Tidigare bekräftad · kontroll krävs"}
                       </p>
                     </div>
-                    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-flow-800">
+                    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-neutral-800">
                       <input
                         type="checkbox"
                         name={`ahlsell-product-${requirementId}`}
@@ -2433,7 +2426,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                           productSubtitle: resolvedSubtitle
                         })}
                         aria-label={`${isSelected ? "Ta bort valet av" : "Välj"} tidigare bekräftad produkt ${productName}, NRF-nummer ${articleNumber}`}
-                        className="h-5 w-5 shrink-0 cursor-pointer rounded border-ink-300 text-emerald-700 focus:ring-emerald-600 disabled:cursor-not-allowed"
+                        className="h-5 w-5 shrink-0 cursor-pointer rounded border-neutral-300 text-neutral-700 focus:ring-neutral-600 disabled:cursor-not-allowed"
                       />
                       <span aria-hidden="true">{isSelected ? "Ta bort val" : "Välj"}</span>
                     </label>
@@ -2513,7 +2506,7 @@ function NonProductRequirementCard({ requirement, position, totalPosts, kind }: 
             <SpecificationRow label="Åtgärd" value={operationLabel} />
             <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
             {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
-            {details.nsCode && <NsCodeSpecification code={details.nsCode} />}
+            {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
             {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
             {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
             {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
@@ -2616,8 +2609,8 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     if (columnId === "nsCode") {
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">
-          <button type="button" aria-haspopup="dialog" onClick={onOpen} aria-label={`Visa kodförklaring för ${details.nsCode ?? "posten"} i produktkortet`} className="text-left hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-            <NsCodeTableValue code={details.nsCode} />
+          <button type="button" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för ${details.nsCode ?? "posten"}`} className="text-left hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+            <span className="whitespace-nowrap font-semibold">{details.nsCode || "—"}</span>
           </button>
         </td>
       );
@@ -2792,11 +2785,11 @@ function StatusNumber({ value, label, tone = "neutral" }: { value: number; label
 }
 
 function SpecificationRow({ label, value }: { label: string; value: string }) {
-  return <div className="border-b border-ink-100 px-4 py-3 sm:border-r"><dt className="text-xs font-bold uppercase tracking-wide text-ink-500">{label}</dt><dd className="mt-1 break-words text-sm leading-6 text-ink-900">{value}</dd></div>;
+  return <div className="border-b border-neutral-100 px-4 py-3 sm:border-r"><dt className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm leading-6 text-neutral-900">{value}</dd></div>;
 }
 
 function CompactProductDetail({ label, value }: { label: string; value: string }) {
-  return <div className="border-b border-ink-100 px-3 py-2.5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"><dt className="text-[10px] font-bold uppercase tracking-wide text-ink-500">{label}</dt><dd className="mt-0.5 break-words text-xs font-bold leading-5 text-ink-900">{value}</dd></div>;
+  return <div className="border-b border-neutral-100 px-3 py-2.5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"><dt className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-0.5 break-words text-xs font-bold leading-5 text-neutral-900">{value}</dd></div>;
 }
 
 function AccessoryInput({ id, label, value, onChange, type = "text", min, max, step, required = false }: {
@@ -2812,8 +2805,8 @@ function AccessoryInput({ id, label, value, onChange, type = "text", min, max, s
 }) {
   return (
     <label className="block" htmlFor={id}>
-      <span className="mb-1 block text-xs font-semibold text-ink-600">{label}{required && <span className="ml-1 font-black text-rose-600">*</span>}</span>
-      <input id={id} type={type} min={min} max={max} step={step} required={required} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-white text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500" />
+      <span className="mb-1 block text-xs font-semibold text-neutral-600">{label}{required && <span className="ml-1 font-black text-neutral-600">*</span>}</span>
+      <input id={id} type={type} min={min} max={max} step={step} required={required} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-neutral-300 bg-white text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500" />
     </label>
   );
 }
@@ -2835,10 +2828,10 @@ function ProductFormInput({ id, label, value, onChange, required = false, option
 }) {
   return (
     <label className="block" htmlFor={id}>
-      <span className="mb-1 block text-xs font-semibold text-ink-600">
-        {label}{required && <span className="ml-1 font-black text-rose-600">*</span>}{optional && <span className="ml-1 font-normal text-ink-500">(valfritt)</span>}
+      <span className="mb-1 block text-xs font-semibold text-neutral-600">
+        {label}{required && <span className="ml-1 font-black text-neutral-600">*</span>}{optional && <span className="ml-1 font-normal text-neutral-500">(valfritt)</span>}
       </span>
-      <input id={id} type={type} min={min} max={max} step={step} inputMode={inputMode} placeholder={placeholder} required={required} readOnly={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-ink-300 bg-ink-50 text-sm text-ink-900 shadow-none focus:border-flow-500 focus:ring-flow-500 read-only:cursor-default read-only:bg-ink-100" />
+      <input id={id} type={type} min={min} max={max} step={step} inputMode={inputMode} placeholder={placeholder} required={required} readOnly={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-neutral-300 bg-neutral-50 text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500 read-only:cursor-default read-only:bg-neutral-100" />
     </label>
   );
 }
