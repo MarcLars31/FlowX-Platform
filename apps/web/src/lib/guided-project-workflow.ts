@@ -1,5 +1,6 @@
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
 import { isProductRequirementResolvedWithoutProduct } from "@/lib/product-requirement-resolution";
+import { splitDistributorRequirementLines, type DistributorRequirementRow } from "@/lib/distributor-requirement-lines";
 
 export const GUIDED_PROJECT_STEPS = [
   { id: "documents", label: "Ladda upp", tab: "documents" },
@@ -10,8 +11,7 @@ export const GUIDED_PROJECT_STEPS = [
 export type GuidedProjectStepId = (typeof GUIDED_PROJECT_STEPS)[number]["id"];
 export type GuidedProjectTab = (typeof GUIDED_PROJECT_STEPS)[number]["tab"];
 
-type WorkflowRequirement = {
-  id: string;
+type WorkflowRequirement = DistributorRequirementRow & {
   status?: unknown;
   value_json?: unknown;
 };
@@ -43,19 +43,16 @@ export function guidedProjectCompletionUpdate(
     : null;
 }
 
-const excludedStatuses = new Set(["rejected", "superseded"]);
-
 export function guidedProjectWorkflow(input: {
   documentCount: number;
   requirements: WorkflowRequirement[];
   assignments: WorkflowAssignment[];
 }): GuidedProjectWorkflow {
-  const visibleRequirements = input.requirements.filter(
-    (requirement) => !excludedStatuses.has(String(requirement.status ?? ""))
-  );
-  const eligibleRequirements = visibleRequirements.filter(
-    (requirement) => requirementOperation(requirement) !== "remove"
-  );
+  // Completion must use the same purchasable rows as the product picker.
+  // Work and removal posts stay in the project but do not need a product.
+  const { productRequirements: eligibleRequirements, removalRequirements, workRequirements } =
+    splitDistributorRequirementLines(input.requirements);
+  const visibleRequirementCount = eligibleRequirements.length + removalRequirements.length + workRequirements.length;
   const mappedRequirementIds = new Set(
     input.assignments.flatMap((assignment) => {
       return isUserApprovedProductAssignment(assignment) &&
@@ -69,7 +66,7 @@ export function guidedProjectWorkflow(input: {
     isProductRequirementResolvedWithoutProduct(requirement)
   ).length;
   const productsComplete =
-    visibleRequirements.length > 0 &&
+    visibleRequirementCount > 0 &&
     mappedRequirementCount === eligibleRequirements.length;
 
   const completedStepIds: GuidedProjectStepId[] = [];
@@ -108,14 +105,4 @@ export function guidedProjectWorkflow(input: {
 
 export function isGuidedProjectTab(value: unknown): value is GuidedProjectTab {
   return GUIDED_PROJECT_STEPS.some((step) => step.tab === value);
-}
-
-function requirementOperation(requirement: WorkflowRequirement) {
-  return String(record(requirement.value_json).operation ?? "install").toLowerCase();
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }

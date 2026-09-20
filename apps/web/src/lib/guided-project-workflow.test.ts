@@ -6,6 +6,57 @@ import {
   isGuidedProjectTab
 } from "./guided-project-workflow";
 
+const approvedAssignment = (requirementId: string) => ({
+  id: `approved-${requirementId}`, requirement_id: requirementId, status: "selected",
+  product_snapshot: { source: "distributor_manual", approvedByUser: true, approvalStatus: "user_approved" }
+});
+
+const workRows = [
+  { id: "holes", value_text: "HULLTAKING FOR RØRGJENNOMFØRING", value_json: { quantity: 4, unit: "st" } },
+  { id: "pressure-test", value_text: "TETTHETSPRØVING", value_json: { quantity: 1, unit: "st" } },
+  { id: "meeting", value_text: "FORBEREDENDE MØTER", value_json: { quantity: 2, unit: "st" } },
+  { id: "lump-sum", value_text: "Maling av rør", value_json: { quantity: 1, unit: "RS" } },
+  { id: "documentation", value_text: "SLUTTDOKUMENTASJON", value_json: { quantity: 1, unit: "st" } }
+];
+
+test("completes approved product selection with unmapped work posts after reloading the project", () => {
+  const workflow = guidedProjectWorkflow({ documentCount: 1,
+    requirements: [...workRows, { id: "pipe", value_text: "Stålrør DN65", value_json: { quantity: 68, unit: "m" } },
+      { id: "missing", value_text: "Sprinkler K80", value_json: { quantity: 14, unit: "st", productResolution: { status: "not_in_assortment" } } },
+      { id: "removal", value_json: { operation: "remove" } }, { id: "superseded", status: "superseded" }],
+    assignments: [approvedAssignment("pipe")]
+  });
+  assert.equal(workflow.eligibleRequirementCount, 2);
+  assert.equal(workflow.mappedRequirementCount, 2);
+  assert.equal(workflow.remainingProductCount, 0);
+  assert.equal(workflow.isComplete, true);
+  assert.deepEqual(guidedProjectCompletionUpdate(workflow), { currentStage: "completed", status: "proposal_ready" });
+});
+
+test("projects consisting only of work posts need no product approvals", () => {
+  const workflow = guidedProjectWorkflow({ documentCount: 1, requirements: workRows, assignments: [] });
+  assert.equal(workflow.eligibleRequirementCount, 0);
+  assert.equal(workflow.isComplete, true);
+});
+
+test("work exclusions never hide a missing product approval, including measured children of RS posts", () => {
+  const requirements = [...workRows, { id: "pipe", display_name: "Stålrør DN65",
+    source_excerpt: "Kontrolleres i forberedende møter. Tilhører komplett anlegg – rund sum.",
+    value_json: { quantity: 68, unit: "m" } }];
+  const workflow = guidedProjectWorkflow({ documentCount: 1, requirements, assignments: [{ ...approvedAssignment("pipe"), product_snapshot: { source: "distributor_manual" } }] });
+  assert.equal(workflow.eligibleRequirementCount, 1);
+  assert.equal(workflow.remainingProductCount, 1);
+  assert.equal(guidedProjectCompletionUpdate(workflow), null);
+});
+
+test("projects with no active posts cannot be marked complete", () => {
+  for (const requirements of [[], [{ id: "rejected", status: "rejected" }, { id: "old", status: "superseded" }]]) {
+    const workflow = guidedProjectWorkflow({ documentCount: 1, requirements, assignments: [] });
+    assert.equal(workflow.isComplete, false);
+    assert.equal(guidedProjectCompletionUpdate(workflow), null);
+  }
+});
+
 test("guides a new project directly from upload to product selection", () => {
   const empty = guidedProjectWorkflow({
     documentCount: 0,
