@@ -5,6 +5,8 @@ import type { AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
 import { searchAhlsellPublicCatalogQueries, type AhlsellMarket } from "./ahlsell-public-catalog";
 import { assemblyComponentSearch, isAssemblyComponentCandidate, type AssemblyComponent } from "./product-assembly-plan";
 import { assessAssemblyComponents } from "./assembly-component-matching";
+import { accessoryDatabaseProducts } from "./ahlsell-accessory-lookup";
+import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
 
 /** Resolve the selected article on the server. Client-supplied names or search
  * terms cannot establish technical compatibility with the main product. */
@@ -22,14 +24,28 @@ export async function lookupAssemblyComponents({ requirement, component, mainArt
   signal?.throwIfAborted();
   if (main) main = (await withDetails([main], fetchImpl, store))[0];
   const automaticQuery = assemblyComponentSearch(component, main ? [main.productName, main.subtitle, main.description, main.manufacturer, ...main.specifications].filter(Boolean).join(" ") : "");
-  const result: AhlsellLookupResult = automatic
-    ? await searchAhlsellPublicCatalogQueries({ market, queries: [automaticQuery], fetchImpl, maxCandidates: 24, maxPages: 2, maxVariantFamilies: 4 })
+  const database = market === "no" ? accessoryDatabaseProducts(component.kind, automatic ? undefined : typeof query === "string" ? query : undefined) : [];
+  let webUnavailable = false;
+  const result: AhlsellLookupResult = await (automatic
+    ? searchAhlsellPublicCatalogQueries({ market, queries: [automaticQuery], fetchImpl, maxCandidates: 24, maxPages: 2, maxVariantFamilies: 4 })
       .then(result => ({ products: result.candidates, searchUrl: result.searchUrl }))
-    : await lookupAhlsellProduct({ query, market, signal, fetchImpl, store });
+    : lookupAhlsellProduct({ query, market, signal, fetchImpl, store }))
+    .catch(error => {
+      signal?.throwIfAborted();
+      if (!database.length) throw error;
+      webUnavailable = true;
+      return { products: [], searchUrl: `https://www.ahlsell.${market}/search?parameters.SearchPhrase=${encodeURIComponent(automatic ? automaticQuery : String(query))}` };
+    });
   signal?.throwIfAborted();
   const family = result.products.filter(product => isAssemblyComponentCandidate(component.kind, `${product.productName} ${product.subtitle ?? ""}`));
-  const products = assessAssemblyComponents(requirement, component, await withDetails(family, fetchImpl, store), main);
-  return { ...result, products, message: products.length ? undefined
+  // Fetch the web variants before adding the database pool so a large local
+  // assortment cannot displace their detail checks from the bounded fetch.
+  const combined = mergeAhlsellCandidates(database, await withDetails(family, fetchImpl, store));
+  signal?.throwIfAborted();
+  const products = assessAssemblyComponents(requirement, component, combined, main);
+  return { ...result, products, message: webUnavailable
+    ? "Ahlsells webbsökning kunde inte slutföras. Visar träffar från MLDL; försök igen för att komplettera."
+    : products.length ? undefined
     : "Inga passande produktförslag hittades för den här delen. Kontrollera om delen ingår i huvudprodukten eller komplettera produktunderlaget." };
 }
 

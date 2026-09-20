@@ -11,7 +11,7 @@ import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 import { groupProductRequirementsByMainPost } from "@/lib/product-post-groups";
 import { ProductPostComments } from "@/components/ProductPostComments";
-import { ProductAssemblyParts } from "@/components/ProductAssemblyParts";
+import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
 import { isRigidPipeProduct } from "@/lib/pipe-product-family";
 import { ahlsellRequirementIntent } from "@/lib/ahlsell-requirement-intent";
@@ -44,12 +44,10 @@ import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-
 import { candidateSelectionReview, productSelectionReviewNotes, readProductSelectionReview, PRODUCT_DEVIATION_LABEL, PRODUCT_REVIEW_LABEL, type ProductSelectionReview } from "@/lib/product-selection-review";
 import {
   accessoriesForSelectedProduct,
-  hasSuggestedProductAccessory,
   newProductAccessoryDraft,
   productAccessoryDraftError,
   productAccessoryPayload,
   readProductAccessoryDrafts,
-  toggleSuggestedProductAccessory,
   type ProductAccessoryDraft
 } from "@/lib/product-card-accessories";
 import {
@@ -1271,10 +1269,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const accessoryError = productAccessoryDraftError(selectedProductAccessories);
   const assemblyPlan = productAssemblyPlan(requirement);
   const hasAccessoryStep = Boolean(assemblyPlan?.components.length || suggestedAccessories.length || selectedProductAccessories.length);
-  const remainingSuggestedAccessories = suggestedAccessories.filter(suggestion => !hasSuggestedProductAccessory(selectedProductAccessories, suggestion));
   const accessoryComponent = assemblyPlan?.components.find(component => component.id === accessoryComponentId);
   const accessoryQuery = accessoryComponent
-    ? assemblyComponentSearch(accessoryComponent, `${productName} ${productSubtitle} ${manufacturerName}`) : "";
+    ? assemblyComponentSearch(accessoryComponent, `${productName} ${productSubtitle} ${manufacturerName}`)
+    : !assemblyPlan?.components.length ? suggestedAccessories[0]?.productName ?? "" : "";
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
   const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
   const pdfArticleNumber = ahlsellGuide.directCandidates.find(
@@ -1369,7 +1367,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setAccessoryStepOpen(Boolean(assemblyPlan?.components.length || accessorySuggestions.length || nextAccessories.length));
     const firstComponent = assemblyPlan?.components.find(component => !component.optional);
     setAccessoryComponentId(firstComponent?.id ?? null);
-    setAccessoryLookupOpen(Boolean(firstComponent));
+    setAccessoryLookupOpen(Boolean(firstComponent || accessorySuggestions.length));
     setSuggestedAccessories(accessorySuggestions);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
@@ -1521,22 +1519,19 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   function editAccessories() {
     setAccessoryStepOpen(true);
+    setAccessoryComponentId(assemblyPlan?.components.find(component => !component.optional)?.id ?? null);
+    setAccessoryLookupOpen(true);
     window.requestAnimationFrame(() => document.getElementById(`accessory-step-${requirement.id}`)?.focus({ preventScroll: true }));
   }
 
   function openAccessoryLookup(component?: AssemblyComponent) {
     if (!hasAccessoryStep || !productNumber.trim() || selectedProductAccessories.length >= 20) return;
     setAccessoryStepOpen(true);
-    if (component && accessoryLookupOpen && accessoryComponentId === component.id) {
-      setAccessoryLookupOpen(false);
-      return;
-    }
     setAccessoryComponentId(component?.id ?? null);
     setAccessoryLookupOpen(true);
     window.requestAnimationFrame(() => {
-      const target = component ? `assembly-parts-${requirement.id}-${component.id}-trigger` : `accessory-lookup-card-${requirement.id}`;
+      const target = `accessory-lookup-card-${requirement.id}`;
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      if (!component) document.getElementById(`ahlsell-accessory-lookup-${requirement.id}`)?.focus();
     });
   }
 
@@ -1555,17 +1550,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setAccessoryOwnerProductNumber(productNumber);
     setAccessoryStepOpen(true);
     setAccessoryLookupOpen(false);
-    setAccessoryComponentId(null);
     setHasUnapprovedChanges(true);
     setDraftNotice(`Tillbehöret med NRF-nummer ${candidate.articleNumber} har lagts till för kontroll.`);
     onError("");
     window.requestAnimationFrame(() => document.getElementById(`accessory-${requirement.id}-${selectedProductAccessories.length}-quantity`)?.focus());
-  }
-
-  function updateLookupAccessory(candidate: AhlsellLookupProduct, amount: { quantity: string; unit: string }) {
-    setAccessories(current => current.map(accessory => normalizeNrfNumber(accessory.productNumber) === normalizeNrfNumber(candidate.articleNumber)
-      ? { ...accessory, ...amount, quantityBasis: "total" } : accessory));
-    setHasUnapprovedChanges(true);
   }
 
   function updateOrderQuantity(amount: { quantity: string; unit: string }) {
@@ -1603,17 +1591,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     if (next.length === 0) {
       setAccessoryOwnerProductNumber("");
     }
-    setHasUnapprovedChanges(true);
-    onError("");
-  }
-
-  function toggleSuggestedAccessory(suggestion: AhlsellAccessorySuggestion, selected: boolean) {
-    const next = toggleSuggestedProductAccessory(selectedProductAccessories, suggestion, selected, quantity.quantity);
-    setAccessories(next);
-    setAccessoryOwnerProductNumber(next.length > 0 ? productNumber : "");
-    setAccessoryStepOpen(true);
-    setAccessoryLookupOpen(false);
-    setAccessoryComponentId(null);
     setHasUnapprovedChanges(true);
     onError("");
   }
@@ -1815,19 +1792,17 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   const accessoryLookup = hasAccessoryStep && accessoryLookupOpen && productNumber.trim() ? (
-    <section id={`accessory-lookup-card-${requirement.id}`} aria-label={accessoryComponent ? `Produktalternativ för ${accessoryComponent.label}` : "Lägg till tillbehör från Ahlsell"} className="scroll-mt-24 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h5 className="text-sm font-bold text-ink-950">{accessoryComponent ? `Alternativ för ${accessoryComponent.label}` : "Lägg till tillbehör"}</h5>
-        <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => setAccessoryLookupOpen(false)}>Stäng tillbehörssökning</Button>
-      </div>
-      <AhlsellProductLookup key={`${productNumber}:${accessoryComponentId ?? "manual"}`} projectId={projectId} requirementId={requirement.id} id={`ahlsell-accessory-lookup-${requirement.id}`}
-        accessory automaticQuery={accessoryQuery} componentKind={accessoryComponent?.kind} componentId={accessoryComponent?.id} mainArticleNumber={productNumber}
-        disabled={saving} selectionLimitReached={selectedProductAccessories.length >= 20} defaultUnit={accessoryComponent?.kind === "pipe" ? "m" : "st"}
-        selections={selectedProductAccessories.map(item => ({ ...item, quantity: item.quantityBasis === "total" ? item.quantity
-          : quantity.quantity === null ? "" : String(Number(item.quantity) * quantity.quantity) }))}
-        onSelect={applyAhlsellAccessory} onQuantityChange={updateLookupAccessory}
-        onDeselect={candidate => removeAccessory(selectedProductAccessories.findIndex(item => normalizeNrfNumber(item.productNumber) === normalizeNrfNumber(candidate.articleNumber)))} />
-    </section>
+    <AccessoryProductPicker key={productNumber + ":" + (accessoryComponentId ?? "manual")} projectId={projectId} requirementId={requirement.id}
+      mainArticleNumber={productNumber} component={accessoryComponent} automaticQuery={accessoryQuery} suggestions={suggestedAccessories}
+      selections={selectedProductAccessories.map(item => item.productNumber)} disabled={saving} selectionLimitReached={selectedProductAccessories.length >= 20}
+      onSelect={candidate => {
+        const suggestion = suggestedAccessories.find(item => normalizeNrfNumber(item.articleNumber) === normalizeNrfNumber(candidate.articleNumber));
+        applyAhlsellAccessory(candidate, {
+          quantity: suggestion && !accessoryComponent?.quantityFromDrawing && !accessoryComponent?.quantityNeedsReview && quantity.quantity !== null ? String(suggestion.quantity * quantity.quantity) : "",
+          unit: suggestion?.unit || (accessoryComponent?.kind === "pipe" ? "m" : "st")
+        });
+      }}
+      onDeselect={candidate => removeAccessory(selectedProductAccessories.findIndex(item => normalizeNrfNumber(item.productNumber) === normalizeNrfNumber(candidate.articleNumber)))} />
   ) : null;
 
   const accessorySection = hasAccessoryStep && productNumber.trim() ? (
@@ -1840,51 +1815,20 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         {!accessoryStepOpen && <Button type="button" variant="secondary" onClick={editAccessories}>Ändra tillbehör</Button>}
       </div>
       {accessoryStepOpen && <div className="mb-4 space-y-4">
-          {productNumber.trim() && assemblyPlan && assemblyPlan.components.length > 0 && <ProductAssemblyParts id={`assembly-parts-${requirement.id}`} plan={assemblyPlan}
-            accessories={selectedProductAccessories} disabled={saving || selectedProductAccessories.length >= 20}
-            activeComponentId={accessoryLookupOpen ? accessoryComponentId : null} onChoose={openAccessoryLookup}>
-            {accessoryLookup}
-          </ProductAssemblyParts>}
-
-          {accessoryLookup && !accessoryComponent && <div className="rounded-md border-2 border-flow-300 bg-white p-4">{accessoryLookup}</div>}
-
-          {remainingSuggestedAccessories.length > 0 && (
-            <section aria-labelledby={`suggested-accessories-title-${requirement.id}`} className="overflow-hidden rounded-md border border-cyan-300 bg-white">
-              <div className="border-b border-cyan-200 bg-cyan-50 px-3 py-3 sm:px-4">
-                <h5 id={`suggested-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-ink-950"><PackagePlus className="h-4 w-4 text-flow-800" aria-hidden="true" />Tillbehör som kan behövas</h5>
-                <p className="mt-0.5 text-xs leading-5 text-ink-600">ScipX har sökt i hela MLDL-databasen efter tillbehör till NRF {productNumber.trim()}. Markera de tillbehör som ska sparas tillsammans med huvudprodukten.</p>
-              </div>
-              <div className="divide-y divide-ink-200">
-                {remainingSuggestedAccessories.map((suggestion) => {
-                  const checked = hasSuggestedProductAccessory(selectedProductAccessories, suggestion);
-                  return (
-                    <article key={suggestion.articleNumber} className={checked ? "bg-emerald-50 px-3 py-3 sm:px-4" : "bg-white px-3 py-3 sm:px-4"}>
-                      <div className="flex items-start gap-3">
-                        <ProductSelectionCheckbox checked={checked} disabled={saving || (!checked && selectedProductAccessories.length >= 20)}
-                          label={`${suggestion.productName}, NRF-nummer ${suggestion.articleNumber}`} onChange={checked => toggleSuggestedAccessory(suggestion, checked)} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold leading-5 text-ink-950">{suggestion.productName}</p>
-                          <p className="mt-0.5 text-xs font-bold text-flow-800">NRF-nummer {suggestion.articleNumber}</p>
-                          <p className="mt-1 text-xs leading-5 text-ink-600">{suggestion.reason}</p>
-                          <p className={suggestion.compatibility === "compatible" ? "mt-1 text-xs font-bold text-emerald-800" : "mt-1 text-xs font-bold text-amber-900"}>
-                            {suggestion.required ? "Tillbehör krävs enligt montage/krav · " : "Möjligt tillbehör · "}
-                            {suggestion.compatibility === "compatible" ? "stark katalogkoppling" : "kompatibilitet måste kontrolleras"}
-                          </p>
-                        </div>
-                        <a href={suggestion.productUrl} target="_blank" rel="noreferrer" aria-label={`Sök Ahlsell tillbehör ${suggestion.articleNumber}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-                          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                        </a>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
+        {assemblyPlan && assemblyPlan.components.length > 0 && <div>
+          <label htmlFor={"accessory-type-" + requirement.id} className="mb-2 block text-sm font-bold text-ink-900">Tillbehörstyp</label>
+          <select id={"accessory-type-" + requirement.id} value={accessoryComponentId ?? ""} disabled={saving}
+            className="w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm"
+            onChange={event => openAccessoryLookup(assemblyPlan.components.find(component => component.id === event.target.value))}>
+            {assemblyPlan.components.map(component => <option key={component.id} value={component.id}>{component.label}</option>)}
+            <option value="">Övriga tillbehör</option>
+          </select>
+        </div>}
+        {accessoryComponent && <p className="text-xs leading-5 text-ink-600">{accessoryComponent.requirement}</p>}
+        {accessoryLookup}
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" onClick={addAccessory} disabled={selectedProductAccessories.length >= 20}><Search className="h-4 w-4" aria-hidden="true" />Sök andra tillbehör</Button>
+          {!accessoryLookupOpen && <Button type="button" variant="secondary" onClick={() => openAccessoryLookup(accessoryComponent)} disabled={selectedProductAccessories.length >= 20}><Search className="h-4 w-4" aria-hidden="true" />Välj fler tillbehör</Button>}
           <Button type="button" variant="secondary" onClick={addManualAccessory} disabled={selectedProductAccessories.length >= 20}><Plus className="h-4 w-4" aria-hidden="true" />Registrera tillbehör manuellt</Button>
         </div>
       </div>}
@@ -2026,6 +1970,26 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
         <div id={`product-selection-header-${requirement.id}`} className="sticky top-0 z-20 border-b border-ink-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+          <nav id={`product-post-actions-${requirement.id}`} aria-label="Åtgärder för produktposten" className="mb-3 flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { const scope = productNumber.trim() ? "product" : "post"; document.getElementById(`${scope}-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${scope}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
+            {!productNumber.trim() && <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
+              <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
+            </Button>}
+            {!resolution && (
+              <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
+                <Tag className="h-4 w-4" aria-hidden="true" />Inte i sortiment
+              </Button>
+            )}
+            <a href={productPostMailHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+              <Mail className="h-4 w-4" aria-hidden="true" />Maila post
+            </a>
+            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
+              <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
+            </Button>
+            <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells hemsida
+            </a>
+          </nav>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-flow-700">{!productNumber.trim() ? "2. Välj huvudprodukt" : accessoryStepOpen ? "3. Välj tillbehör" : "Ditt produktval"}</p>
@@ -2075,26 +2039,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </section>
           )}
 
-          <nav aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-ink-200 bg-ink-50 p-3">
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { const scope = productNumber.trim() ? "product" : "post"; document.getElementById(`${scope}-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${scope}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
-            {!productNumber.trim() && <Button id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
-              <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
-            </Button>}
-            {!resolution && (
-              <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
-                <Tag className="h-4 w-4" aria-hidden="true" />Inte i sortiment
-              </Button>
-            )}
-            <a href={productPostMailHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-              <Mail className="h-4 w-4" aria-hidden="true" />Maila post
-            </a>
-            <Button type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
-              <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
-            </Button>
-            <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells hemsida
-            </a>
-          </nav>
+
 
           {productNumber.trim() && selectionReview && (isApproved ? (
             <details className="rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-700">

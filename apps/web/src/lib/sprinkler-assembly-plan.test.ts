@@ -120,7 +120,8 @@ test("automatic component lookup resolves the selected NRF and product pages bef
   assert.ok(queries.includes("Endelokk DN25 rillet"));
   assert.ok(queries.every(q => !q.includes("PRIVATE_PROJECT")));
   assert.ok(details.includes(mainArticle) && details.includes(rightArticle) && details.includes(wrongArticle));
-  assert.deepEqual(result.products.map(p => p.articleNumber), [rightArticle]);
+  assert.deepEqual(result.products.filter(p => p.articleNumber.startsWith("99997")).map(p => p.articleNumber), [rightArticle]);
+  assert.ok(result.products.some(p => p.evidenceSources?.includes("mldl_database")), "compatible database parts share the web result list");
 });
 
 test("missing main-product evidence does not invent compatibility", () => {

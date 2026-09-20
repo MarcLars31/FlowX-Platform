@@ -6,6 +6,7 @@ import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { assessAhlsellLookupCandidates } from "@/lib/ahlsell-hybrid-matching";
 import { productAssemblyPlan } from "@/lib/product-assembly-plan";
 import { lookupAssemblyComponents } from "@/lib/assembly-component-lookup";
+import { lookupAccessoryProducts } from "@/lib/ahlsell-accessory-lookup";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { readJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
@@ -41,7 +42,8 @@ export async function POST(request: Request, context: RouteContext) {
         market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, store: ahlsellEvidenceStore() });
       return NextResponse.json(result, { headers });
     }
-    const result = await lookupAhlsellProduct({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, store: ahlsellEvidenceStore() });
+    const lookup = body?.accessory === true ? lookupAccessoryProducts : lookupAhlsellProduct;
+    const result = await lookup({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, store: ahlsellEvidenceStore() });
     // Accessories have their own compatibility check against the chosen head;
     // do not compare an escutcheon with the head's K-factor or temperature.
     const products = body?.accessory === true

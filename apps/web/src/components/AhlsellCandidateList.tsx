@@ -11,10 +11,13 @@ import { technicalConflictWarnings } from "@/lib/ahlsell-technical-conflicts";
 import { groupAhlsellCandidatesForDisplay, normalizeNrfNumber } from "@/lib/product-card-candidates";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 
-export function AhlsellCandidateList({ candidates, requirementId, selectedArticleNumber, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, onSearch, onCheckRequirement, onSelect }: {
+export function AhlsellCandidateList({ candidates, requirementId, selectedArticleNumber, selectedArticleNumbers, accessory = false, selectionLimitReached = false, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, onSearch, onCheckRequirement, onSelect }: {
   candidates: AhlsellPublicCandidate[];
   requirementId: string;
   selectedArticleNumber: string;
+  selectedArticleNumbers?: string[];
+  accessory?: boolean;
+  selectionLimitReached?: boolean;
   disabled: boolean;
   allowMatches: boolean;
   accessoryRequirements?: string[];
@@ -30,7 +33,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
   const mainReason = [...new Set(conflicts)].sort((a, b) => conflicts.filter(value => value === b).length - conflicts.filter(value => value === a).length)[0];
 
   function productRow(candidate: AhlsellPublicCandidate) {
-    const selected = normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber);
+    const selected = (selectedArticleNumbers ?? [selectedArticleNumber]).some(number => normalizeNrfNumber(number) === normalizeNrfNumber(candidate.articleNumber));
     const assessedState = ahlsellCandidateMatchState(candidate);
     const state = !allowMatches && assessedState !== "mismatch" ? "review" : assessedState;
     const matched = state === "exact" || state === "matched";
@@ -39,7 +42,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
       <article key={candidate.articleNumber} className={`${background} border-l-4 ${selected ? "border-l-flow-700 ring-2 ring-inset ring-flow-700" : "border-l-transparent"} px-3 py-3 sm:px-4`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1">
-            {selected && <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-flow-900"><CheckCircle2 className="h-5 w-5" aria-hidden="true" />Valgt hovedprodukt</p>}
+            {selected && <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-flow-900"><CheckCircle2 className="h-5 w-5" aria-hidden="true" />{accessory ? "Valt tillbehör" : "Vald huvudprodukt"}</p>}
             <p className="text-sm font-bold leading-5 text-ink-950">{candidate.productName}</p>
             {candidate.description && candidate.description !== candidate.productName && (
               <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-ink-700" title={candidate.description}>{candidate.description}</p>
@@ -59,7 +62,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             <AhlsellTechnicalEvidence candidate={candidate} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ProductSelectionCheckbox name={`ahlsell-product-${requirementId}`} checked={selected} disabled={disabled}
+            <ProductSelectionCheckbox name={`ahlsell-${accessory ? "accessory" : "product"}-${requirementId}`} checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
               label={`${candidate.productName}, NRF-nummer ${candidate.articleNumber}`} onChange={() => onSelect(candidate)} />
             <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white text-ink-700 transition hover:border-cyan-500 hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">

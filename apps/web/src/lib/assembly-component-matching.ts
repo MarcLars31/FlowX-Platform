@@ -77,6 +77,8 @@ function grooveSystemConflict(main: string, accessory: string) {
 
 function explicitModelConflict(main: AhlsellLookupProduct, accessory: AhlsellLookupProduct) {
   const mainModels = [...productText(main).matchAll(/\b(?:V\d{2,4}|AV[- ]?1|(?:S|Series\s*)751)\b/gi)].map(match => normalizeTechnicalText(match[0]).replace(/ /g, ""));
-  const targets = [...productText(accessory).matchAll(/\b(?:for|til|f\/)\s*(V\d{2,4}|AV[- ]?1|(?:S|Series\s*)751)\b/gi)].map(match => normalizeTechnicalText(match[1]).replace(/ /g, ""));
+  // Catalog accessory names also state the family directly ("V27 dekkskive"),
+  // without "for/til". These are still explicit compatibility constraints.
+  const targets = [...productText(accessory).matchAll(/\b(?:V\d{2,4}|AV[- ]?1|(?:S|Series\s*)751)\b/gi)].map(match => normalizeTechnicalText(match[0]).replace(/ /g, ""));
   return mainModels.length > 0 && targets.length > 0 && !mainModels.some(mainModel => targets.some(target => mainModel === target || /^v\d{2}$/.test(target) && mainModel.startsWith(target)));
 }
