@@ -6,7 +6,7 @@ export type PipeJoint = 'threaded' | 'grooved' | 'welded' | 'fusion' | 'flanged'
 export function pipeJointTypes(value: string): PipeJoint[] {
   const text = normalizeTechnicalText(value);
   const joints: PipeJoint[] = [];
-  if (/\b(gjenget|gjengede|gjeng|gjengeskjot|gjenger|gangad|gangade|threaded|skrudd|skruforbindelse)\b/.test(text)) joints.push('threaded');
+  if (/\b(gjenget|gjengede|gjeng|gjenge|gjengeskjot|gjenger|gangad|gangade|threaded|skrudd|skruforbindelse)\b/.test(text)) joints.push('threaded');
   if (/\b(rille|rillet|rillede|rilleskjot|rillekobling|rillad|rillade|rillanslutning|grooved|igs|ogs)\b/.test(text)) joints.push('grooved');
   if (/\b(sveis|sveist|sveiset|sveising|sveiseskjot|sveisskjot|svetsad|svetsfog|welded|butt weld)\b/.test(text)) joints.push('welded');
   if (/\b(muffesveis|heat fusion|fusion)\b/.test(text)) joints.push('fusion');
@@ -19,7 +19,7 @@ export function requirementJointText(attributes: Record<string, unknown>, descri
   const explicit = Object.entries(attributes)
     .filter(([key]) => /^(?:skjot|joint|(?:type )?tilkobling(?:er)?(?:stype)?|anslutning(?:styp)?|forbindelse)$/.test(normalizeTechnicalText(key)))
     .map(([, value]) => String(value)).join(' ');
-  return explicit || description.split(/\b(?:inkl\.?|inkludert|inklusive|including)\b/i)[0];
+  return explicit || description.split(/\b(?:inkl\.?|inkludert|inklusive|including|avsluttes|avslutning)\b/i)[0];
 }
 
 export function stainlessSteelGrade(value: string) {

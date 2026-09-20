@@ -89,7 +89,7 @@ export function complementMldlCandidates(requirement: Record<string, unknown>, l
       // Only missing-value warnings are regenerated. Variant ambiguity and
       // confirmed conflicts must survive evidence from a second source.
       matchWarnings: [...new Set([
-        ...(database.matchWarnings ?? []).filter(warning => !/saknas i produktinformationen|arbetstryck behöver verifieras|^Produktens (?:dimension|tryckklass) saknas|^Produktens (?:material|skarv- eller anslutningstyp) behöver verifieras|^Produktens materialkvalitet .+ behöver verifieras|^Alla nödvändiga tekniska uppgifter är inte verifierade\.|^Korrosionsskydd för kategori C[1-5] behöver verifieras|^Kapslingsklass IP\d+ behöver verifieras|^Kapitlets krav på galvaniserade|^Ventilens lägesövervakning/.test(warning)),
+        ...(database.matchWarnings ?? []).filter(warning => !/saknas i produktinformationen|arbetstryck behöver verifieras|^Produktens (?:dimension|tryckklass) saknas|^Produktens (?:material|skarv- eller anslutningstyp|SDR|tillåtna driftstryck) behöver verifieras|^Produktens materialkvalitet .+ behöver verifieras|^Alla nödvändiga tekniska uppgifter är inte verifierade\.|^Korrosionsskydd för kategori C[1-5] behöver verifieras|^Kapslingsklass IP\d+ behöver verifieras|^Kapitlets krav på galvaniserade|^Ventilens lägesövervakning/.test(warning)),
         ...technicalConflictWarnings(publicAssessment)
       ])]
     }]);

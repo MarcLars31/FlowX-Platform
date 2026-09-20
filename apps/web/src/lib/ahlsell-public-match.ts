@@ -25,6 +25,7 @@ import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
 import { manifoldCabinetRequirementGuide } from "./ahlsell-manifold-cabinet";
 import { pipeJointTypes, pipeJointSearchTerm, requirementJointText, stainlessSteelGrade, type PipeJoint } from "./pipe-technical-terms";
 import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
+import { pipeRequirementDimensions, pipeRequirementLimits } from './pipe-matching-evidence';
 import type { AhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
 
 export type AhlsellPublicCandidate = {
@@ -188,10 +189,13 @@ export function buildAhlsellRequirementGuide(
     const inferredDn = dnFromOutsideDiameter(explicitOutsideDiameters[0]);
     if (inferredDn !== null) dnValues.push(inferredDn);
   }
-  const dn = intent === "alarm_device" ? null : dnValues[0]
+  const pipeDimensions = intent === 'pipe' ? pipeRequirementDimensions(requirement) : null;
+  const pipeLimits = pipeRequirementLimits(requirement);
+  const dn = intent === "alarm_device" ? null : pipeDimensions ? pipeDimensions.dn : dnValues[0]
     ?? numberFromAttribute(attributes, ["gjengedimensjon dn", "dimension", "dimensjon", "dn"])
     ?? numberFromText(combined, /\bdn\s*(\d{1,3})\b/i);
-  const outsideDiameters = uniqueNumbers([
+  const outsideDiameters = pipeDimensions ? uniqueNumbers([pipeDimensions.outsideDiameter,
+    pipeDimensions.dn === null ? null : PIPE_OUTSIDE_DIAMETER_BY_DN[pipeDimensions.dn]]) : uniqueNumbers([
     ...explicitOutsideDiameters,
     ...uniqueNumbers([...dnValues, dn]).map((dimension) => PIPE_OUTSIDE_DIAMETER_BY_DN[dimension]).filter((value): value is number => value !== undefined)
   ]);
@@ -240,7 +244,8 @@ export function buildAhlsellRequirementGuide(
     ?? (intent === "sprinkler_head" && !/\b(valgfritt|valfritt|optional)\b/.test(normalize(finishAttribute ?? "")) ? "brass" : null);
   const specialApplication = sprinklerHeadType === "dry" || sprinklerHeadType === "open"
     || (sprinklerCoverage !== null && sprinklerCoverage !== "standard");
-  const pn = numberFromAttribute(attributes, ["trykk", "arbeidstrykk", "trykklasse", "pressure"])
+  const pressureAttributes = new Map([...attributes].filter(([key]) => !/\bpma\b|tillatte driftstrykk/.test(key)));
+  const pn = numberFromAttribute(pressureAttributes, ["trykk", "arbeidstrykk", "trykklasse", "pressure"])
     ?? numberFromText(primaryCombined, /\bpn\s*(\d{1,3})\b/i);
 
   const criteria = compact([
@@ -258,6 +263,9 @@ export function buildAhlsellRequirementGuide(
     sprinklerHeadType === "dry" ? "Tørrsprinkler" : sprinklerHeadType === "open" ? "Öppen sprinkler" : sprinklerHeadType === "standard" ? "Konventionell sprinkler" : null,
     kFactor === null ? null : `K${formatNumber(kFactor)}`,
     dn === null ? null : `DN${formatNumber(dn)}`,
+    intent === 'pipe' && pipeDimensions?.outsideDiameter !== null && pipeDimensions?.outsideDiameter !== undefined ? `Ytterdiameter ${formatNumber(pipeDimensions.outsideDiameter)} mm` : null,
+    intent === 'pipe' && pipeLimits.sdr !== null ? `SDR${pipeLimits.sdr}` : null,
+    intent === 'pipe' && pipeLimits.pma !== null ? `PMA ${pipeLimits.pma} bar` : null,
     temperatureC === null ? null : `${formatNumber(temperatureC)}°C`,
     responseResult.response === "quick" ? "Quick" : responseResult.response === "standard" ? "Standard" : null,
     orientation === "pendent" ? "Pendent" : orientation === "upright" ? "Upright" : orientation === "sidewall" ? "HSW" : null,
@@ -294,6 +302,7 @@ export function buildAhlsellRequirementGuide(
         isSprinklerAccessory,
         outsideDiameters,
         pn,
+        sdr: pipeLimits.sdr,
         pipeJoints: pipeJointTypes(requirementJointText(Object.fromEntries(attributes), description)),
         pipeMaterial: normalize(firstAttribute(attributes, ["materiale", "material", "materialkvalitet"]) ?? description),
         materialGrade: stainlessSteelGrade(firstAttribute(attributes, ["materialkvalitet", "materiale"]) ?? "")
@@ -475,6 +484,7 @@ function buildCatalogQueries({
   isSprinklerAccessory,
   outsideDiameters,
   pn,
+  sdr,
   pipeJoints,
   pipeMaterial,
   materialGrade
@@ -498,6 +508,7 @@ function buildCatalogQueries({
   isSprinklerAccessory: boolean;
   outsideDiameters: number[];
   pn: number | null;
+  sdr: number | null;
 }) {
   const dnTerm = dn === null ? null : `DN${formatNumber(dn)}`;
   const outsideDiameterTerm = outsideDiameters[0] === undefined
@@ -610,9 +621,9 @@ function buildCatalogQueries({
     return [
       ...(!joints.length && !materialGrade && material === "Stålrør sprinkler"
         ? [compact(["Rør sprinkler", outsideDiameterTerm ?? dnTerm]).join(" ")] : []),
-      compact([material, materialGrade, dnTerm ?? outsideDiameterTerm, joints[0], pressureTerm]).join(" "),
+      compact([material, materialGrade, dnTerm ?? outsideDiameterTerm, sdr === null ? null : `SDR${sdr}`, joints[0], pressureTerm]).join(" "),
       compact([material, materialGrade, alternateDimension, joints[1] ?? joints[0]]).join(" "),
-      compact([material, materialGrade, dnTerm]).join(" ")
+      compact([material, materialGrade, dnTerm ?? outsideDiameterTerm]).join(" ")
     ];
   }
   if (intent === "coupling") {
@@ -644,6 +655,9 @@ function buildCatalogQueries({
     ];
   }
   if (intent === "cap") {
+    if (pipeJoints.includes('threaded') && !pipeJoints.includes('grooved')) {
+      return [compact(['Plugg gjenget', dnTerm]).join(' '), compact(['Endelokk gjenget', dnTerm]).join(' ')];
+    }
     return [compact(["Endelokk", outsideDiameterTerm]).join(" "), compact(["Endelokk rillet", dnTerm]).join(" ")];
   }
   if (intent === "branch") {

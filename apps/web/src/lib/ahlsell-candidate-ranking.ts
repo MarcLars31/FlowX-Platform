@@ -11,6 +11,7 @@ import {
 import { ahlsellRequirementIntent, type AhlsellProductIntent as ProductIntent } from "./ahlsell-requirement-intent";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { isRigidPipeProduct } from "./pipe-product-family";
+import { capPrimaryConnection, pipeCandidateMaterial, pipeCandidateOutsideDiameter, pipeLimitWarnings, pipeRequirementDimensions, pipeRequirementLimits } from './pipe-matching-evidence';
 import { mainProductText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 import { pipeJointTypes, requirementJointText, stainlessSteelGrade, type PipeJoint } from "./pipe-technical-terms";
 import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
@@ -42,6 +43,7 @@ type TechnicalProfile = {
   text: string;
   intent: ProductIntent;
   dn: number | null;
+  pipeLimits: ReturnType<typeof pipeRequirementLimits>;
   outsideDiameter: number | null;
   pn: number | null;
   minimumPressureClass: boolean;
@@ -166,8 +168,9 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   // Only requirement evidence belongs here; previous candidates, comments,
   // provenance and saved matching scores must not create technical demands.
   const text = normalize(`${primaryText} ${productTechnicalSpecification(requirement)}`);
-  const outsideDiameter = extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
-  const dn = intent === "alarm_device" ? null : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
+  const pipeDimensions = intent === 'pipe' ? pipeRequirementDimensions(requirement) : null;
+  const outsideDiameter = pipeDimensions ? pipeDimensions.outsideDiameter : extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
+  const dn = intent === "alarm_device" ? null : pipeDimensions ? pipeDimensions.dn : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
   const placementText = normalize(attributeText(attributes, /\b(?:plassering|placering|orientation|montasje|montering|mounting)\b/));
   const deckPlateText = normalize(attributeText(attributes, /\b(?:dekkskive|pyntering|rosett|escutcheon|cover plate)\b/));
   const materialText = normalize(attributeText(attributes, /\b(?:materiale|materialkvalitet|material|ror material)\b/)
@@ -202,6 +205,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     text,
     intent,
     dn,
+    pipeLimits: pipeRequirementLimits(requirement),
     outsideDiameter: outsideDiameter ?? (dn === null ? null : PIPE_OUTSIDE_DIAMETER_BY_DN[dn] ?? null),
     pn: numberAfterLabel(primaryText, /\bpn\s*(\d{1,3})\b/) ?? numberAfterLabel(text, /\bpn\s*(\d{1,3})\b/),
     minimumPressureClass: /\bminimum trykklasse pn\s*\d+\b/.test(generalPipeRules),
@@ -246,10 +250,17 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     specifications: candidate.specifications
   }));
   const reasons: string[] = [];
+  const primaryConnection = requirement.intent === 'cap' ? capPrimaryConnection(candidate) : null;
+  const pipeOd = requirement.intent === 'pipe' ? pipeCandidateOutsideDiameter(candidate) : null;
+  const dimensionText = primaryConnection !== null ? normalize(primaryConnection)
+    : requirement.intent === 'pipe' && requirement.dn === null ? (pipeOd === null ? '' : `outside diameter ${pipeOd} mm`) : candidateText;
+  const jointText = primaryConnection !== null ? normalize(primaryConnection) : candidateText;
+  const materialText = requirement.intent === 'pipe' ? normalize(pipeCandidateMaterial(candidate)) : candidateText;
   const pressure = verifiedVictaulicWorkingPressure(candidate);
   if (pressure) reasons.push(`Arbetstryck ${pressure.bar} bar är dokumenterat för ${pressure.model} i Victaulic ${pressure.publication}.`);
   const warnings: string[] = [...requirement.reviewWarnings, ...(candidate.matchWarnings ?? [])]
     .filter(message => !isSprinklerAccessoryReviewWarning(message));
+  if (requirement.intent === 'pipe') warnings.push(...pipeLimitWarnings(candidate, requirement.pipeLimits));
   const missingRequirements = missingProductGroupRequirements(requirement);
   if (missingRequirements.length) warnings.push(`PDF-kravet behöver kompletteras eller verifieras: ${missingRequirements.join(", ")}.`);
   let score = 0;
@@ -369,7 +380,10 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
       warnings.push(`Slangens anslutningsdimension saknas; PDF-kravet anger DN${requirement.dn}.`);
     }
   } else if (requirement.intent === "pipe") {
-    score += scoreNamedProductFamily(candidateName, /\b(ror|stalror|sprinklerror|sprinkleror|pipe)\b/, "Produkten är ett rör för sprinkler/rillesystem.", reasons);
+    if (isRigidPipeProduct(candidate.productName)) {
+      score += 65;
+      reasons.push('Produkten är en rörlängd.');
+    }
     score -= wrongFamilyPenalty(candidateName, /\b(bend|t ror|kupling|ventil|flensadapter|anboringsklammer)\b/, "Träffen är en rördel och inte en rörlängd.", warnings);
   } else if (requirement.intent === "coupling") {
     score += scoreNamedProductFamily(candidateName, PRODUCT_FAMILY_PATTERNS.coupling!, "Produkttypen är en rörkoppling.", reasons);
@@ -448,12 +462,12 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     warnings.push("Fel produkttyp: en grenrörsdel är inte en rak rörlängd.");
   }
   if (requirement.intent !== "manifold_cabinet") {
-    score += scoreDimension(candidateText, requirement, reasons, warnings);
+    score += scoreDimension(dimensionText, requirement, reasons, warnings);
     score += scorePressure(candidateText, requirement, reasons, warnings);
-    score += scoreMaterialAndJoint(candidateText, requirement, reasons, warnings);
+    score += scoreMaterialAndJoint(candidateText, requirement, reasons, warnings, materialText, jointText);
   }
 
-  const completeEvidence = hasCompleteTechnicalEvidence(candidateText, candidateName, requirement);
+  const completeEvidence = hasCompleteTechnicalEvidence(candidateText, candidateName, requirement, dimensionText, materialText, jointText);
   if (!completeEvidence && warnings.length === 0) {
     warnings.push("Alla nödvändiga tekniska uppgifter är inte verifierade. Kontrollera postens krav och den valda artikelvarianten.");
   }
@@ -527,15 +541,20 @@ export function hasAhlsellProductFamilyMismatch(intent: ProductIntent, productNa
 function hasCompleteTechnicalEvidence(
   candidateText: string,
   candidateName: string,
-  requirement: TechnicalProfile
+  requirement: TechnicalProfile,
+  dimensionText = candidateText,
+  materialText = candidateText,
+  jointText = candidateText
 ) {
   if (missingProductGroupRequirements(requirement).length) return false;
   if (requirement.dn !== null) {
-    const candidateDns = extractDnValues(candidateText);
+    const candidateDns = extractDnValues(dimensionText);
     const diameterMatches = requirement.outsideDiameter !== null
-      && new RegExp(`\\b${String(requirement.outsideDiameter).replace(".", "[.,]")}\\s*(?:mm)?\\b`).test(candidateText);
+      && new RegExp(`\\b${String(requirement.outsideDiameter).replace(".", "[.,]")}\\s*(?:mm)?\\b`).test(dimensionText);
     if (!candidateDns.includes(requirement.dn) && !diameterMatches) return false;
   }
+  if (requirement.intent === 'pipe' && requirement.dn === null && requirement.outsideDiameter !== null
+    && extractOutsideDiameter(dimensionText) !== requirement.outsideDiameter) return false;
   if (requirement.pn !== null) {
     const barMatches = new RegExp(`\\b${requirement.pn}\\s*bar\\b`).test(candidateText);
     if (!candidatePressureClasses(candidateText).some(pn => pn === requirement.pn || requirement.minimumPressureClass && pn >= requirement.pn!) && !barMatches) return false;
@@ -558,9 +577,9 @@ function hasCompleteTechnicalEvidence(
   if (requirement.visibleMount && mountCapabilities.has("concealed") && !mountCapabilities.has("recessed")) return false;
   if (requirement.finish && extractFinish(candidateText) !== requirement.finish) return false;
   if (!sprinklerHeadTypeMatches(candidateText, requirement.sprinklerHeadType)) return false;
-  if (requirement.material && extractMaterial(candidateText) !== requirement.material) return false;
-  if (requirement.joint && !extractJointTypes(candidateText).some(joint => requirement.allowedJoints.includes(joint))
-    && !(requirement.allowsGroovedPipe && extractJointTypes(candidateText).includes("grooved"))) return false;
+  if (requirement.material && extractMaterial(materialText) !== requirement.material) return false;
+  if (requirement.joint && !extractJointTypes(jointText).some(joint => requirement.allowedJoints.includes(joint))
+    && !(requirement.allowsGroovedPipe && extractJointTypes(jointText).includes("grooved"))) return false;
   if (requirement.intent === "sprinkler_head") {
     if ([requirement.kFactor, requirement.dn, requirement.temperatureC, requirement.response, requirement.orientation].some((value) => value === null)) return false;
     if (requirement.sprinklerSystem === null || requirement.sprinklerHeadType === null || requirement.coverage === null) return false;
@@ -586,7 +605,8 @@ function missingProductGroupRequirements(profile: TechnicalProfile): string[] {
   }
   const dimensionedGroups: ProductIntent[] = ["pipe", "ball_valve", "butterfly_valve", "shutoff_valve", "check_valve",
     "wet_alarm_valve", "dry_alarm_valve", "pressure_reducing_valve", "coupling", "bend", "flanged_bend", "tee", "reducer", "cap", "branch", "flange_adapter"];
-  return dimensionedGroups.includes(profile.intent) && profile.dn === null ? ["anslutningsdimension"] : [];
+  return dimensionedGroups.includes(profile.intent) && profile.dn === null
+    && !(profile.intent === 'pipe' && profile.outsideDiameter !== null) ? ["anslutningsdimension"] : [];
 }
 
 function scoreWetAlarmValve(candidateText: string, reasons: string[], warnings: string[], requirementText: string, signage: boolean) {
@@ -833,6 +853,16 @@ function scoreSprinklerSystem(
 }
 
 function scoreDimension(candidateText: string, requirement: TechnicalProfile, reasons: string[], warnings: string[]) {
+  if (requirement.intent === 'pipe' && requirement.dn === null && requirement.outsideDiameter !== null) {
+    const diameter = extractOutsideDiameter(candidateText);
+    if (diameter !== null && closeEnough(diameter, requirement.outsideDiameter)) {
+      reasons.push(`Rörets ytterdiameter är ${diameter} mm.`);
+      return 25;
+    }
+    warnings.push(diameter === null ? `Produktens dimension saknas; PDF kräver ytterdiameter ${requirement.outsideDiameter} mm.`
+      : `Fel dimension: PDF kräver ytterdiameter ${requirement.outsideDiameter} mm, träffen anger ${diameter} mm.`);
+    return diameter === null ? 0 : -45;
+  }
   if (requirement.dn === null) return 0;
   const candidateDns = extractDnValues(candidateText);
   const candidateDn = candidateDns[0] ?? null;
@@ -940,15 +970,17 @@ function scoreMaterialAndJoint(
   candidateText: string,
   requirement: TechnicalProfile,
   reasons: string[],
-  warnings: string[]
+  warnings: string[],
+  materialText = candidateText,
+  jointText = candidateText
 ) {
   let score = 0;
   if (requirement.material) {
-    const candidateMaterial = extractMaterial(candidateText);
+    const candidateMaterial = extractMaterial(materialText);
     if (candidateMaterial === requirement.material) {
       score += 10;
       reasons.push("Materialet stämmer med PDF-kravet.");
-    } else if (candidateMaterial) {
+    } else if (candidateMaterial || /\b(?:epdm|gummi|rubber)\b/.test(materialText)) {
       score -= 55;
       warnings.push("Produktens material stämmer inte med PDF-kravet.");
     } else {
@@ -957,7 +989,7 @@ function scoreMaterialAndJoint(
   }
 
   if (requirement.joint) {
-    const candidateJoints = extractJointTypes(candidateText);
+    const candidateJoints = extractJointTypes(jointText);
     if (candidateJoints.some(joint => requirement.allowedJoints.includes(joint)) || (requirement.allowsGroovedPipe && candidateJoints.includes("grooved"))) {
       score += 10;
       reasons.push("Skarvtypen stämmer med PDF-kravet.");
