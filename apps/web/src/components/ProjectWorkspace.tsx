@@ -444,6 +444,12 @@ export function ProjectWorkspace({
               aria-pressed={requirementView === view.id} aria-controls="project-requirement-table"
               onClick={() => setRequirementView(view.id)}>{view.label} ({requirementGroups[view.id].length})</Button>
           ))}
+          {workflow.isComplete && (
+            <Button type="button" className="ml-auto" disabled={finishing} onClick={() => void finishProject()}>
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              {finishing ? "Slutför projektet…" : "Nästa: visa resultat"}
+            </Button>
+          )}
         </nav>
       ) : (
         <nav aria-label="Projektvyer" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
@@ -660,8 +666,6 @@ export function ProjectWorkspace({
             sourcePdfLookup={sourcePdfLookup}
             onReload={reload}
             onGoToDocuments={() => selectTab("documents")}
-            onFinish={() => finishProject()}
-            finishing={finishing}
           />
         </div>
       )}

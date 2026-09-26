@@ -126,7 +126,7 @@ const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefi
 
 const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
-export function DistributorMappingPanel({ view = "products", projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onFinish, finishing = false }: {
+export function DistributorMappingPanel({ view = "products", projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments }: {
   view?: ProjectRequirementView;
   projectId: string;
   currency?: string;
@@ -136,8 +136,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   sourcePdfLookup: ProjectSourcePdfLookup;
   onReload: () => Promise<unknown>;
   onGoToDocuments: () => void;
-  onFinish: () => Promise<void>;
-  finishing?: boolean;
 }) {
   const memories = useMemo(() => allMemories.filter(memory =>
     ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes)), [allMemories]);
@@ -1069,11 +1067,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                   <h3 className="text-2xl font-bold text-emerald-950">Bra – steg 2 är färdigt</h3>
                   <p className="mt-2 text-base leading-7 text-emerald-900">Alla inköpsposter är antingen godkända med en produkt eller märkta som Inte i sortiment. Projektet kan nu slutföras.</p>
                 </div>
-              </div>
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                <Button className="min-h-14 justify-center px-6 text-lg" disabled={finishing} onClick={onFinish}>
-                  <CheckCircle2 className="h-5 w-5" aria-hidden="true" />{finishing ? "Slutför projektet…" : "Nästa: visa resultat"}
-                </Button>
               </div>
             </div>
           )}
