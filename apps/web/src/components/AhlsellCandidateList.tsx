@@ -57,7 +57,6 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             ) : state === "review" ? (
               <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Underlaget behöver kontrolleras</p>
             ) : null}
-            <p className="mt-1 text-xs leading-5 text-neutral-600">{candidateSourceLabel(candidate)}</p>
             <AhlsellCandidateWarnings candidate={candidate} />
             <AhlsellTechnicalEvidence candidate={candidate} />
           </div>
@@ -137,10 +136,4 @@ export function AhlsellCandidateWarnings({ candidate }: { candidate: AhlsellPubl
       <p className="font-bold">{group.title}</p><ul className="mt-0.5 list-disc space-y-0.5 pl-4">{[...new Set(group.warnings)].map(warning => <li key={warning}>{warning}</li>)}</ul>
     </div>
   ))}</>;
-}
-
-function candidateSourceLabel(candidate: AhlsellPublicCandidate) {
-  if (candidate.evidenceSources?.includes("mldl_database") && candidate.evidenceSources.includes("ahlsell_public")) return "MLDL · samma artikel hittad på Ahlsells webbplats";
-  if (candidate.source === "catalog_search" || candidate.source === "public_verified") return "Träff på Ahlsells webbplats";
-  return candidate.source === "verified_database" ? "Träff i MLDL · verifierade Victaulic-uppgifter" : "Träff i MLDL-databasen";
 }

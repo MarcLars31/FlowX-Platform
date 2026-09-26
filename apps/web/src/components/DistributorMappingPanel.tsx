@@ -968,6 +968,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
             const activeApproved = Boolean(assignment) && !productCardDirty;
             const activeGroup = activeApproved ? "green" : assignment && productCardDirty ? "yellow" : groupByRequirementId.get(requirement.id) ?? "yellow";
             const activeResolution = productRequirementResolution(requirement);
+            const activeStatus = activeApproved ? "Produkten är godkänd" : productCardDirty ? "Osparade ändringar" : activeResolution ? `Posten är hanterad · ${activeResolution.label}` : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : null;
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint);
             return (
               <dialog
@@ -983,11 +984,13 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                   <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-neutral-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-neutral-50">
-                          {activeGroup === "green" ? <CheckCircle2 className="h-5 w-5 text-neutral-700" aria-hidden="true" /> : activeGroup === "red" ? <CircleX className="h-5 w-5 text-neutral-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-neutral-600" aria-hidden="true" />}
-                        </span>
+                        {activeStatus && (
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-neutral-50">
+                            {activeGroup === "green" ? <CheckCircle2 className="h-5 w-5 text-neutral-700" aria-hidden="true" /> : activeGroup === "red" ? <CircleX className="h-5 w-5 text-neutral-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-neutral-600" aria-hidden="true" />}
+                          </span>
+                        )}
                         <div>
-                          <p className={activeGroup === "green" ? "text-xs font-bold uppercase tracking-[0.08em] text-neutral-800" : activeGroup === "red" ? "text-xs font-bold uppercase tracking-[0.08em] text-neutral-700" : "text-xs font-bold uppercase tracking-[0.08em] text-neutral-800"}>{activeApproved ? "Produkten är godkänd" : productCardDirty ? "Osparade ändringar" : activeResolution ? `Posten är hanterad · ${activeResolution.label}` : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : "Produkten måste ses över"}</p>
+                          {activeStatus && <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-800">{activeStatus}</p>}
                           <p className="mt-0.5 text-sm font-bold text-neutral-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount}  kvar i visningen</p>
                           <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
                         </div>
