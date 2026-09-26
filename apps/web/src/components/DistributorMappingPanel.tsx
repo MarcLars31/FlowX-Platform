@@ -1910,8 +1910,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                 <ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} />
               </div>
               <div className="space-y-4 p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                  <div className="min-w-0 sm:max-w-[640px]">
+                <div className="space-y-3">
+                  <div className="min-w-0">
                     <h5 className="break-words text-xl font-bold leading-snug text-neutral-950">
                       {productName || "Produkt"}{" "}
                       <a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer"
