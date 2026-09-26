@@ -1712,6 +1712,16 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     void saveResolution("not_in_assortment");
   }
 
+  const accessoryTypeSelector = assemblyPlan && assemblyPlan.components.length > 0 ? <div>
+      <label htmlFor={"accessory-type-" + requirement.id} className="mb-2 block text-sm font-bold text-neutral-900">Tillbehörstyp</label>
+      <select id={"accessory-type-" + requirement.id} value={accessoryComponentId ?? ""} disabled={saving}
+        className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-neutral-600 focus:ring-neutral-600"
+        onChange={event => openAccessoryLookup(assemblyPlan.components.find(component => component.id === event.target.value))}>
+        {assemblyPlan.components.map(component => <option key={component.id} value={component.id}>{component.label}</option>)}
+        <option value="">Övriga tillbehör</option>
+      </select>
+    </div> : null;
+
   const accessoryLookup = hasAccessoryStep && accessoryLookupOpen && productNumber.trim() ? (
     <AccessoryProductPicker key={productNumber + ":" + (accessoryComponentId ?? "manual")} projectId={projectId} requirementId={requirement.id}
       mainArticleNumber={productNumber} component={accessoryComponent} automaticQuery={accessoryQuery} suggestions={suggestedAccessories}
@@ -1723,7 +1733,9 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           unit: suggestion?.unit || (accessoryComponent?.kind === "pipe" ? "m" : "st")
         });
       }}
-      onDeselect={candidate => removeAccessory(selectedProductAccessories.findIndex(item => normalizeNrfNumber(item.productNumber) === normalizeNrfNumber(candidate.articleNumber)))} />
+      onDeselect={candidate => removeAccessory(selectedProductAccessories.findIndex(item => normalizeNrfNumber(item.productNumber) === normalizeNrfNumber(candidate.articleNumber)))}>
+      {accessoryTypeSelector}
+    </AccessoryProductPicker>
   ) : null;
 
   const accessorySection = hasAccessoryStep && productNumber.trim() ? (
@@ -1735,16 +1747,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         {!accessoryStepOpen && <Button neutral type="button" variant="secondary" onClick={editAccessories}>Ändra tillbehör</Button>}
       </div>
       {accessoryStepOpen && <div className="mb-4 space-y-4">
-        {assemblyPlan && assemblyPlan.components.length > 0 && <div>
-          <label htmlFor={"accessory-type-" + requirement.id} className="mb-2 block text-sm font-bold text-neutral-900">Tillbehörstyp</label>
-          <select id={"accessory-type-" + requirement.id} value={accessoryComponentId ?? ""} disabled={saving}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-neutral-600 focus:ring-neutral-600"
-            onChange={event => openAccessoryLookup(assemblyPlan.components.find(component => component.id === event.target.value))}>
-            {assemblyPlan.components.map(component => <option key={component.id} value={component.id}>{component.label}</option>)}
-            <option value="">Övriga tillbehör</option>
-          </select>
-        </div>}
-        {accessoryLookup}
+        {accessoryLookup ?? accessoryTypeSelector}
 
         <div className="flex flex-wrap gap-2">
           {!accessoryLookupOpen && <Button neutral type="button" variant="secondary" onClick={() => openAccessoryLookup(accessoryComponent)} disabled={selectedProductAccessories.length >= 20}><Search className="h-4 w-4" aria-hidden="true" />Välj fler tillbehör</Button>}

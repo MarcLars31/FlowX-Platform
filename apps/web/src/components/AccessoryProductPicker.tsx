@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2, Search } from "lucide-react";
 import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
 import { Button } from "@/components/Button";
@@ -12,7 +12,8 @@ import type { AhlsellAccessorySuggestion } from "@/lib/ahlsell-public-match";
 import { isAssemblyComponentCandidate, type AssemblyComponent } from "@/lib/product-assembly-plan";
 
 /** One list and the same product rows as the main-product picker, irrespective of source. */
-export function AccessoryProductPicker({ projectId, requirementId, mainArticleNumber, component, automaticQuery, suggestions, selections, disabled, selectionLimitReached, onSelect, onDeselect }: {
+export function AccessoryProductPicker({ projectId, requirementId, mainArticleNumber, component, automaticQuery, suggestions, selections, disabled, selectionLimitReached, onSelect, onDeselect, children }: {
+  children?: ReactNode;
   projectId: string;
   requirementId: string;
   mainArticleNumber: string;
@@ -73,7 +74,7 @@ export function AccessoryProductPicker({ projectId, requirementId, mainArticleNu
     result?.products ?? (query === automaticQuery ? initial : []));
   const id = `ahlsell-accessory-lookup-${requirementId}`;
   return <div id={`accessory-lookup-card-${requirementId}`}>
-    <div className="flex flex-wrap items-center justify-end gap-2 py-3">
+    <div className="flex flex-wrap items-center gap-2 pb-3">
       <Button neutral type="button" variant="secondary" disabled={disabled} onClick={() => setSearchOpen(value => !value)} aria-expanded={searchOpen} aria-controls={`${id}-search`}>
         <Search className="h-4 w-4" aria-hidden="true" />Sök tillbehör
       </Button>
@@ -88,6 +89,7 @@ export function AccessoryProductPicker({ projectId, requirementId, mainArticleNu
         <Button neutral type="submit" variant="secondary" disabled={disabled || loading || !query.trim()}>Sök</Button>
       </div>
     </form>}
+    {children && <div className="mb-4">{children}</div>}
     <div aria-live="polite" aria-busy={loading}>
       {loading && <p className="flex items-center gap-2 py-2 text-sm text-neutral-800"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Söker i MLDL och hos Ahlsell…</p>}
       {error && <p role="alert" className="mb-3 text-sm text-neutral-900">{error} <button type="button" disabled={disabled || loading} className="font-bold underline" onClick={() => void search(query)}>Försök igen</button></p>}
