@@ -98,7 +98,7 @@ export async function POST(request: Request, context: RouteContext) {
         : PRODUCT_REQUIREMENT_RESOLUTIONS[resolution as ProductRequirementResolutionStatus],
       message: resolution === null
         ? "Märkningen har tagits bort. Produktraden behöver nu ett produktval."
-        : "Produktraden är märkt som Inte i sortiment och blockerar inte projektets godkännande."
+        : ""
     });
   } catch (error) {
     if (error instanceof UserSupabaseError) {
