@@ -2,9 +2,8 @@
 
 
 
-import { AhlsellTechnicalEvidence } from "@/components/AhlsellTechnicalEvidence";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleX, ExternalLink, PackagePlus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleX, PackagePlus } from "lucide-react";
 import { ahlsellCandidateMatchState } from "@/lib/ahlsell-candidate-ranking";
 import { technicalConflictWarnings } from "@/lib/ahlsell-technical-conflicts";
 import { groupAhlsellCandidatesForDisplay, normalizeNrfNumber } from "@/lib/product-card-candidates";
@@ -36,7 +35,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
     const matched = state === "exact" || state === "matched";
     const background = selected ? "bg-neutral-100" : "bg-white";
     return (
-      <article key={candidate.articleNumber} className={`${background} border-l-4 ${selected ? "border-l-neutral-700 ring-2 ring-inset ring-neutral-700" : "border-l-transparent"} px-3 py-3 sm:px-4`}>
+      <article key={candidate.articleNumber} className={`${background} rounded-sm border ${selected ? "border-neutral-700 ring-1 ring-inset ring-neutral-700" : "border-neutral-300"} px-3 py-3 sm:px-4`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1">
             {selected && <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-neutral-900"><CheckCircle2 className="h-5 w-5" aria-hidden="true" />{accessory ? "Valt tillbehör" : "Vald huvudprodukt"}</p>}
@@ -44,7 +43,6 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             {candidate.description && candidate.description !== candidate.productName && (
               <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-neutral-700" title={candidate.description}>{candidate.description}</p>
             )}
-            <p className="mt-0.5 text-xs font-bold text-neutral-800">NRF-nummer {candidate.articleNumber}</p>
             {matched ? (
               <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Matchar kraven</p>
             ) : state === "mismatch" ? (
@@ -62,15 +60,14 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
               </details>
             ) : null}
             {(state !== "review" || candidate.learningEvidence) && <AhlsellCandidateWarnings candidate={candidate} />}
-            <AhlsellTechnicalEvidence candidate={candidate} />
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-3">
+            <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`}
+              className="inline-flex min-h-11 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">
+              {candidate.articleNumber}
+            </a>
             <ProductSelectionCheckbox name={`ahlsell-${accessory ? "accessory" : "product"}-${requirementId}`} checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
               label={`${candidate.productName}, NRF-nummer ${candidate.articleNumber}`} onChange={() => onSelect(candidate)} />
-            <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-500 hover:text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </a>
           </div>
         </div>
       </article>
@@ -109,15 +106,15 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             </div>
             <ChevronDown className="h-5 w-5 text-neutral-800 transition group-open:rotate-180" aria-hidden="true" />
           </summary>
-          <div className="divide-y divide-neutral-200 border-t border-neutral-200" role="group" aria-label="Matchade produkter">
+          <div className="space-y-3 border-t border-neutral-200 p-3 sm:p-4" role="group" aria-label="Matchade produkter">
             {matching.map(productRow)}
           </div>
         </details>
       )}
       {review.length > 0 && (
         <details open={matching.length === 0} className="border-t border-neutral-200">
-          <summary className="cursor-pointer bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-950 sm:px-4">Produkter att kontrollera ({review.length})</summary>
-          <div className="divide-y divide-neutral-200" role="group" aria-label="Produkter att kontrollera">{review.map(productRow)}</div>
+          <summary className="cursor-pointer bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-950 sm:px-4">Produktförslag</summary>
+          <div className="space-y-3 p-3 sm:p-4" role="group" aria-label="Produktförslag">{review.map(productRow)}</div>
         </details>
       )}
     </div>

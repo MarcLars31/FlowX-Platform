@@ -1896,9 +1896,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
               <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
             </Button>
-            <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells hemsida
-            </a>
           </nav>
         </div>
 

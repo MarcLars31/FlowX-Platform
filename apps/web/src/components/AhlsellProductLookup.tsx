@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellCandidateWarnings } from "@/components/AhlsellCandidateList";
-import { AhlsellTechnicalEvidence } from "@/components/AhlsellTechnicalEvidence";
 import type { AhlsellLookupProduct, AhlsellLookupResult } from "@/lib/ahlsell-product-lookup";
 import type { AssemblyComponentKind } from "@/lib/product-assembly-plan";
 import { normalizeNrfNumber } from "@/lib/product-card-candidates";
@@ -119,25 +118,25 @@ function LookupProductCard({ id, product, accessory, componentKind, disabled, se
   return <article className={`rounded-md border-2 p-3 ${selection ? "border-neutral-600 bg-neutral-50" : "border-neutral-200 bg-white"}`}>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-bold uppercase tracking-wide text-neutral-600">{accessory ? "Tilbehør" : "Hovedprodukt"}</span>
-            <ProductSelectionCheckbox checked={Boolean(selection)} disabled={disabled || (!selection && selectionLimitReached)}
-              label={`${product.productName}, NRF-nummer ${product.articleNumber}`}
-              onChange={checked => {
-                if (checked) onSelect(product, current);
-                else { setDraft({ quantity: current.quantity, unit: current.unit }); onDeselect(product); }
-              }} />
+            <div className="flex items-center gap-3">
+              <a href={product.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${product.articleNumber}`}
+                className="inline-flex min-h-11 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{product.articleNumber}</a>
+              <ProductSelectionCheckbox checked={Boolean(selection)} disabled={disabled || (!selection && selectionLimitReached)}
+                label={`${product.productName}, NRF-nummer ${product.articleNumber}`}
+                onChange={checked => {
+                  if (checked) onSelect(product, current);
+                  else { setDraft({ quantity: current.quantity, unit: current.unit }); onDeselect(product); }
+                }} />
+            </div>
           </div>
           <p className="text-sm font-bold text-neutral-950">{product.productName}</p>
           {product.subtitle && <p className="mt-1 text-xs text-neutral-700">{product.subtitle}</p>}
-          <p className="mt-1 text-sm font-semibold text-neutral-800">NRF-nummer {product.articleNumber}{product.manufacturer ? ` · ${product.manufacturer}` : ""}</p>
+          {product.manufacturer && <p className="mt-1 text-sm font-semibold text-neutral-800">{product.manufacturer}</p>}
           {product.specifications.length > 0 && <p className="mt-1 text-xs leading-5 text-neutral-600">{product.specifications.join(" · ")}</p>}
           {(!accessory || componentKind) && <AhlsellCandidateWarnings candidate={product} />}
-          <AhlsellTechnicalEvidence candidate={product} />
           <div className="mt-3 border-t border-neutral-200 pt-3">
             <ProductQuantityFields id={`${id}-${product.articleNumber}`} quantity={current.quantity} unit={current.unit} disabled={disabled}
               onQuantityChange={quantity => update({ quantity })} onUnitChange={unit => update({ unit })} />
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <a href={product.productUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-neutral-800 underline">Visa hos Ahlsell<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
           </div>
         </article>;
 }
