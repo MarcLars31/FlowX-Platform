@@ -43,6 +43,10 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             {candidate.description && candidate.description !== candidate.productName && (
               <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-neutral-700" title={candidate.description}>{candidate.description}</p>
             )}
+            <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`}
+              className="mt-1 inline-flex min-h-6 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">
+              {candidate.articleNumber}
+            </a>
             {matched ? (
               <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Matchar kraven</p>
             ) : state === "mismatch" ? (
@@ -62,10 +66,6 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             {(state !== "review" || candidate.learningEvidence) && <AhlsellCandidateWarnings candidate={candidate} />}
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`}
-              className="inline-flex min-h-11 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">
-              {candidate.articleNumber}
-            </a>
             <ProductSelectionCheckbox name={`ahlsell-${accessory ? "accessory" : "product"}-${requirementId}`} checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
               label={`${candidate.productName}, NRF-nummer ${candidate.articleNumber}`} onChange={() => onSelect(candidate)} />
           </div>

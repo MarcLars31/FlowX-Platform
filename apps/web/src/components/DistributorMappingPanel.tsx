@@ -1881,7 +1881,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
         <div id={`product-selection-header-${requirement.id}`} className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <nav id={`product-post-actions-${requirement.id}`} aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
-            <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { const scope = productNumber.trim() ? "product" : "post"; document.getElementById(`${scope}-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${scope}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
             {!productNumber.trim() && <Button neutral id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
               <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
             </Button>}

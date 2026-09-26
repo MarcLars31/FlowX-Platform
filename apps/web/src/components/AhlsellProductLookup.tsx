@@ -119,8 +119,6 @@ function LookupProductCard({ id, product, accessory, componentKind, disabled, se
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-bold uppercase tracking-wide text-neutral-600">{accessory ? "Tilbehør" : "Hovedprodukt"}</span>
             <div className="flex items-center gap-3">
-              <a href={product.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${product.articleNumber}`}
-                className="inline-flex min-h-11 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{product.articleNumber}</a>
               <ProductSelectionCheckbox checked={Boolean(selection)} disabled={disabled || (!selection && selectionLimitReached)}
                 label={`${product.productName}, NRF-nummer ${product.articleNumber}`}
                 onChange={checked => {
@@ -133,6 +131,8 @@ function LookupProductCard({ id, product, accessory, componentKind, disabled, se
           {product.subtitle && <p className="mt-1 text-xs text-neutral-700">{product.subtitle}</p>}
           {product.manufacturer && <p className="mt-1 text-sm font-semibold text-neutral-800">{product.manufacturer}</p>}
           {product.specifications.length > 0 && <p className="mt-1 text-xs leading-5 text-neutral-600">{product.specifications.join(" · ")}</p>}
+          <a href={product.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${product.articleNumber}`}
+            className="mt-1 inline-flex min-h-6 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{product.articleNumber}</a>
           {(!accessory || componentKind) && <AhlsellCandidateWarnings candidate={product} />}
           <div className="mt-3 border-t border-neutral-200 pt-3">
             <ProductQuantityFields id={`${id}-${product.articleNumber}`} quantity={current.quantity} unit={current.unit} disabled={disabled}
