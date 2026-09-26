@@ -1731,7 +1731,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h5 id={`accessory-step-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-neutral-950"><PackagePlus className="h-5 w-5" aria-hidden="true" />{accessoryStepOpen ? "3. Välj tillbehör" : `Dina tillbehör (${selectedProductAccessories.length})`}</h5>
-          {!accessoryStepOpen && <p className="mt-1 text-sm text-neutral-700">Huvudprodukten och tillbehören sparas tillsammans när du godkänner.</p>}
         </div>
         {!accessoryStepOpen && <Button neutral type="button" variant="secondary" onClick={editAccessories}>Ändra tillbehör</Button>}
       </div>
@@ -1745,7 +1744,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <option value="">Övriga tillbehör</option>
           </select>
         </div>}
-        {accessoryComponent && <p className="text-xs leading-5 text-neutral-600">{accessoryComponent.requirement}</p>}
         {accessoryLookup}
 
         <div className="flex flex-wrap gap-2">
@@ -1798,7 +1796,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                   </div>
                 ))}
                 {accessoryError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{accessoryError}</p>}
-                <p className="text-xs leading-5 text-neutral-500">Tillbehören följer bara den valda huvudprodukten. Om huvudproduktens NRF-nummer ändras rensas tillbehören.</p>
               </div>
             </section>
           )}
@@ -1910,21 +1907,23 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className={`scroll-mt-80 overflow-hidden rounded-lg border-2 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 lg:scroll-mt-60 border-neutral-400 bg-white`}>
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-100 px-4 py-3">
                 <p className="flex items-center gap-2 text-lg font-bold text-neutral-950"><CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />{isApproved ? "Godkjent hovedprodukt" : "Produkt valgt"}</p>
-                <div className="ml-auto flex flex-wrap items-end justify-end gap-3">
-                  <ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} />
-                  <ProductQuantityFields compact id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
-                    onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
-                    onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} />
-                </div>
+                <ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} />
               </div>
               <div className="space-y-4 p-4">
-                <div>
-                  <h5 className="break-words text-xl font-bold leading-snug text-neutral-950">
-                    {productName || "Produkt"}{" "}
-                    <a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer"
-                      className="whitespace-nowrap text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{productNumber}</a>
-                  </h5>
-                  {productSubtitle && productSubtitle.trim() !== productName.trim() && <p className="mt-1 text-sm text-neutral-700">{productSubtitle}</p>}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="min-w-0 sm:max-w-[640px]">
+                    <h5 className="break-words text-xl font-bold leading-snug text-neutral-950">
+                      {productName || "Produkt"}{" "}
+                      <a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer"
+                        className="whitespace-nowrap text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{productNumber}</a>
+                    </h5>
+                    {productSubtitle && productSubtitle.trim() !== productName.trim() && <p className="mt-1 text-sm text-neutral-700">{productSubtitle}</p>}
+                  </div>
+                  <div className="shrink-0">
+                    <ProductQuantityFields compact id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
+                      onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
+                      onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} />
+                  </div>
                 </div>
                 {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
                   <dl className="grid overflow-hidden rounded-md border border-neutral-200 bg-white sm:grid-cols-3">
