@@ -31,7 +31,7 @@ import {
   type ProductRequirementResolutionStatus
 } from "@/lib/product-requirement-resolution";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
-import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
+import { isAdditionalRequirementAttribute, projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
 import { bulkProductApprovalSelection, type BulkProductApprovalSelection } from "@/lib/bulk-product-approval";
@@ -1618,7 +1618,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
               {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
               {pdfArticleNumber && <SpecificationRow label="NRF-nummer i PDF" value={pdfArticleNumber} />}
-              {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
+              {details.attributes.filter(([key]) => !isAdditionalRequirementAttribute(key)).map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
+              {details.additionalRequirements && <SpecificationRow label="Andra krav" value={details.additionalRequirements} fullWidth />}
             </dl>
           </div>
           {details.sourceExcerpt && <details className="mt-3 border border-neutral-200 bg-white p-3 text-sm">
@@ -2403,8 +2404,8 @@ function ProductSortHeader({ label, sortKey, sort, dragging, onSort, onDragStart
   );
 }
 
-function SpecificationRow({ label, value }: { label: string; value: string }) {
-  return <div className="border-b border-neutral-100 px-4 py-3 sm:border-r"><dt className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm leading-6 text-neutral-900">{value}</dd></div>;
+function SpecificationRow({ label, value, fullWidth = false }: { label: string; value: string; fullWidth?: boolean }) {
+  return <div className={`border-b border-neutral-100 px-4 py-3 ${fullWidth ? "sm:col-span-2" : "sm:border-r"}`}><dt className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</dt><dd className={`mt-1 break-words text-sm leading-6 text-neutral-900 ${fullWidth ? "whitespace-pre-wrap" : ""}`}>{value}</dd></div>;
 }
 
 function CompactProductDetail({ label, value }: { label: string; value: string }) {

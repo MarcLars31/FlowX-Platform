@@ -184,3 +184,65 @@ test("carries extraction review flags into enriched project requirements", () =>
   assert.deepEqual(value.reviewFlags, ["ocr-source", "implausible-k-factor"]);
   assert.equal((value.attributes as Record<string, unknown>)["k-faktor"], "560");
 });
+
+const cableLadderPost = [
+  "1401.40.411.", "38", "WC2.522A", "KABELSTIGE",
+  "Lengde m 501,10 0,00 0,00", "Materiale: Stål – galvanisert",
+  "Lokalisering: I henhold til plantegninger", "Dimensjonerende last: 150 kg/m",
+  "Bredde: 600 mm", "Konsolltype: Tak- og veggkonsoll",
+  "Avstand mellom konsoller: I henhold til leverandørs", "anvisning.",
+  "Montasje: Monteres i tak eller langs vegg. Metallisk", "skilleplate mellom elkraft og ekom.",
+  "Andre krav:", "a) Omfang og prisgrunnlag",
+  "Omfatter også krav gitt i tekniske bestemmelser, post", "1401.40.411.1",
+  "b) Materialer", "Korrosjonsklasse C4."
+].join("\n");
+
+test("shows the complete lettered additional requirements in the cable-ladder PDF example", () => {
+  const details = projectRequirementDetails({
+    value_json: { technicalSpecification: cableLadderPost, attributes: { materiale: "Stål – galvanisert" } },
+    source_excerpt: cableLadderPost
+  });
+  assert.equal(details.postNumber, "1401.40.411.38");
+  assert.equal(details.additionalRequirements,
+    "a) Omfang og prisgrunnlag\nOmfatter også krav gitt i tekniske bestemmelser, post\n1401.40.411.1\n\nb) Materialer\nKorrosjonsklasse C4.");
+  assert.deepEqual(details.attributes, [["materiale", "Stål – galvanisert"]]);
+});
+
+test("keeps a, b and c across a PDF page break without taking text from the next post", () => {
+  const [requirement] = enrichProjectRequirements([{
+    id: "sprinkler", source_page: 1, source_technical_description_document_id: "document",
+    value_text: "SPRINKLER", value_json: { postNumber: "33.332.1" }
+  }], [{ id: "document", source_pages: [
+    { pageNumber: 1, method: "text", confidence: .98,
+      text: "Kapittel: 33 Brannslokking\n" + "33.332.1 UE2.11112312\nSPRINKLER\nAntall stk 12\nAndre krav:\na) Omfang og prisgrunnlag\nAlle deler inngår." + "\nSum:" },
+    { pageNumber: 2, method: "text", confidence: .98,
+      text: "Kapittel: 33 Brannslokking\nPostnr. NS-kode/Spesifikasjon Enhet Mengde Pris Sum\nb) Materialer\nKorrosjonsklasse C4.\nc) Utførelse\nAlle festedeler skal inkluderes.\n33.332.2 UE2.11112312\nSPRINKLER\nAntall stk 5\nMateriale: Aluminium\nSum:" }
+  ] }]);
+  const details = projectRequirementDetails(requirement);
+  assert.match(details.additionalRequirements!, /a\) Omfang og prisgrunnlag/);
+  assert.match(details.additionalRequirements!, /b\) Materialer\nKorrosjonsklasse C4\./);
+  assert.match(details.additionalRequirements!, /c\) Utførelse\nAlle festedeler skal inkluderes\./);
+  assert.doesNotMatch(details.additionalRequirements!, /Aluminium|33\.332\.2|Sum:/);
+});
+
+test("keeps inherited and own additional requirements separate from child specifications", () => {
+  const own = "33.1.1 RØR\nDimensjon: DN25\nAndre krav:\nc) Utførelse\nFestes i tak.";
+  const details = projectRequirementDetails({ value_json: {
+    technicalSpecification: "33.1 RØR\nAndre krav:\na) Omfang og prisgrunnlag\nAlle deler inngår.\n\nUNDERPOST\n" + own,
+    sourceText: own
+  }, source_excerpt: own });
+  assert.equal(details.additionalRequirements,
+    "a) Omfang og prisgrunnlag\nAlle deler inngår.\n\nc) Utførelse\nFestes i tak.");
+});
+
+test("recovers additional requirements from legacy fields without repeating an extracted clause", () => {
+  const complete = projectRequirementDetails({ value_json: {
+    attributes: { "omfatter også": "Alle festedeler skal inkluderes." },
+    technicalSpecification: "Andre krav:\nb) Materialer\nOmfatter også: Alle festedeler skal inkluderes."
+  } });
+  assert.equal(complete.additionalRequirements, "b) Materialer\nOmfatter også: Alle festedeler skal inkluderes.");
+  const legacy = projectRequirementDetails({ value_json: { attributes: { "omfatter også": "Alle festedeler skal inkluderes." } } });
+  assert.equal(legacy.additionalRequirements, "Alle festedeler skal inkluderes.");
+  const ordinary = projectRequirementDetails({ source_excerpt: "Materiale: Messing\nMontasje: I tak" });
+  assert.equal(ordinary.additionalRequirements, null);
+});

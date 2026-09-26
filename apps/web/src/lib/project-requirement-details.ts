@@ -10,6 +10,7 @@ export type ProjectRequirementDetail = {
   attributes: Array<[string, string]>;
   sourcePage: number | null;
   sourceExcerpt: string | null;
+  additionalRequirements: string | null;
 };
 
 export function projectRequirementDetails(
@@ -38,8 +39,51 @@ export function projectRequirementDetails(
       return valueText ? [[key, valueText] as [string, string]] : [];
     }),
     sourcePage: positiveInteger(requirement.source_page),
-    sourceExcerpt
+    sourceExcerpt,
+    additionalRequirements: additionalRequirementsFromSources(
+      [text(value.technicalSpecification), text(value.sourceText), text(requirement.source_excerpt)],
+      attributes
+    )
   };
+}
+
+export function isAdditionalRequirementAttribute(key: string) {
+  return /^(?:omfatter også|andre krav|andra krav)$/i.test(key.replace(/[_-]+/g, " ").trim());
+}
+
+function additionalRequirementsFromSources(
+  sources: Array<string | null>,
+  attributes: Record<string, unknown>
+) {
+  const blocks: string[] = [];
+  const normalized = (value: string) => value.replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  const add = (value: string) => {
+    const content = value.trim();
+    if (!content || blocks.some(block => normalized(block).includes(normalized(content)))) return;
+    const contained = blocks.findIndex(block => normalized(content).includes(normalized(block)));
+    if (contained >= 0) blocks[contained] = content;
+    else blocks.push(content);
+  };
+
+  for (const source of sources) {
+    // Inherited main-post requirements also apply, but a child's title and
+    // ordinary attributes must not become part of its parent's final clause.
+    for (const section of (source ?? "").split(/\n\s*UNDERPOST\s*\n/i)) {
+      const lines = section.split(/\r?\n/).map(line => line.trim());
+      const heading = /^(?:andre|andra)\s+krav\s*:?\s*(.*)$/i;
+      let start = lines.findIndex(line => heading.test(line));
+      if (start < 0) start = lines.findIndex(line => /^[a-z]\)\s+\S/i.test(line));
+      if (start < 0) continue;
+      add(lines.slice(start).map(line => line.replace(heading, "$1")).join("\n"));
+    }
+  }
+
+  // Older saved posts may only contain the extracted field. Keep that text
+  // without inventing lettered clauses that were not preserved in the source.
+  for (const [key, value] of Object.entries(attributes)) {
+    if (isAdditionalRequirementAttribute(key)) add(displayValue(value) ?? "");
+  }
+  return blocks.length ? blocks.join("\n\n").replace(/\n+(?=[a-z]\)\s)/gi, "\n\n") : null;
 }
 
 function effectiveRequirementSystem(
