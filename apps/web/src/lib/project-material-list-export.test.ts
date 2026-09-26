@@ -105,6 +105,22 @@ test("keeps every post number in products, accessories, unselected rows and remo
   assert.equal(rows[3]?.quantity, 18);
 });
 
+test("exports an optional product and accessories for removal and lump-sum scopes", () => {
+  for (const operation of ["remove", "install"]) {
+    const scope = { ...requirements[2], value_json: { ...requirements[2].value_json, operation, quantity: 1, unit: "RS" } };
+    const selection = { ...assignments[0], requirement_id: scope.id, product_snapshot: {
+      ...assignments[0].product_snapshot, orderQuantity: { quantity: 4, unit: "st" }
+    } };
+    const rows = buildProjectMaterialRows({ requirements: [scope], assignments: [selection] });
+    assert.deepEqual(rows.map(row => row.type), ["Huvudprodukt", "Tillbehör"]);
+    assert.equal(rows[0].productNumber, "AHL-1001");
+    assert.equal(rows[0].quantity, 4);
+    assert.equal(rows[0].unit, "st");
+    assert.equal(rows[0].operation, operation === "remove" ? "Demontering" : "Installation");
+    assert.equal(rows[1].postNumber, "33.335.3");
+  }
+});
+
 test("creates a valid xlsx workbook without an overlapping table filter", async () => {
   const rows = buildProjectMaterialRows({ requirements, assignments });
   const bytes = await createProjectMaterialListWorkbook({

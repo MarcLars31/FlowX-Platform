@@ -458,9 +458,10 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     () => previousBulkProductApprovals(productRequirements, bulkApprovalSelectionByRequirementId),
     [bulkApprovalSelectionByRequirementId, productRequirements]
   );
-  const requestedActiveIndex = queueRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
+  const cardRequirements = view === "products" ? queueRequirements : view === "removal" ? removalRequirements : rsRequirements;
+  const requestedActiveIndex = cardRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
-  const activeRequirement = activeIndex >= 0 ? queueRequirements[activeIndex] : undefined;
+  const activeRequirement = activeIndex >= 0 ? cardRequirements[activeIndex] : undefined;
   const productCardOpen = Boolean(activeRequirement);
 
   useEffect(() => {
@@ -994,13 +995,14 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                         )}
                         <div>
                           {activeStatus && <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-800">{activeStatus}</p>}
-                          <p className="mt-0.5 text-sm font-bold text-neutral-950 sm:text-base">Produkt {activeIndex + 1} av {queueRequirements.length} · {visibleQueueRemainingCount}  kvar i visningen</p>
+                          <p className="mt-0.5 text-sm font-bold text-neutral-950 sm:text-base">Post {activeIndex + 1} av {cardRequirements.length}</p>
                           <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
                         </div>
                       </div>
                       <div ref={setProductCardHeaderActions} className="flex flex-wrap items-center gap-2" />
                     </div>
                     <div
+                      hidden={view !== "products"}
                       role="progressbar"
                       aria-label="Hanterade produktposter"
                       aria-valuenow={progressPercent}
@@ -1025,7 +1027,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                       assignment={assignment}
                       sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
                       position={activeIndex + 1}
-                      totalPosts={queueRequirements.length}
+                      totalPosts={cardRequirements.length}
                       memories={matchingMemories}
                       onCatalogResult={recordFullCatalogResult}
                       headerActions={productCardHeaderActions}
@@ -1055,7 +1057,8 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
 
           {view !== "products" && (
             <NonProductRequirementTable key={view} requirements={view === "removal" ? removalRequirements : rsRequirements}
-              kind={view === "removal" ? "remove" : view} />
+              kind={view === "removal" ? "remove" : view} onOpen={showRequirement}
+              assignmentsByRequirementId={approvedAssignmentByRequirementId} />
           )}
 
           {view === "products" && remainingRequirements.length === 0 && (
@@ -2331,8 +2334,12 @@ function buildProductPostMailHref({ postNumber, productRequirement, quantity, ns
   return `mailto:?subject=${encodeURIComponent(`Produktfråga – PDF-post ${postNumber}`)}&body=${encodeURIComponent(body)}`;
 }
 
-function NonProductRequirementTable({ requirements, kind }: { requirements: Row[]; kind: "remove" | "rs" }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByRequirementId }: {
+  requirements: Row[];
+  kind: "remove" | "rs";
+  onOpen: (requirementId: string) => void;
+  assignmentsByRequirementId: Map<string, Row>;
+}) {
   const label = kind === "remove" ? "Demontering" : "Rund Sum";
   return <section aria-labelledby="non-product-table-heading" className="overflow-hidden border border-ink-200 bg-white">
     <h2 id="non-product-table-heading" className="border-b border-ink-200 px-4 py-3 text-xl font-bold text-ink-950">{label} ({requirements.length})</h2>
@@ -2345,68 +2352,32 @@ function NonProductRequirementTable({ requirements, kind }: { requirements: Row[
             <th scope="col" className="border-b border-ink-200 px-4 py-3">Beskrivning</th>
             <th scope="col" className="w-24 border-b border-ink-200 px-4 py-3">Mängd</th>
             <th scope="col" className="w-24 border-b border-ink-200 px-4 py-3">Enhet</th>
+            <th scope="col" className="border-b border-ink-200 px-4 py-3">Vald produkt</th>
           </tr>
         </thead>
         <tbody>
           {requirements.map((requirement, index) => {
             const details = projectRequirementDetails(requirement);
             const quantity = projectRequirementQuantity(requirement.value_json);
-            const expanded = expandedId === requirement.id;
-            const detailId = `non-product-details-${requirement.id}`;
-            return <Fragment key={requirement.id}>
-              <tr className="border-b border-ink-200 align-top hover:bg-ink-50">
-                <td className="px-4 py-3">
-                  <button type="button" data-appearance="text" className="font-semibold underline" aria-expanded={expanded} aria-controls={detailId}
-                    aria-label={`Visa uppgifter för PDF-post ${details.postNumber ?? index + 1}`}
-                    onClick={() => setExpandedId(expanded ? null : requirement.id)}>{details.postNumber ?? "Saknas"}</button>
-                </td>
-                <td className="px-4 py-3">{details.nsCode ?? "—"}</td>
-                <td className="px-4 py-3">{String(requirement.value_text ?? requirement.display_name ?? "—")}</td>
-                <td className="whitespace-nowrap px-4 py-3">{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)}</td>
-                <td className="px-4 py-3">{String(record(requirement.value_json).unit ?? (kind === "rs" ? "RS" : "—")) || "—"}</td>
-              </tr>
-              {expanded && <tr id={detailId}><td colSpan={5} className="border-b border-ink-200 p-4">
-                <NonProductRequirementCard requirement={requirement} position={index + 1} totalPosts={requirements.length} kind={kind} />
-              </td></tr>}
-            </Fragment>;
+            const snapshot = record(assignmentsByRequirementId.get(requirement.id)?.product_snapshot);
+            return <tr key={requirement.id} className="border-b border-ink-200 align-top hover:bg-ink-50">
+              <td className="px-4 py-3">
+                <button type="button" data-appearance="text" className="font-semibold underline" aria-haspopup="dialog"
+                  aria-label={`Öppna PDF-post ${details.postNumber ?? index + 1}`}
+                  onClick={() => onOpen(requirement.id)}>{details.postNumber ?? "Saknas"}</button>
+              </td>
+              <td className="px-4 py-3">{details.nsCode ?? "—"}</td>
+              <td className="px-4 py-3">{String(requirement.value_text ?? requirement.display_name ?? "—")}</td>
+              <td className="whitespace-nowrap px-4 py-3">{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)}</td>
+              <td className="px-4 py-3">{String(record(requirement.value_json).unit ?? (kind === "rs" ? "RS" : "—")) || "—"}</td>
+              <td className="px-4 py-3">{snapshot.name ? <>{String(snapshot.name)} <span className="whitespace-nowrap">{String(snapshot.productNumber ?? "")}</span></> : "—"}</td>
+            </tr>;
           })}
-          {!requirements.length && <tr><td colSpan={5} className="px-4 py-6 text-ink-600">Inga poster i den här gruppen.</td></tr>}
+          {!requirements.length && <tr><td colSpan={6} className="px-4 py-6 text-ink-600">Inga poster i den här gruppen.</td></tr>}
         </tbody>
       </table>
     </div>
   </section>;
-}
-
-function NonProductRequirementCard({ requirement, position, totalPosts, kind }: { requirement: Row; position: number; totalPosts: number; kind: "remove" | "rs" }) {
-  const details = projectRequirementDetails(requirement);
-  const quantity = projectRequirementQuantity(requirement.value_json);
-  const operationLabel = kind === "remove" ? "Demontering" : "Rund Sum";
-  return (
-    <article className={kind === "remove" ? "overflow-hidden rounded-xl border-2 border-amber-300 bg-white" : "overflow-hidden rounded-xl border-2 border-slate-300 bg-white"}>
-      <div className="p-5">
-        <p className={kind === "remove" ? "text-sm font-bold text-amber-800" : "text-sm font-bold text-slate-700"}>POST {position} AV {totalPosts} · {operationLabel.toUpperCase()}</p>
-        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div><h4 className="text-2xl font-bold text-ink-950">PDF-post {details.postNumber ?? "saknas"}</h4><p className="mt-2 text-base font-semibold leading-7 text-ink-800">{String(requirement.value_text ?? (kind === "remove" ? "Demontering enligt teknisk beskrivning" : "Arbetsmoment enligt teknisk beskrivning"))}</p></div>
-          <span className={kind === "remove" ? "shrink-0 rounded-xl bg-amber-100 px-4 py-2 text-base font-bold text-amber-950" : "shrink-0 rounded-xl bg-slate-100 px-4 py-2 text-base font-bold text-ink-950"}>{formatProjectQuantity(quantity)}</span>
-        </div>
-        <details className="mt-4 rounded-lg border border-ink-200">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-base font-bold text-ink-800">Visa alla uppgifter<ChevronDown className="h-5 w-5" aria-hidden="true" /></summary>
-          <dl className="grid border-t border-ink-100 sm:grid-cols-2 xl:grid-cols-3">
-            <SpecificationRow label="PDF-postnummer" value={details.postNumber ?? "Saknas"} />
-            {details.chapterPost && <SpecificationRow label="Kapitelpost" value={details.chapterPost} />}
-            <SpecificationRow label="Åtgärd" value={operationLabel} />
-            <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
-            {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
-            {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
-            {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
-            {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
-            {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
-          </dl>
-          {details.sourceExcerpt && <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-ink-100 bg-ink-50 p-4 font-sans text-sm leading-6 text-ink-700">{details.sourceExcerpt}</pre>}
-        </details>
-      </div>
-    </article>
-  );
 }
 
 function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, productLabel, sourcePdfHref, columns, position, approved, group, selected, selectionDisabled, onSelectedChange, onOpen }: {

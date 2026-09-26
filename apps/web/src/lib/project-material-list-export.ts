@@ -101,7 +101,7 @@ export function buildProjectMaterialRows({
       ? "Antal saknas i den tekniska beskrivningen – kontrollera före beställning."
       : "";
 
-    if (removal) {
+    if (removal && !assignment) {
       rows.push({
         type: "Demontering",
         ...requirementFields,

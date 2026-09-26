@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { verifyProductPostComments } from "./verify-product-post-comments.mjs";
+import { verifyOptionalScopeProducts } from "./verify-optional-scope-products.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const supabaseDirectory = join(scriptDirectory, "..");
@@ -585,6 +586,7 @@ try {
   }
   process.stdout.write("PASS failure after base manual approval rolls back assignment and product memory\n");
   await verifyProductPostComments(database, project.id);
+  await verifyOptionalScopeProducts(database, project.id);
 
   await database.exec(`
     insert into public.project_requirements (

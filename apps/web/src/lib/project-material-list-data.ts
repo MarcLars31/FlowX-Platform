@@ -26,6 +26,7 @@ export async function loadProjectMaterialListData(
       organization_id: `eq.${organizationId}`,
       deleted_at: "is.null",
       order: "created_at.asc",
+      status: "not.in.(rejected,superseded)",
       limit: "1000"
     }),
     selectUserRows<MaterialListAssignment>("project_product_suggestions", {

@@ -467,7 +467,9 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   const seen = new Set<string>();
   const parentContexts = new Map<string, TableParentContext>();
   const prepared = recoverMissingStructuredPostNumbers(
-    pages.map((page) => normalizedPageLines(page.text))
+    pages.map((page) => page.method === "ocr"
+      ? recoverDisplacedOcrPostNumbers(normalizedPageLines(page.text))
+      : normalizedPageLines(page.text))
   );
   let previousMaterialLine: TechnicalDescriptionMaterialLine | undefined;
   let previousContext: TableParentContext | undefined;
@@ -753,6 +755,7 @@ function parseStructuredPostStart(
   lineIndex: number
 ): StructuredPostStart | undefined {
   const line = lines[lineIndex];
+  if (isTechnicalDescriptionDateHeader(line)) return undefined;
   // A reference printed on its own line is not the row's identity.
   if (/(?:beskrevet\s+under\s+post|se\s+post|henvises\s+til\s+post)\s*$/i.test(lines[lineIndex - 1] ?? "")) return undefined;
   const wrapped = parseWrappedVisualPostStart(lines, lineIndex);
@@ -939,6 +942,36 @@ function composeWrappedPostNumber(base: string, continuation: string) {
   return `${base}${continuation}`;
 }
 
+export function isTechnicalDescriptionDateHeader(value: string) {
+  return /^(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])\.(?:19|20)\d{2}$/.test(value.trim());
+}
+
+// OCR can read the post-number column before the preceding row's continuation.
+// An isolated number followed by attributes belongs with the next NS code,
+// provided no quantity, footer or other post intervenes.
+function recoverDisplacedOcrPostNumbers(lines: string[]) {
+  const starts = lines.filter((line, index) => parseStructuredPostStart(lines, index));
+  // Multiple detached numbers need layout coordinates to pair safely.
+  if (starts.length !== 1) return lines;
+  const recovered = [...lines];
+  for (let index = 0; index < recovered.length - 1; index += 1) {
+    if (!EXACT_POST_LINE_PATTERN.test(recovered[index])
+      || isTechnicalDescriptionDateHeader(recovered[index])
+      || !ATTRIBUTE_PATTERN.test(recovered[index + 1])) continue;
+    for (let next = index + 1; next < recovered.length; next += 1) {
+      if (NS3420_CODE_PATTERN.test(recovered[next])) {
+        const [post] = recovered.splice(index, 1);
+        recovered.splice(next - 1, 0, post);
+        index = next - 1;
+        break;
+      }
+      if (isTableFooter(recovered[next]) || hasTableQuantity(recovered[next])
+        || parseStructuredPostStart(recovered, next)) break;
+    }
+  }
+  return recovered;
+}
+
 function recoverMissingStructuredPostNumbers(pageLines: string[][]) {
   type FlatLine = { pageIndex: number; lineIndex: number; text: string };
   const flatLines: FlatLine[] = pageLines.flatMap((lines, pageIndex) =>
@@ -1047,7 +1080,17 @@ function mergeLeadingPageContinuation({
   const previousChapterNumber = previousChapter?.match(/^\d+/)?.[0];
   if (chapterNumber && previousChapterNumber && Number(chapterNumber) !== Number(previousChapterNumber)) return;
   const leading = pageLines.slice(0, firstStartIndex ?? pageLines.length);
-  const continuationStart = leading.findIndex(isTechnicalContinuationLine);
+  let continuationStart = leading.findIndex(isTechnicalContinuationLine);
+  // A page containing only a photograph/caption has no attribute labels. Its
+  // table body still continues the preceding post; the date is not a new post.
+  if (continuationStart < 0 && firstStartIndex === undefined) {
+    const headerIndex = leading.findIndex(line => /^Postnr(?:[.:]|\s|$)/i.test(line));
+    if (headerIndex >= 0) {
+      const bodyOffset = leading.slice(headerIndex + 1).findIndex(line =>
+        !/^(?:NS\s*3420\b|Enh\.?$|Mengde$|Pris$|Sum$)/i.test(line));
+      if (bodyOffset >= 0) continuationStart = headerIndex + 1 + bodyOffset;
+    }
+  }
   if (continuationStart < 0) return;
   const continuation = leading
     .slice(continuationStart)
@@ -1250,6 +1293,8 @@ function findTableQuantity(lines: string[]) {
   // RS is a priced scope, not a zero quantity: the trailing zeroes belong to
   // price/sum columns. Prefer explicit numeric quantities (e.g. "Rund sum stk
   // 1") above, and retain the remaining lump sums as one scope in unit RS.
+  const lumpSumRow = lines.findIndex(line => /^(?:Rund\s+sum(?:\s+RS)?|RS)(?:\s+[\d., ]+)?$/i.test(line));
+  if (lumpSumRow >= 0) return { quantity: 1, unit: "RS", text: "Rund sum", lineIndex: lumpSumRow, descriptionPrefix: "" };
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const match = lines[lineIndex].match(/^(.*?)(?:^|\s)RS(?:\s+[\d., ]+)?$/i)
       ?? lines[lineIndex].match(/^(.*?)(?:^|\s)Rund\s+sum\s*$/i);
