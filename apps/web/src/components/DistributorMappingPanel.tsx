@@ -52,8 +52,7 @@ import {
 import {
   PRODUCT_REQUIREMENT_CATEGORIES,
   productRequirementCategory,
-  productRequirementCategoryLabel,
-  type ProductRequirementCategory
+  productRequirementCategoryLabel
 } from "@/lib/product-requirement-category";
 import {
   projectRequirementSourcePdfHref,
@@ -296,7 +295,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     ...yellowRequirements.map((requirement) => [requirement.id, "yellow"] as const),
     ...redRequirements.map((requirement) => [requirement.id, "red"] as const)
   ]), [greenRequirements, redRequirements, yellowRequirements]);
-  const [selectedProductCategories, setSelectedProductCategories] = useState<ProductRequirementCategory[] | null>(null);
   const [expandedMainPosts, setExpandedMainPosts] = useState<Set<string>>(() => new Set());
   const [productTableSort, setProductTableSort] = useState<ProductTableSort | null>(null);
   const [productTableLayout, setProductTableLayout] = useState<ProductTableLayout>(() => normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
@@ -353,20 +351,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const approvedMainPostKeys = useMemo(() => new Set(allMainPostGroups
     .filter(group => group.requirements.every(requirement => approvedRequirementIds.has(requirement.id)))
     .map(group => group.key)), [allMainPostGroups, approvedRequirementIds]);
-  const productCategoryCounts = useMemo(() => {
-    const counts = new Map<ProductRequirementCategory, number>();
-    for (const requirement of allQueueRequirements) {
-      const category = productRequirementCategory(requirement);
-      counts.set(category, (counts.get(category) ?? 0) + 1);
-    }
-    return counts;
-  }, [allQueueRequirements]);
-  const availableProductCategories = useMemo(
-    () => PRODUCT_REQUIREMENT_CATEGORIES.filter(
-      (category) => (productCategoryCounts.get(category.id) ?? 0) > 0
-    ),
-    [productCategoryCounts]
-  );
   const bulkApprovalSelectionByRequirementId = useMemo(() => {
     const selections = new Map<string, BulkProductApprovalSelection>();
     for (const requirement of productRequirements) {
@@ -383,14 +367,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     }
     return selections;
   }, [groupByRequirementId, handledRequirementIds, memoriesByFingerprint, productRequirements]);
-  const filteredQueueRequirements = useMemo(() => {
-    const filteredRequirements = selectedProductCategories === null
-      ? allQueueRequirements
-      : allQueueRequirements.filter((requirement) => selectedProductCategories.includes(productRequirementCategory(requirement)));
-    if (!productTableSort) return filteredRequirements;
+  const sortedQueueRequirements = useMemo(() => {
+    if (!productTableSort) return allQueueRequirements;
 
     const direction = productTableSort.direction === "asc" ? 1 : -1;
-    return filteredRequirements
+    return allQueueRequirements
       .map((requirement, originalIndex) => ({
         requirement,
         originalIndex,
@@ -418,10 +399,10 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
         return compared === 0 ? left.originalIndex - right.originalIndex : compared * direction;
       })
       .map(({ requirement }) => requirement);
-  }, [allQueueRequirements, approvedAssignmentByRequirementId, approvedRequirementIds, bulkApprovalSelectionByRequirementId, groupByRequirementId, preferredMemoryByFingerprint, productLabelsByRequirementId, productTableSort, selectedProductCategories]);
-  const mainPostGroups = useMemo(() => groupProductRequirementsByMainPost(filteredQueueRequirements, {
+  }, [allQueueRequirements, approvedAssignmentByRequirementId, approvedRequirementIds, bulkApprovalSelectionByRequirementId, groupByRequirementId, preferredMemoryByFingerprint, productLabelsByRequirementId, productTableSort]);
+  const mainPostGroups = useMemo(() => groupProductRequirementsByMainPost(sortedQueueRequirements, {
     allRequirements: allQueueRequirements, preserveRowOrder: Boolean(productTableSort)
-  }), [filteredQueueRequirements, allQueueRequirements, productTableSort]);
+  }), [sortedQueueRequirements, allQueueRequirements, productTableSort]);
   const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
   const expandedQueueRequirements = mainPostGroups.filter(group => expandedMainPosts.has(group.key)).flatMap(group => group.requirements);
   const queuePositionById = useMemo(
@@ -531,27 +512,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => document.getElementById("product-card-scroll")?.scrollTo({ top: 0, behavior: "smooth" }));
-  }
-
-  function toggleProductCategory(category: ProductRequirementCategory) {
-    setSelectedProductCategories((current) => current === null
-      ? [category]
-      : current.includes(category)
-        ? current.filter((item) => item !== category)
-        : [...current, category]
-    );
-    setActiveRequirementId(null);
-    setSelectedRequirementIds(new Set());
-    setMessage(null);
-    setError(null);
-  }
-
-  function showAllProductCategories() {
-    setSelectedProductCategories(null);
-    setActiveRequirementId(null);
-    setSelectedRequirementIds(new Set());
-    setMessage(null);
-    setError(null);
   }
 
   function closeRequirement() {
@@ -833,13 +793,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-ink-200 bg-ink-50/70 px-4 py-2" role="group" aria-label="Filtrera produkter efter produktgrupp">
-            <ProductCategoryButton active={selectedProductCategories === null} count={allQueueRequirements.length} label="Alla" onClick={showAllProductCategories} />
-            {availableProductCategories.map((category) => (
-              <ProductCategoryButton key={category.id} active={selectedProductCategories?.includes(category.id) ?? false} count={productCategoryCounts.get(category.id) ?? 0} label={category.shortLabel} onClick={() => toggleProductCategory(category.id)} />
-            ))}
-          </div>
-
           {productTableLayoutLoaded && productTableLayoutEditorOpen && (
             <section id="product-table-layout-editor" aria-labelledby="product-table-layout-heading" className="border-b border-ink-200 bg-white px-4 py-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -903,7 +856,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
 
           {queueRequirements.length > 0 ? (
             productTableLayoutLoaded ? (
-            <div className="divide-y divide-ink-200">
+            <div className="space-y-3 px-4 py-3">
               {mainPostGroups.map((mainPost, index) => {
                 const expanded = expandedMainPosts.has(mainPost.key);
                 const mainPostApproved = approvedMainPostKeys.has(mainPost.key);
@@ -916,9 +869,9 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                 const allGroupSelected = eligibleIds.length > 0 && eligibleIds.every(id => selectedRequirementIds.has(id));
                 return <section key={mainPost.key} aria-labelledby={headingId}>
                   <h4 id={headingId}>
-                    <button type="button" aria-expanded={expanded} aria-controls={regionId}
+                    <button type="button" data-appearance="text" aria-expanded={expanded} aria-controls={regionId}
                       aria-label={`Hovedpost ${label}`} aria-describedby={`${headingId}-category`} onClick={() => toggleMainPost(mainPost.key)}
-                      className={`flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left text-base font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-flow-600 ${mainPostApproved ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200" : expanded ? "bg-flow-50 text-flow-900 hover:bg-flow-50" : "bg-white text-flow-900 hover:bg-flow-50"}`}>
+                      className="inline-flex items-center gap-3 text-left text-sm font-semibold">
                       <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="flex items-center gap-2">{mainPostApproved && <><CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /><span className="sr-only">Godkjent · </span></>}{label}</span>
                         <span id={`${headingId}-category`} className="text-sm font-semibold">{categoryLabels}</span>
@@ -926,7 +879,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                       <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
                     </button>
                   </h4>
-                  {expanded && <div id={regionId} role="region" aria-labelledby={headingId} className="overflow-x-auto border-t border-ink-200" tabIndex={0}>
+                  {expanded && <div id={regionId} role="region" aria-labelledby={headingId} className="mt-2 overflow-x-auto border-t border-ink-200" tabIndex={0}>
               <table className="w-full border-collapse whitespace-nowrap text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
@@ -990,7 +943,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               </div>
             )
           ) : (
-            <div className="p-5 text-center"><p className="font-bold text-ink-950">Ingen produktgrupp är vald.</p><p className="mt-1 text-sm text-ink-700">Välj en grupp ovan eller tryck på Alla.</p></div>
+            <p className="p-5 text-center text-ink-600">Inga produktposter att visa.</p>
           )}
         </section>
       )}
@@ -1923,16 +1876,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </dl>
           </div>
           <div id={`post-comments-${requirement.id}`} className="mt-4 scroll-mt-4">{postComments}</div>
-          {Boolean(ahlsellGuide.interpretationNotes?.length || ahlsellGuide.interpretationWarnings?.length) && (
-            <section aria-label="Så tolkas PDF-kraven" className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-              <h4 className="text-sm font-bold text-neutral-950">Så tolkas PDF-kraven</h4>
-              <p className="mt-1 text-xs leading-5 text-neutral-600">Tolkningen väger ihop villkor, placering och lokalisering. Originaluppgifterna visas ovan.</p>
-              <ul className="mt-2 list-disc space-y-2 pl-4 text-xs leading-5 text-neutral-800">
-                {ahlsellGuide.interpretationNotes?.map((note) => <li key={note}>{note}</li>)}
-                {ahlsellGuide.interpretationWarnings?.map((warning) => <li key={warning} className="font-semibold text-neutral-900">{warning}</li>)}
-              </ul>
-            </section>
-          )}
         </div>
       </section>
 
@@ -2551,7 +2494,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
         <td key={columnId} className="px-3 py-2.5 align-middle">
           <div className="flex items-center gap-2">
             <button
-              type="button"
+              type="button" data-appearance="text"
               aria-haspopup="dialog"
               aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`}
               onClick={onOpen}
@@ -2578,7 +2521,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     if (columnId === "nsCode") {
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">
-          <button type="button" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för ${details.nsCode ?? "posten"}`} className="text-left hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
+          <button type="button" data-appearance="text" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för ${details.nsCode ?? "posten"}`} className="text-left hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
             <span className="whitespace-nowrap font-semibold">{details.nsCode || "—"}</span>
           </button>
         </td>
@@ -2587,7 +2530,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     if (columnId === "requirement") {
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle">
-          <button type="button" aria-haspopup="dialog" onClick={onOpen} className="text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{productTableRequirementLabel(requirement)}</button>
+          <button type="button" data-appearance="text" aria-haspopup="dialog" onClick={onOpen} className="text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{productTableRequirementLabel(requirement)}</button>
           {!approved && dataWarnings.map((warning) => (
             <span key={warning.code} title={warning.message} className="mt-0.5 flex items-center gap-1 text-[10px] font-bold leading-4 text-amber-800">
               <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -2621,8 +2564,8 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
       </td>
       {columns.map(renderProductTableCell)}
       <td className="px-2 py-2 text-center align-middle">
-        <button type="button" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`} title="Öppna produktkort" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-flow-800 transition hover:bg-flow-100 hover:text-flow-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-          <Plus className="h-4 w-4" aria-hidden="true" />
+        <button type="button" data-appearance="text" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`} title="Öppna produktkort" className="text-sm font-semibold">
+          Öppna
         </button>
       </td>
     </tr>
@@ -2724,27 +2667,6 @@ function ProductSortHeader({ label, sortKey, sort, dragging, onSort, onDragStart
         </button>
       </div>
     </th>
-  );
-}
-
-function ProductCategoryButton({ active, count, label, onClick }: {
-  active: boolean;
-  count: number;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={active
-        ? "inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-flow-700 bg-flow-700 px-2.5 py-1 text-xs font-black text-white shadow-sm"
-        : "inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 py-1 text-xs font-bold text-ink-800 transition hover:border-flow-500 hover:bg-flow-50"}
-    >
-      <span>{label}</span>
-      <span className={active ? "rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] text-white" : "rounded-full bg-ink-100 px-1.5 py-0.5 text-[10px] text-ink-700"}>{count}</span>
-    </button>
   );
 }
 
