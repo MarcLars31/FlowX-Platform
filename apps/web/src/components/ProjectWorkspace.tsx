@@ -379,14 +379,37 @@ export function ProjectWorkspace({
   return (
     <div className={`space-y-6 pb-12 ${tab === "products" ? "min-w-0 w-full" : "mx-auto max-w-6xl"}`}>
       {data.project.demo_data_set_id && <DemoBadge />}
-      <Link
-        href="/projects"
-        className="inline-flex min-h-11 items-center gap-2 text-base font-semibold text-ink-700 transition hover:text-flow-700"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/projects"
+          className="inline-flex min-h-11 items-center gap-2 text-base font-semibold text-ink-700 transition hover:text-flow-700"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
 
-        Alla projekt
-      </Link>
+          Alla projekt
+        </Link>
+        {tab === "products" && canDeleteProject && !showDeleteConfirmation && (
+          <Button type="button" variant="danger" className="ml-auto" onClick={() => setShowDeleteConfirmation(true)}><Trash2 className="h-5 w-5" aria-hidden="true" />Avsluta och ta bort projekt</Button>
+        )}
+      </div>
+
+      {tab === "products" && canDeleteProject && showDeleteConfirmation && (
+        <section role="dialog" aria-labelledby="delete-project-title" className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-700 text-white"><Trash2 className="h-6 w-6" aria-hidden="true" /></span>
+              <div>
+                <h2 id="delete-project-title" className="text-xl font-bold text-rose-950">Vill du avsluta projektet?</h2>
+                <p className="mt-2 max-w-2xl text-base leading-7 text-rose-900"><strong>{data.project.name}</strong>  flyttas till papperskorgen. PDF, produktval och projektdata sparas där och kan återställas av en administratör.</p>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
+              <Button type="button" variant="secondary" disabled={deleting} onClick={() => setShowDeleteConfirmation(false)}>Fortsätt arbeta</Button>
+              <Button type="button" variant="danger" disabled={deleting} onClick={() => void moveProjectToTrash()}><Trash2 className="h-5 w-5" aria-hidden="true" />{deleting ? "Avslutar projektet…" : "Ja, avsluta projektet"}</Button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <ScipxPageHeader
         eyebrow={data.project.project_number ?? "Scipx-projekt"}
@@ -614,29 +637,6 @@ export function ProjectWorkspace({
 
       {tab === "products" && (
         <div className="space-y-5">
-          {canDeleteProject && (
-            showDeleteConfirmation ? (
-              <section role="dialog" aria-labelledby="delete-project-title" className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 shadow-sm sm:p-6">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-start gap-4">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-700 text-white"><Trash2 className="h-6 w-6" aria-hidden="true" /></span>
-                    <div>
-                      <h2 id="delete-project-title" className="text-xl font-bold text-rose-950">Vill du avsluta projektet?</h2>
-                      <p className="mt-2 max-w-2xl text-base leading-7 text-rose-900"><strong>{data.project.name}</strong>  flyttas till papperskorgen. PDF, produktval och projektdata sparas där och kan återställas av en administratör.</p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
-                    <Button type="button" variant="secondary" disabled={deleting} onClick={() => setShowDeleteConfirmation(false)}>Fortsätt arbeta</Button>
-                    <Button type="button" variant="danger" disabled={deleting} onClick={() => void moveProjectToTrash()}><Trash2 className="h-5 w-5" aria-hidden="true" />{deleting ? "Avslutar projektet…" : "Ja, avsluta projektet"}</Button>
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <div className="flex justify-end">
-                <Button type="button" variant="danger" onClick={() => setShowDeleteConfirmation(true)}><Trash2 className="h-5 w-5" aria-hidden="true" />Avsluta och ta bort projekt</Button>
-              </div>
-            )
-          )}
           <DistributorMappingPanel
             projectId={data.project.id}
             currency={data.project.currency ?? "NOK"}
