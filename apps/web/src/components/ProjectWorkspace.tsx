@@ -5,7 +5,7 @@ import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/Button";
 import { DemoBadge } from "@/components/DemoBadge";
 import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
-import { PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
+import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
 import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterialListPdfExportButton";
@@ -352,6 +352,7 @@ export function ProjectWorkspace({
     }
   }
 
+  const requirementGroups = useMemo(() => groupProjectRequirementViews(data.requirements), [data.requirements]);
   const displayedDocuments = displayedProjectDocuments(data);
   const uniqueTechnicalDescriptions = displayedDocuments.technicalDescriptions;
   const distinctProjectDocuments = displayedDocuments.projectDocuments;
@@ -441,7 +442,7 @@ export function ProjectWorkspace({
           {PROJECT_REQUIREMENT_VIEWS.map(view => (
             <Button key={view.id} type="button" variant={requirementView === view.id ? "primary" : "secondary"}
               aria-pressed={requirementView === view.id} aria-controls="project-requirement-table"
-              onClick={() => setRequirementView(view.id)}>{view.label}</Button>
+              onClick={() => setRequirementView(view.id)}>{view.label} ({requirementGroups[view.id].length})</Button>
           ))}
         </nav>
       ) : (

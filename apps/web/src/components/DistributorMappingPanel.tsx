@@ -1054,7 +1054,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
           })()}
 
           {view !== "products" && (
-            <NonProductRequirementTable key={view} requirements={view === "removal" ? removalRequirements : view === "rs" ? rsRequirements : workRequirements}
+            <NonProductRequirementTable key={view} requirements={view === "removal" ? removalRequirements : rsRequirements}
               kind={view === "removal" ? "remove" : view} />
           )}
 
@@ -2331,9 +2331,9 @@ function buildProductPostMailHref({ postNumber, productRequirement, quantity, ns
   return `mailto:?subject=${encodeURIComponent(`Produktfråga – PDF-post ${postNumber}`)}&body=${encodeURIComponent(body)}`;
 }
 
-function NonProductRequirementTable({ requirements, kind }: { requirements: Row[]; kind: "remove" | "work" | "rs" }) {
+function NonProductRequirementTable({ requirements, kind }: { requirements: Row[]; kind: "remove" | "rs" }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const label = kind === "remove" ? "Demontering" : kind === "rs" ? "RS-koder" : "Arbetsmoment";
+  const label = kind === "remove" ? "Demontering" : "Rund Sum";
   return <section aria-labelledby="non-product-table-heading" className="overflow-hidden border border-ink-200 bg-white">
     <h2 id="non-product-table-heading" className="border-b border-ink-200 px-4 py-3 text-xl font-bold text-ink-950">{label} ({requirements.length})</h2>
     <div className="overflow-x-auto">
@@ -2377,10 +2377,10 @@ function NonProductRequirementTable({ requirements, kind }: { requirements: Row[
   </section>;
 }
 
-function NonProductRequirementCard({ requirement, position, totalPosts, kind }: { requirement: Row; position: number; totalPosts: number; kind: "remove" | "work" | "rs" }) {
+function NonProductRequirementCard({ requirement, position, totalPosts, kind }: { requirement: Row; position: number; totalPosts: number; kind: "remove" | "rs" }) {
   const details = projectRequirementDetails(requirement);
   const quantity = projectRequirementQuantity(requirement.value_json);
-  const operationLabel = kind === "remove" ? "Demontering" : kind === "rs" ? "RS-koder" : "Arbetsmoment";
+  const operationLabel = kind === "remove" ? "Demontering" : "Rund Sum";
   return (
     <article className={kind === "remove" ? "overflow-hidden rounded-xl border-2 border-amber-300 bg-white" : "overflow-hidden rounded-xl border-2 border-slate-300 bg-white"}>
       <div className="p-5">
