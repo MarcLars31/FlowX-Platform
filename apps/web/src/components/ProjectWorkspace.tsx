@@ -150,20 +150,12 @@ export function ProjectWorkspace({
     try {
       const sourceData = latestData ?? await reload();
       if (sourceData.project.current_stage === "completed") {
-        setMessage("Produktvalet är klart. Projektsammanfattningen visas nedan.");
+        setMessage("Projektsammanfattningen visas nedan.");
         selectTab("overview");
         return;
       }
 
-      const latestWorkflow = guidedProjectWorkflow({
-        documentCount: displayedProjectDocuments(sourceData).count,
-        requirements: sourceData.requirements,
-        assignments: sourceData.suggestions
-      });
-      const completionUpdate = guidedProjectCompletionUpdate(latestWorkflow);
-      if (!completionUpdate) {
-        throw new Error("Alla produktposter måste vara sparade innan projektet kan slutföras.");
-      }
+      const completionUpdate = guidedProjectCompletionUpdate();
 
       const response = await fetch(`/api/projects/${data.project.id}`, {
         method: "PATCH",
@@ -181,7 +173,7 @@ export function ProjectWorkspace({
         project: payload.project as OrganizationProject
       });
       setMessage(
-        "Produktvalet är klart. Projektet är markerat som produktförslag klart och sammanfattningen visas nedan."
+        "Projektet är avslutat. Sammanfattningen visas nedan."
       );
       selectTab("overview");
     } catch (finishError) {
@@ -372,8 +364,7 @@ export function ProjectWorkspace({
     requirements: data.requirements,
     assignments: data.suggestions
   });
-  const projectFinished =
-    workflow.isComplete && data.project.current_stage === "completed";
+  const projectFinished = data.project.current_stage === "completed";
   const selectedProductSummaries = summarizeSelectedProducts(
     data.suggestions,
     data.requirements
@@ -421,19 +412,20 @@ export function ProjectWorkspace({
         icon={<FolderKanban aria-hidden="true" />}
       />
 
-      {tab === "overview" && workflow.isComplete && (
+      {tab === "overview" && (
         <div className="flex flex-wrap gap-2">
-          {projectFinished && canExportMaterialList ? (
+          {canExportMaterialList && (
             <>
               <ProjectMaterialListExportButton projectId={data.project.id} />
               <ProjectMaterialListPdfExportButton projectId={data.project.id} />
             </>
-          ) : !projectFinished ? (
+          )}
+          {!projectFinished && (
             <Button disabled={finishing} onClick={() => void finishProject()}>
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               {finishing ? "Slutför…" : "Markera projektet klart"}
             </Button>
-          ) : null}
+          )}
         </div>
       )}
 
@@ -444,18 +436,16 @@ export function ProjectWorkspace({
               aria-pressed={requirementView === view.id} aria-controls="project-requirement-table"
               onClick={() => setRequirementView(view.id)}>{view.label} ({requirementGroups[view.id].length})</Button>
           ))}
-          {workflow.isComplete && (
-            <Button type="button" className="ml-auto" disabled={finishing} onClick={() => void finishProject()}>
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              {finishing ? "Slutför projektet…" : "Nästa: visa resultat"}
-            </Button>
-          )}
+          <Button type="button" className="ml-auto" disabled={finishing} onClick={() => void finishProject()}>
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            {finishing ? "Slutför projektet…" : "Nästa: visa resultat"}
+          </Button>
         </nav>
       ) : (
         <nav aria-label="Projektvyer" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
           <ProjectTab label="Dokument" active={tab === "documents"} onClick={() => selectTab("documents")} />
           <ProjectTab label="Produkter" active={false} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
-          <ProjectTab label="Resultat" active={tab === "overview"} disabled={!workflow.isComplete} onClick={() => selectTab("overview")} />
+          <ProjectTab label="Resultat" active={tab === "overview"} onClick={() => selectTab("overview")} />
         </nav>
       )}
 
@@ -475,8 +465,8 @@ export function ProjectWorkspace({
                     <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
                   </span>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700">Projektet är färdigt</p>
-                    <h2 className="mt-1 text-xl font-semibold text-emerald-950">Produktval och mängder är klara</h2>
+                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700">Projektet är avslutat</p>
+                    <h2 className="mt-1 text-xl font-semibold text-emerald-950">Resultat och materiallista</h2>
                     <p className="mt-1 text-sm leading-6 text-emerald-800">Ladda ner materiallistan eller starta nästa tekniska analys.</p>
                   </div>
                 </div>

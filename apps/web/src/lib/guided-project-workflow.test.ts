@@ -30,7 +30,7 @@ test("completes approved product selection with unmapped work posts after reload
   assert.equal(workflow.mappedRequirementCount, 2);
   assert.equal(workflow.remainingProductCount, 0);
   assert.equal(workflow.isComplete, true);
-  assert.deepEqual(guidedProjectCompletionUpdate(workflow), { currentStage: "completed", status: "proposal_ready" });
+  assert.deepEqual(guidedProjectCompletionUpdate(), { currentStage: "completed", status: "proposal_ready" });
 });
 
 test("projects consisting only of work posts need no product approvals", () => {
@@ -46,14 +46,14 @@ test("work exclusions never hide a missing product approval, including measured 
   const workflow = guidedProjectWorkflow({ documentCount: 1, requirements, assignments: [{ ...approvedAssignment("pipe"), product_snapshot: { source: "distributor_manual" } }] });
   assert.equal(workflow.eligibleRequirementCount, 1);
   assert.equal(workflow.remainingProductCount, 1);
-  assert.equal(guidedProjectCompletionUpdate(workflow), null);
+  assert.deepEqual(guidedProjectCompletionUpdate(), { currentStage: "completed", status: "proposal_ready" });
 });
 
-test("projects with no active posts cannot be marked complete", () => {
+test("empty projects can close without marking their product workflow complete", () => {
   for (const requirements of [[], [{ id: "rejected", status: "rejected" }, { id: "old", status: "superseded" }]]) {
     const workflow = guidedProjectWorkflow({ documentCount: 1, requirements, assignments: [] });
     assert.equal(workflow.isComplete, false);
-    assert.equal(guidedProjectCompletionUpdate(workflow), null);
+    assert.deepEqual(guidedProjectCompletionUpdate(), { currentStage: "completed", status: "proposal_ready" });
   }
 });
 
@@ -208,10 +208,17 @@ test("recognizes only supported workspace tabs", () => {
   assert.equal(isGuidedProjectTab("decisions"), false);
 });
 
-test("only completes a project after every guided step is finished", () => {
-  assert.equal(guidedProjectCompletionUpdate({ isComplete: false }), null);
-  assert.deepEqual(guidedProjectCompletionUpdate({ isComplete: true }), {
+test("closes a project after one approved post while leaving other posts incomplete", () => {
+  const requirements = [{ id: "selected" }, { id: "unfinished" }];
+  const assignments = [approvedAssignment("selected")];
+  const workflow = guidedProjectWorkflow({ documentCount: 1, requirements, assignments });
+  assert.equal(workflow.isComplete, false);
+  assert.equal(workflow.mappedRequirementCount, 1);
+  assert.equal(workflow.remainingProductCount, 1);
+  assert.deepEqual(guidedProjectCompletionUpdate(), {
     currentStage: "completed",
     status: "proposal_ready"
   });
+  assert.equal(assignments.length, 1);
+  assert.deepEqual(requirements[1], { id: "unfinished" });
 });

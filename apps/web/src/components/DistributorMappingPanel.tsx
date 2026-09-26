@@ -174,10 +174,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     () => new Set([...approvedRequirementIds, ...resolvedRequirementIds]),
     [approvedRequirementIds, resolvedRequirementIds]
   );
-  const remainingRequirements = useMemo(
-    () => productRequirements.filter((requirement) => !handledRequirementIds.has(requirement.id)),
-    [handledRequirementIds, productRequirements]
-  );
   const memoryFingerprints = useMemo(() => new Set(
     memories.flatMap((memory) => typeof memory.requirement_fingerprint === "string"
       ? [memory.requirement_fingerprint]
@@ -1059,17 +1055,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
               assignmentsByRequirementId={approvedAssignmentByRequirementId} />
           )}
 
-          {view === "products" && remainingRequirements.length === 0 && (
-            <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-6 shadow-sm sm:p-7">
-              <div className="flex items-start gap-4">
-                <CheckCircle2 className="mt-0.5 h-8 w-8 shrink-0 text-emerald-700" aria-hidden="true" />
-                <div>
-                  <h3 className="text-2xl font-bold text-emerald-950">Bra – steg 2 är färdigt</h3>
-                  <p className="mt-2 text-base leading-7 text-emerald-900">Alla inköpsposter är antingen godkända med en produkt eller märkta som Inte i sortiment. Projektet kan nu slutföras.</p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </section>

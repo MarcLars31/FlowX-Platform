@@ -34,13 +34,6 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Projektet hittades inte." }, { status: 404 });
     }
     const { project, rows } = materialList;
-    if (rows.length === 0) {
-      return NextResponse.json(
-        { error: "Projektet har inga registrerade produktval att exportera." },
-        { status: 409 }
-      );
-    }
-
     const comments = await selectAllUserRows<MaterialListComment>("product_post_comments", {
       select: "id,requirement_id,body,product_number,product_name,author_name,created_at",
       project_id: `eq.${id}`,
