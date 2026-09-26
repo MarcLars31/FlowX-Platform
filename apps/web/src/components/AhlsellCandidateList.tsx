@@ -79,7 +79,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
       {showNoMatch && matching.length === 0 && (
         <div role="status" className={`border-t px-3 py-4 sm:px-4 ${review.length ? "border-neutral-300 bg-neutral-50 text-neutral-950" : "border-neutral-200 bg-neutral-50 text-neutral-950"}`}>
           <p className="flex items-center gap-2 text-sm font-bold">{review.length ? <AlertTriangle className="h-5 w-5" aria-hidden="true" /> : <CircleX className="h-5 w-5" aria-hidden="true" />}{review.length ? "Ingen verifierad match ännu" : "Ingen match bland kontrollerade produkter"}</p>
-          <p className="mt-1 text-xs leading-5">{review.length ? "Produktuppgifter eller PDF-krav behöver kontrolleras innan en match kan verifieras." : rejected.length ? "De hittade produkterna uppfyller inte PDF-kraven." : "Sökningen gav inga produkter att matcha mot PDF-kravet."}</p>
+          {!review.length && <p className="mt-1 text-xs leading-5">{rejected.length ? "De hittade produkterna uppfyller inte PDF-kraven." : "Sökningen gav inga produkter att matcha mot PDF-kravet."}</p>}
           {!review.length && mainReason && <p className="mt-1 text-xs leading-5"><span className="font-bold">Orsak: </span>{mainReason}</p>}
           <div className="mt-3 flex flex-wrap gap-2">
             {onSearch && <button type="button" disabled={disabled} onClick={onSearch} className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-800 disabled:opacity-50">Sök eller lägg till produkt</button>}
