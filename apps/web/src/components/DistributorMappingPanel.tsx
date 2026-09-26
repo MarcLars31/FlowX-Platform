@@ -226,9 +226,9 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
       .map((requirement) => requirement.id),
     [productRequirements, handledRequirementIds]
   );
-  const catalogRevisions = useMemo(() => Object.fromEntries(productRequirements.map(requirement => [
+  const catalogRevisions = useMemo(() => Object.fromEntries(requirements.map(requirement => [
     requirement.id, JSON.stringify([projectId, requirement.category, requirement.value_text, requirement.value_json, requirement.source_excerpt])
-  ])), [productRequirements, projectId]);
+  ])), [requirements, projectId]);
   const catalogCheckKey = useMemo(() => JSON.stringify(catalogCheckRequirementIds.map(id => [id, catalogRevisions[id]])), [catalogCheckRequirementIds, catalogRevisions]);
   const [catalogAssessments, setCatalogAssessments] = useState<Record<string, AhlsellCatalogAssessment>>({});
   const completedCatalogChecks = useRef(new Set<string>());

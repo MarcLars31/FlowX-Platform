@@ -28,6 +28,22 @@ test("a late MLDL classification cannot overwrite a completed hybrid result for 
   assert.equal(mergeAhlsellCatalogAssessments(full, { row: { revision: "v2", status: "found", fullSearch: false } }).row.status, "found");
 });
 
+test("an optional post missing from the revision map cannot crash or overwrite catalog results", () => {
+  const revisions: Record<string, string> = {};
+  const current = { product: { revision: "v1", status: "safe" as const, fullSearch: true } };
+  const merged = mergeAhlsellCatalogAssessments(current, {
+    removal: { revision: revisions.removal, status: "incomplete", fullSearch: true },
+    rs: { revision: revisions.rs, status: "found", fullSearch: true }
+  });
+  assert.deepEqual(merged, current);
+  const optional = mergeAhlsellCatalogAssessments(merged, {
+    removal: { revision: "removal-v1", status: "found", fullSearch: true },
+    rs: { revision: "rs-v1", status: "incomplete", fullSearch: true }
+  });
+  assert.equal(optional.removal.status, "found");
+  assert.equal(optional.rs.status, "incomplete");
+});
+
 test("does not report products as absent when the automatic web search was incomplete", () => {
   for (const metadata of [{ publicSearchStatus: "unavailable" }, { publicSearchStatus: "partial" }, { truncated: true }]) {
     assert.equal(ahlsellCatalogStatusFromPayload({ classification: "none", ...metadata }), "incomplete");

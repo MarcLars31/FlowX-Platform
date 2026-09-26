@@ -13,6 +13,7 @@ export function mergeAhlsellCatalogAssessments(
 ) {
   const next = { ...current };
   for (const [id, result] of Object.entries(incoming)) {
+    if (!result.revision) continue;
     const previous = next[id];
     if (previous?.revision === result.revision && previous.fullSearch && previous.status !== "incomplete" && result.status === "incomplete") continue;
     if (previous?.revision === result.revision && previous.fullSearch && !result.fullSearch) continue;
