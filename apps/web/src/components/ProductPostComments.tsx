@@ -172,7 +172,6 @@ export function ProductPostComments({ projectId, requirementId, productNumber, p
             <Button neutral type="submit" className="min-h-10 px-3 py-2 text-sm" disabled={blocked || !draft?.body.trim()}>{scope === "post" ? "Spara postkommentar" : "Spara produktkommentar"}</Button>
           </div>
         </form>
-          <p className="mt-2 text-xs leading-5 text-neutral-600">Sparas separat från produktvalet och följer med i Excel för aktuell post och godkänd produkt.</p>
         </div>
       </div>
   </section>;

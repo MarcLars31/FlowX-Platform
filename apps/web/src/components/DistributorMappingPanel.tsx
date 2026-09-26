@@ -2217,29 +2217,14 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   }
 
   return (
-    <section aria-labelledby="ahlsell-match-heading">
-      <header className="px-3 py-3 sm:px-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">Produktval</p>
-            <h4 id="ahlsell-match-heading" className="mt-0.5 text-base font-bold text-neutral-950">Automatiska produktförslag från Ahlsell</h4>
-          </div>
-          <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs font-semibold">
-            {!loadingCatalog && (
-              <span className="text-neutral-600">
-                {filteredResultCount} {filteredResultCount === 1 ? "träff" : "träffar"}
-              </span>
-            )}
-            {hasNrfFilter && (
-              <button type="button" className="font-bold text-neutral-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600" onClick={clearSelection}>
-
-                Rensa NRF
-              </button>
-            )}
-          </div>
+    <section aria-label="Ahlsellprodukter">
+      {hasNrfFilter && (
+        <div className="flex justify-end px-3 py-3 sm:px-4">
+          <button type="button" className="font-bold text-neutral-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600" onClick={clearSelection}>
+            Rensa NRF
+          </button>
         </div>
-        <p className="mt-1.5 text-xs leading-5 text-neutral-600">Scipx söker automatiskt i Ahlsells sortiment utifrån PDF-postens krav. Markera en produkt för att fylla NRF-numret.</p>
-      </header>
+      )}
 
       {loadingCatalog && (
         <div className="flex min-h-16 items-center justify-center gap-2 border-t border-neutral-200 bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-800" role="status">
