@@ -4,6 +4,7 @@ export type TechnicalDescriptionAnnotation = {
   subtype: string;
   rect?: number[];
   postNumber?: string;
+  continuesPreviousPost?: boolean;
 };
 
 export type TechnicalDescriptionPage = {
@@ -50,6 +51,7 @@ export type TechnicalDescriptionMaterialLine = {
   standardRefs: string[];
   technicalSpecification?: string;
   sourcePage: number;
+  sourcePages?: number[];
   sourceText: string;
   confidence: number;
   reviewFlags: string[];

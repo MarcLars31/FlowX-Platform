@@ -15,6 +15,16 @@ test("anchors note icons to wrapped product rows using the lower edge instead of
 });
 import type { TechnicalDescriptionPage } from "./types";
 
+test("anchors notes to single-component wrapped parents and leading page continuations", () => {
+  const item = (str: string, y: number) => ({ str, transform: [1, 0, 0, 1, 54, y] });
+  const notes = commentsFromPdfAnnotations([
+    { id: "continued", subtype: "Text", contentsObj: { str: "Continuation note" }, rect: [350, 730, 374, 754] },
+    { id: "parent", subtype: "Text", contentsObj: { str: "Include all parts" }, rect: [350, 650, 374, 674] }
+  ], [item("1403.33.332.", 700), item("10", 689), item("1403.33.332.", 600), item("10.1", 589)]);
+  assert.equal(notes[0].continuesPreviousPost, true);
+  assert.equal(notes[1].postNumber, "1403.33.332.10");
+});
+
 test("renders only short text pages for OCR in mixed technical PDFs", () => {
   const pages: TechnicalDescriptionPage[] = [
     textPage(1, "A".repeat(125)),

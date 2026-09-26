@@ -19,6 +19,18 @@ test("OCR quality counts aligned quantity rows, not separate vertical words", ()
   assert.equal(isBetterOcrText("33.332.11 UE2.11112512\nAntall stk", aligned), false);
 });
 
+test("prefers table coordinates when OCR detached the entire post-number column", () => {
+  const plain = "Multiconsult\n22.06.2026\nPostnr NS-kode Enh. Mengde\n30.332.22\n30.332.23\nUE2.11122319\nSPRINKLER\nAntall\nUE2.11199219A\nSPRINKLER\nAntall\nstk\nstk";
+  const layout = "Multiconsult 22.06.2026\nPostnr NS-kode Enh. Mengde\n30.332.22 UE2.11122319\nSPRINKLER\nAntall stk\n30.332.23 UE2.11199219A\nSPRINKLER\nAntall stk";
+  assert.equal(shouldPreferOcrLayoutText(plain, layout), true);
+});
+
+test("a recovered quantity must not replace another post or most of the specification", () => {
+  const current = "33.332.1 UE2.11112312\nAntall stk\n33.332.2 UE2.11112312\nAntall stk";
+  assert.equal(isBetterOcrText("33.332.1 UE2.11112312\nAntall stk 2", current), false);
+  assert.equal(isBetterOcrText("33.332.1 UE2.11112312\nAntall stk 2", "33.332.1 UE2.11112312\nAntall stk\n" + "Alle festemidler skal inngå. ".repeat(30)), false);
+});
+
 test("rebuilds PDF table rows by visual coordinates", () => {
   const items = [
     item("9253499", 360, 680, 45),

@@ -90,7 +90,8 @@ export function enrichProjectRequirements(
           line.technicalSpecification ??
           currentValue.technicalSpecification ??
           line.sourceText,
-        sourceText: line.sourceText
+        sourceText: line.sourceText,
+        sourcePages: line.sourcePages ?? [line.sourcePage]
       },
       source_excerpt:
         stringValue(requirement.source_excerpt) ?? line.sourceText
@@ -120,7 +121,19 @@ function technicalDescriptionPages(value: unknown) {
       pageNumber,
       text,
       method,
-      confidence: confidence ?? (method === "ocr" ? 0.75 : 0.98)
+      confidence: confidence ?? (method === "ocr" ? 0.75 : 0.98),
+      annotations: Array.isArray(page.annotations) ? page.annotations.flatMap(value => {
+        const annotation = record(value);
+        const text = stringValue(annotation.text);
+        if (!text) return [];
+        return [{
+          id: stringValue(annotation.id) ?? `comment-${pageNumber}`,
+          text,
+          subtype: stringValue(annotation.subtype) ?? "Text",
+          ...(stringValue(annotation.postNumber) ? { postNumber: String(annotation.postNumber) } : {}),
+          ...(annotation.continuesPreviousPost === true ? { continuesPreviousPost: true } : {})
+        }];
+      }) : undefined
     }];
   });
 }
@@ -142,6 +155,11 @@ function mergedAttributes(
       output[normalizedKey] = value;
     }
   }
+  // A saved, shorter copy must not hide comments recovered from later pages.
+  const extractedComments = stringValue(extracted["pdf-kommentar"]);
+  const savedComments = stringValue(current["pdf-kommentar"]);
+  if (extractedComments) output["pdf-kommentar"] = savedComments && !extractedComments.includes(savedComments)
+    ? `${extractedComments}\n\n${savedComments}` : extractedComments;
   return output;
 }
 

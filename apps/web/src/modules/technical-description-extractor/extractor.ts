@@ -290,6 +290,9 @@ function extractMaterialLines(
   const structuredUsable = usableMaterialLineCount(structuredLines);
   const legacyUsable = usableMaterialLineCount(legacyLines);
   if (
+    // Keeping additional unquantified posts must not switch the whole document
+    // back to the fallback reader and discard structured continuations.
+    structuredUsable >= 2 ||
     (structuredLines.length >= 2 && structuredUsable === structuredLines.length) ||
     structuredUsable >= legacyUsable ||
     materialLineQuality(structuredLines) >= materialLineQuality(legacyLines)
@@ -299,7 +302,7 @@ function extractMaterialLines(
     const retained = legacyLines.filter((line) =>
       line.postNumber
       && !line.reviewFlags.includes("inferred-post-number")
-      && !structuredLines.some((item) => item.sourcePage === line.sourcePage && (
+      && !structuredLines.some((item) => (item.sourcePages ?? [item.sourcePage]).includes(line.sourcePage) && (
         item.postNumber === line.postNumber
         || item.postNumber?.startsWith(`${line.postNumber}.`)
         // A wrapped post's left-column fragment is not another material row.
@@ -478,7 +481,11 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
     const page = pages[pageIndex];
-    if (isNonMaterialReferencePage(page.text)) continue;
+    if (isNonMaterialReferencePage(page.text)) {
+      previousContext = undefined;
+      previousMaterialLine = undefined;
+      continue;
+    }
     const pageLines = prepared.pageLines[pageIndex];
     const pageText = pageLines.join("\n");
     const scope = extractPostScope(pageLines);
@@ -492,7 +499,8 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
     const inFireProtectionSection = isFireProtectionPage(pageText)
       || isFireProtectionPage(prepared.pageLines[pageIndex - 1]?.join("\n") ?? "")
       || isFireProtectionPage(prepared.pageLines[pageIndex + 1]?.join("\n") ?? "");
-    if (!inFireProtectionSection) continue;
+    const followsPrevious = previousContext?.sourcePages.at(-1) === page.pageNumber - 1;
+    if (!inFireProtectionSection && !followsPrevious) continue;
     const chapterPost = extractChapterPost(pageLines);
 
     const starts: StructuredPostStart[] = [];
@@ -524,6 +532,13 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       previousContext
     });
 
+    // A continuation can extend through a page without a sprinkler keyword;
+    // that does not make unrelated posts on the page part of this section.
+    if (!inFireProtectionSection) {
+      if (starts.length) { previousContext = undefined; previousMaterialLine = undefined; }
+      continue;
+    }
+
     for (let startIndex = 0; startIndex < starts.length; startIndex += 1) {
       const start = starts[startIndex];
       const blockEnd = Math.min(
@@ -537,6 +552,15 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       ];
       const quantity = start.quantity ?? findTableQuantity(blockLines);
       const fullPostNumber = start.postNumber;
+      const key = `${postScope}|${fullPostNumber}`;
+      const existing = materialLines.find(line => line.postScope === (postScope || undefined) && line.postNumber === fullPostNumber);
+      if (existing && (existing.sourcePages?.at(-1) ?? existing.sourcePage) === page.pageNumber - 1) {
+        const context = parentContexts.get(fullPostNumber);
+        appendPostContinuation(page, blockLines, existing, context);
+        previousMaterialLine = existing;
+        previousContext = context;
+        continue;
+      }
       const descriptionParts = start.quantity
         ? blockLines
         : quantity
@@ -548,13 +572,16 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const parsedDescription = tableDescription(descriptionParts);
       const nsCode = parsedDescription.nsCode;
       const description = parsedDescription.description
-        || (start.quantity ? start.description.trim() : "");
+        || (start.description && !NS3420_CODE_PATTERN.test(start.description)
+          ? start.description.trim().replace(/:$/, "") : "");
       const sourceText = pageLines.slice(start.lineIndex, blockEnd).join("\n");
       const ownAttributes: Record<string, string> = {
         ...(chapterPost ? { kapittelpost: chapterPost } : {}),
         ...extractTableAttributes(blockLines),
         ...extractInlineAttributes(description)
       };
+      const comments = (page.annotations ?? []).filter(comment => comment.postNumber === fullPostNumber);
+      if (comments.length) ownAttributes["pdf-kommentar"] = comments.map(comment => comment.text).join("\n\n");
       const ownStandardRefs = unique(
         [...sourceText.matchAll(STANDARD_PATTERN)].map((match) =>
           normalizeStandard(match[1])
@@ -589,6 +616,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         const context = {
           postNumber: fullPostNumber,
           sourcePage: page.pageNumber,
+          sourcePages: [page.pageNumber],
           description,
           nsCode: effectiveNsCode,
           category,
@@ -617,12 +645,13 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         && blockLines.some(line => new RegExp(
         String.raw`^(?:Antall|Lengde)(?:\s+${QUANTITY_UNIT_SOURCE}\.?)?\s*$`, "i"
       ).test(line.trim()));
-      if ((!quantity && operation !== "remove" && !hasMissingQuantityMarker) || (quantity && quantity.quantity <= 0)) {
+      const hasUnquantifiedPostBody = fullPostNumber.split(".").length >= 3 && description.length > 5
+        && (Boolean(start.description) || Object.keys(ownAttributes).some(key => key !== "kapittelpost"));
+      if ((!quantity && operation !== "remove" && !hasMissingQuantityMarker && !nsCode && !hasUnquantifiedPostBody) || (quantity && quantity.quantity < 0)) {
         continue;
       }
       if (!quantity && /^BYGNINGSMESSIGE ARBEIDER\b/i.test(description)) continue;
 
-      const key = `${postScope}|${fullPostNumber}`;
       if (seen.has(key)) {
         continue;
       }
@@ -634,12 +663,15 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         && (category === "pipe" || category === "fitting")) {
         attributes["generelle krav"] = `PDF side ${pipeSection.sourcePage}:\n${pipeSection.text}`;
       }
-      const comments = (page.annotations ?? []).filter(comment => comment.postNumber === fullPostNumber);
-      if (comments.length) attributes["pdf-kommentar"] = comments.map(comment => comment.text).join("\n\n");
+      if (parent?.attributes["pdf-kommentar"] && ownAttributes["pdf-kommentar"]) {
+        attributes["pdf-kommentar"] = `${parent.attributes["pdf-kommentar"]}\n\n${ownAttributes["pdf-kommentar"]}`;
+      }
       const reviewFlags: string[] = [];
       if (missingParent) reviewFlags.push("missing-parent-context");
       if (adjacentPipeParent) reviewFlags.push("inferred-parent-context");
       if (category === "unknown") reviewFlags.push("unknown-category");
+      if (page.method === "ocr") reviewFlags.push("ocr-source");
+      if (quantity?.unit === "?") reviewFlags.push("missing-unit");
       if (page.method === "ocr") reviewFlags.push("ocr-source");
       if (prepared.inferredPostNumbers.has(fullPostNumber)) {
         reviewFlags.push("inferred-post-number");
@@ -682,6 +714,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
           ? `${parent.sourceText}\n\nUNDERPOST\n${sourceText}`
           : sourceText,
         sourcePage: page.pageNumber,
+        sourcePages: [page.pageNumber],
         sourceText,
         confidence: Math.min(
           0.99,
@@ -755,7 +788,7 @@ function parseStructuredPostStart(
   lineIndex: number
 ): StructuredPostStart | undefined {
   const line = lines[lineIndex];
-  if (isTechnicalDescriptionDateHeader(line)) return undefined;
+  if (isTechnicalDescriptionDateHeader(line.split(/\s+/)[0])) return undefined;
   // A reference printed on its own line is not the row's identity.
   if (/(?:beskrevet\s+under\s+post|se\s+post|henvises\s+til\s+post)\s*$/i.test(lines[lineIndex - 1] ?? "")) return undefined;
   const wrapped = parseWrappedVisualPostStart(lines, lineIndex);
@@ -995,13 +1028,13 @@ function recoverMissingStructuredPostNumbers(pageLines: string[][]) {
       flatIndex,
       postNumber: line.text.match(EXPLICIT_POST_AT_START_PATTERN)?.[1]
     }))
-    .filter((entry): entry is { flatIndex: number; postNumber: string } => Boolean(entry.postNumber));
+    .filter((entry): entry is { flatIndex: number; postNumber: string } => Boolean(entry.postNumber)
+      && !isTechnicalDescriptionDateHeader(entry.postNumber!));
   const candidates = flatLines
     .map((line, flatIndex) => ({ line, flatIndex }))
     .filter(({ line, flatIndex }) =>
       NS3420_CODE_PATTERN.test(line.text)
       && !attachedCodes.has(flatIndex)
-      && blockHasExplicitQuantity(flatLines, flatIndex)
     );
   const inferredPostNumbers = new Set<string>();
 
@@ -1021,6 +1054,14 @@ function recoverMissingStructuredPostNumbers(pageLines: string[][]) {
     const decrement = group.length - position;
     const inferred = decrementFinalPostNumber(next.postNumber, decrement);
     if (!inferred || explicit.some((entry) => entry.postNumber === inferred)) continue;
+    // Missing quantities must not discard the entire row. Infer its identity
+    // only when the surrounding explicit sequence accounts for every NS row.
+    if (!blockHasExplicitQuantity(flatLines, candidate.flatIndex)) {
+      const previousParts = previous?.postNumber.match(/^(.*\.)(\d+)$/);
+      const nextParts = next.postNumber.match(/^(.*\.)(\d+)$/);
+      if (!previousParts || !nextParts || previousParts[1] !== nextParts[1]
+        || Number(nextParts[2]) - Number(previousParts[2]) !== group.length + 1) continue;
+    }
 
     const { pageIndex, lineIndex, text } = candidate.line;
     pageLines[pageIndex][lineIndex] = `${inferred} ${text}`;
@@ -1079,53 +1120,73 @@ function mergeLeadingPageContinuation({
     ?? pageLines.map(line => line.match(/\bSide\s+(\d{2,6})-\d+\b/i)?.[1]).find(Boolean);
   const previousChapterNumber = previousChapter?.match(/^\d+/)?.[0];
   if (chapterNumber && previousChapterNumber && Number(chapterNumber) !== Number(previousChapterNumber)) return;
+  const lastPage = previousContext?.sourcePages.at(-1)
+    ?? previousMaterialLine?.sourcePages?.at(-1) ?? previousMaterialLine?.sourcePage;
+  if (lastPage !== page.pageNumber - 1) return;
   const leading = pageLines.slice(0, firstStartIndex ?? pageLines.length);
-  let continuationStart = leading.findIndex(isTechnicalContinuationLine);
-  // A page containing only a photograph/caption has no attribute labels. Its
-  // table body still continues the preceding post; the date is not a new post.
-  if (continuationStart < 0 && firstStartIndex === undefined) {
-    const headerIndex = leading.findIndex(line => /^Postnr(?:[.:]|\s|$)/i.test(line));
-    if (headerIndex >= 0) {
-      const bodyOffset = leading.slice(headerIndex + 1).findIndex(line =>
-        !/^(?:NS\s*3420\b|Enh\.?$|Mengde$|Pris$|Sum$)/i.test(line));
-      if (bodyOffset >= 0) continuationStart = headerIndex + 1 + bodyOffset;
-    }
-  }
-  if (continuationStart < 0) return;
-  const continuation = leading
-    .slice(continuationStart)
-    .slice(0, footerIndex(leading.slice(continuationStart), -1))
-    .filter((line) => !/^(?:Kapittel:|Postnr\.|Kopi-)/i.test(line));
+  const candidateHeader = leading.findIndex(line => /^Postnr(?:[.:]|\s|$)/i.test(line));
+  // Some PDFs serialize the page's header after the entire description body.
+  // It is a leading header only when no body text precedes it.
+  const headerIndex = candidateHeader >= 0 && leading.slice(0, candidateHeader).every(isPageFurniture)
+    ? candidateHeader : -1;
+  const body = leading.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
+  const continuation = body.slice(0, footerIndex(body, -1)).filter(line => !isPageFurniture(line));
   if (continuation.length === 0) return;
+  // An unplaced NS row is a new post, never an extension of the previous one.
+  // OCR recovery or manual review must establish its identity first.
+  if (continuation.some(line => NS3420_CODE_PATTERN.test(line))) return;
+  // Prose and captions before the next post belong to the still-open row too.
+  // Never infer a continuation through an unrelated chapter/orientation page.
+  if (headerIndex < 0 && firstStartIndex === undefined && !continuation.some(isTechnicalContinuationLine)
+    && (!previousContext?.nsCode || /^(?:\d+\s+|[A-ZÆØÅ -]{12,}$)/.test(continuation[0]))) return;
+  appendPostContinuation(page, continuation,
+    !previousContext || previousMaterialLine?.postNumber === previousContext.postNumber ? previousMaterialLine : undefined,
+    previousContext, true);
+}
 
-  const continuationText = continuation.join("\n");
-  const attributes = extractTableAttributes(continuation);
-  const standards = unique(
-    [...continuationText.matchAll(STANDARD_PATTERN)].map((match) =>
-      normalizeStandard(match[1])
-    )
-  );
-  if (previousContext && previousContext.sourcePage === page.pageNumber - 1) {
-    Object.assign(previousContext.attributes, attributes);
-    Object.assign(previousContext.attributeSources, Object.fromEntries(Object.keys(attributes).map(key => [key, { postNumber: previousContext.postNumber, sourcePage: page.pageNumber }])));
-    previousContext.standardRefs = unique([...previousContext.standardRefs, ...standards]);
-    previousContext.sourceText += `\n\nFORTSETTELSE SIDE ${page.pageNumber}\n${continuationText}`;
+function isPageFurniture(line: string) {
+  return /^(?:Prosjekt:|Kapittel:|Postnr(?:[.:]|\s|$)|Kopi-|NS[-\s]*(?:3420\s*)?(?:kode|Spesifikasjon)|Enh\.?$|Enhet$|Mengde$|Enhetspris$|Pris$|Sum$|Side\s+\d|Multiconsult\b)/i.test(line)
+    || /^\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$/.test(line)
+    || /\bSide\s+\d+(?:-\d+)?\s*$/i.test(line)
+    || /^\d{2}\s+(?:VVS|Brannslokking|Sanitær)\b/i.test(line);
+}
+
+function appendPostContinuation(page: TechnicalDescriptionPage, continuation: string[], line?: TechnicalDescriptionMaterialLine, context?: TableParentContext, leading = false) {
+  const body = continuation.filter(part => !isPageFurniture(part));
+  if (!body.length) return;
+  const text = body.join("\n");
+  const postNumber = context?.postNumber ?? line?.postNumber;
+  const comments = (page.annotations ?? []).filter(comment => comment.postNumber === postNumber
+    || (leading && comment.continuesPreviousPost));
+  for (const target of [context, line]) {
+    if (!target) continue;
+    // Reparse the full text so an attribute sentence broken between pages is
+    // joined rather than losing the words before the next attribute label.
+    const combined = `${target.sourceText}\n\nFORTSETTELSE SIDE ${page.pageNumber}\n${text}`
+      .replace(/([^\n]*)\n+FORTSETTELSE SIDE \d+\n([^\n]*)/g, (_match, previous: string, next: string) =>
+        previous && !/[.!?:;]$/.test(previous) && !isTechnicalContinuationLine(next) && !findTableQuantity([next])
+          ? `${previous} ${next}` : `${previous}\n${next}`);
+    const attributes = extractTableAttributes(combined.split("\n"));
+    for (const [key, value] of Object.entries(attributes)) {
+      if (target.attributes[key] !== value) {
+        target.attributes[key] = value;
+        target.attributeSources = { ...target.attributeSources, [key]: { postNumber: postNumber!, sourcePage: page.pageNumber } };
+      }
+    }
+    if (comments.length) target.attributes["pdf-kommentar"] = [target.attributes["pdf-kommentar"], ...comments.map(comment => comment.text)].filter(Boolean).join("\n\n");
+    target.standardRefs = unique([...target.standardRefs, ...[...text.matchAll(STANDARD_PATTERN)].map(match => normalizeStandard(match[1]))]);
+    target.sourceText += `\n\nFORTSETTELSE SIDE ${page.pageNumber}\n${text}`;
+    target.sourcePages = [...new Set([...(target.sourcePages ?? [target.sourcePage]), page.pageNumber])];
   }
-  if (
-    previousMaterialLine
-    && previousMaterialLine.sourcePage === page.pageNumber - 1
-    && (!previousContext || previousMaterialLine.postNumber === previousContext.postNumber)
-  ) {
-    Object.assign(previousMaterialLine.attributes, attributes);
-    previousMaterialLine.attributeSources = { ...previousMaterialLine.attributeSources,
-      ...Object.fromEntries(Object.keys(attributes).map(key => [key, { postNumber: previousMaterialLine.postNumber!, sourcePage: page.pageNumber }])) };
-    previousMaterialLine.standardRefs = unique([
-      ...previousMaterialLine.standardRefs,
-      ...standards
-    ]);
-    previousMaterialLine.sourceText += `\n\nFORTSETTELSE SIDE ${page.pageNumber}\n${continuationText}`;
-    previousMaterialLine.technicalSpecification = previousContext?.sourceText
-      ?? previousMaterialLine.sourceText;
+  if (line) {
+    line.technicalSpecification = context?.sourceText ?? line.sourceText;
+    if (line.quantity === undefined) {
+      const quantity = findTableQuantity(body);
+      if (quantity) {
+        line.quantity = quantity.quantity; line.unit = quantity.unit; line.quantityText = quantity.text;
+        line.reviewFlags = line.reviewFlags.filter(flag => flag !== "missing-quantity");
+      }
+    }
   }
 }
 
@@ -1176,6 +1237,7 @@ function isNonMaterialReferencePage(text: string) {
 type TableParentContext = {
   postNumber: string;
   sourcePage: number;
+  sourcePages: number[];
   description: string;
   nsCode?: string;
   category: TechnicalDescriptionCategory;
@@ -1228,6 +1290,8 @@ function extractPostScope(lines: string[]) {
 
 function normalizeOcrArtifacts(value: string) {
   return value
+    .replace(/^((?:[A-Z]\d*\.)?\d+(?:[.,]\d+){2,})(?=\s+%?[A-ZÆØÅ]{2}\d|\s*$)/i, post => post.replace(/,/g, "."))
+    .replace(/^(.*?\s)?((?:UB|UC|UE|CD)\d),(\d[\w.]*)\b/i, "$1$2.$3")
     .replace(/^((?:[A-Z]\d*\.)?\d+(?:\.\d+)+)\s*\]/i, "$1 | ")
     .replace(/\bDNB(\d{2,3})\b/gi, "DN$1")
     .replace(/\bDNS0\b/gi, "DN50")
@@ -1293,6 +1357,10 @@ function findTableQuantity(lines: string[]) {
   // RS is a priced scope, not a zero quantity: the trailing zeroes belong to
   // price/sum columns. Prefer explicit numeric quantities (e.g. "Rund sum stk
   // 1") above, and retain the remaining lump sums as one scope in unit RS.
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const missingUnit = lines[lineIndex].match(new RegExp(String.raw`^(?:Antall|Lengde)\s+(${QUANTITY_NUMBER_SOURCE})$`, "i"));
+    if (missingUnit) return { quantity: parseLocalizedNumber(missingUnit[1])!, unit: "?", text: lines[lineIndex], lineIndex, descriptionPrefix: "" };
+  }
   const lumpSumRow = lines.findIndex(line => /^(?:Rund\s+sum(?:\s+RS)?|RS)(?:\s+[\d., ]+)?$/i.test(line));
   if (lumpSumRow >= 0) return { quantity: 1, unit: "RS", text: "Rund sum", lineIndex: lumpSumRow, descriptionPrefix: "" };
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
@@ -1463,7 +1531,6 @@ function buildMaterialLine(
     reviewFlags.push("missing-quantity");
   }
   if (category === "unknown") reviewFlags.push("unknown-category");
-  if (page.method === "ocr") reviewFlags.push("ocr-source");
   if (!block.postNumber) reviewFlags.push("missing-post-number");
   if (block.inferredPostNumber) reviewFlags.push("inferred-post-number");
 

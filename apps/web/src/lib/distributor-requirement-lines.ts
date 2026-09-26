@@ -44,17 +44,11 @@ export function isDistributorLumpSumRequirement(requirement: DistributorRequirem
   if (/^(?:rs|rund sum)$/i.test(unit)) return true;
   // A measured child retains its own unit even when the parent is priced RS.
   if (unit) return false;
-  const searchable = normalize([
-    requirement.category,
-    requirement.requirement_key,
-    requirement.display_name,
-    requirement.value_text,
-    requirement.source_excerpt,
-    value.sourceText,
-    value.technicalSpecification
-  ].map(flattenText).join(" "));
-
-  return /\bkomplett\b/.test(searchable) && /\brund sum\b/.test(searchable);
+  // Only inspect this row's own evidence, never an inherited parent's RS text.
+  const ownText = [requirement.display_name, requirement.value_text,
+    value.sourceText ?? requirement.source_excerpt].map(flattenText).join("\n");
+  return /(?:^|\n)\s*(?:Rund\s+sum(?:\s+RS)?|RS)(?:\s+[\d., ]+)?\s*(?:$|\n)/i.test(ownText)
+    || /\bRund\s+sum\s*$/im.test(ownText);
 }
 
 export function distributorRequirementOperation(

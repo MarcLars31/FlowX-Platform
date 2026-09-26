@@ -96,12 +96,19 @@ export function shouldPreferOcrLayoutText(plainText: string, layoutText: string)
     || layout.posts > plain.posts + 1
     || (layout.quantities === plain.quantities
       && layout.posts > plain.posts
-      && layout.codes >= plain.codes);
+      && layout.codes >= plain.codes)
+    // Equal counts do not imply equal reading order. A table's plain OCR can
+    // list the entire post column before the descriptions and quantities.
+    || (layout.posts > 0 && layout.posts >= plain.posts
+      && layout.quantities >= plain.quantities && layout.codes >= plain.codes
+      && /Postnr[.:]?/i.test(plainText) && /(?:Mengde|Enhet|Enh\.)/i.test(plainText));
 }
 
 export function isBetterOcrText(candidateText: string, currentText: string) {
   const candidate = ocrTableSignals(candidateText);
   const current = ocrTableSignals(currentText);
+  if (candidate.posts < current.posts || candidate.codes < current.codes
+    || candidateText.replace(/\s/g, "").length < currentText.replace(/\s/g, "").length * .8) return false;
   return candidate.quantities > current.quantities
     || (candidate.quantities === current.quantities && candidate.posts > current.posts)
     || (candidate.quantities === current.quantities
@@ -179,7 +186,8 @@ function ocrTableSignals(text: string) {
       text,
       new RegExp(String.raw`^[ \t]*(?:Antall|Lengde)?[ \t]*${unit}\.?[ \t]+\d`, "gim")
     ),
-    posts: countMatches(text, /^\s*(?:[A-Z]\d*\.)?\d+(?:\.\d+){1,10}(?=\s|[|)\]])/gim),
+    posts: [...text.matchAll(/^\s*((?:[A-Z]\d*\.)?\d+(?:\.\d+){1,10})(?=\s|[|)\]])/gim)]
+      .filter(match => !/^\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$/.test(match[1])).length,
     codes: countMatches(text, /(?:^|\s|[|)\]])%?[A-ZÆØÅ]{2}\d[\w.%-]*/gim)
   };
 }

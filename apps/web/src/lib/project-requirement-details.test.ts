@@ -7,6 +7,25 @@ import {
   projectRequirementDetails
 } from "./project-requirement-details";
 
+test("reopening a project preserves source comments recovered from continuation pages", () => {
+  const pages = [
+    { pageNumber: 1, method: "text", confidence: .98,
+      text: "Kapittel: 33 Brannslokking\n33.332.1 UE2.11112312\nSPRINKLER\nAntall stk 12\nMateriale: Messing\nSum:",
+      annotations: [{ id: "first", postNumber: "33.332.1", text: "Kontroller utførelse.", subtype: "Text" }] },
+    { pageNumber: 2, method: "text", confidence: .98,
+      text: "Kapittel: 33 Brannslokking\nPostnr. NS-kode Mengde Sum\nRosetter skal inngå.\nSum:",
+      annotations: [{ id: "continued", continuesPreviousPost: true, text: "Bekreft overflate med byggherre.", subtype: "Text" }] }
+  ];
+  const [row] = enrichProjectRequirements([{
+    id: "post", source_technical_description_document_id: "document", source_page: 1,
+    value_text: "SPRINKLER", value_json: { postNumber: "33.332.1", attributes: { "pdf-kommentar": "Kontroller utførelse." } }
+  }], [{ id: "document", source_pages: pages }]);
+  const details = projectRequirementDetails(row);
+  const comment = details.attributes.find(([key]) => key === "pdf-kommentar")?.[1];
+  assert.equal(comment, "Kontroller utførelse.\n\nBekreft overflate med byggherre.");
+  assert.match(details.sourceExcerpt!, /Rosetter skal inngå/);
+});
+
 test("reads a split NS 3420 post number from an existing source excerpt", () => {
   assert.equal(
     postNumberFromSource(

@@ -41,7 +41,9 @@ export function commentsFromPdfAnnotations(values: readonly unknown[], textItems
     const post = posts.find((post, index) => y <= post.y + 5
       && (index === posts.length - 1 || y > posts[index + 1].y + 5)
       && comment.rect![0] > post.x + 40);
-    return post ? { ...comment, postNumber: post.number } : comment;
+    if (post) return { ...comment, postNumber: post.number };
+    return !posts.length || (y > posts[0].y + 5 && comment.rect[0] > posts[0].x + 40)
+      ? { ...comment, continuesPreviousPost: true } : comment;
   });
 }
 
@@ -49,7 +51,8 @@ function positionedPosts(values: readonly unknown[]) {
   const items = values.flatMap(value => {
     const item = value as { str?: unknown; transform?: unknown } | null;
     if (!item || typeof item.str !== "string" || !Array.isArray(item.transform)
-      || !/^\.?\d+(?:\.\d+)+\.?$/.test(item.str.trim())) return [];
+      || !/^(?:[A-Z]\d*\.)?\.?\d+(?:\.\d+)*\.?$/i.test(item.str.trim())
+      || /^\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$/.test(item.str.trim())) return [];
     const x = Number(item.transform[4]); const y = Number(item.transform[5]);
     return Number.isFinite(x) && Number.isFinite(y) ? [{ number: item.str.trim(), x, y }] : [];
   });

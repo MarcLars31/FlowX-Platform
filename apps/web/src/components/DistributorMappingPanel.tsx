@@ -1853,6 +1853,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               {details.attributes.map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
             </dl>
           </div>
+          {details.sourceExcerpt && <details className="mt-3 border border-neutral-200 bg-white p-3 text-sm">
+            <summary className="cursor-pointer font-semibold">Hela PDF-posten</summary>
+            <p className="mt-3 whitespace-pre-wrap leading-6">{details.sourceExcerpt}</p>
+          </details>}
           <div id={`post-comments-${requirement.id}`} className="mt-4 scroll-mt-4">{postComments}</div>
         </div>
       </section>

@@ -733,6 +733,7 @@ export async function POST(request: Request) {
         attribute_key: line.nsCode ?? line.category,
         raw_value: line.description,
         normalized_value: {
+          sourcePages: line.sourcePages ?? [line.sourcePage],
           postNumber: line.postNumber ?? null,
           postScope: line.postScope ?? null,
           parentPostNumber: line.parentPostNumber ?? null,
@@ -772,6 +773,7 @@ export async function POST(request: Request) {
           value_type: "text",
           value_text: line.description,
           value_json: {
+            sourcePages: line.sourcePages ?? [line.sourcePage],
             postNumber: line.postNumber ?? null,
             postScope: line.postScope ?? null,
             parentPostNumber: line.parentPostNumber ?? null,

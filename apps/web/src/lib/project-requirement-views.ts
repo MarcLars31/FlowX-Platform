@@ -1,4 +1,4 @@
-import { isDistributorLumpSumRequirement, splitDistributorRequirementLines, type DistributorRequirementRow } from "./distributor-requirement-lines";
+import { isDistributorLumpSumRequirement, type DistributorRequirementRow } from "./distributor-requirement-lines";
 
 export const PROJECT_REQUIREMENT_VIEWS = [
   { id: "products", label: "Produktposter" },
@@ -8,14 +8,20 @@ export const PROJECT_REQUIREMENT_VIEWS = [
 
 export type ProjectRequirementView = (typeof PROJECT_REQUIREMENT_VIEWS)[number]["id"];
 
-/** Keep work posts in the data for approval and export even without a tab.
- * RS and removal retain their own presentation groups. */
+/** Presentation follows the post's own quantity, independently of its operation. */
 export function groupProjectRequirementViews<Row extends DistributorRequirementRow>(requirements: Row[]) {
-  const { productRequirements, removalRequirements, workRequirements } = splitDistributorRequirementLines(requirements);
-  return {
-    products: productRequirements,
-    removal: removalRequirements,
-    work: workRequirements.filter(requirement => !isDistributorLumpSumRequirement(requirement)),
-    rs: workRequirements.filter(isDistributorLumpSumRequirement)
-  };
+  const groups = { products: [] as Row[], removal: [] as Row[], work: [] as Row[], rs: [] as Row[] };
+  for (const requirement of requirements) {
+    if (["rejected", "superseded"].includes(String(requirement.status ?? ""))) continue;
+    if (isDistributorLumpSumRequirement(requirement)) {
+      groups.rs.push(requirement);
+      continue;
+    }
+    const value = requirement.value_json as { quantity?: unknown } | null;
+    const quantity = value?.quantity;
+    const hasQuantity = (typeof quantity === "number" || (typeof quantity === "string" && quantity.trim() !== ""))
+      && Number.isFinite(Number(quantity)) && Number(quantity) >= 0;
+    groups[hasQuantity ? "products" : "removal"].push(requirement);
+  }
+  return groups;
 }
