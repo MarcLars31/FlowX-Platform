@@ -2,7 +2,6 @@
 
 
 
-import { useState } from "react";
 import { AhlsellTechnicalEvidence } from "@/components/AhlsellTechnicalEvidence";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleX, ExternalLink, PackagePlus } from "lucide-react";
@@ -27,8 +26,6 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
   onSelect: (candidate: AhlsellPublicCandidate) => void;
 }) {
   const { matching, rejected, review } = groupAhlsellCandidatesForDisplay(candidates, allowMatches);
-  const [rejectedOpen, setRejectedOpen] = useState(false);
-  const selectedRejected = rejected.find(candidate => normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber));
   const conflicts = rejected.flatMap(technicalConflictWarnings);
   const mainReason = [...new Set(conflicts)].sort((a, b) => conflicts.filter(value => value === b).length - conflicts.filter(value => value === a).length)[0];
 
@@ -114,13 +111,6 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
         <details open={matching.length === 0} className="border-t border-neutral-200">
           <summary className="cursor-pointer bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-950 sm:px-4">Produkter att kontrollera ({review.length})</summary>
           <div className="divide-y divide-neutral-200" role="group" aria-label="Produkter att kontrollera">{review.map(productRow)}</div>
-        </details>
-      )}
-      {selectedRejected && !rejectedOpen && productRow(selectedRejected)}
-      {rejected.length > 0 && (
-        <details className="border-t border-neutral-200" onToggle={event => setRejectedOpen(event.currentTarget.open)}>
-          <summary className="cursor-pointer px-3 py-3 text-sm font-bold text-neutral-700 sm:px-4">Visa bortvalda produkter och orsaker ({rejected.length})</summary>
-          <div className="divide-y divide-neutral-200" role="group" aria-label="Bortvalda produkter">{rejectedOpen && rejected.map(productRow)}</div>
         </details>
       )}
     </div>
