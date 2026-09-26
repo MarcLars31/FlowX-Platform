@@ -3,6 +3,7 @@
 
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
@@ -311,6 +312,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const [productCardSaving, setProductCardSaving] = useState(false);
   const [productCardDirty, setProductCardDirty] = useState(false);
   const productDialogRef = useRef<HTMLDialogElement>(null);
+  const [productCardHeaderActions, setProductCardHeaderActions] = useState<HTMLDivElement | null>(null);
   const visibleProductTableColumns = productTableLayout.order.filter(
     (columnId) => !productTableLayout.hidden.includes(columnId)
   );
@@ -995,9 +997,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                           <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button neutral autoFocus variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving} onClick={closeRequirement}>{productCardSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}{productCardSaving ? "Sparar…" : "Stäng kortet"}</Button>
-                      </div>
+                      <div ref={setProductCardHeaderActions} className="flex flex-wrap items-center gap-2" />
                     </div>
                     <div
                       role="progressbar"
@@ -1027,6 +1027,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                       totalPosts={queueRequirements.length}
                       memories={matchingMemories}
                       onCatalogResult={recordFullCatalogResult}
+                      headerActions={productCardHeaderActions}
+                      onClose={closeRequirement}
                       onSavingChange={setProductCardSaving}
                       onDirtyChange={setProductCardDirty}
                       onSaved={async (successMessage) => {
@@ -1108,7 +1110,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   );
 }
 
-function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, totalPosts, memories, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, totalPosts, memories, headerActions, onClose, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   currency: string;
   requirement: Row;
@@ -1117,6 +1119,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   position: number;
   totalPosts: number;
   memories: Row[];
+  headerActions: HTMLDivElement | null;
+  onClose: () => void;
   onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onSavingChange: (saving: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -1810,6 +1814,15 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
       disabled={saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
       {({ postComments, productComments }) => <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
+      {headerActions && createPortal(
+        <Button neutral autoFocus variant="secondary" type="button" className="min-h-10 justify-center px-3 py-2"
+          title={productNumber.trim() ? manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryStepOpen ? "Gör klart tillbehören först" : accessoryError ?? "Godkänn och stäng kort" : "Stäng kortet"}
+          disabled={saving || attachmentSaving || commentsSaving || Boolean(productNumber.trim() && (commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || accessoryError))}
+          onClick={productNumber.trim() ? () => void save() : onClose}>
+          {saving || attachmentSaving || commentsSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : productNumber.trim() ? <ShieldCheck className="h-4 w-4" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}
+          {saving || attachmentSaving || commentsSaving ? "Sparar…" : productNumber.trim() ? "Godkänn och stäng kort" : "Stäng kortet"}
+        </Button>, headerActions
+      )}
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-neutral-200 bg-neutral-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-wrap items-center gap-2">
@@ -1999,15 +2012,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             />
           </div>
 
-          {productNumber.trim() && !accessoryStepOpen && (
-            <div id={`product-approval-${requirement.id}`} className="space-y-2">
-              {commentDraftDirty && <p className="mt-2 text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
-              <Button neutral aria-label="Godkänn och stäng kort" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och stäng kort"} className="min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-                {saving ? "Sparar…" : "Godkänn och stäng kort"}
-              </Button>
-            </div>
-          )}
+          {productNumber.trim() && commentDraftDirty && <p className="text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
           <div id={`product-comments-${requirement.id}`} className="scroll-mt-52">
             {productComments}
           </div>
