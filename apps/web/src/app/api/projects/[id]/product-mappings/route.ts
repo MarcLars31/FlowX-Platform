@@ -1,0 +1,471 @@
+import { NextResponse } from "next/server";
+import {
+  isUuid,
+  validateDistributorProductMapping,
+  type DistributorProductMappingInput
+} from "@/lib/distributor-product-mapping";
+import { requireOrganizationApi } from "@/lib/organization-api-authorization";
+import {
+  selectSupabaseRows,
+  updateSupabaseRowsReturning
+} from "@/lib/supabase-rest";
+import { withProductRequirementResolution } from "@/lib/product-requirement-resolution";
+import { readProductSelectionReview, PRODUCT_DEVIATION_LABEL, PRODUCT_REVIEW_LABEL } from "@/lib/product-selection-review";
+import { productRequirementChecks, validateRequirementReview } from "@/lib/product-requirement-review";
+import {
+  callUserRpc,
+  selectUserRows,
+  updateUserRowsReturning,
+  UserSupabaseError
+} from "@/lib/supabase-user-rest";
+
+export const runtime = "nodejs";
+
+type RouteContext = { params: Promise<{ id: string }> };
+type RequirementValueRow = { value_json: unknown; updated_at: string };
+
+const REQUIREMENT_VALUE_UPDATE_ATTEMPTS = 3;
+const MANUAL_PRODUCT_APPROVAL_UNAVAILABLE = "MANUAL_PRODUCT_APPROVAL_UNAVAILABLE";
+
+export async function POST(request: Request, context: RouteContext) {
+  try {
+    const authorization = await requireOrganizationApi([
+      "project.product_suggestion.create"
+    ]);
+    if (authorization.error) return authorization.error;
+
+    const { id } = await context.params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "Ogiltigt projekt-id." }, { status: 400 });
+    }
+    const validation = validateDistributorProductMapping(
+      await request.json().catch(() => null)
+    );
+    if ("error" in validation) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const input = validation.data;
+    const [requirement] = await selectUserRows<Record<string, unknown> & { updated_at: string }>("project_requirements", {
+      select: "id,requirement_key,category,value_text,value_json,source_excerpt,source_page,updated_at",
+      id: `eq.${input.requirementId}`, project_id: `eq.${id}`,
+      organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null", limit: "1"
+    });
+    if (!requirement) return NextResponse.json({ error: "Produktposten kunde inte hittas." }, { status: 404 });
+    // The product flow uses explicit approval after reading the specification,
+    // not a mandatory per-requirement checklist. Validate legacy reviews only
+    // when a client actually submits one; never invent completed decisions.
+    const review = input.requirementReview
+      ? validateRequirementReview(requirement, input, input.requirementReview)
+      : { data: null };
+    if ("error" in review) return NextResponse.json({ error: review.error }, { status: 400 });
+    // Manual/quantity preparation is part of the database transaction. Keeping it
+    // out of this preflight means an unavailable or failed approval RPC leaves no
+    // promoted requirement or partially approved product behind.
+    if (input.entryMethod === "catalog" && !review.data && !input.orderQuantity
+      && !input.accessories.some(accessory => accessory.quantityBasis)) {
+      await callUserRpc<string>(
+        "prepare_requirement_for_direct_product_mapping",
+        {
+          requested_project_id: id,
+          requested_requirement_id: input.requirementId
+        }
+      );
+    }
+    const result = await saveExplicitlyApprovedMapping(
+      id,
+      authorization.user.id,
+      input,
+      review.data ? { ...review.data, checks: productRequirementChecks(requirement) } : null,
+      requirement.updated_at
+    );
+    await clearRequirementResolution(
+      id,
+      input.requirementId,
+      authorization.context.organization.id,
+      authorization.user.id
+    );
+
+    return NextResponse.json({
+      mapping: result,
+      message: review.data ? "Postens produktval och kravgenomgång är godkända och sparade."
+        : readProductSelectionReview(input.notes)
+        ? `Produktvalet är sparat som ”${readProductSelectionReview(input.notes)?.status === "mismatch" ? PRODUCT_DEVIATION_LABEL : PRODUCT_REVIEW_LABEL}”. Märkningen finns kvar i produktlistan.`
+        : "Produkten är godkänd och sparad. Kopplingen kan nu föreslås i kommande liknande projekt."
+    });
+  } catch (error) {
+    if (error instanceof UserSupabaseError) {
+      const denied =
+        error.status === 401 || error.status === 403 || error.code === "42501";
+      const unavailable = error.code === MANUAL_PRODUCT_APPROVAL_UNAVAILABLE || error.code === "REQUIREMENT_REVIEW_UNAVAILABLE" || error.code === "PRODUCT_QUANTITIES_UNAVAILABLE";
+      return NextResponse.json(
+        {
+          error: unavailable
+            ? error.message
+            : denied
+            ? "Du har inte behörighet att registrera produktval i projektet."
+            : readableDatabaseError(error.message)
+        },
+        { status: denied ? 403 : unavailable ? 503 : 400 }
+      );
+    }
+    return NextResponse.json(
+      { error: "Produktvalet kunde inte sparas." },
+      { status: 500 }
+    );
+  }
+}
+
+async function clearRequirementResolution(
+  projectId: string,
+  requirementId: string,
+  organizationId: string,
+  actorId: string
+) {
+  const resolvedAt = new Date().toISOString();
+  let lastConflict: unknown;
+  for (let attempt = 0; attempt < REQUIREMENT_VALUE_UPDATE_ATTEMPTS; attempt += 1) {
+    const [requirement] = await selectUserRows<RequirementValueRow>(
+      "project_requirements",
+      {
+        select: "value_json,updated_at",
+        id: `eq.${requirementId}`,
+        project_id: `eq.${projectId}`,
+        organization_id: `eq.${organizationId}`,
+        deleted_at: "is.null",
+        limit: "1"
+      }
+    );
+    if (!requirement) return;
+    const valueJson = record(requirement.value_json);
+    if (!("productResolution" in valueJson)) return;
+
+    try {
+      await updateUserRowsReturning(
+        "project_requirements",
+        {
+          id: `eq.${requirementId}`,
+          project_id: `eq.${projectId}`,
+          organization_id: `eq.${organizationId}`,
+          updated_at: `eq.${requirement.updated_at}`,
+          deleted_at: "is.null"
+        },
+        {
+          value_json: withProductRequirementResolution(valueJson, null, {
+            resolvedAt,
+            resolvedBy: actorId
+          })
+        }
+      );
+      return;
+    } catch (error) {
+      if (!isRequirementValueConflict(error)) throw error;
+      lastConflict = error;
+    }
+  }
+
+  throw lastConflict ?? new Error("Product requirement resolution was not cleared.");
+}
+
+function isRequirementValueConflict(error: unknown) {
+  return error instanceof Error &&
+    error.message === "Supabase update of project_requirements returned no row.";
+}
+
+async function saveExplicitlyApprovedMapping(
+  projectId: string,
+  actorId: string,
+  input: DistributorProductMappingInput,
+  requirementReview: Record<string, unknown> | null,
+  requirementUpdatedAt: string
+) {
+  const mappingPayload = {
+    requested_project_id: projectId,
+    requested_requirement_id: input.requirementId,
+    requested_product_name: input.productName,
+    requested_product_number: input.productNumber,
+    requested_manufacturer_name: input.manufacturerName || null,
+    requested_notes: input.notes || null,
+    requested_accessories: input.accessories
+  };
+
+  if (input.orderQuantity || input.accessories.some(accessory => accessory.quantityBasis)) {
+    try {
+      return await callUserRpc<Record<string, unknown>>("approve_distributor_product_mapping_v4", {
+        ...mappingPayload,
+        requested_user_approved: input.userApproved,
+        requested_entry_method: input.entryMethod,
+        requested_product_subtitle: input.productSubtitle || null,
+        requested_manufacturer_article_number: input.manufacturerArticleNumber || null,
+        requested_delivery_time_days: input.deliveryTimeDays,
+        requested_unit_price: input.unitPrice,
+        requested_currency: input.currency || null,
+        requested_requirement_review: requirementReview,
+        requested_requirement_updated_at: requirementUpdatedAt,
+        requested_order_quantity: input.orderQuantity ?? null
+      });
+    } catch (error) {
+      if (!(error instanceof UserSupabaseError) || !["PGRST202", "42883"].includes(error.code ?? "")) throw error;
+      // Approval and quantities must commit together; a legacy fallback would
+      // silently turn total quantities into per-unit multipliers.
+      throw new UserSupabaseError("Mengdene kan ikke lagres før databasen er oppdatert. Produktvalget er ikke godkjent.", 503, "PRODUCT_QUANTITIES_UNAVAILABLE");
+    }
+  }
+
+  if (requirementReview) {
+    try {
+      return await callUserRpc<Record<string, unknown>>("approve_distributor_product_mapping_v3", {
+        ...mappingPayload,
+        requested_user_approved: input.userApproved,
+        requested_entry_method: input.entryMethod,
+        requested_product_subtitle: input.productSubtitle || null,
+        requested_manufacturer_article_number: input.manufacturerArticleNumber || null,
+        requested_delivery_time_days: input.deliveryTimeDays,
+        requested_unit_price: input.unitPrice,
+        requested_currency: input.currency || null,
+        requested_requirement_review: requirementReview,
+        requested_requirement_updated_at: requirementUpdatedAt
+      });
+    } catch (error) {
+      if (!(error instanceof UserSupabaseError) || !["PGRST202", "42883"].includes(error.code ?? "")) throw error;
+      // Never approve first and attach the mandatory review later.
+      throw new UserSupabaseError("Kravgenomgången kan inte sparas förrän databasen har uppdaterats. Produktvalet har inte godkänts.", 503, "REQUIREMENT_REVIEW_UNAVAILABLE");
+    }
+  }
+
+  const approveWithProductDetails = () =>
+    callUserRpc<Record<string, unknown>>(
+      "approve_distributor_product_mapping_v2",
+      {
+        ...mappingPayload,
+        requested_user_approved: input.userApproved,
+        requested_entry_method: input.entryMethod,
+        requested_product_subtitle: input.productSubtitle || null,
+        requested_manufacturer_article_number: input.manufacturerArticleNumber || null,
+        requested_delivery_time_days: input.deliveryTimeDays,
+        requested_unit_price: input.unitPrice,
+        requested_currency: input.currency || null
+      }
+    );
+
+  if (input.entryMethod === "manual") {
+    try {
+      return await approveWithProductDetails();
+    } catch (error) {
+      if (!isMissingProductDetailsApprovalRpc(error)) throw error;
+      // Manual details are required data, not optional enrichment. Never fall
+      // through to either legacy approval path because those commit approval
+      // before the commercial snapshot is attached.
+      throw new UserSupabaseError(
+        "Manuell produktsparning är tillfälligt otillgänglig. Försök igen när databasen är uppdaterad.",
+        503,
+        MANUAL_PRODUCT_APPROVAL_UNAVAILABLE
+      );
+    }
+  }
+
+  try {
+    return await approveWithProductDetails();
+  } catch (error) {
+    if (!isMissingProductDetailsApprovalRpc(error)) throw error;
+  }
+
+  try {
+    const result = await callUserRpc<Record<string, unknown>>(
+      "approve_distributor_product_mapping",
+      {
+        ...mappingPayload,
+        requested_user_approved: input.userApproved
+      }
+    );
+    return attachProductDetails({
+      projectId,
+      requirementId: input.requirementId,
+      actorId,
+      entryMethod: "catalog",
+      productSubtitle: input.productSubtitle,
+      manufacturerArticleNumber: input.manufacturerArticleNumber,
+      deliveryTimeDays: input.deliveryTimeDays,
+      unitPrice: input.unitPrice,
+      currency: input.currency,
+      result
+    });
+  } catch (error) {
+    if (!isMissingApprovalRpc(error)) throw error;
+  }
+
+  // Deployment-safe fallback while the new migration reaches Supabase. The
+  // legacy RPC still performs all project access checks. Its result is stamped
+  // server-side before the application can regard the product as approved.
+  const result = await callUserRpc<Record<string, unknown>>(
+    "save_distributor_product_mapping",
+    mappingPayload
+  );
+  const assignmentId = result.assignmentId;
+  if (!isUuid(assignmentId)) {
+    throw new Error("The approved assignment id was not returned.");
+  }
+
+  const [assignment] = await selectSupabaseRows<{
+    product_snapshot: unknown;
+  }>("project_product_suggestions", {
+    id: `eq.${assignmentId}`,
+    project_id: `eq.${projectId}`,
+    requirement_id: `eq.${input.requirementId}`,
+    selected_by: `eq.${actorId}`,
+    status: "eq.selected",
+    limit: "1"
+  });
+  if (!assignment) throw new Error("The approved product assignment was not found.");
+
+  const approvedAt = new Date().toISOString();
+  const updatedRows = await updateSupabaseRowsReturning(
+    "project_product_suggestions",
+    {
+      id: `eq.${assignmentId}`,
+      project_id: `eq.${projectId}`,
+      requirement_id: `eq.${input.requirementId}`,
+      selected_by: `eq.${actorId}`,
+      status: "eq.selected"
+    },
+    {
+      product_snapshot: {
+        ...record(assignment.product_snapshot),
+        approvedByUser: true,
+        approvalStatus: "user_approved",
+        approvedBy: actorId,
+        approvedAt
+      }
+    }
+  );
+  if (updatedRows.length !== 1) {
+    throw new Error("The approved product assignment could not be marked approved.");
+  }
+
+  return attachProductDetails({
+    projectId,
+    requirementId: input.requirementId,
+    actorId,
+    entryMethod: "catalog",
+    productSubtitle: input.productSubtitle,
+    manufacturerArticleNumber: input.manufacturerArticleNumber,
+    deliveryTimeDays: input.deliveryTimeDays,
+    unitPrice: input.unitPrice,
+    currency: input.currency,
+    result: {
+      ...result,
+      approvedByUser: true,
+      approvalStatus: "user_approved",
+      approvedAt
+    }
+  });
+}
+
+async function attachProductDetails({
+  projectId,
+  requirementId,
+  actorId,
+  entryMethod,
+  productSubtitle,
+  manufacturerArticleNumber,
+  deliveryTimeDays,
+  unitPrice,
+  currency,
+  result
+}: {
+  projectId: string;
+  requirementId: string;
+  actorId: string;
+  entryMethod: "catalog";
+  productSubtitle: string;
+  manufacturerArticleNumber: string;
+  deliveryTimeDays: number | null;
+  unitPrice: number | null;
+  currency: string;
+  result: Record<string, unknown>;
+}) {
+  const productDetails = {
+    entryMethod,
+    ...(productSubtitle ? { subtitle: productSubtitle } : {}),
+    ...(manufacturerArticleNumber ? { manufacturerArticleNumber } : {}),
+    ...(deliveryTimeDays !== null ? { deliveryTimeDays } : {}),
+    ...(unitPrice !== null ? { unitPrice, currency: currency || "NOK" } : {})
+  };
+  if (Object.keys(productDetails).length === 0) return result;
+  try {
+    const assignmentId = result.assignmentId;
+    if (!isUuid(assignmentId)) return result;
+
+    const [assignment] = await selectSupabaseRows<{ product_snapshot: unknown }>(
+      "project_product_suggestions",
+      {
+        id: `eq.${assignmentId}`,
+        project_id: `eq.${projectId}`,
+        requirement_id: `eq.${requirementId}`,
+        selected_by: `eq.${actorId}`,
+        status: "eq.selected",
+        limit: "1"
+      }
+    );
+    if (!assignment) return result;
+
+    const updatedRows = await updateSupabaseRowsReturning(
+      "project_product_suggestions",
+      {
+        id: `eq.${assignmentId}`,
+        project_id: `eq.${projectId}`,
+        requirement_id: `eq.${requirementId}`,
+        selected_by: `eq.${actorId}`,
+        status: "eq.selected"
+      },
+      {
+        product_snapshot: {
+          ...record(assignment.product_snapshot),
+          ...productDetails
+        }
+      }
+    );
+    return updatedRows.length === 1 ? { ...result, ...productDetails } : result;
+  } catch {
+    // Mapping approval is authoritative. A temporary detail enrichment failure
+    // must not turn a completed approval into a retryable 500 response.
+    return result;
+  }
+}
+
+function isMissingProductDetailsApprovalRpc(error: unknown) {
+  if (!(error instanceof UserSupabaseError)) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return error.status === 404 &&
+    /could not find the function public\.approve_distributor_product_mapping_v2\b/i.test(error.message);
+}
+
+function isMissingApprovalRpc(error: unknown) {
+  return error instanceof UserSupabaseError &&
+    (error.code === "PGRST202" ||
+      error.code === "42883" ||
+      error.message.includes("approve_distributor_product_mapping"));
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readableDatabaseError(message: string) {
+  if (message.includes("Requirement changed during review")) return "PDF-posten har ändrats. Ladda om och kontrollera kraven igen.";
+  if (message.includes("Rejected requirements")) {
+    return "En avvisad produktrad kan inte kopplas till en produkt.";
+  }
+  if (message.includes("Only confirmed requirements")) {
+    return "Produktraden kunde inte förberedas för produktval.";
+  }
+  if (message.includes("Removal lines")) {
+    return "En demonteringsrad ska inte kopplas till en ny produkt.";
+  }
+  if (message.includes("Product name and product number")) {
+    return "NRF-nummer krävs.";
+  }
+  return "Produktvalet kunde inte sparas. Kontrollera uppgifterna och försök igen.";
+}

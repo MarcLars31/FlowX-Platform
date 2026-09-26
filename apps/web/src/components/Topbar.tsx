@@ -1,22 +1,35 @@
-import { Badge } from "@/components/Badge";
+import Link from "next/link";
+import { AccountMenu } from "@/components/AccountMenu";
+import { PrimaryNavigation } from "@/components/PrimaryNavigation";
+import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
+import type { OrganizationOption } from "@/types/organization";
 
-export function Topbar() {
+export function Topbar({
+  navigation, organizationName = "Scipx", activeOrganizationId, organizationOptions,
+  userName = "Platform administrator", userEmail, roleLabel = "Internal administration"
+}: {
+  navigation?: readonly OrganizationNavigationItem[];
+  organizationName?: string;
+  activeOrganizationId?: string;
+  organizationOptions?: readonly OrganizationOption[];
+  userName?: string;
+  userEmail?: string;
+  roleLabel?: string;
+}) {
   return (
-    <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between border-b border-ink-200 bg-white/92 px-4 backdrop-blur sm:px-6 lg:px-8">
-      <div>
-        <p className="text-sm font-semibold text-ink-900">Demo VVS AS</p>
-        <p className="text-xs text-ink-500">Mechanical contractor workspace</p>
-      </div>
-      <div className="flex items-center gap-3">
-        <Badge tone="teal">Prototype</Badge>
-        <div className="hidden text-right sm:block">
-          <p className="text-sm font-medium text-ink-900">Marcus Larsson</p>
-          <p className="text-xs text-ink-500">Founder demo</p>
-        </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink-900 text-sm font-semibold text-white">
-          ML
+    <header className="portal-topbar">
+      <div className="portal-brandbar">
+        <Link href={navigation?.[0]?.href ?? "/admin"} className="portal-brand" aria-label="Scipx startsida">
+          <strong>scipx</strong><span>Ahlsell</span>
+        </Link>
+        <div className="portal-account">
+          <span className="portal-account-label">{organizationName}</span>
+          <span className="portal-account-label" title={roleLabel}>{userName}</span>
+          <AccountMenu userName={userName} userEmail={userEmail} roleLabel={roleLabel}
+            activeOrganizationId={activeOrganizationId} organizationOptions={organizationOptions} />
         </div>
       </div>
+      <PrimaryNavigation navigation={navigation} />
     </header>
   );
 }
