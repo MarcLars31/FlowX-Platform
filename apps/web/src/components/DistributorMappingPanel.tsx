@@ -34,7 +34,7 @@ import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
-import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProductApprovals, type BulkProductApprovalSelection, type PreviousBulkProductApproval } from "@/lib/bulk-product-approval";
+import { bulkProductApprovalSelection, type BulkProductApprovalSelection } from "@/lib/bulk-product-approval";
 import { ahlsellCatalogStatusFromPayload, mergeAhlsellCatalogAssessments, type AhlsellCatalogAssessment, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { isMatchingAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
@@ -298,9 +298,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   const [productTableLayoutEditorOpen, setProductTableLayoutEditorOpen] = useState(false);
   const [draggedProductTableColumn, setDraggedProductTableColumn] = useState<ProductTableColumnId | null>(null);
   const [productTableLayoutAnnouncement, setProductTableLayoutAnnouncement] = useState("");
-  const [selectedRequirementIds, setSelectedRequirementIds] = useState<Set<string>>(() => new Set());
-  const [bulkApproving, setBulkApproving] = useState(false);
-  const [bulkApprovalProgress, setBulkApprovalProgress] = useState<{ completed: number; total: number } | null>(null);
   const [productLabelsByRequirementId, setProductLabelsByRequirementId] = useState<Record<string, AhlsellProductLabel>>({});
   const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length + rsRequirements.length;
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
@@ -313,7 +310,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   );
   const productTableMinimumWidth = Math.max(
     640,
-    112 + visibleProductTableColumns.reduce(
+    68 + visibleProductTableColumns.reduce(
       (total, columnId) => total + PRODUCT_TABLE_COLUMNS[columnId].minimumWidth,
       0
     )
@@ -401,7 +398,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     allRequirements: allQueueRequirements, preserveRowOrder: Boolean(productTableSort)
   }), [sortedQueueRequirements, allQueueRequirements, productTableSort]);
   const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
-  const expandedQueueRequirements = mainPostGroups.filter(group => expandedMainPosts.has(group.key)).flatMap(group => group.requirements);
   const queuePositionById = useMemo(
     () => new Map(allQueueRequirements.map((requirement, index) => [requirement.id, index + 1])),
     [allQueueRequirements]
@@ -442,16 +438,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     return () => controller.abort();
   }, [projectId, productLabelRequestKey]);
 
-  const bulkEligibleVisibleRequirements = expandedQueueRequirements.filter((requirement) =>
-    bulkApprovalSelectionByRequirementId.has(requirement.id)
-  );
-  const selectedVisibleRequirements = bulkEligibleVisibleRequirements.filter((requirement) =>
-    selectedRequirementIds.has(requirement.id)
-  );
-  const previouslySelectedProducts = useMemo(
-    () => previousBulkProductApprovals(productRequirements, bulkApprovalSelectionByRequirementId),
-    [bulkApprovalSelectionByRequirementId, productRequirements]
-  );
   const cardRequirements = view === "products" ? queueRequirements : view === "removal" ? removalRequirements : rsRequirements;
   const requestedActiveIndex = cardRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
@@ -527,15 +513,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     return window.confirm("Du har osparade ändringar i produktkortet. Tryck Avbryt för att fortsätta och spara, eller OK för att stänga utan att spara.");
   }
 
-  function toggleRequirementSelection(requirementId: string, selected: boolean) {
-    setSelectedRequirementIds((current) => {
-      const next = new Set(current);
-      if (selected) next.add(requirementId);
-      else next.delete(requirementId);
-      return next;
-    });
-  }
-
   function toggleMainPost(key: string) {
     setExpandedMainPosts(current => {
       const next = new Set(current);
@@ -543,129 +520,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
       else next.add(key);
       return next;
     });
-  }
-
-  function toggleGroupRequirements(requirementIds: string[], selected: boolean) {
-    setSelectedRequirementIds(current => {
-      const next = new Set(current);
-      for (const id of requirementIds) {
-        if (selected) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
-  }
-
-  async function approveSelectedGreenProducts() {
-    const selectedProducts = selectedVisibleRequirements.flatMap((requirement) => {
-      const selection = bulkApprovalSelectionByRequirementId.get(requirement.id);
-      return selection ? [{ requirement, selection }] : [];
-    });
-    await approveBulkProducts(selectedProducts, "markerade produkter");
-  }
-
-  async function approveAllPreviouslySelectedProducts() {
-    if (previouslySelectedProducts.length === 0 || bulkApproving) return;
-    const approved = window.confirm(
-      `Godkänn ${previouslySelectedProducts.length} tidigare valda produkter i den här specifikationen? Endast oförändrade poster med ett entydigt tidigare val tas med.`
-    );
-    if (!approved) return;
-    await approveBulkProducts(previouslySelectedProducts, "tidigare valda produkter");
-  }
-
-  async function approveBulkProducts(
-    selectedProducts: Array<PreviousBulkProductApproval<Row>>,
-    successLabel: string
-  ) {
-    if (selectedProducts.length === 0 || bulkApproving) return;
-
-    setBulkApproving(true);
-    setBulkApprovalProgress({ completed: 0, total: selectedProducts.length });
-    setMessage(null);
-    setError(null);
-    try {
-      const labelItems = selectedProducts.flatMap(({ requirement, selection }) => {
-        const loadedLabel = productLabelsByRequirementId[requirement.id];
-        return loadedLabel
-          && normalizeNrfNumber(loadedLabel.articleNumber) === normalizeNrfNumber(selection.productNumber)
-          && loadedLabel.subtitle.trim()
-          ? []
-          : [{ requirementId: requirement.id, articleNumber: selection.productNumber }];
-      });
-      const fetchedLabels = labelItems.length > 0
-        ? await fetchAhlsellProductLabels(projectId, labelItems)
-        : {};
-      const labels = { ...productLabelsByRequirementId, ...fetchedLabels };
-      setProductLabelsByRequirementId(labels);
-      const unresolved = selectedProducts.filter(({ requirement, selection }) => {
-        const label = labels[requirement.id];
-        return !label
-          || normalizeNrfNumber(label.articleNumber) !== normalizeNrfNumber(selection.productNumber)
-          || !label.subtitle.trim();
-      });
-      if (unresolved.length > 0) {
-        const posts = unresolved
-          .map(({ requirement }) => projectRequirementDetails(requirement).postNumber ?? requirement.id)
-          .slice(0, 4)
-          .join(", ");
-        throw new Error(`Ahlsells tekniska produkttext kunde inte hämtas för ${posts}. Inga produkter godkändes.`);
-      }
-
-      const approvalResults = await mapBulkProductApprovals(selectedProducts, async ({ requirement, selection }) => {
-        const label = labels[requirement.id];
-        if (!label) {
-          return { requirementId: requirement.id, message: "Ahlsells produkttext saknas." };
-        }
-        try {
-          const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              requirementId: requirement.id,
-              userApproved: true,
-              entryMethod: "catalog",
-              productName: label.productName || selection.productName,
-              productSubtitle: label.subtitle,
-              productNumber: selection.productNumber,
-              manufacturerName: label.manufacturer || selection.manufacturerName,
-              notes: "",
-              accessories: []
-            })
-          });
-          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-          if (!response.ok) throw new Error(payload?.error ?? "Produkten kunde inte godkännas.");
-          return { requirementId: requirement.id, message: null };
-        } catch (approvalError) {
-          return {
-            requirementId: requirement.id,
-            message: approvalError instanceof Error ? approvalError.message : "Produkten kunde inte godkännas."
-          };
-        } finally {
-          setBulkApprovalProgress((current) => current
-            ? { ...current, completed: Math.min(current.completed + 1, current.total) }
-            : current);
-        }
-      });
-      const approvedIds = approvalResults
-        .filter((result) => result.message === null)
-        .map((result) => result.requirementId);
-      const failed = approvalResults.filter((result): result is { requirementId: string; message: string } =>
-        typeof result.message === "string"
-      );
-
-      await onReload();
-      setSelectedRequirementIds(new Set(failed.map((item) => item.requirementId)));
-      if (failed.length > 0) {
-        setError(`${approvedIds.length} produkter godkändes. ${failed.length} kunde inte sparas och är fortfarande markerade: ${failed[0].message}`);
-      } else {
-        setMessage(`${approvedIds.length} ${successLabel} godkändes och sparades.`);
-      }
-    } catch (approvalError) {
-      setError(approvalError instanceof Error ? approvalError.message : "Produkterna kunde inte godkännas.");
-    } finally {
-      setBulkApproving(false);
-      setBulkApprovalProgress(null);
-    }
   }
 
   function toggleProductTableSort(key: ProductTableSortKey) {
@@ -743,38 +597,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {selectedVisibleRequirements.length > 0 && <span className="rounded-full bg-flow-100 px-2.5 py-1 text-xs font-black text-flow-900">{selectedVisibleRequirements.length}  valda</span>}
-              <Button
-                type="button"
-                className="min-h-9 px-3 py-1.5 text-sm"
-                disabled={previouslySelectedProducts.length === 0 || bulkApproving}
-                onClick={() => void approveAllPreviouslySelectedProducts()}
-                title={previouslySelectedProducts.length > 0
-                  ? "Godkänn alla otvetydiga tidigare produktval i den här specifikationen"
-                  : "Det finns inga säkra tidigare produktval att godkänna"}
-              >
-                {bulkApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />}
-                {bulkApproving
-                  ? bulkApprovalProgress && bulkApprovalProgress.completed > 0
-                    ? `Godkänner ${bulkApprovalProgress.completed}/${bulkApprovalProgress.total}…`
-                    : `Förbereder ${bulkApprovalProgress?.total ?? ""}…`
-                  : `Godkänn alla tidigare valda (${previouslySelectedProducts.length})`}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="min-h-9 px-3 py-1.5 text-sm"
-                disabled={selectedVisibleRequirements.length === 0 || bulkApproving}
-                onClick={() => void approveSelectedGreenProducts()}
-                title="Godkänner endast poster med ett otvetydigt tidigare val eller en exakt direktträff"
-              >
-                {bulkApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
-                {bulkApproving
-                  ? bulkApprovalProgress && bulkApprovalProgress.completed > 0
-                    ? `Godkänner ${bulkApprovalProgress.completed}/${bulkApprovalProgress.total}…`
-                    : `Förbereder ${bulkApprovalProgress?.total ?? ""}…`
-                  : `Godkänn markerade${selectedVisibleRequirements.length > 0 ? ` (${selectedVisibleRequirements.length})` : ""}`}
-              </Button>
               <Button
                 type="button"
                 variant="secondary"
@@ -863,8 +685,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                 const headingId = `main-post-${index}-heading`;
                 const mainPostCategories = new Set((allMainPostGroups.find(group => group.key === mainPost.key)?.requirements ?? mainPost.requirements).map(productRequirementCategory));
                 const categoryLabels = PRODUCT_REQUIREMENT_CATEGORIES.filter(category => mainPostCategories.has(category.id)).map(category => category.shortLabel).join(" · ");
-                const eligibleIds = mainPost.requirements.filter(item => bulkApprovalSelectionByRequirementId.has(item.id)).map(item => item.id);
-                const allGroupSelected = eligibleIds.length > 0 && eligibleIds.every(id => selectedRequirementIds.has(id));
                 return <section key={mainPost.key} aria-labelledby={headingId}>
                   <h4 id={headingId}>
                     <button type="button" data-appearance="text" aria-expanded={expanded} aria-controls={regionId}
@@ -881,7 +701,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
               <table className="w-full border-collapse whitespace-nowrap text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
-                    <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label={`Velg alle produktposter under hovedpost ${label} som kan godkjennes direkte`} checked={allGroupSelected} disabled={eligibleIds.length === 0 || bulkApproving} onChange={(event) => toggleGroupRequirements(eligibleIds, event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-40" /></th>
                     {visibleProductTableColumns.map((columnId) => {
                       const column = PRODUCT_TABLE_COLUMNS[columnId];
                       return (
@@ -914,16 +733,12 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                       requirement={requirement}
                       position={queuePositionById.get(requirement.id) ?? 1}
                       approved={approvedRequirementIds.has(requirement.id)}
-                      group={groupByRequirementId.get(requirement.id) ?? "yellow"}
                       assignment={approvedAssignmentByRequirementId.get(requirement.id)}
                       memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
                       bulkSelection={bulkApprovalSelectionByRequirementId.get(requirement.id)}
                       productLabel={productLabelsByRequirementId[requirement.id]}
                       sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
                       columns={visibleProductTableColumns}
-                      selected={bulkApprovalSelectionByRequirementId.has(requirement.id) && selectedRequirementIds.has(requirement.id)}
-                      selectionDisabled={!bulkApprovalSelectionByRequirementId.has(requirement.id) || bulkApproving}
-                      onSelectedChange={(selected) => toggleRequirementSelection(requirement.id, selected)}
                       onOpen={() => showRequirement(requirement.id)}
                     />
                   ))}
@@ -1030,11 +845,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                       onDirtyChange={setProductCardDirty}
                       onSaved={async (successMessage) => {
                         setProductCardDirty(false);
-                        setSelectedRequirementIds((current) => {
-                          const next = new Set(current);
-                          next.delete(requirement.id);
-                          return next;
-                        });
                         setError(null);
                         setMessage(successMessage);
                         await onReload();
@@ -2316,6 +2126,15 @@ function buildProductPostMailHref({ postNumber, productRequirement, quantity, ns
   return `mailto:?subject=${encodeURIComponent(`Produktfråga – PDF-post ${postNumber}`)}&body=${encodeURIComponent(body)}`;
 }
 
+function MissingProductIndicator({ detail }: { detail?: string }) {
+  const label = detail ? `Ingen produkt vald · ${detail}` : "Ingen produkt vald";
+  return (
+    <span role="img" aria-label={label} title={label} className="inline-flex shrink-0 text-neutral-700">
+      <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+    </span>
+  );
+}
+
 function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByRequirementId }: {
   requirements: Row[];
   kind: "remove" | "rs";
@@ -2344,9 +2163,14 @@ function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByR
             const snapshot = record(assignmentsByRequirementId.get(requirement.id)?.product_snapshot);
             return <tr key={requirement.id} className="border-b border-ink-200 align-top hover:bg-ink-50">
               <td className="px-4 py-3">
-                <button type="button" data-appearance="text" className="font-semibold underline" aria-haspopup="dialog"
-                  aria-label={`Öppna PDF-post ${details.postNumber ?? index + 1}`}
-                  onClick={() => onOpen(requirement.id)}>{details.postNumber ?? "Saknas"}</button>
+                <div className="flex items-center gap-2">
+                  {!(String(snapshot.name ?? "").trim() || String(snapshot.productNumber ?? "").trim()) && (
+                    <MissingProductIndicator detail={productRequirementResolution(requirement)?.label} />
+                  )}
+                  <button type="button" data-appearance="text" className="font-semibold underline" aria-haspopup="dialog"
+                    aria-label={`Öppna PDF-post ${details.postNumber ?? index + 1}`}
+                    onClick={() => onOpen(requirement.id)}>{details.postNumber ?? "Saknas"}</button>
+                </div>
               </td>
               <td className="px-4 py-3">{details.nsCode ?? "—"}</td>
               <td className="px-4 py-3">{String(requirement.value_text ?? requirement.display_name ?? "—")}</td>
@@ -2362,7 +2186,7 @@ function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByR
   </section>;
 }
 
-function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, productLabel, sourcePdfHref, columns, position, approved, group, selected, selectionDisabled, onSelectedChange, onOpen }: {
+function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, productLabel, sourcePdfHref, columns, position, approved, onOpen }: {
   requirement: Row;
   assignment?: Row;
   memory?: Row;
@@ -2372,10 +2196,6 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
   columns: ProductTableColumnId[];
   position: number;
   approved: boolean;
-  group: AhlsellMatchGroup;
-  selected: boolean;
-  selectionDisabled: boolean;
-  onSelectedChange: (selected: boolean) => void;
   onOpen: () => void;
 }) {
   const details = projectRequirementDetails(requirement);
@@ -2401,22 +2221,16 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
     || bulkSelection?.productName
     || memoryProductName;
   const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
-  const rowClass = productTableRowClass({ approved, selected });
+  const rowClass = productTableRowClass({ approved, selected: false });
 
   function renderProductTableCell(columnId: ProductTableColumnId) {
     if (columnId === "control") {
       return (
         <td key={columnId} className="px-2 py-2.5 text-center align-middle">
-          {approved ? (
+          {approved && (productName || productNumber) ? (
             <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
-          ) : resolution ? (
-            <span title={resolution.label} className="inline-flex text-slate-700"><Tag className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{resolution.label}</span></span>
-          ) : group === "red" ? (
-            <span title="Ingen match bland kontrollerade produkter" className="inline-flex text-rose-600"><CircleX className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Ingen match bland kontrollerade produkter</span></span>
-          ) : group === "green" ? (
-            <span title="Match utan kvarstående tekniska varningar – kontrollera och godkänn" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Match utan kvarstående tekniska varningar – kontrollera och godkänn</span></span>
           ) : (
-            <span title="Produkten måste ses över" className="inline-flex text-amber-600"><AlertTriangle className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Produkten måste ses över</span></span>
+            <MissingProductIndicator detail={resolution?.label} />
           )}
         </td>
       );
@@ -2491,9 +2305,6 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
 
   return (
     <tr className={`border-b border-ink-100 transition last:border-b-0 ${rowClass}`}>
-      <td className="border-r border-ink-100 px-3 py-2.5 text-center">
-        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} title={selectionDisabled ? "Endast poster med ett otvetydigt produktval kan massgodkännas" : "Välj för gemensamt godkännande"} checked={selected} disabled={selectionDisabled} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-35" />
-      </td>
       {columns.map(renderProductTableCell)}
       <td className="px-2 py-2 text-center align-middle">
         <button type="button" data-appearance="text" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`} title="Öppna produktkort" className="text-sm font-semibold">
