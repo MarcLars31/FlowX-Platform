@@ -507,7 +507,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     return () => window.removeEventListener("beforeunload", protectUnsavedProduct);
   }, [productCardDirty, productCardOpen]);
 
-  const handledCount = productRequirements.length - remainingRequirements.length;
   const visibleQueueRemainingCount = queueRequirements.filter(
     (requirement) => !handledRequirementIds.has(requirement.id)
   ).length;
@@ -772,36 +771,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
 
   return (
     <section className="space-y-6">
-      <div className="rounded-2xl border border-cyan-300/20 portal-panel bg-portal-face p-4 text-ink-900 shadow-none">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-300">Steg 2 av 3 · Välj produkter</p>
-            <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-              {remainingRequirements.length === 0 ? "Alla produktposter är hanterade" : `Hantera ${remainingRequirements.length} ${remainingRequirements.length === 1 ? "produktpost" : "produktposter"}`}
-            </h2>
-            <p className="mt-3 text-base leading-7 text-slate-300">
-
-              Kontrollera PDF-kravet och godkänn rätt artikel. Om Ahlsell saknar varan kan du märka posten som ”Inte i sortiment”.
-            </p>
-          </div>
-          <div className="grid min-w-[250px] grid-cols-3 overflow-hidden rounded-xl border border-flow-200 bg-white text-center shadow-sm">
-            <StatusNumber value={productRequirements.length} label="Produktval" />
-            <StatusNumber value={handledCount} label="Hanterade" tone="success" />
-            <StatusNumber value={remainingRequirements.length} label="Att hantera" tone="warning" />
-          </div>
-        </div>
-        <div className="mt-5 flex max-w-3xl items-start gap-3 rounded-xl border border-cyan-300/30 bg-white/10 p-4 text-sm font-semibold leading-6 text-cyan-50">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
-          <p>Du bestämmer alltid själv. Godkänn en verifierad produkt eller märk raden som Inte i sortiment när Ahlsell saknar varan.</p>
-        </div>
-      </div>
-
       {productRequirements.length > 0 && (
         <section id="product-table" aria-labelledby="product-table-heading" className="scroll-mt-28 overflow-hidden border border-ink-200 bg-white">
           <div className="flex flex-col gap-2 border-b border-ink-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h3>
-              <p className="mt-1 text-sm text-ink-700">Klikk på et hovedpostnummer for å vise og velge en underpost.</p>
+              <h2 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h2>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">
                 {catalogChecksRemaining > 0
                   ? `Scipx söker automatiskt på Ahlsells webbplats för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
@@ -1158,7 +1132,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
             </details>
           )}
 
-          {remainingRequirements.length === 0 ? (
+          {remainingRequirements.length === 0 && (
             <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-6 shadow-sm sm:p-7">
               <div className="flex items-start gap-4">
                 <CheckCircle2 className="mt-0.5 h-8 w-8 shrink-0 text-emerald-700" aria-hidden="true" />
@@ -1172,11 +1146,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                   <CheckCircle2 className="h-5 w-5" aria-hidden="true" />{finishing ? "Slutför projektet…" : "Nästa: visa resultat"}
                 </Button>
               </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border-2 border-flow-300 bg-flow-50 p-4 text-center">
-              <p className="text-lg font-bold text-flow-950">{remainingRequirements.length} {remainingRequirements.length === 1 ? "produktpost återstår" : "produktposter återstår"}</p>
-              <p className="mt-1 text-base text-flow-800">Öppna varje post, kontrollera produktvalet och godkänn produkten eller märk posten som Inte i sortiment.</p>
             </div>
           )}
         </div>
@@ -2777,11 +2746,6 @@ function ProductCategoryButton({ active, count, label, onClick }: {
       <span className={active ? "rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] text-white" : "rounded-full bg-ink-100 px-1.5 py-0.5 text-[10px] text-ink-700"}>{count}</span>
     </button>
   );
-}
-
-function StatusNumber({ value, label, tone = "neutral" }: { value: number; label: string; tone?: "neutral" | "success" | "warning" }) {
-  const color = tone === "success" ? "text-emerald-700" : tone === "warning" ? "text-amber-700" : "text-ink-950";
-  return <div className="border-r border-ink-100 px-3 py-3 last:border-r-0"><p className={`text-2xl font-bold ${color}`}>{value}</p><p className="mt-0.5 text-xs font-semibold text-ink-600">{label}</p></div>;
 }
 
 function SpecificationRow({ label, value }: { label: string; value: string }) {

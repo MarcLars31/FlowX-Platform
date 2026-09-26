@@ -375,29 +375,6 @@ export function ProjectWorkspace({
     data.suggestions,
     data.requirements
   );
-  const currentInstruction = projectFinished
-    ? {
-        eyebrow: "Projektet är färdigt",
-        title: "Ladda ner projektsammanfattningen",
-        description: "Excel och PDF innehåller alla poster, postnummer, mängder, produktval, tillbehör och demontering."
-      }
-    : counts.documents === 0
-      ? {
-          eyebrow: "Börja här",
-          title: "Ladda upp den tekniska beskrivningen",
-          description: "Välj PDF-filen. Scipx skapar projektet och läser ut poster och mängder automatiskt."
-        }
-      : workflow.isComplete
-        ? {
-            eyebrow: "En sak återstår",
-            title: "Kontrollera och avsluta projektet",
-            description: "Alla produktposter är sparade. Markera projektet klart för att visa resultat och Excel."
-          }
-        : {
-            eyebrow: "Gör detta nu",
-            title: `Välj produkt för ${workflow.remainingProductCount} ${workflow.remainingProductCount === 1 ? "post" : "poster"}`,
-            description: "Fyll i NRF-numret för varje post. Produktnamnet hämtas automatiskt och Scipx visar tydligt hur många som återstår."
-          };
 
   return (
     <div className={`space-y-6 pb-12 ${tab === "products" ? "min-w-0 w-full" : "mx-auto max-w-6xl"}`}>
@@ -418,41 +395,26 @@ export function ProjectWorkspace({
         icon={<FolderKanban aria-hidden="true" />}
       />
 
-      <section className="rounded-2xl border border-cyan-300/20 portal-panel bg-portal-face p-4 text-ink-900 shadow-none">
-        <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-300">{currentInstruction.eyebrow}</p>
-        <div className="mt-2 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-3xl">
-            <h2 className="text-2xl font-bold text-white sm:text-3xl">{currentInstruction.title}</h2>
-            <p className="mt-3 text-base leading-7 text-slate-300">{currentInstruction.description}</p>
-          </div>
-          <div className="shrink-0">
-            {projectFinished && canExportMaterialList ? (
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <ProjectMaterialListExportButton projectId={data.project.id} />
-                <ProjectMaterialListPdfExportButton projectId={data.project.id} />
-              </div>
-            ) : workflow.isComplete ? (
-              <Button className="min-h-14 w-full justify-center px-6 text-lg" disabled={finishing} onClick={() => void finishProject()}>
-                <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-                {finishing ? "Slutför…" : "Markera projektet klart"}
-              </Button>
-            ) : (
-              <Button className="min-h-14 w-full justify-center px-6 text-lg" onClick={() => selectTab(workflow.nextTab)}>
-                {counts.documents === 0 ? "Välj PDF-fil" : "Fortsätt till produktval"}
-                <ChevronRight className="h-5 w-5" aria-hidden="true" />
-              </Button>
-            )}
-          </div>
+      {tab === "overview" && workflow.isComplete && (
+        <div className="flex flex-wrap gap-2">
+          {projectFinished && canExportMaterialList ? (
+            <>
+              <ProjectMaterialListExportButton projectId={data.project.id} />
+              <ProjectMaterialListPdfExportButton projectId={data.project.id} />
+            </>
+          ) : !projectFinished ? (
+            <Button disabled={finishing} onClick={() => void finishProject()}>
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              {finishing ? "Slutför…" : "Markera projektet klart"}
+            </Button>
+          ) : null}
         </div>
-      </section>
+      )}
 
-      <nav aria-label="Projektets tre steg" className="rounded-2xl border border-ink-200 bg-white p-4 shadow-sm sm:p-5">
-        <p className="mb-4 text-base font-bold text-ink-950">Så här gör du – tre enkla steg</p>
-        <ol className="grid gap-3 md:grid-cols-3">
-          <SimpleStep number={1} label="Ladda upp PDF" status={counts.documents > 0 ? "Klar" : tab === "documents" ? "Du är här" : "Nästa"} active={tab === "documents"} completed={counts.documents > 0} onClick={() => selectTab("documents")} />
-          <SimpleStep number={2} label="Välj produkter" status={workflow.isComplete ? "Klar" : tab === "products" ? "Du är här" : `${workflow.remainingProductCount} kvar`} active={tab === "products"} completed={workflow.isComplete} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
-          <SimpleStep number={3} label="Resultat och filer" status={projectFinished ? "Klar" : "Sista steget"} active={tab === "overview" && workflow.isComplete} completed={projectFinished} disabled={!workflow.isComplete} onClick={() => selectTab("overview")} />
-        </ol>
+      <nav aria-label="Projektvyer" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
+        <ProjectTab label="Dokument" active={tab === "documents"} onClick={() => selectTab("documents")} />
+        <ProjectTab label="Produkter" active={tab === "products"} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
+        <ProjectTab label="Resultat" active={tab === "overview"} disabled={!workflow.isComplete} onClick={() => selectTab("overview")} />
       </nav>
 
       {(message || error) && (
@@ -744,50 +706,21 @@ function DocumentRow({ item, source }: { item: ProjectRow; source: string }) {
   return <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate font-medium text-ink-950">{String(item.file_name ?? item.fileName ?? "Dokument")}</p><span className={ready ? "rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700" : "rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700"}>{documentStatusLabel(status)}</span></div><p className="mt-1 text-xs text-ink-500">{source}</p></div><span className="shrink-0 text-xs text-ink-500">{formatDate(item.created_at)}</span></div>;
 }
 
-function SimpleStep({
-  number,
-  label,
-  status,
-  active,
-  completed,
-  disabled = false,
-  onClick
-}: {
-  number: number;
+function ProjectTab({ label, active, disabled = false, onClick }: {
   label: string;
-  status: string;
   active: boolean;
-  completed: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
   return (
-    <li>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onClick}
-        aria-current={active ? "step" : undefined}
-        className={active
-          ? "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-cyan-400 portal-panel bg-portal-face p-4 text-left shadow-sm"
-          : completed
-            ? "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-left"
-            : "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-ink-200 bg-white p-4 text-left transition enabled:hover:border-flow-400 disabled:cursor-not-allowed disabled:opacity-50"}
-      >
-        <span className={completed
-          ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
-          : active
-            ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cyan-400 text-lg font-bold text-[#141414]"
-            : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink-100 text-lg font-bold text-ink-700"}
-        >
-          {completed ? <CheckCircle2 className="h-6 w-6" aria-hidden="true" /> : number}
-        </span>
-        <span>
-          <span className={active ? "block text-base font-bold text-white" : "block text-base font-bold text-ink-950"}>{label}</span>
-          <span className={completed ? "mt-1 block text-sm font-semibold text-emerald-800" : active ? "mt-1 block text-sm font-semibold text-cyan-300" : "mt-1 block text-sm text-ink-600"}>{status}</span>
-        </span>
-      </button>
-    </li>
+    <Button
+      variant={active ? "primary" : "secondary"}
+      disabled={disabled}
+      onClick={onClick}
+      aria-pressed={active}
+    >
+      {label}
+    </Button>
   );
 }
 
