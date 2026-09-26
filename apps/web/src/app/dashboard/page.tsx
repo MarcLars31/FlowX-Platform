@@ -1,13 +1,9 @@
 import Link from "next/link";
 import {
-  AlertTriangle,
   ArrowRight,
-  BriefcaseBusiness,
-  CalendarClock,
   CheckCircle2,
   FolderOpen,
   Handshake,
-  PackageCheck,
   Plus,
   UserRound
 } from "lucide-react";
@@ -62,13 +58,6 @@ export default async function DashboardPage() {
     data.hasRequirementInsights && data.hasProductSelectionInsights;
   const openProjects = insights.projects.filter((project) => project.isActive);
   const followUps = openProjects.filter((project) => project.needsFollowUp);
-  const projectsWithRemainingProducts = openProjects.filter(
-    (project) => project.remainingProductRequirements > 0
-  );
-  const remainingProductPosts = openProjects.reduce(
-    (total, project) => total + project.remainingProductRequirements,
-    0
-  );
 
   return (
     <div className="portal-dashboard mx-auto max-w-[1500px] space-y-6">
@@ -79,15 +68,6 @@ export default async function DashboardPage() {
         icon={<Handshake aria-hidden="true" />}
       >
         <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
-          {canViewProjects && (
-            <Link
-              href="/crm"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/15"
-            >
-              <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />
-              Öppna hela CRM
-            </Link>
-          )}
           {canCreateProject && (
             <Link
               href="/projects/new"
@@ -99,55 +79,6 @@ export default async function DashboardPage() {
           )}
         </div>
       </ScipxPageHeader>
-
-      {canViewProjects && (
-        <section aria-label="CRM-översikt" className="portal-summary">
-        <SummaryMetric
-          label="Öppna projekt"
-          value={formatNumber(openProjects.length)}
-          detail="pågående kundprojekt"
-          icon={<FolderOpen className="h-5 w-5" aria-hidden="true" />}
-          tone="cyan"
-          href={
-            openProjects.length === 1
-              ? projectWorkHref(openProjects[0])
-              : "/projects"
-          }
-        />
-        <SummaryMetric
-          label="Behöver följas upp"
-          value={formatNumber(followUps.length)}
-          detail="prioriterade nästa steg"
-          icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
-          tone={followUps.length > 0 ? "amber" : "green"}
-          href={
-            followUps.length === 1
-              ? projectWorkHref(followUps[0])
-              : "/crm#follow-ups"
-          }
-        />
-        <SummaryMetric
-          label="Produktposter kvar"
-          value={productInsightsAvailable ? formatNumber(remainingProductPosts) : "–"}
-          detail={productInsightsAvailable ? "kvar att hantera i öppna projekt" : "produktdata är inte tillgänglig för din roll"}
-          icon={<PackageCheck className="h-5 w-5" aria-hidden="true" />}
-          tone="blue"
-          href={
-            projectsWithRemainingProducts.length === 1
-              ? `/projects/${projectsWithRemainingProducts[0].id}?step=products`
-              : "/projects"
-          }
-        />
-        <SummaryMetric
-          label="Nya denna månad"
-          value={formatNumber(insights.createdThisMonth)}
-          detail="öppna projekt skapade i Scipx"
-          icon={<CalendarClock className="h-5 w-5" aria-hidden="true" />}
-          tone="green"
-          href="/crm#project-opportunities"
-        />
-        </section>
-      )}
 
       <div className={canViewProjects ? "portal-dashboard-grid" : ""}>
         <section className="min-w-0 overflow-hidden border border-ink-200 bg-white">
@@ -327,26 +258,6 @@ function OpenProjectRow({
       </td>
     </tr>
   );
-}
-
-function SummaryMetric({ label, value, detail, href }: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: React.ReactNode;
-  tone: "green" | "cyan" | "blue" | "amber";
-  href?: string;
-}) {
-  const content = (
-    <article className="portal-metric">
-      <span className="portal-metric-value">{value}</span>
-      <div>
-        <p className="portal-metric-label">{label}</p>
-        <p className="portal-metric-detail">{detail}</p>
-      </div>
-    </article>
-  );
-  return href ? <Link href={href} aria-label={`${label}: ${value}. Öppna och fortsätt.`}>{content}</Link> : <div>{content}</div>;
 }
 
 function EmptyProjects({
