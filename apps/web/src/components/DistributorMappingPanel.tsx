@@ -825,7 +825,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                       assignment={assignment}
                       sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
                       position={activeIndex + 1}
-                      totalPosts={cardRequirements.length}
                       memories={matchingMemories}
                       onCatalogResult={recordFullCatalogResult}
                       headerActions={productCardHeaderActions}
@@ -860,14 +859,13 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   );
 }
 
-function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, totalPosts, memories, headerActions, onClose, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, memories, headerActions, onClose, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   currency: string;
   requirement: Row;
   assignment?: Row;
   sourcePdfHref: string | null;
   position: number;
-  totalPosts: number;
   memories: Row[];
   headerActions: HTMLDivElement | null;
   onClose: () => void;
@@ -1575,15 +1573,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       )}
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-neutral-200 bg-neutral-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex flex-wrap items-center gap-2">
-            {isApproved ? (
-              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-300 bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Godkänd</span>
-            ) : resolution ? (
-              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-bold text-neutral-800"><Tag className="h-3.5 w-3.5" aria-hidden="true" />{resolution.label}</span>
-            ) : (
-              <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-300 bg-neutral-50 px-2.5 py-1 text-xs font-bold text-neutral-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Inte godkänd</span>
-            )}
-          </div>
+          <h3 id={`pdf-specification-${requirement.id}`} className="text-xl font-bold text-neutral-950">PDF-post {details.postNumber ?? "saknas"}</h3>
 
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
@@ -1604,11 +1594,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </div>
           ))}
 
-          <div className="mt-4">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">Produkt {position} av {totalPosts}</p>
-            <h3 id={`pdf-specification-${requirement.id}`} className="mt-1 text-xl font-bold text-neutral-950">PDF-post {details.postNumber ?? "saknas"}</h3>
-            <p className="mt-2 text-sm font-semibold leading-6 text-neutral-800">{String(requirement.value_text ?? "Tekniskt krav")}</p>
-          </div>
 
           <div className="mt-4 overflow-hidden rounded-md border border-neutral-200 bg-white">
             <dl className="grid sm:grid-cols-2">
