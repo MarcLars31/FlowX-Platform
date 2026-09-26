@@ -6,6 +6,56 @@ import { lookupAssemblyComponents } from "./assembly-component-lookup";
 import { productRequirementChecks } from "./product-requirement-review";
 import type { AhlsellLookupProduct } from "./ahlsell-product-lookup";
 
+import { assessAhlsellLookupCandidates } from "./ahlsell-hybrid-matching";
+
+const hose = {
+  category: "sprinkler_hose", value_text: "INNENDØRS RØRLEDNING - BRANNSLOKKING - SLANGE",
+  value_json: {
+    postNumber: "30.332.6", nsCode: "UB1.33114699900A", quantity: 132, unit: "st",
+    attributes: { materiale: "Stål - rustfritt", dimensjon: "DN25", trykk: "12bar" }
+  }
+};
+const hoseScope = 'Flexislanger skal være av typen "braided"-utførelse, samt at festemateriell inkluderes posten. Maksimalt ekvivalent lengde skal ikke overstige 15m.';
+
+test("post 30.332.6 requires hose fastening independently of the chosen product's accessory suggestions", () => {
+  for (const field of ["sourceText", "technicalSpecification"] as const) {
+    const requirement = { ...hose, value_json: { ...hose.value_json, [field]: hoseScope } };
+    const plan = productAssemblyPlan(requirement)!;
+    assert.equal(plan.mainLabel, "Sprinklerslang");
+    assert.deepEqual(plan.components.map(component => component.id), ["hose-support"]);
+    assert.equal(plan.components[0].optional, false);
+    assert.equal(plan.components[0].quantityNeedsReview, true);
+  }
+  assert.equal(productAssemblyPlan({ ...hose, source_excerpt: hoseScope })!.components[0]?.id, "hose-support");
+});
+
+test("structured hose requirements include both supplied fastening and suspended-ceiling mounting", () => {
+  for (const attributes of [
+    { "omfatter også": hoseScope },
+    { montasje: "Festes i systemhimling." },
+    { montasje: "Festes i\nsystemhimling." },
+    { montasje: "Feste i himling" },
+    { "omfatter også": "Leveres med tilhørende festeanordning for himling." }
+  ]) {
+    const requirement = { ...hose, value_json: { ...hose.value_json, attributes } };
+    assert.deepEqual(productAssemblyPlan(requirement)!.components.map(component => component.id), ["hose-support"]);
+  }
+});
+
+test("a hose without a fastening requirement or with explicitly excluded fastening gets no required accessory", () => {
+  for (const attributes of [
+    { plassering: "Over systemhimling" },
+    { "omfatter også": "Flexislanger skal være av typen braided-utførelse." },
+    { "omfatter også": "Leveres uten festemateriell." },
+    { "omfatter også": "Festemateriell skal ikke inkluderes i denne posten." },
+    { "omfatter også": "Festemateriell\nskal ikke inkluderes i denne posten." },
+    { festemateriell: "Nei" }
+  ]) {
+    const requirement = { ...hose, value_json: { ...hose.value_json, attributes } };
+    assert.deepEqual(productAssemblyPlan(requirement)!.components, []);
+  }
+});
+
 const pipe = { category: "fitting", value_text: "DN 25 komplett med deler bend, albuer, t- stykker,endebunn og oppheng", value_json: {
   nsCode: "UB1.31114312099", unit: "m", quantity: 303, attributes: { dimensjon: "DN25", materiale: "Stål", trykk: "PN16", skjøt: "Gjenget eller rilleskjøt" }
 } };
@@ -20,6 +70,38 @@ const head = { category: "sprinkler_head", value_text: "Sprinkler", value_json: 
 const product = (name: string, articleNumber = name): AhlsellLookupProduct => ({
   articleNumber, productName: name, productUrl: `https://www.ahlsell.no/products/test/${articleNumber}/`,
   manufacturer: "Test", specifications: [], source: "catalog_search", exactMatch: true
+});
+
+test("a web-only main hose with no bundled suggestions still offers the specified fastening", async () => {
+  const requirement = { ...hose, value_json: { ...hose.value_json, attributes: { ...hose.value_json.attributes, "omfatter også": hoseScope } } };
+  const mainArticle = "9999801", supportArticle = "9999802";
+  const main = product("Sprinklerslange DN25 rustfritt 12 bar", mainArticle);
+  const [selected] = assessAhlsellLookupCandidates(requirement, [main]);
+  assert.equal(selected.suggestedAccessories?.length ?? 0, 0);
+  const support = productAssemblyPlan(requirement)!.components.find(component => component.id === "hose-support");
+  assert.ok(support, "the requirement must open the accessory step even without catalogue suggestions");
+  const queries: string[] = [];
+  const result = await lookupAssemblyComponents({ requirement, component: support, mainArticleNumber: selected.articleNumber,
+    automatic: true, query: assemblyComponentSearch(support, selected.productName), market: "no", fetchImpl: async input => {
+      const url = new URL(String(input));
+      if (url.pathname.startsWith("/products/")) {
+        const article = url.pathname.split("/").filter(Boolean).at(-1)!;
+        const name = article === mainArticle ? main.productName : "Feste sprinklerslange for systemhimling";
+        return new Response(`<h1 data-test="product-name">${name}</h1><span class="text-card-item-number"><span>${article}</span></span>`, { headers: { "Content-Type": "text/html" } });
+      }
+      const query = url.searchParams.get("parameters.SearchPhrase");
+      if (!query) return Response.json({ productCards: [] });
+      queries.push(query);
+      const found = query === mainArticle ? [main] : [product("Feste sprinklerslange for systemhimling", supportArticle), main];
+      return Response.json({ productCount: found.length, productCards: found.map(item => ({ name: item.productName,
+        mostRelevantVariantId: item.articleNumber, firstVariationPageUrl: item.productUrl, brand: "Test" })) });
+    }
+  });
+  assert.ok(queries.includes(mainArticle), "resolve the newly selected main product before checking accessories");
+  assert.ok(queries.includes("Feste sprinklerslange"));
+  assert.ok(result.products.some(item => item.articleNumber === supportArticle));
+  assert.ok(result.products.every(item => item.articleNumber !== mainArticle));
+  assert.ok(result.products.every(item => item.exactMatch === false), "accessories still need compatibility review");
 });
 
 test("wet valve set requires its retard chamber without duplicating separately quantified alarm and valve posts", () => {

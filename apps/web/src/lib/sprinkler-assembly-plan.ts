@@ -1,6 +1,7 @@
 import type { AhlsellProductIntent } from "./ahlsell-requirement-intent";
 import type { AssemblyComponent, ProductAssemblyPlan } from "./product-assembly-plan";
 import { sprinklerInstallationRequirements } from "./sprinkler-technical-rules";
+import { normalizeTechnicalText } from "./ahlsell-requirement-context";
 
 /** Only parts required by this post become shopping steps. Adjacent, separately
  * quantified posts must not be purchased again as accessories. */
@@ -30,7 +31,8 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
       guidance: "Välj först sprinklerhuvudet utifrån K-faktor, gängdimension, respons, temperatur och montage. Tillbehören måste passa exakt vald modell." };
   }
   if (intent === "sprinkler_hose") {
-    if (/festeanordning|feste\s+i\s+himling|tilhørende\s+feste|tilhorende\s+feste/i.test(source)) components.push({
+    const mountingText = [source, ...Object.entries(attributes).map(([key, item]) => `${key}: ${item}`)].join("\n");
+    if (requiresHoseSupport(mountingText)) components.push({
       id: "hose-support", kind: "support", label: "Infästning för sprinklerslang", optional: false,
       searchTerm: "Feste sprinklerslange", quantityNeedsReview: true,
       requirement: "Kontrollera infästningens kompatibilitet med vald slang och taksystem, antal och om den redan ingår i slangens leverans."
@@ -68,6 +70,21 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
   };
   const info = simple[intent];
   return info ? { kind: "sprinkler", mainLabel: info[0], guidance: info[1], components } : null;
+}
+
+function requiresHoseSupport(text: string) {
+  // Mounting requirements can be extracted as fields or remain in the PDF prose.
+  // They apply to every selected main product, including web-only NRFs.
+  return text.split(/[.;]+/).some(clause => {
+    const normalized = normalizeTechnicalText(clause);
+    const parts = /\b(?:festemateriell|festemateriale|festeanordning(?:en|er|ene)?|tilhorende feste|festes? i (?:system)?himling)\b/g;
+    return [...normalized.matchAll(parts)].some(match => {
+      const before = normalized.slice(0, match.index);
+      const after = normalized.slice(match.index + match[0].length);
+      return !/\b(?:uten|utan|without|ikke|inte|not)\s*$/.test(before)
+        && !/^\s+(?:(?:skal|ma|er|ar|inngar|ingar)\s+)?(?:ikke|inte|nei|nej|not)\b/.test(after);
+    });
+  });
 }
 
 function record(value: unknown): Record<string, unknown> {
