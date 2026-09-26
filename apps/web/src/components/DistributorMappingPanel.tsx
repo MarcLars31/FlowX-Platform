@@ -1422,11 +1422,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     onError("");
   }
 
-  function showAllProductAlternatives() {
-    if (productNumber.trim()) clearSelectedProduct();
-    window.requestAnimationFrame(() => document.getElementById(`ahlsell-products-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
   function addAccessory() {
     openAccessoryLookup();
   }
@@ -1902,20 +1897,21 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className={`scroll-mt-80 overflow-hidden rounded-lg border-2 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 lg:scroll-mt-60 border-neutral-400 bg-white`}>
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-100 px-4 py-3">
                 <p className="flex items-center gap-2 text-lg font-bold text-neutral-950"><CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />{isApproved ? "Godkjent hovedprodukt" : "Produkt valgt"}</p>
-                <ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} />
+                <div className="ml-auto flex flex-wrap items-end justify-end gap-3">
+                  <ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} />
+                  <ProductQuantityFields compact id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
+                    onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
+                    onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} />
+                </div>
               </div>
               <div className="space-y-4 p-4">
                 <div>
-                  <h5 className="break-words text-xl font-bold leading-snug text-neutral-950">{productName || `NRF ${productNumber}`}</h5>
+                  <h5 className="break-words text-xl font-bold leading-snug text-neutral-950">
+                    {productName || "Produkt"}{" "}
+                    <a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer"
+                      className="whitespace-nowrap text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{productNumber}</a>
+                  </h5>
                   {productSubtitle && productSubtitle.trim() !== productName.trim() && <p className="mt-1 text-sm text-neutral-700">{productSubtitle}</p>}
-                  <p className="mt-2 inline-flex rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-sm font-bold text-neutral-800">NRF {productNumber}</p>
-                </div>
-                {!isApproved && <p className="text-sm font-semibold leading-5 text-neutral-900">{accessoryStepOpen ? "Huvudprodukten är vald. Välj tillbehör direkt nedan." : hasAccessoryStep ? "Kontrollera huvudprodukten och tillbehören nedan. Tryck sedan på Godkänn och stäng kort." : "Kontrollera huvudprodukten. Tryck sedan på Godkänn och stäng kort."}</p>}
-                <div>
-                  <ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
-                    onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
-                    onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} />
-                  <p className="mt-1 text-xs text-neutral-600">PDF-posten: {formatProjectQuantity(quantity)}. Total mengde og enhet ovenfor følger med til Excel.</p>
                 </div>
                 {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
                   <dl className="grid overflow-hidden rounded-md border border-neutral-200 bg-white sm:grid-cols-3">
@@ -1924,7 +1920,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                     {unitPrice && <CompactProductDetail label="Pris" value={formatUnitPrice(unitPrice, priceCurrency)} />}
                   </dl>
                 )}
-                <Button neutral type="button" variant="secondary" disabled={saving} onClick={showAllProductAlternatives}>Bytt hovedprodukt</Button>
               </div>
               {accessorySection}
             </section>
