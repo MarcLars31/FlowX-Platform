@@ -4,7 +4,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleX, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
@@ -778,10 +778,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
           {activeRequirement && (() => {
             const requirement = activeRequirement;
             const assignment = approvedAssignmentByRequirementId.get(requirement.id);
-            const activeApproved = Boolean(assignment) && !productCardDirty;
-            const activeGroup = activeApproved ? "green" : assignment && productCardDirty ? "yellow" : groupByRequirementId.get(requirement.id) ?? "yellow";
-            const activeResolution = productRequirementResolution(requirement);
-            const activeStatus = activeApproved ? "Produkten är godkänd" : productCardDirty ? "Osparade ändringar" : activeResolution ? `Posten är hanterad · ${activeResolution.label}` : activeGroup === "green" ? "Match hittad · kontrollera och godkänn" : activeGroup === "red" ? "Ingen match bland kontrollerade produkter" : null;
             const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint);
             return (
               <dialog
@@ -795,20 +791,13 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
               >
                 <div id="product-work-queue" className="flex h-full w-full flex-col overflow-hidden">
                   <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-neutral-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex items-center gap-3">
-                        {activeStatus && (
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-neutral-50">
-                            {activeGroup === "green" ? <CheckCircle2 className="h-5 w-5 text-neutral-700" aria-hidden="true" /> : activeGroup === "red" ? <CircleX className="h-5 w-5 text-neutral-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-neutral-600" aria-hidden="true" />}
-                          </span>
-                        )}
-                        <div>
-                          {activeStatus && <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-800">{activeStatus}</p>}
-                          <p className="mt-0.5 text-sm font-bold text-neutral-950 sm:text-base">Post {activeIndex + 1} av {cardRequirements.length}</p>
-                          <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
-                        </div>
+                    <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+                      <div className="min-w-0 text-center lg:col-start-2">
+                        <p className="text-sm font-bold text-neutral-950 sm:text-base">Produktvalg</p>
+                        <p className="mt-0.5 text-sm font-bold text-neutral-950 sm:text-base">Post {activeIndex + 1} av {cardRequirements.length}</p>
+                        <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
                       </div>
-                      <div ref={setProductCardHeaderActions} className="flex flex-wrap items-center gap-2" />
+                      <div ref={setProductCardHeaderActions} className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:col-start-3" />
                     </div>
                     <div
                       hidden={view !== "products"}
