@@ -996,8 +996,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button neutral variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving || activeIndex === 0} onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Föregående</Button>
-                        <Button neutral variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving || activeIndex === queueRequirements.length - 1} onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Nästa<ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
                         <Button neutral autoFocus variant="secondary" className="min-h-10 justify-center px-3 py-2" disabled={productCardSaving} onClick={closeRequirement}>{productCardSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}{productCardSaving ? "Sparar…" : "Stäng kortet"}</Button>
                       </div>
                     </div>
@@ -1912,7 +1910,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                   {productSubtitle && productSubtitle.trim() !== productName.trim() && <p className="mt-1 text-sm text-neutral-700">{productSubtitle}</p>}
                   <p className="mt-2 inline-flex rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-sm font-bold text-neutral-800">NRF {productNumber}</p>
                 </div>
-                {!isApproved && <p className="text-sm font-semibold leading-5 text-neutral-900">{accessoryStepOpen ? "Huvudprodukten är vald. Välj tillbehör direkt nedan." : hasAccessoryStep ? "Kontrollera huvudprodukten och tillbehören nedan. Tryck sedan på Godkänn och spara." : "Kontrollera huvudprodukten. Tryck sedan på Godkänn och spara."}</p>}
+                {!isApproved && <p className="text-sm font-semibold leading-5 text-neutral-900">{accessoryStepOpen ? "Huvudprodukten är vald. Välj tillbehör direkt nedan." : hasAccessoryStep ? "Kontrollera huvudprodukten och tillbehören nedan. Tryck sedan på Godkänn och stäng kort." : "Kontrollera huvudprodukten. Tryck sedan på Godkänn och stäng kort."}</p>}
                 <div>
                   <ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
                     onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
@@ -2007,17 +2005,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
 
           {productNumber.trim() && !accessoryStepOpen && (
-            <section id={`product-approval-${requirement.id}`} aria-labelledby={`product-approval-title-${requirement.id}`} className="rounded-md border border-neutral-300 bg-neutral-50 p-4">
-              <h5 id={`product-approval-title-${requirement.id}`} className="text-base font-bold text-neutral-950">{hasAccessoryStep ? "4. Godkänn" : "3. Godkänn"}</h5>
-              <p className="mt-1 text-sm leading-6 text-neutral-700">{hasAccessoryStep
-                ? "Godkänn när du har gått igenom postens krav, valt huvudprodukt och kompletterat med de tillbehör som behövs."
-                : "Godkänn när du har gått igenom postens krav och valt huvudprodukt."}</p>
+            <div id={`product-approval-${requirement.id}`} className="space-y-2">
               {commentDraftDirty && <p className="mt-2 text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
-              <Button neutral aria-label="Godkänn och spara produkt" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och spara produkt"} className="mt-3 min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
+              <Button neutral aria-label="Godkänn och stäng kort" title={manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryError ?? "Godkänn och stäng kort"} className="min-h-10 justify-center px-4 py-2 text-sm" type="button" onClick={() => void save()} disabled={saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-                {saving ? "Sparar…" : "Godkänn och spara"}
+                {saving ? "Sparar…" : "Godkänn och stäng kort"}
               </Button>
-            </section>
+            </div>
           )}
           <div id={`product-comments-${requirement.id}`} className="scroll-mt-52">
             {productComments}
