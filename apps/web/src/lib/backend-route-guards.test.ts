@@ -68,7 +68,7 @@ test("organization mutation and customer product APIs use server authorization",
     assert.match(source(relativePath), /requireOrganizationApi\s*\(/, relativePath);
   }
 
-  for (const directory of ["api/projects", "api/teams"]) {
+  for (const directory of ["api/projects", "api/teams", "api/technical-descriptions"]) {
     for (const file of routeFiles(directory)) {
       assert.match(
         readFileSync(file, "utf8"),

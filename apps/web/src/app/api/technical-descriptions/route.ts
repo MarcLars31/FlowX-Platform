@@ -16,6 +16,14 @@ import type {
 import { clientTechnicalDescriptionResult } from "@/lib/technical-description-client-result";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
 import { hasPdfSignature } from "@/lib/pdf-security";
+import { MAX_TECHNICAL_DESCRIPTION_BYTES } from "@/lib/technical-description-file";
+import { StorageObjectTooLargeError } from "@/lib/supabase-admin-storage";
+import {
+  cleanupTechnicalDescriptionUpload,
+  ownedTechnicalDescriptionUploadPath,
+  readTechnicalDescriptionUpload,
+  TechnicalDescriptionUploadError
+} from "@/lib/technical-description-storage";
 import {
   automaticProjectDetails,
   hasTechnicalDescriptionConflict,
@@ -28,8 +36,7 @@ import {
 } from "@/lib/technical-description-ocr-payload";
 
 export const runtime = "nodejs";
-
-const MAX_PDF_BYTES = 30 * 1024 * 1024;
+export const maxDuration = 300;
 
 type ProjectRow = { id: string; organization_id: string; name: string };
 type ProjectModuleRow = { id: string; project_id: string; module_code: string };
@@ -72,6 +79,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let stagedPath: string | undefined;
+  let awaitingOcr = false;
   try {
     const authorization = await requireOrganizationApi([
       "technical_description.create"
@@ -79,26 +88,6 @@ export async function POST(request: Request) {
     if (authorization.error) return authorization.error;
 
     const formData = await request.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) {
-      return NextResponse.json(
-        { error: "En PDF-fil krävs för teknisk beskrivning." },
-        { status: 400 }
-      );
-    }
-    if (file.type && file.type !== "application/pdf") {
-      return NextResponse.json(
-        { error: "Filen måste vara en PDF." },
-        { status: 400 }
-      );
-    }
-    if (file.size > MAX_PDF_BYTES) {
-      return NextResponse.json(
-        { error: "PDF-filen får vara högst 30 MB." },
-        { status: 413 }
-      );
-    }
-
     const hasClientOcrPayload = formData.has("ocrPages");
     const limit = consumeRateLimit(
       requestRateLimitKey(
@@ -115,6 +104,35 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "För många tekniska beskrivningar på kort tid. Försök igen senare." },
         { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
+    const uploadId = formData.get("uploadId");
+    if (uploadId !== null && formData.has("file")) {
+      return NextResponse.json({ error: "Velg én PDF-kilde." }, { status: 400 });
+    }
+    if (uploadId !== null) {
+      stagedPath = ownedTechnicalDescriptionUploadPath({
+        organizationId: authorization.context.organization.id,
+        userId: authorization.user.id
+      }, uploadId);
+    }
+    // Only the small reference crosses Vercel. Keep multipart files working
+    // for existing clients while the new browser bundle rolls out.
+    const file = stagedPath
+      ? await readTechnicalDescriptionUpload(stagedPath, formData.get("fileName"))
+      : formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return NextResponse.json(
+        { error: "En PDF-fil krävs för teknisk beskrivning." }, { status: 400 }
+      );
+    }
+    if (file.type && file.type !== "application/pdf") {
+      return NextResponse.json({ error: "Filen måste vara en PDF." }, { status: 400 });
+    }
+    if (file.size > MAX_TECHNICAL_DESCRIPTION_BYTES) {
+      return NextResponse.json(
+        { error: "PDF-filen får vara högst 30 MB." }, { status: 413 }
       );
     }
 
@@ -175,6 +193,7 @@ export async function POST(request: Request) {
     const pages = mergeClientOcrPages(serverPages, clientOcrPages);
     const unreadablePageNumbers = pagesRequiringOcr(pages);
     if (!clientOcrPages && unreadablePageNumbers.length > 0) {
+      awaitingOcr = true;
       return NextResponse.json(
         {
           code: "OCR_REQUIRED",
@@ -834,6 +853,8 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     return technicalDescriptionErrorResponse(error);
+  } finally {
+    if (stagedPath && !awaitingOcr) await cleanupTechnicalDescriptionUpload(stagedPath);
   }
 }
 
@@ -886,6 +907,14 @@ function rpcProjectId(value: unknown) {
 }
 
 function technicalDescriptionErrorResponse(error: unknown) {
+  if (error instanceof StorageObjectTooLargeError) {
+    return NextResponse.json(
+      { error: "PDF-filen får vara högst 30 MB." }, { status: 413 }
+    );
+  }
+  if (error instanceof TechnicalDescriptionUploadError) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
   console.error("Technical description extraction failed", {
     name: error instanceof Error ? error.name : "UnknownError",
     status: error instanceof UserSupabaseError ? error.status : undefined,
