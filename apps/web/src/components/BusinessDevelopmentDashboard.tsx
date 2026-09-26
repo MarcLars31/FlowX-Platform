@@ -185,7 +185,7 @@ export function BusinessDevelopmentDashboard({
             <div className="p-5 sm:p-6">
               <div className="mb-5 flex flex-wrap items-center gap-5 text-xs font-semibold text-ink-600">
                 <Legend color="bg-cyan-500" label="Upprättade" />
-                <Legend color="bg-emerald-500" label="Färdiga · senast ändrade" />
+                <Legend color="bg-ink-300" label="Färdiga · senast ändrade" />
               </div>
               <div
                 className="grid h-60 gap-3 border-b border-ink-200 px-1"
@@ -198,14 +198,14 @@ export function BusinessDevelopmentDashboard({
                       aria-label={`${month.label}: ${month.created} upprättade och ${month.completed} tekniskt färdiga`}
                     >
                       <ChartBar value={month.created} max={maximumMonthlyActivity} color="bg-cyan-500" />
-                      <ChartBar value={month.completed} max={maximumMonthlyActivity} color="bg-emerald-500" />
+                      <ChartBar value={month.completed} max={maximumMonthlyActivity} color="bg-ink-300" />
                     </div>
                     <span className="truncate pb-3 text-center text-xs font-semibold text-ink-500">{month.label}</span>
                   </div>
                 ))}
               </div>
               <p className="mt-4 text-xs leading-5 text-ink-500">
-                Den gröna serien är inte ett verkligt slutdatum. Färdiga projekt grupperas efter sin senaste
+                Färdiga projekt grupperas efter sin senaste
                 projektändring tills ett separat slutförandedatum registreras.
               </p>
             </div>

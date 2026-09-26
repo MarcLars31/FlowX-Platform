@@ -834,7 +834,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                 className="min-h-9 px-3 py-1.5 text-sm"
                 disabled={selectedVisibleRequirements.length === 0 || bulkApproving}
                 onClick={() => void approveSelectedGreenProducts()}
-                title="Godkänner endast gröna poster med ett otvetydigt tidigare val eller en exakt direktträff"
+                title="Godkänner endast poster med ett otvetydigt tidigare val eller en exakt direktträff"
               >
                 {bulkApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
                 {bulkApproving
@@ -956,7 +956,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
               <table className="w-full border-collapse whitespace-nowrap text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
-                    <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label={`Velg alle grønne produktposter under hovedpost ${label} som kan godkjennes direkte`} checked={allGroupSelected} disabled={eligibleIds.length === 0 || bulkApproving} onChange={(event) => toggleGroupRequirements(eligibleIds, event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-40" /></th>
+                    <th className="w-11 border-b border-r border-ink-200 px-3 py-2 text-center"><input type="checkbox" aria-label={`Velg alle produktposter under hovedpost ${label} som kan godkjennes direkte`} checked={allGroupSelected} disabled={eligibleIds.length === 0 || bulkApproving} onChange={(event) => toggleGroupRequirements(eligibleIds, event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-40" /></th>
                     {visibleProductTableColumns.map((columnId) => {
                       const column = PRODUCT_TABLE_COLUMNS[columnId];
                       return (
@@ -2648,7 +2648,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
   return (
     <tr className={`border-b border-ink-100 transition last:border-b-0 ${rowClass}`}>
       <td className="border-r border-ink-100 px-3 py-2.5 text-center">
-        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} title={selectionDisabled ? "Endast gröna poster med ett otvetydigt produktval kan massgodkännas" : "Välj för gemensamt godkännande"} checked={selected} disabled={selectionDisabled} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-35" />
+        <input type="checkbox" aria-label={`Välj PDF-post ${details.postNumber ?? position}`} title={selectionDisabled ? "Endast poster med ett otvetydigt produktval kan massgodkännas" : "Välj för gemensamt godkännande"} checked={selected} disabled={selectionDisabled} onChange={(event) => onSelectedChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:cursor-not-allowed disabled:opacity-35" />
       </td>
       {columns.map(renderProductTableCell)}
       <td className="px-2 py-2 text-center align-middle">
