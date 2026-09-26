@@ -1859,10 +1859,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
 
           <div className="mt-4 overflow-hidden rounded-md border border-neutral-200 bg-white">
-            <div className="border-b border-neutral-200 px-4 py-3">
-              <h4 className="text-sm font-bold text-neutral-700">1. Gå igenom postens krav</h4>
-              <p className="mt-1 text-xs leading-5 text-neutral-600">Alla extraherade krav visas här medan du väljer produkt.</p>
-            </div>
             <dl className="grid sm:grid-cols-2">
               <SpecificationRow label="PDF-postnummer" value={details.postNumber ?? "Saknas"} />
               <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
@@ -1881,7 +1877,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
         <div id={`product-selection-header-${requirement.id}`} className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
-          <nav id={`product-post-actions-${requirement.id}`} aria-label="Åtgärder för produktposten" className="mb-3 flex flex-wrap gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+          <nav id={`product-post-actions-${requirement.id}`} aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
             <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => { const scope = productNumber.trim() ? "product" : "post"; document.getElementById(`${scope}-comments-${requirement.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); document.getElementById(`comment-${scope}-${requirement.id}`)?.focus({ preventScroll: true }); }}>Kommentera</Button>
             {!productNumber.trim() && <Button neutral id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
               <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
@@ -1901,19 +1897,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells hemsida
             </a>
           </nav>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">{!productNumber.trim() ? "2. Välj huvudprodukt" : accessoryStepOpen ? "3. Välj tillbehör" : "Ditt produktval"}</p>
-              <h4 className="mt-0.5 text-base font-bold text-neutral-950">Produkter för PDF-post {details.postNumber ?? position}</h4>
-              <p className={`mt-1 flex items-center gap-2 text-sm font-bold ${isApproved ? "text-neutral-800" : productNumber.trim() ? "text-neutral-800" : "text-neutral-600"}`}>
-                {productNumber.trim() && <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />}
-                {isApproved ? "Produkten är godkänd" : productNumber.trim() ? "Produkt valgt – ikke godkjent ennå" : "Ingen produkt valgt"}
-              </p>
-            </div>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-neutral-600">{hasAccessoryStep
-            ? "Arbetsflöde: gå igenom postens krav → välj huvudprodukt → komplettera med tillbehör → godkänn."
-            : "Arbetsflöde: gå igenom postens krav → välj huvudprodukt → godkänn."}</p>
         </div>
 
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
