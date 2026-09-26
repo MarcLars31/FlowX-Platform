@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { PdfDropzone } from "@/components/PdfDropzone";
-import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import { uploadTechnicalDescriptionWithOcr } from "@/lib/technical-description-upload";
 
 type CreationResponse = {
@@ -80,27 +79,14 @@ export default function CreateProjectPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <ScipxPageHeader
-        eyebrow="Ny teknisk analys"
-        title="Börja med den tekniska beskrivningen"
-        description="Ladda upp en teknisk beskrivning. Scipx skapar ett projekt för just den PDF-filen och tar dig automatiskt vidare till produktvalet."
-        icon={<FileText aria-hidden="true" />}
+      <Link
+        href="/projects"
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-ink-200 bg-white px-4 text-sm font-bold text-ink-800 transition hover:bg-ink-50"
       >
-        <Link
-          href="/projects"
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-bold text-white transition hover:border-cyan-300/60 hover:bg-white/15"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
 
-          Till projekt
-        </Link>
-      </ScipxPageHeader>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Step number="1" title="Ladda upp" text="Välj teknisk beskrivning i PDF-format." />
-        <Step number="2" title="Scipx skapar" text="Projektnamn och kända uppgifter läses från dokumentet." />
-        <Step number="3" title="Välj produkter" text="Du går direkt vidare till Ahlsells produktval." />
-      </div>
+        Till projekt
+      </Link>
 
       <form
         className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-none"
@@ -112,7 +98,7 @@ export default function CreateProjectPage() {
               <FileText className="h-6 w-6" aria-hidden="true" />
             </span>
             <div>
-              <h2 className="font-bold text-white">Teknisk beskrivning</h2>
+              <h1 className="font-bold text-white">Teknisk beskrivning</h1>
               <p className="mt-1 text-sm text-slate-300">En PDF per projekt, högst 30 MB</p>
             </div>
           </div>
@@ -153,16 +139,6 @@ export default function CreateProjectPage() {
           </div>
         </div>
       </form>
-    </div>
-  );
-}
-
-function Step({ number, title, text }: { number: string; title: string; text: string }) {
-  return (
-    <div className="rounded-xl border border-cyan-300/15 portal-panel bg-portal-face p-4 text-white shadow-sm">
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cyan-400 text-xs font-black text-[#141414]">{number}</span>
-      <h2 className="mt-3 text-sm font-bold text-white">{title}</h2>
-      <p className="mt-1 text-xs leading-5 text-slate-300">{text}</p>
     </div>
   );
 }
