@@ -418,7 +418,7 @@ export function ProjectWorkspace({
         icon={<FolderKanban aria-hidden="true" />}
       />
 
-      <section className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-[0_16px_35px_rgba(2,17,38,0.12)] sm:p-7">
+      <section className="rounded-2xl border border-cyan-300/20 portal-panel bg-portal-face p-4 text-ink-900 shadow-none">
         <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-300">{currentInstruction.eyebrow}</p>
         <div className="mt-2 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
@@ -525,8 +525,8 @@ export function ProjectWorkspace({
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Input id="workspace-system-type" name="systemType" label="Systemtyp" defaultValue={data.project.system_type ?? ""} />
                 <Input id="workspace-standard" name="standard" label="Huvudstandard" defaultValue={data.project.standard ?? ""} />
-                <div className="rounded-lg border border-[#0073b6]/20 bg-[#0073b6]/5 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#00649e]">Distributör</p>
+                <div className="rounded-lg border border-[#5f5f5f]/20 bg-[#5f5f5f]/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#535353]">Distributör</p>
                   <p className="mt-1 font-semibold text-ink-950">Ahlsell</p>
                   <p className="mt-1 text-xs leading-5 text-ink-600">Produkt och tillbehör väljs direkt från de extraherade produktraderna.</p>
                 </div>
@@ -574,7 +574,7 @@ export function ProjectWorkspace({
                       </div>
                       <span className={product.quantityMissing
                         ? "shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800"
-                        : "shrink-0 rounded-full bg-[#0073b6]/10 px-2.5 py-1 text-xs font-semibold text-[#00649e]"}
+                        : "shrink-0 rounded-full bg-[#5f5f5f]/10 px-2.5 py-1 text-xs font-semibold text-[#535353]"}
                       >
                         {product.quantityLabel}
                       </span>
@@ -601,7 +601,7 @@ export function ProjectWorkspace({
       {tab === "documents" && (
         <div className="space-y-5">
           {counts.documents === 0 ? (
-            <section className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-sm sm:p-7">
+            <section className="rounded-2xl border border-cyan-300/20 portal-panel bg-portal-face p-4 text-ink-900 shadow-sm">
               <div className="flex items-start gap-4"><FileText className="mt-1 h-7 w-7 shrink-0 text-cyan-300" aria-hidden="true" /><div><p className="text-sm font-bold uppercase tracking-wide text-cyan-300">Steg 1 av 3 · En PDF per projekt</p><h2 className="mt-1 text-2xl font-bold text-white">Ladda upp teknisk beskrivning</h2><p className="mt-2 text-base leading-7 text-slate-300">Dra en PDF-fil till rutan eller klicka på Välj fil. När analysen är klar låses PDF-steget och produktvalet öppnas automatiskt.</p></div></div>
               <form className="mt-5" onSubmit={uploadTechnicalDescription}>
                 <PdfDropzone
@@ -769,7 +769,7 @@ function SimpleStep({
         onClick={onClick}
         aria-current={active ? "step" : undefined}
         className={active
-          ? "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-cyan-400 bg-[#06213d] p-4 text-left shadow-sm"
+          ? "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-cyan-400 portal-panel bg-portal-face p-4 text-left shadow-sm"
           : completed
             ? "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-left"
             : "flex min-h-20 w-full items-center gap-4 rounded-xl border-2 border-ink-200 bg-white p-4 text-left transition enabled:hover:border-flow-400 disabled:cursor-not-allowed disabled:opacity-50"}
@@ -777,7 +777,7 @@ function SimpleStep({
         <span className={completed
           ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
           : active
-            ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cyan-400 text-lg font-bold text-[#03162d]"
+            ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cyan-400 text-lg font-bold text-[#141414]"
             : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink-100 text-lg font-bold text-ink-700"}
         >
           {completed ? <CheckCircle2 className="h-6 w-6" aria-hidden="true" /> : number}

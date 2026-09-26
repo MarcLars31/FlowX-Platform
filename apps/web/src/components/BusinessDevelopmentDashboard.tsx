@@ -501,7 +501,7 @@ function PanelHeader({
   badgeTone?: "amber" | "green" | "teal" | "slate";
 }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-cyan-300/15 bg-[#06213d] px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <div className="flex flex-col gap-3 border-b border-cyan-300/15 portal-panel bg-portal-face px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div>
         <h2 className="font-bold text-white">{title}</h2>
         <p className="mt-1 text-sm text-slate-300">{description}</p>

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRight, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
@@ -50,46 +50,11 @@ export function LoginForm() {
   }
 
   return (
-    <main className="min-h-screen bg-[#020e20] text-white [background-image:linear-gradient(rgba(66,173,217,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(66,173,217,0.06)_1px,transparent_1px)] [background-size:32px_32px]">
-      <div className="mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="flex min-h-[46vh] flex-col justify-between px-6 py-8 sm:px-10 lg:min-h-screen lg:py-12">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-36 items-center justify-center rounded-lg bg-white px-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/ahlsell-logo.svg" alt="Ahlsell" className="w-full" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold tracking-normal">Scipx-koncept</p>
-              <p className="text-xs uppercase tracking-[0.18em] text-ink-300">
-                Platform
-              </p>
-            </div>
-          </div>
-
-          <div className="max-w-xl py-10">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-flow-100">
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              Säker åtkomst
-            </div>
-            <h1 className="text-4xl font-black leading-tight tracking-[-0.025em] text-white sm:text-5xl">
-              Från PDF till
-              <span className="block text-cyan-300">rätt Ahlsell-artikel</span>
-            </h1>
-            <p className="mt-5 max-w-lg text-base leading-7 text-ink-300">
-              Extrahera tekniska krav, registrera produkt och tillbehör och
-              återanvänd distributörens godkända val i kommande projekt.
-            </p>
-          </div>
-
-          <div className="grid gap-3 text-sm text-ink-400 sm:grid-cols-3">
-            <span>Kontrollerade arbetsflöden</span>
-            <span>Manuella produktval</span>
-            <span>Lärande historik</span>
-          </div>
-        </section>
-
-        <section className="flex items-center px-6 pb-10 sm:px-10 lg:py-12">
-          <div className="w-full rounded-lg border border-ink-200 bg-white p-6 text-ink-900 shadow-soft sm:p-8">
+    <main className="portal-login">
+      <div className="mx-auto w-full max-w-md">
+        <section className="w-full">
+          <div className="portal-login-window">
+            <div className="portal-window-title">Scipx · Ahlsell</div>
             <div className="mb-8">
               <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
                 Säker inloggning

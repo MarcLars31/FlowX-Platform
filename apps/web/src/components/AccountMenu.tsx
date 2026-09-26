@@ -92,11 +92,11 @@ export function AccountMenu({
     <div ref={menuRef} className="relative">
       <button
         type="button"
-        aria-label="Open account menu"
+        aria-label="Öppna kontomeny"
         aria-expanded={isOpen}
         aria-haspopup="menu"
         onClick={() => setIsOpen((open) => !open)}
-        className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400 text-sm font-black text-[#03162d] transition hover:bg-cyan-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200"
+        className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400 text-sm font-black text-[#141414] transition hover:bg-cyan-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200"
       >
         {initials}
       </button>
@@ -105,7 +105,7 @@ export function AccountMenu({
         <div
           role="menu"
           aria-label="Kontomeny"
-          className="absolute right-0 top-12 z-50 w-64 overflow-hidden rounded-lg border border-ink-200 bg-white shadow-xl"
+          className="absolute right-0 top-9 z-50 w-64 overflow-hidden rounded-lg border border-ink-200 bg-white shadow-xl"
         >
           <div className="border-b border-ink-100 px-4 py-3">
             <p className="truncate text-sm font-semibold text-ink-900">{userName}</p>

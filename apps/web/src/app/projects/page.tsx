@@ -36,7 +36,7 @@ export default async function ProjectsPage() {
         {canCreate && (
           <Link
             href="/projects/new"
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-base font-black text-[#03162d] transition hover:bg-cyan-300"
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-base font-black text-[#141414] transition hover:bg-cyan-300"
           >
             <Plus className="h-5 w-5" aria-hidden="true" />
             Ny teknisk analys

@@ -103,10 +103,10 @@ export default function CreateProjectPage() {
       </div>
 
       <form
-        className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-[0_16px_40px_rgba(2,17,38,0.08)]"
+        className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-none"
         onSubmit={createFromTechnicalDescription}
       >
-        <div className="flex flex-col gap-4 border-b border-cyan-300/15 bg-[#06213d] p-5 text-white sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex flex-col gap-4 border-b border-cyan-300/15 portal-panel bg-portal-face p-5 text-white sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex items-start gap-3">
             <span className="rounded-xl bg-cyan-300/10 p-3 text-cyan-300 ring-1 ring-cyan-200/20">
               <FileText className="h-6 w-6" aria-hidden="true" />
@@ -159,8 +159,8 @@ export default function CreateProjectPage() {
 
 function Step({ number, title, text }: { number: string; title: string; text: string }) {
   return (
-    <div className="rounded-xl border border-cyan-300/15 bg-[#06213d] p-4 text-white shadow-sm">
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cyan-400 text-xs font-black text-[#03162d]">{number}</span>
+    <div className="rounded-xl border border-cyan-300/15 portal-panel bg-portal-face p-4 text-white shadow-sm">
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cyan-400 text-xs font-black text-[#141414]">{number}</span>
       <h2 className="mt-3 text-sm font-bold text-white">{title}</h2>
       <p className="mt-1 text-xs leading-5 text-slate-300">{text}</p>
     </div>

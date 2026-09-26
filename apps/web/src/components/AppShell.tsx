@@ -1,4 +1,3 @@
-import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
 import type { OrganizationOption } from "@/types/organization";
@@ -23,15 +22,8 @@ export function AppShell({
   roleLabel?: string;
 }) {
   return (
-    <div className="min-h-screen bg-[#eaf1f6] [background-image:linear-gradient(rgba(20,94,126,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(20,94,126,0.045)_1px,transparent_1px)] [background-size:32px_32px]">
-      <div className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">
-        <Sidebar
-          navigation={navigation}
-          workspaceName={organizationName}
-          workspaceLabel={roleLabel}
-        />
-      </div>
-      <div className="lg:pl-64">
+    <div className="portal-workspace min-h-screen">
+      <div>
         <Topbar
           navigation={navigation}
           organizationName={organizationName}
@@ -41,7 +33,7 @@ export function AppShell({
           userEmail={userEmail}
           roleLabel={roleLabel}
         />
-        <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main>{children}</main>
       </div>
     </div>
   );

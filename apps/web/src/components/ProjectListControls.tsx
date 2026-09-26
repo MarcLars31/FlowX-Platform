@@ -123,7 +123,7 @@ export function ProjectListControls({
 
   return (
     <div>
-      <div className="border-b border-cyan-300/15 bg-[#06213d] p-4 sm:p-5">
+      <div className="border-b border-cyan-300/15 portal-panel bg-portal-face p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-white">Pågående projekt</h2>
@@ -195,7 +195,7 @@ export function ProjectListControls({
                 <p className="mt-1 text-sm font-semibold text-flow-800">Nästa steg: {stageLabel(project)}</p>
                 <p className="mt-1 text-xs text-ink-500">{project.project_number ? `Projektnr ${project.project_number} · ` : ""}Uppdaterat {new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium" }).format(new Date(project.updated_at))}</p>
               </div>
-              <Link href={projectHref(project)} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#06213d] px-5 text-base font-black text-white transition hover:bg-[#0a3156]">Öppna projektet<ArrowRight className="h-5 w-5" aria-hidden="true" /></Link>
+              <Link href={projectHref(project)} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl portal-panel bg-portal-face px-5 text-base font-black text-white transition hover:bg-portal-hover">Öppna projektet<ArrowRight className="h-5 w-5" aria-hidden="true" /></Link>
             </div>
           );
         })}

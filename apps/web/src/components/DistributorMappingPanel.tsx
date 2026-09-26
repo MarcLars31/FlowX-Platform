@@ -772,7 +772,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
 
   return (
     <section className="space-y-6">
-      <div className="rounded-2xl border border-cyan-300/20 bg-[#06213d] p-5 text-white shadow-[0_16px_35px_rgba(2,17,38,0.12)] sm:p-7">
+      <div className="rounded-2xl border border-cyan-300/20 portal-panel bg-portal-face p-4 text-ink-900 shadow-none">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-sm font-bold uppercase tracking-[0.08em] text-cyan-300">Steg 2 av 3 · Välj produkter</p>
@@ -797,7 +797,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       </div>
 
       {productRequirements.length > 0 && (
-        <section id="product-table" aria-labelledby="product-table-heading" className="-mx-4 scroll-mt-5 overflow-hidden border-y border-ink-200 bg-white shadow-sm sm:-mx-6 lg:-mx-8">
+        <section id="product-table" aria-labelledby="product-table-heading" className="scroll-mt-28 overflow-hidden border border-ink-200 bg-white">
           <div className="flex flex-col gap-2 border-b border-ink-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h3>

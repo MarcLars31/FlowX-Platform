@@ -71,11 +71,11 @@ export default async function DashboardPage() {
   );
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-6">
+    <div className="portal-dashboard mx-auto max-w-[1500px] space-y-6">
       <ScipxPageHeader
-        eyebrow="CRM-start"
-        title={`Öppna projekt i ${context.organization.name}`}
-        description="Få överblick över pågående kundprojekt, prioritera nästa steg och starta ett nytt projekt direkt härifrån."
+        eyebrow={context.organization.name}
+        title="Arbetsöversikt"
+        description="Pågående kundprojekt och nästa arbetsmoment."
         icon={<Handshake aria-hidden="true" />}
       >
         <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
@@ -91,7 +91,7 @@ export default async function DashboardPage() {
           {canCreateProject && (
             <Link
               href="/projects/new"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-sm font-black text-[#03162d] transition hover:bg-cyan-300"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-sm font-black text-[#141414] transition hover:bg-cyan-300"
             >
               <Plus className="h-5 w-5" aria-hidden="true" />
               Starta nytt projekt
@@ -101,7 +101,7 @@ export default async function DashboardPage() {
       </ScipxPageHeader>
 
       {canViewProjects && (
-        <section aria-label="CRM-översikt" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="CRM-översikt" className="portal-summary">
         <SummaryMetric
           label="Öppna projekt"
           value={formatNumber(openProjects.length)}
@@ -149,9 +149,9 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      <div className={canViewProjects ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]" : ""}>
-        <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-ink-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className={canViewProjects ? "portal-dashboard-grid" : ""}>
+        <section className="min-w-0 overflow-hidden border border-ink-200 bg-white">
+          <div className="portal-section-heading">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-black text-ink-950">Öppna projekt</h2>
@@ -183,7 +183,7 @@ export default async function DashboardPage() {
             />
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Projekttabell">
                 <table className="min-w-full text-left text-sm">
                   <thead className="border-b border-ink-200 bg-ink-50 text-xs font-bold uppercase tracking-[0.06em] text-ink-500">
                     <tr>
@@ -218,8 +218,8 @@ export default async function DashboardPage() {
 
         {canViewProjects && (
           <aside className="space-y-6">
-          <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
-            <div className="border-b border-cyan-300/15 bg-[#06213d] px-5 py-4 text-white">
+          <section className="min-w-0 overflow-hidden border border-ink-200 bg-white">
+            <div className="portal-section-heading">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-bold">Nästa att göra</h2>
                 <Badge tone={followUps.length > 0 ? "amber" : "green"}>
@@ -319,7 +319,7 @@ function OpenProjectRow({
         <Link
           href={projectWorkHref(project)}
           aria-label={`Öppna ${project.name}`}
-          className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-lg bg-[#06213d] px-3 text-sm font-bold text-white transition hover:bg-[#0a3156]"
+          className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-lg portal-panel bg-portal-face px-3 text-sm font-bold text-white transition hover:bg-portal-hover"
         >
           Fortsätt
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -329,14 +329,7 @@ function OpenProjectRow({
   );
 }
 
-function SummaryMetric({
-  label,
-  value,
-  detail,
-  icon,
-  tone,
-  href
-}: {
+function SummaryMetric({ label, value, detail, href }: {
   label: string;
   value: string;
   detail: string;
@@ -344,42 +337,16 @@ function SummaryMetric({
   tone: "green" | "cyan" | "blue" | "amber";
   href?: string;
 }) {
-  const tones = {
-    green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    cyan: "bg-cyan-50 text-cyan-700 ring-cyan-200",
-    blue: "bg-blue-50 text-blue-700 ring-blue-200",
-    amber: "bg-amber-50 text-amber-700 ring-amber-200"
-  };
-  const card = (
-    <article
-      className={`h-full rounded-2xl border border-ink-200 bg-white p-5 shadow-sm transition ${
-        href
-          ? "group-hover:-translate-y-0.5 group-hover:border-flow-300 group-hover:shadow-md"
-          : ""
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.09em] text-ink-500">{label}</p>
-          <p className="mt-3 text-3xl font-black tracking-[-0.035em] tabular-nums text-ink-950">{value}</p>
-        </div>
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${tones[tone]}`}>{icon}</span>
+  const content = (
+    <article className="portal-metric">
+      <span className="portal-metric-value">{value}</span>
+      <div>
+        <p className="portal-metric-label">{label}</p>
+        <p className="portal-metric-detail">{detail}</p>
       </div>
-      <p className="mt-2 text-sm leading-6 text-ink-500">{detail}</p>
     </article>
   );
-
-  if (!href) return card;
-
-  return (
-    <Link
-      href={href}
-      aria-label={`${label}: ${value}. Öppna och fortsätt.`}
-      className="group block rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
-    >
-      {card}
-    </Link>
-  );
+  return href ? <Link href={href} aria-label={`${label}: ${value}. Öppna och fortsätt.`}>{content}</Link> : <div>{content}</div>;
 }
 
 function EmptyProjects({
@@ -399,7 +366,7 @@ function EmptyProjects({
       {canCreateProject && (
         <Link
           href="/projects/new"
-          className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-400 px-4 text-sm font-black text-[#03162d] transition hover:bg-cyan-300"
+          className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-400 px-4 text-sm font-black text-[#141414] transition hover:bg-cyan-300"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Starta nytt projekt

@@ -53,7 +53,7 @@ export default async function SettingsPage() {
       </section>
 
       <section className="rounded-2xl border border-cyan-900/10 bg-white p-5 shadow-sm">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-ink-950"><ShieldCheck className="h-5 w-5 text-[#007aa8]" aria-hidden="true" />{"S\u00e4kerhet"}</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-ink-950"><ShieldCheck className="h-5 w-5 text-[#636363]" aria-hidden="true" />{"S\u00e4kerhet"}</h2>
         <p className="mt-2 text-sm leading-6 text-ink-600">
           {"Du kan logga ut fr\u00e5n kontomenyn uppe till h\u00f6ger. L\u00f6senords\u00e5terst\u00e4llning hanteras av Scipx-administrat\u00f6ren tills en sj\u00e4lvbetj\u00e4ningsfunktion har lagts till."}
         </p>

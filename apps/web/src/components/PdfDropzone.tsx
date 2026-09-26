@@ -77,10 +77,10 @@ export function PdfDropzone({
           "flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 text-center transition",
           compact ? "min-h-36 py-7" : "min-h-48 py-10",
           dragging
-            ? "scale-[1.01] border-[#0073b6] bg-[#0073b6]/10 shadow-md"
+            ? "scale-[1.01] border-[#5f5f5f] bg-[#5f5f5f]/10 shadow-md"
             : file
               ? "border-emerald-300 bg-emerald-50/70 hover:border-emerald-400"
-              : "border-cyan-300/70 bg-[#f2fbfd] hover:border-cyan-500 hover:bg-cyan-50",
+              : "border-cyan-300/70 bg-[#f9f9f9] hover:border-cyan-500 hover:bg-cyan-50",
           disabled ? "cursor-not-allowed opacity-60" : ""
         ].join(" ")}
       >
@@ -96,7 +96,7 @@ export function PdfDropzone({
         ) : (
           <>
             <Upload
-              className={dragging ? "h-9 w-9 text-[#005d91]" : "h-9 w-9 text-[#00649e]"}
+              className={dragging ? "h-9 w-9 text-[#4d4d4d]" : "h-9 w-9 text-[#535353]"}
               aria-hidden="true"
             />
             <span className="mt-3 font-semibold text-ink-950">

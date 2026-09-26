@@ -61,7 +61,7 @@ export default async function ProjectHistoryPage() {
       >
         <Link
           href="/projects"
-          className="inline-flex min-h-11 items-center justify-center rounded-lg bg-cyan-400 px-4 text-sm font-black text-[#03162d] transition hover:bg-cyan-300"
+          className="inline-flex min-h-11 items-center justify-center rounded-lg bg-cyan-400 px-4 text-sm font-black text-[#141414] transition hover:bg-cyan-300"
         >
           Öppna projekt
         </Link>
@@ -83,7 +83,7 @@ export default async function ProjectHistoryPage() {
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-cyan-900/10 bg-white shadow-sm">
-        <div className="border-b border-cyan-300/15 bg-[#06213d] px-5 py-4 text-white sm:px-6">
+        <div className="border-b border-cyan-300/15 portal-panel bg-portal-face px-5 py-4 text-white sm:px-6">
           <h2 className="font-bold text-white">Tidslinje</h2>
           <p className="mt-1 text-sm text-slate-300">Nyaste händelsen visas först.</p>
         </div>
