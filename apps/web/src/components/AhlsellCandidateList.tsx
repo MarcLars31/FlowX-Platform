@@ -52,9 +52,16 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             ) : candidate.learningEvidence ? (
               <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Tidigare bekräftad för liknande krav · kontroll krävs</p>
             ) : state === "review" ? (
-              <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Underlaget behöver kontrolleras</p>
+              <details className="group/review mt-1">
+                <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1.5 text-xs font-bold text-neutral-900 underline underline-offset-2">
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Underlaget behöver kontrolleras
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/review:rotate-180" aria-hidden="true" />
+                </summary>
+                <AhlsellCandidateWarnings candidate={candidate} />
+              </details>
             ) : null}
-            <AhlsellCandidateWarnings candidate={candidate} />
+            {(state !== "review" || candidate.learningEvidence) && <AhlsellCandidateWarnings candidate={candidate} />}
             <AhlsellTechnicalEvidence candidate={candidate} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
