@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/Button";
 import { DemoBadge } from "@/components/DemoBadge";
 import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
+import { PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
 import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterialListPdfExportButton";
@@ -88,6 +89,7 @@ export function ProjectWorkspace({
   const router = useRouter();
   const [data, setData] = useState(initialData);
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [requirementView, setRequirementView] = useState<ProjectRequirementView>("products");
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -434,11 +436,21 @@ export function ProjectWorkspace({
         </div>
       )}
 
-      <nav aria-label="Projektvyer" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
-        <ProjectTab label="Dokument" active={tab === "documents"} onClick={() => selectTab("documents")} />
-        <ProjectTab label="Produkter" active={tab === "products"} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
-        <ProjectTab label="Resultat" active={tab === "overview"} disabled={!workflow.isComplete} onClick={() => selectTab("overview")} />
-      </nav>
+      {tab === "products" ? (
+        <nav aria-label="Posttyper" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
+          {PROJECT_REQUIREMENT_VIEWS.map(view => (
+            <Button key={view.id} type="button" variant={requirementView === view.id ? "primary" : "secondary"}
+              aria-pressed={requirementView === view.id} aria-controls="project-requirement-table"
+              onClick={() => setRequirementView(view.id)}>{view.label}</Button>
+          ))}
+        </nav>
+      ) : (
+        <nav aria-label="Projektvyer" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
+          <ProjectTab label="Dokument" active={tab === "documents"} onClick={() => selectTab("documents")} />
+          <ProjectTab label="Produkter" active={false} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
+          <ProjectTab label="Resultat" active={tab === "overview"} disabled={!workflow.isComplete} onClick={() => selectTab("overview")} />
+        </nav>
+      )}
 
       {(message || error) && (
         <div role="status" aria-live="polite" className={error ? "rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-800" : "rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800"}>
@@ -638,6 +650,7 @@ export function ProjectWorkspace({
       {tab === "products" && (
         <div className="space-y-5">
           <DistributorMappingPanel
+            view={requirementView}
             projectId={data.project.id}
             currency={data.project.currency ?? "NOK"}
             requirements={data.requirements}

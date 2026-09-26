@@ -27,9 +27,23 @@ export function distributorRequirementKind(
 ): "product" | "remove" | "work" {
   if (distributorRequirementOperation(requirement) === "remove") return "remove";
   const value = record(requirement.value_json);
-  if (/^(?:rs|rund sum)$/i.test(String(value.unit ?? "").trim())) return "work";
+  if (isDistributorLumpSumRequirement(requirement)) return "work";
   const heading = normalize(String(requirement.display_name ?? requirement.value_text ?? ""));
   if (/^(?:forberedende moter|byggemoter|byggemote|prosjekteringsmoter)\b/.test(heading)) return "work";
+
+  const ownWorkText = heading || normalize(flattenText(value.sourceText ?? requirement.source_excerpt));
+  if (/\b(?:oppfylling med arbeidsmedium|tetthetsproving|trykkproving|sluttdokumentasjon|kvalitetssikrende tiltak|hulltaking|utsparing|trykktesting av romintegritet|romintegritetstest|maling etter gjennomforing|groft(?:ekasser)?|gravearbeid|uttak og utlegging av losmasser|tilbakefylling|kryssing|langsforing)\b/.test(ownWorkText)) {
+    return "work";
+  }
+  return "product";
+}
+
+export function isDistributorLumpSumRequirement(requirement: DistributorRequirementRow) {
+  const value = record(requirement.value_json);
+  const unit = String(value.unit ?? "").trim();
+  if (/^(?:rs|rund sum)$/i.test(unit)) return true;
+  // A measured child retains its own unit even when the parent is priced RS.
+  if (unit) return false;
   const searchable = normalize([
     requirement.category,
     requirement.requirement_key,
@@ -40,14 +54,7 @@ export function distributorRequirementKind(
     value.technicalSpecification
   ].map(flattenText).join(" "));
 
-  const ownWorkText = heading || normalize(flattenText(value.sourceText ?? requirement.source_excerpt));
-  if (/\b(?:oppfylling med arbeidsmedium|tetthetsproving|trykkproving|sluttdokumentasjon|kvalitetssikrende tiltak|hulltaking|utsparing|trykktesting av romintegritet|romintegritetstest|maling etter gjennomforing|groft(?:ekasser)?|gravearbeid|uttak og utlegging av losmasser|tilbakefylling|kryssing|langsforing)\b/.test(ownWorkText)) {
-    return "work";
-  }
-  // A measured child retains its own unit even when the parent is priced RS.
-  if (!String(value.unit ?? "").trim()
-    && /\bkomplett\b/.test(searchable) && /\brund sum\b/.test(searchable)) return "work";
-  return "product";
+  return /\bkomplett\b/.test(searchable) && /\brund sum\b/.test(searchable);
 }
 
 export function distributorRequirementOperation(
