@@ -1583,13 +1583,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             ) : (
               <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-300 bg-neutral-50 px-2.5 py-1 text-xs font-bold text-neutral-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Inte godkänd</span>
             )}
-            {sourcePdfHref && (
-              <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-bold text-neutral-800 transition hover:border-neutral-500 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
-                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-
-                Öppna PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
-              </a>
-            )}
           </div>
 
           {dataWarnings.length > 0 && (isApproved ? (
@@ -1655,6 +1648,16 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
               <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
             </Button>
+            {sourcePdfHref && (
+              <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
+                <FileText className="h-4 w-4" aria-hidden="true" />
+
+                Öppna PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
+              </a>
+            )}
+            <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells hemsida
+            </a>
           </nav>
         </div>
 
