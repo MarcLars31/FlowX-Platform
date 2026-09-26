@@ -1731,7 +1731,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h5 id={`accessory-step-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-neutral-950"><PackagePlus className="h-5 w-5" aria-hidden="true" />{accessoryStepOpen ? "3. Välj tillbehör" : `Dina tillbehör (${selectedProductAccessories.length})`}</h5>
-          <p className="mt-1 text-sm text-neutral-700">{accessoryStepOpen ? "Välj tillbehör nedan. Tryck på Klar med tillbehör när dina val är färdiga." : "Huvudprodukten och tillbehören sparas tillsammans när du godkänner."}</p>
+          {!accessoryStepOpen && <p className="mt-1 text-sm text-neutral-700">Huvudprodukten och tillbehören sparas tillsammans när du godkänner.</p>}
         </div>
         {!accessoryStepOpen && <Button neutral type="button" variant="secondary" onClick={editAccessories}>Ändra tillbehör</Button>}
       </div>

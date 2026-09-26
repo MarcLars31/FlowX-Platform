@@ -73,11 +73,7 @@ export function AccessoryProductPicker({ projectId, requirementId, mainArticleNu
     result?.products ?? (query === automaticQuery ? initial : []));
   const id = `ahlsell-accessory-lookup-${requirementId}`;
   return <div id={`accessory-lookup-card-${requirementId}`}>
-    <div className="flex flex-wrap items-center justify-between gap-2 py-3">
-      <div>
-        <h6 className="text-sm font-bold text-neutral-950">Tillbehör från MLDL och Ahlsell</h6>
-        <p className="mt-1 text-xs text-neutral-600">{products.length} träffar · välj med kryssrutan och ange sedan antal.</p>
-      </div>
+    <div className="flex flex-wrap items-center justify-end gap-2 py-3">
       <Button neutral type="button" variant="secondary" disabled={disabled} onClick={() => setSearchOpen(value => !value)} aria-expanded={searchOpen} aria-controls={`${id}-search`}>
         <Search className="h-4 w-4" aria-hidden="true" />Sök tillbehör
       </Button>
