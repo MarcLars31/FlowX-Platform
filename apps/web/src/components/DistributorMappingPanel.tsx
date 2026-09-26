@@ -1573,7 +1573,20 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       )}
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-neutral-200 bg-neutral-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="px-4 py-4 sm:px-6 sm:py-5">
-          <h3 id={`pdf-specification-${requirement.id}`} className="text-xl font-bold text-neutral-950">PDF-post {details.postNumber ?? "saknas"}</h3>
+          <h3 id={`pdf-specification-${requirement.id}`} className="text-xl font-bold text-neutral-950">
+            {sourcePdfHref ? (
+              <a
+                href={sourcePdfHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
+                className="inline-flex items-center gap-2 underline decoration-neutral-400 underline-offset-4 hover:decoration-neutral-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600"
+              >
+                PDF-post {details.postNumber ?? "saknas"}
+                <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </a>
+            ) : <>PDF-post {details.postNumber ?? "saknas"}</>}
+          </h3>
 
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
