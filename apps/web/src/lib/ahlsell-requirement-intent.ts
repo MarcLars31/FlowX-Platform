@@ -1,3 +1,4 @@
+import { normalizeQuantityUnit } from "./quantity-value";
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { immediateParentHeading, mainProductText } from "./ahlsell-requirement-context";
@@ -13,6 +14,7 @@ export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "mano
 /** The row's product and attributes govern retrieval, before included parts. */
 export function ahlsellRequirementIntent(requirement: Record<string, unknown>): AhlsellProductIntent {
   const value = record(requirement.value_json);
+  const unit = normalizeQuantityUnit(value.unit);
   const attributes = record(value.attributes);
   const description = String(requirement.value_text ?? requirement.display_name ?? "");
   const source = normalize(`${mainProductText(description)} ${Object.entries(attributes)
@@ -37,15 +39,15 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   const explicitFitting = !isCompletePipeLengthDescription(description)
     && (/\b(?:bend|albue|tee|t stykke|reduksjon|endelokk|kupling)\b/.test(mainProductText(description))
       || Object.keys(attributes).some(key => normalize(key) === "rordel"));
-  if (dimensionOnly && value.unit === "m" && codeFamily !== "sprinkler_hose" && !explicitFitting) return "pipe";
+  if (dimensionOnly && unit === "m" && codeFamily !== "sprinkler_hose" && !explicitFitting) return "pipe";
   const mainHeading = dimensionOnly ? normalize(immediateParentHeading(requirement)) : mainProductText(description);
   if (/^(?:(?:innendors|utendors|komplett|nye)\s+)*(?:vannledning|stalror|sprinklerror|rorledning|ror)\b/.test(mainHeading)
-    && !explicitFitting && !/\brordel\b/.test(mainHeading) && (value.unit === "m" || /\b(?:vannledning|rorledning)\b/.test(mainHeading)) && codeFamily !== "sprinkler_hose") return "pipe";
+    && !explicitFitting && !/\brordel\b/.test(mainHeading) && (unit === "m" || /\b(?:vannledning|rorledning)\b/.test(mainHeading)) && codeFamily !== "sprinkler_hose") return "pipe";
 
   // A quantified pipe assembly includes fittings; they are not its main item.
   if (isCompletePipeLengthDescription(description)
-    && (value.unit === "m" || ns3420ProductFamily(value.nsCode, description) === "pipe")) return "pipe";
-  if (codeFamily === "pipe" && value.unit === "m") return "pipe";
+    && (unit === "m" || ns3420ProductFamily(value.nsCode, description) === "pipe")) return "pipe";
+  if (codeFamily === "pipe" && unit === "m") return "pipe";
   if (/^sprinkler(?:\s+antall\b.*)?$/.test(primaryDescription)) return "sprinkler_head";
   // A child alarm device must not inherit its parent's alarm-valve product type.
   if (/^(?:alarmgiver|alarmapparat|alarmkit)\b/.test(normalize(description))) return "alarm_device";
@@ -96,7 +98,7 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   if (has(/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/)) return "custom_fabrication";
   if (category === "sprinkler_head" || has(/\bsprinkler head\b|\bk faktor\b|\butlosningstemperatur\b/)) return "sprinkler_head";
   if (codeFamily) return codeFamily;
-  if (category === "pipe" || (value.unit === "m" && !has(/\b(oppheng|isolasjon|kanal|kabel|groft)\b/))) return "pipe";
+  if (category === "pipe" || (unit === "m" && !has(/\b(oppheng|isolasjon|kanal|kabel|groft)\b/))) return "pipe";
   if (category === "support" || has(/\b(oppheng|rorstotte|support|rorbarer|klammer)\b/)) return "support";
   if (category === "fitting") return "coupling";
   return "generic";

@@ -1,3 +1,4 @@
+import { parseQuantityNumber } from "./quantity-value";
 import { isDistributorLumpSumRequirement, type DistributorRequirementRow } from "./distributor-requirement-lines";
 
 export const PROJECT_REQUIREMENT_VIEWS = [
@@ -18,9 +19,8 @@ export function groupProjectRequirementViews<Row extends DistributorRequirementR
       continue;
     }
     const value = requirement.value_json as { quantity?: unknown } | null;
-    const quantity = value?.quantity;
-    const hasQuantity = (typeof quantity === "number" || (typeof quantity === "string" && quantity.trim() !== ""))
-      && Number.isFinite(Number(quantity)) && Number(quantity) >= 0;
+    const quantity = parseQuantityNumber(value?.quantity);
+    const hasQuantity = quantity !== null && quantity >= 0;
     groups[hasQuantity ? "products" : "removal"].push(requirement);
   }
   return groups;

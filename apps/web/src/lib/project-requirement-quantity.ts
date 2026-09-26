@@ -1,3 +1,5 @@
+import { normalizeQuantityUnit, parseQuantityNumber } from "./quantity-value";
+
 export type ProjectRequirementQuantity = {
   quantity: number | null;
   unit: string;
@@ -7,13 +9,9 @@ export function projectRequirementQuantity(
   valueJson: unknown
 ): ProjectRequirementQuantity {
   const value = record(valueJson);
-  const parsed = typeof value.quantity === "number"
-    ? value.quantity
-    : Number(value.quantity);
-  const quantity = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  const unit = typeof value.unit === "string" && value.unit.trim()
-    ? value.unit.trim().slice(0, 30)
-    : "st";
+  const parsed = parseQuantityNumber(value.quantity);
+  const quantity = parsed !== null && parsed >= 0 ? parsed : null;
+  const unit = normalizeQuantityUnit(value.unit) || "?";
 
   return { quantity, unit };
 }

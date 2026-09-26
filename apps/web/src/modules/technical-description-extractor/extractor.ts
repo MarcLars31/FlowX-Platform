@@ -1,3 +1,4 @@
+import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import type {
   TechnicalDescriptionCategory,
   TechnicalDescriptionExtractionResult,
@@ -20,8 +21,8 @@ type ExtractOptions = {
 };
 
 const ITEM_CODE_PATTERN =
-  /^\s*(?:(\d{2}\.\d{3}(?:\.\d+)?)\s*[|:]?\s*)?([A-ZÆØÅ]{2}\d[\w.-]*)\b/i;
-const POST_NUMBER_PATTERN = /^\s*(\d{2}\.\d{3}(?:\.\d+)?)/;
+  /^\s*(?:(\d{2}\.\d{3}(?:\.\d+)*)\s*[|:]?\s*)?([A-ZÆØÅ]{2}\d[\w.-]*)\b/i;
+const POST_NUMBER_PATTERN = /^\s*(\d{2}\.\d{3}(?:\.\d+)*)/;
 const NS_CODE_PATTERN = /\b([A-ZÆØÅ]{2}\d[\w.-]*)\b/i;
 const STANDARD_PATTERN =
   /\b((?:NS(?:[-\s]?EN)?|NFPA)\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
@@ -31,7 +32,7 @@ const NS3420_CODE_PATTERN =
 const QUANTITY_UNIT_SOURCE = String.raw`(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|liter|l)`;
 const QUANTITY_NUMBER_SOURCE = String.raw`(?:\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)`;
 const TABLE_QUANTITY_PATTERN = new RegExp(
-  String.raw`^(?:(?:Antall|Lengde)\s+)?(${QUANTITY_UNIT_SOURCE})\.?\s+(${QUANTITY_NUMBER_SOURCE})(?=\s|$)`,
+  String.raw`^(?:(?:(?:Samlet\s+)?Lengde|Antall|Areal|Volum|Vekt|Masse)\s+)?(${QUANTITY_UNIT_SOURCE})\.?\s+(${QUANTITY_NUMBER_SOURCE})(?=\s|$)`,
   "i"
 );
 const INLINE_TABLE_QUANTITY_PATTERN = new RegExp(
@@ -363,7 +364,7 @@ function extractLegacyMaterialLines(
   const lines: TechnicalDescriptionMaterialLine[] = [];
   let previousPostNumber: string | undefined;
   const knownPostNumbers = pages.flatMap((page) =>
-    [...page.text.matchAll(/\b\d{2}\.\d{3}(?:\.\d+)?\b/g)].map(
+    [...page.text.matchAll(/\b\d{2}\.\d{3}(?:\.\d+)*\b/g)].map(
       (match) => match[0]
     )
   );
@@ -379,6 +380,12 @@ function extractLegacyMaterialLines(
 
     const flush = () => {
       if (!current) return;
+      const measured = findTableQuantity(normalizedPageLines(current.lines.join("\n")));
+      if (measured) {
+        current.quantity = measured.quantity;
+        current.quantityText = measured.text;
+        current.unit = measured.unit;
+      }
       const line = buildMaterialLine(current, page);
       if (line) lines.push(line);
       current = undefined;
@@ -443,13 +450,6 @@ function extractLegacyMaterialLines(
       if (attributeMatch && isKnownAttribute(attributeMatch[1])) {
         const key = normalizeAttributeKey(attributeMatch[1]);
         current.attributes[key] = normalizeAttributeValue(key, attributeMatch[2]);
-      }
-
-      const quantity = parseQuantityLine(rawLine);
-      if (quantity) {
-        current.quantity = quantity.quantity;
-        current.quantityText = quantity.text;
-        current.unit = quantity.unit;
       }
 
       current.standardRefs.push(
@@ -1295,6 +1295,7 @@ function normalizeOcrArtifacts(value: string) {
     .replace(/^((?:[A-Z]\d*\.)?\d+(?:\.\d+)+)\s*\]/i, "$1 | ")
     .replace(/\bDNB(\d{2,3})\b/gi, "DN$1")
     .replace(/\bDNS0\b/gi, "DN50")
+    .replace(/\bDN[ASG](25|32|40|50|65|80|100|125|150|200)\b/gi, "DN$1")
     .replace(/\bDN6S5\b/gi, "DN65");
 }
 
@@ -1315,7 +1316,19 @@ function isTableFooter(value: string) {
 
 function findTableQuantity(lines: string[]) {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    const line = lines[lineIndex];
+    let line = lines[lineIndex];
+    // PDF text streams can place a row's label, unit and amount on separate
+    // consecutive lines. Join only a complete quantity, never the next post.
+    const label = String.raw`(?:(?:Samlet\s+)?Lengde|Antall|Areal|Volum|Vekt|Masse)`;
+    if (new RegExp(String.raw`^(?:${label}(?:\s+${QUANTITY_UNIT_SOURCE})?|${QUANTITY_UNIT_SOURCE})\.?$`, "i").test(line)) {
+      for (let count = 2; count <= 3; count++) {
+        const candidate = lines.slice(lineIndex, lineIndex + count).join(" ");
+        if (new RegExp(String.raw`^(?:${label}\s+)?${QUANTITY_UNIT_SOURCE}\.?\s+${QUANTITY_NUMBER_SOURCE}(?:\s+${QUANTITY_NUMBER_SOURCE}){0,3}$`, "i").test(candidate)) {
+          line = candidate;
+          break;
+        }
+      }
+    }
     const anchoredMatch = line.match(TABLE_QUANTITY_PATTERN);
     const inlineMatch = anchoredMatch ? undefined : line.match(INLINE_TABLE_QUANTITY_PATTERN);
     const wrappedDescriptionMatch = anchoredMatch || inlineMatch
@@ -1677,62 +1690,12 @@ function categoryLabel(category: TechnicalDescriptionCategory) {
   }[category];
 }
 
-function parseQuantityLine(value: string) {
-  const match = value.match(
-    new RegExp(
-      String.raw`^\s*Antall\s+(${QUANTITY_UNIT_SOURCE})\.?\s+(\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)`,
-      "i"
-    )
-  );
-  if (!match) return undefined;
-  return parseQuantity(match[2] + " " + match[1]);
-}
-
-function parseQuantity(value: string) {
-  const match = value.match(
-    new RegExp(
-      String.raw`(\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)\s*(${QUANTITY_UNIT_SOURCE})`,
-      "i"
-    )
-  );
-  if (!match) return undefined;
-
-  const quantity = parseLocalizedNumber(match[1]);
-  if (quantity === undefined) return undefined;
-
-  return {
-    quantity,
-    text: match[0].trim(),
-    unit: normalizeUnit(match[2])
-  };
-}
-
 function normalizeUnit(value: string) {
-  const normalized = value.toLocaleLowerCase();
-  if (["stk", "st", "pc", "pcs"].includes(normalized)) return "st";
-  if (["m", "lm", "im", "1m", "meter", "løpemeter"].includes(normalized)) return "m";
-  if (normalized === "m2" || normalized === "m²") return "m2";
-  if (normalized === "m3" || normalized === "m³") return "m3";
-  if (normalized === "liter") return "l";
-  return normalized;
+  return normalizeQuantityUnit(value);
 }
 
 function parseLocalizedNumber(value: string) {
-  const compact = value.replace(/\s/g, "");
-  const lastComma = compact.lastIndexOf(",");
-  const lastDot = compact.lastIndexOf(".");
-  let normalized = compact;
-
-  if (lastComma >= 0 && lastDot >= 0) {
-    normalized = lastComma > lastDot
-      ? compact.replaceAll(".", "").replace(",", ".")
-      : compact.replaceAll(",", "");
-  } else if (lastComma >= 0) {
-    normalized = compact.replace(",", ".");
-  }
-
-  const quantity = Number.parseFloat(normalized);
-  return Number.isFinite(quantity) ? quantity : undefined;
+  return parseQuantityNumber(value) ?? undefined;
 }
 
 function isKnownAttribute(value: string) {

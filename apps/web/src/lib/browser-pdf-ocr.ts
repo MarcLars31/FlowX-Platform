@@ -6,6 +6,7 @@ import {
   layoutTextFromOcrBlocks,
   shouldPreferOcrLayoutText
 } from "@/modules/technical-description-extractor/pdf-layout";
+import { mergeQuantityOcrReadings, parseQuantityOcrText, quantityOcrRegions, removeQuantityCellRules } from "./pdf-quantity-ocr";
 import type { ClientOcrPage } from "./technical-description-ocr-payload";
 import type { PDFPageProxy } from "pdfjs-dist";
 import type { Worker } from "tesseract.js";
@@ -108,6 +109,8 @@ export async function extractPdfPagesWithBrowserOcr(
           { text: true, blocks: true }
         );
         let text = preferredOcrText(result.data.text, result.data.blocks);
+        let resultWidth = canvas.width;
+        let resultHeight = canvas.height;
 
         if (needsHigherResolutionOcr(text)) {
           canvas.width = 0;
@@ -126,6 +129,8 @@ export async function extractPdfPagesWithBrowserOcr(
           );
           if (isBetterOcrText(retryText, text)) {
             result = retryResult;
+            resultWidth = canvas.width;
+            resultHeight = canvas.height;
             text = retryText;
           }
         }
@@ -139,8 +144,40 @@ export async function extractPdfPagesWithBrowserOcr(
           const recoveredText = preferredOcrText(recovered.data.text, recovered.data.blocks);
           if (isBetterOcrText(recoveredText, text)) {
             result = recovered;
+            resultWidth = canvas.width;
+            resultHeight = canvas.height;
             text = recoveredText;
           }
+        }
+
+        // Isolated m/st and small quantities are easy to lose in full-page OCR.
+        // Re-read just these table cells and keep the rest of the source intact.
+        const readings: Array<{ region: ReturnType<typeof quantityOcrRegions>[number]; text: string }> = [];
+        for (const region of quantityOcrRegions(result.data.blocks, resultWidth, resultHeight)) {
+          const scaleX = canvas.width / resultWidth, scaleY = canvas.height / resultHeight;
+          const crop = documentCreateCanvas(region.width * scaleX + 20, region.height * scaleY + 20);
+          try {
+            const context = crop.getContext("2d");
+            if (!context) continue;
+            context.fillStyle = "white";
+            context.fillRect(0, 0, crop.width, crop.height);
+            context.drawImage(canvas, region.left * scaleX, region.top * scaleY,
+              region.width * scaleX, region.height * scaleY, 10, 10, region.width * scaleX, region.height * scaleY);
+            const pixels = context.getImageData(0, 0, crop.width, crop.height);
+            removeQuantityCellRules(pixels.data, crop.width, crop.height);
+            context.putImageData(pixels, 0, 0);
+            await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE });
+            const cell = (await worker.recognize(crop)).data;
+            const quantity = parseQuantityOcrText(cell.text);
+            if (quantity && cell.confidence >= 75) readings.push({ region, text: quantity });
+          } finally {
+            crop.width = 0;
+            crop.height = 0;
+          }
+        }
+        if (readings.length) {
+          const recoveredText = layoutTextFromOcrBlocks(mergeQuantityOcrReadings(result.data.blocks, readings));
+          if (isBetterOcrText(recoveredText, text)) text = recoveredText;
         }
 
         extractedPages.push({
@@ -215,4 +252,11 @@ function needsHigherResolutionOcr(text: string) {
 function normalizeOcrConfidence(confidence: number | undefined) {
   const safeConfidence = typeof confidence === "number" ? confidence : 72;
   return Math.min(Math.max(safeConfidence / 100, 0.45), 0.96);
+}
+
+function documentCreateCanvas(width: number, height: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(width);
+  canvas.height = Math.ceil(height);
+  return canvas;
 }
