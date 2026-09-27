@@ -2,7 +2,7 @@
 
 
 
-import { Fragment, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { Fragment, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ComponentProps, type DragEvent as ReactDragEvent } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
@@ -127,7 +127,7 @@ const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefi
 
 const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
-export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments }: {
+export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onRequirementSaved, onGoToDocuments }: {
   projectId: string;
   currency?: string;
   requirements: Row[];
@@ -135,6 +135,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   memories: Row[];
   sourcePdfLookup: ProjectSourcePdfLookup;
   onReload: () => Promise<unknown>;
+  onRequirementSaved?: (requirementId: string) => Promise<void>;
   onGoToDocuments: () => void;
 }) {
   const memories = useMemo(() => allMemories.filter(memory =>
@@ -203,6 +204,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     return grouped;
   }, [memories]);
   const staticallySafeRequirementIds = useMemo(() => new Set(productRequirements.flatMap((requirement) => {
+    if (requirement.overview) return handledRequirementIds.has(requirement.id) ? [requirement.id] : [];
     const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
     const safe = handledRequirementIds.has(requirement.id)
       || (!hasProjectRequirementDataWarning(requirement) && (
@@ -212,7 +214,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     return safe ? [requirement.id] : [];
   })), [handledRequirementIds, memoryFingerprints, productRequirements]);
   const catalogRevisions = useMemo(() => Object.fromEntries(requirements.map(requirement => [
-    requirement.id, JSON.stringify([projectId, requirement.category, requirement.value_text, requirement.value_json, requirement.source_excerpt])
+    requirement.id, requirement.overview ? `${projectId}:${requirement.updated_at}` : JSON.stringify([projectId, requirement.category, requirement.value_text, requirement.value_json, requirement.source_excerpt])
   ])), [requirements, projectId]);
   const [catalogAssessments, setCatalogAssessments] = useState<Record<string, AhlsellCatalogAssessment>>({});
   const catalogStatuses = useMemo(() => Object.fromEntries(Object.entries(catalogAssessments)
@@ -300,6 +302,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const bulkApprovalSelectionByRequirementId = useMemo(() => {
     const selections = new Map<string, BulkProductApprovalSelection>();
     for (const requirement of productRequirements) {
+      if (requirement.overview) continue;
       if (groupByRequirementId.get(requirement.id) !== "green") continue;
       const fingerprint = typeof requirement.mapping_fingerprint === "string"
         ? requirement.mapping_fingerprint
@@ -780,7 +783,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                     )}
                   </nav>
                   <div id="product-card-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-0 lg:overflow-hidden">
-                    <RequirementProductMappingCard
+                    <LazyRequirementProductMappingCard
                       key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
                       projectId={projectId}
                       currency={currency}
@@ -798,7 +801,12 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                         setProductCardDirty(false);
                         setError(null);
                         setMessage(successMessage);
-                        await onReload();
+                        try {
+                          if (onRequirementSaved) await onRequirementSaved(requirement.id);
+                          else await onReload();
+                        } catch (refreshError) {
+                          setError(refreshError instanceof Error ? refreshError.message : "Valet är sparat men översikten kunde inte uppdateras. Ladda om sidan.");
+                        }
                         productCardHistory.current?.close();
                         if (productDialogRef.current?.open) productDialogRef.current.close();
                         setActiveRequirementId(null);
@@ -817,6 +825,39 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       )}
     </section>
   );
+}
+
+function LazyRequirementProductMappingCard(props: ComponentProps<typeof RequirementProductMappingCard>) {
+  const [detail, setDetail] = useState<{ requirement: Row; assignments: Row[]; mappingMemories: Row[] } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const needsDetails = Boolean(props.requirement.overview);
+  useEffect(() => {
+    if (!needsDetails) return;
+    const controller = new AbortController();
+    void fetch(`/api/projects/${props.projectId}/requirements/${props.requirement.id}`, {
+      cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)])
+    }).then(async response => {
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "Produktposten kunde inte laddas.");
+      if (!payload.requirement || !Array.isArray(payload.assignments) || !Array.isArray(payload.mappingMemories)) throw new Error("Produktpostens svar var ofullständigt.");
+      if (!controller.signal.aborted) setDetail(payload);
+    }).catch(error => {
+      if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Produktposten kunde inte laddas.");
+    });
+    return () => controller.abort();
+  }, [attempt, needsDetails, props.projectId, props.requirement.id]);
+  if (!needsDetails) return <RequirementProductMappingCard {...props} />;
+  if (detail) return <RequirementProductMappingCard {...props} requirement={detail.requirement}
+    assignment={detail.assignments.find(isUserApprovedProductAssignment)} memories={detail.mappingMemories.filter(memory =>
+      ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes))} />;
+  return <div className="space-y-4 p-6" aria-live="polite">
+    <p role={loadError ? "alert" : "status"}>{loadError ?? "Laddar produktpostens krav och produktval…"}</p>
+    <div className="flex gap-3">
+      {loadError && <Button variant="secondary" onClick={() => { setLoadError(null); setAttempt(value => value + 1); }}>Försök igen</Button>}
+      <Button variant="secondary" onClick={props.onClose}>Stäng kortet</Button>
+    </div>
+  </div>;
 }
 
 function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, memories, headerActions, onClose, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {

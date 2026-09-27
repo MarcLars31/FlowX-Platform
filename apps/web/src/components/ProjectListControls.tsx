@@ -195,7 +195,7 @@ export function ProjectListControls({
                 <p className="mt-1 text-sm font-semibold text-flow-800">Nästa steg: {stageLabel(project)}</p>
                 <p className="mt-1 text-xs text-ink-500">{project.project_number ? `Projektnr ${project.project_number} · ` : ""}Uppdaterat {new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium" }).format(new Date(project.updated_at))}</p>
               </div>
-              <Link href={projectHref(project)} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl portal-panel bg-portal-face px-5 text-base font-black text-white transition hover:bg-portal-hover">Öppna projektet<ArrowRight className="h-5 w-5" aria-hidden="true" /></Link>
+              <Link prefetch={false} href={projectHref(project)} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl portal-panel bg-portal-face px-5 text-base font-black text-white transition hover:bg-portal-hover">Öppna projektet<ArrowRight className="h-5 w-5" aria-hidden="true" /></Link>
             </div>
           );
         })}

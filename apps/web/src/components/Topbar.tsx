@@ -19,7 +19,7 @@ export function Topbar({
   return (
     <header className="portal-topbar">
       <div className="portal-brandbar">
-        <Link href={navigation?.[0]?.href ?? "/admin"} className="portal-brand" aria-label="Scipx startsida">
+        <Link prefetch={false} href={navigation?.[0]?.href ?? "/admin"} className="portal-brand" aria-label="Scipx startsida">
           <strong>scipx</strong><span>Ahlsell</span>
         </Link>
         <div className="portal-account">

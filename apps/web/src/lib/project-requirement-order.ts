@@ -8,8 +8,8 @@ export function sortProjectRequirementsBySource<
       if (pageDifference !== 0) return pageDifference;
 
       const postDifference = comparePostNumbers(
-        postNumber(left.requirement),
-        postNumber(right.requirement)
+        projectRequirementOrderPostNumber(left.requirement),
+        projectRequirementOrderPostNumber(right.requirement)
       );
       if (postDifference !== 0) return postDifference;
       return left.extractionIndex - right.extractionIndex;
@@ -40,7 +40,9 @@ function sourcePage(requirement: Record<string, unknown>) {
   return Number.isFinite(value) && value > 0 ? value : Number.MAX_SAFE_INTEGER;
 }
 
-function postNumber(requirement: Record<string, unknown>) {
+export function projectRequirementOrderPostNumber(requirement: Record<string, unknown>) {
+  const overview = record(requirement.overview);
+  if ("sortPostNumber" in overview) return typeof overview.sortPostNumber === "string" ? overview.sortPostNumber : null;
   const value = record(requirement.value_json).postNumber;
   if (typeof value === "string" && value.trim()) return value.trim();
   const source = typeof requirement.source_excerpt === "string"

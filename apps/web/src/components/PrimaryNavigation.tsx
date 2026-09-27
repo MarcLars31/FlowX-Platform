@@ -27,7 +27,7 @@ export function PrimaryNavigation({ navigation }: { navigation?: readonly Organi
         const path = item.href.split("#")[0];
         const active = pathname === path || (!item.exact && pathname.startsWith(`${path}/`));
         return (
-          <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}>
+          <Link prefetch={false} key={item.href} href={item.href} aria-current={active ? "page" : undefined}>
             <Icon aria-hidden="true" />{item.name}
           </Link>
         );

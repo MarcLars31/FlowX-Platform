@@ -25,6 +25,8 @@ export function splitDistributorRequirementLines<
 export function distributorRequirementKind(
   requirement: DistributorRequirementRow
 ): "product" | "remove" | "work" {
+  const overviewKind = record(requirement.overview).kind;
+  if (overviewKind === "product" || overviewKind === "remove" || overviewKind === "work") return overviewKind;
   const value = record(requirement.value_json);
   if (distributorRequirementOperation(requirement) === "remove") return "remove";
   if (Array.isArray(value.reviewFlags) && value.reviewFlags.includes("project-information")) return "work";
@@ -40,6 +42,8 @@ export function distributorRequirementKind(
 }
 
 export function isDistributorLumpSumRequirement(requirement: DistributorRequirementRow) {
+  const overviewLumpSum = record(requirement.overview).lumpSum;
+  if (typeof overviewLumpSum === "boolean") return overviewLumpSum;
   const value = record(requirement.value_json);
   const unit = String(value.unit ?? "").trim();
   if (/^(?:rs|rund sum)$/i.test(unit)) return true;

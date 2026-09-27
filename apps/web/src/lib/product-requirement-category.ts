@@ -35,6 +35,8 @@ const categoryOrder = new Map(
 export function productRequirementCategory(
   requirement: Record<string, unknown>
 ): ProductRequirementCategory {
+  const overview = requirement.overview as { category?: unknown } | undefined;
+  if (typeof overview?.category === "string" && isProductRequirementCategory(overview.category)) return overview.category;
   const category = String(requirement.category ?? "").toLowerCase();
   if (isCableTrunkingProduct(String(requirement.value_text ?? requirement.display_name ?? ""))) return "cable_trunking";
   const codeFamily = ns3420ProductFamily(flattenText(requirement.value_json) + " " + String(requirement.requirement_key ?? ""),

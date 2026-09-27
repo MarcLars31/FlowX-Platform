@@ -46,7 +46,7 @@ export default async function DashboardPage() {
   );
   const canCreateProject = context.permissions.includes("project.create");
   const data = canViewProjects
-    ? await loadCommercialProjectData(context, { projectScope: "open" })
+    ? await loadCommercialProjectData(context, { projectScope: "open", summaryOnly: true })
     : EMPTY_PROJECT_DATA;
   const insights = buildCommercialProjectInsights({
     projects: data.projects,
@@ -69,7 +69,7 @@ export default async function DashboardPage() {
       >
         <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
           {canCreateProject && (
-            <Link
+            <Link prefetch={false}
               href="/projects/new"
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-sm font-black text-[#141414] transition hover:bg-cyan-300"
             >
@@ -91,7 +91,7 @@ export default async function DashboardPage() {
               <p className="mt-1 text-sm text-ink-500">Projekt som fortfarande är i arbete, prioriterade efter vad som behöver göras.</p>
             </div>
             {canViewProjects && (
-              <Link
+              <Link prefetch={false}
                 href="/projects"
                 className="inline-flex min-h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-ink-200 px-3 text-sm font-bold text-ink-800 transition hover:border-flow-300 hover:bg-flow-50 hover:text-flow-800 sm:self-auto"
               >
@@ -168,7 +168,7 @@ export default async function DashboardPage() {
             ) : (
               <div className="divide-y divide-ink-100">
                 {followUps.slice(0, 5).map((project) => (
-                  <Link
+                  <Link prefetch={false}
                     key={project.id}
                     href={projectWorkHref(project)}
                     className="group block px-5 py-4 transition hover:bg-amber-50/50"
@@ -209,7 +209,7 @@ function OpenProjectRow({
   return (
     <tr className={project.needsFollowUp ? "bg-amber-50/30 transition hover:bg-amber-50/70" : "transition hover:bg-ink-50"}>
       <td className="px-5 py-4 sm:px-6">
-        <Link href={projectWorkHref(project)} className="font-bold text-ink-950 hover:text-flow-800 hover:underline">
+        <Link prefetch={false} href={projectWorkHref(project)} className="font-bold text-ink-950 hover:text-flow-800 hover:underline">
           {project.name}
         </Link>
         <p className="mt-1 max-w-72 truncate text-xs text-ink-500">
@@ -247,7 +247,7 @@ function OpenProjectRow({
         </span>
       </td>
       <td className="px-5 py-4 text-right sm:px-6">
-        <Link
+        <Link prefetch={false}
           href={projectWorkHref(project)}
           aria-label={`Öppna ${project.name}`}
           className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-lg portal-panel bg-portal-face px-3 text-sm font-bold text-white transition hover:bg-portal-hover"
@@ -275,7 +275,7 @@ function EmptyProjects({
       <h2 className="mt-3 font-bold text-ink-950">{title}</h2>
       <p className="mt-1 max-w-md text-sm leading-6 text-ink-500">{detail}</p>
       {canCreateProject && (
-        <Link
+        <Link prefetch={false}
           href="/projects/new"
           className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-400 px-4 text-sm font-black text-[#141414] transition hover:bg-cyan-300"
         >

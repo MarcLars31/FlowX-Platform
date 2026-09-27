@@ -3,15 +3,12 @@ import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
   callUserRpc,
   selectUserRows,
-  selectAllUserRows,
   updateUserRowsReturning,
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
 import { DEMO_DATA_DISCLAIMER } from "@/lib/demo-data";
-import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
-import { enrichProjectRequirements } from "@/lib/project-requirement-enrichment";
-import { sortProjectRequirementsBySource } from "@/lib/project-requirement-order";
+import { loadProjectOverviewData } from "@/lib/project-overview-data";
 
 export const runtime = "nodejs";
 
@@ -42,70 +39,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
     if (!project) return NextResponse.json({ error: "Projektet hittades inte." }, { status: 404 });
 
-    const organizationId = authorization.context.organization.id;
-    const [systemTypes, standards, suppliers, rawRequirements, conflicts, suggestions, decisions, versions] =
-      await Promise.all([
-        selectUserRows("project_system_types", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "is_primary.desc,created_at.asc" }),
-        selectUserRows("project_standards", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "priority.asc,created_at.asc" }),
-        selectUserRows("project_supplier_options", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "supplier_kind.asc,selection_role.asc" }),
-        selectAllUserRows("project_requirements", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "source_page.asc,created_at.asc,id.asc" }),
-        selectUserRows("project_requirement_conflicts", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "updated_at.desc" }),
-        selectAllUserRows("project_product_suggestions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "match_score.desc,id.asc" }),
-        selectUserRows("project_decisions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "updated_at.desc" }),
-        selectUserRows("project_versions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "version_number.desc" })
-      ]);
-
-    const documents = authorization.context.permissions.includes("document.view")
-      ? await selectUserRows("project_documents", {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          status: "eq.active",
-          order: "created_at.desc"
-        })
-      : [];
-    const technicalDescriptions = authorization.context.permissions.includes(
-      "technical_description.view"
-    )
-      ? await selectUserRows("technical_description_documents", {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          order: "created_at.desc"
-        })
-      : [];
-    const requirements = sortProjectRequirementsBySource(
-      enrichProjectRequirements(
-        rawRequirements as Array<Record<string, unknown> & { id: string }>,
-        technicalDescriptions as Array<Record<string, unknown> & { id: string }>
-      )
-    );
-
-    const productMemory = authorization.context.permissions.includes(
-      "project.product_suggestion.view"
-    )
-      ? await loadDistributorProductMemory(
-          organizationId,
-          rawRequirements as Array<Record<string, unknown>>
-        )
-      : { mappingMemories: [], mappingAccessories: [] };
-
-    return NextResponse.json({
-      project,
-      systemTypes,
-      standards,
-      suppliers,
-      documents,
-      technicalDescriptions,
-      requirements,
-      conflicts,
-      suggestions,
-      decisions,
-      versions,
-      mappingMemories: productMemory.mappingMemories,
-      mappingAccessories: productMemory.mappingAccessories,
-      demoDataDisclaimer: project.demo_data_set_id
-        ? DEMO_DATA_DISCLAIMER
-        : null
-    });
+    const data = await loadProjectOverviewData(id, authorization.context.organization.id, authorization.context.permissions);
+    return NextResponse.json({ project, ...data, demoDataDisclaimer: project.demo_data_set_id ? DEMO_DATA_DISCLAIMER : null }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return projectDetailError(error);
   }

@@ -52,6 +52,8 @@ export function projectRequirementKFactorDisplayValue(
 export function projectRequirementDataWarnings(
   requirement: Record<string, unknown>
 ): ProjectRequirementDataWarning[] {
+  const overview = requirement.overview as { warnings?: ProjectRequirementDataWarning[] } | undefined;
+  if (Array.isArray(overview?.warnings)) return overview.warnings;
   const readings = [
     attributeKFactorReading(requirement),
     ...sourceKFactorReadings(requirement)

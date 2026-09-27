@@ -34,7 +34,7 @@ export default async function ProjectsPage() {
         icon={<FolderKanban aria-hidden="true" />}
       >
         {canCreate && (
-          <Link
+          <Link prefetch={false}
             href="/projects/new"
             className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-base font-black text-[#141414] transition hover:bg-cyan-300"
           >

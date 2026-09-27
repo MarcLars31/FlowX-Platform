@@ -1,12 +1,10 @@
 import { notFound } from "next/navigation";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { selectUserRows, selectAllUserRows } from "@/lib/supabase-user-rest";
+import { selectUserRows } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
 import { ProjectWorkspace, type ProjectModuleData } from "@/components/ProjectWorkspace";
 import { ProjectAccessEditor } from "@/components/ProjectAccessEditor";
-import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
-import { enrichProjectRequirements } from "@/lib/project-requirement-enrichment";
-import { sortProjectRequirementsBySource } from "@/lib/project-requirement-order";
+import { loadProjectOverviewData } from "@/lib/project-overview-data";
 import {
   isGuidedProjectTab,
   type GuidedProjectTab
@@ -88,88 +86,9 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
     };
   }
 
-  const rawRequirements = context.permissions.includes("project.requirement.view")
-    ? await selectAllUserRows<Record<string, unknown> & { id: string }>(
-        "project_requirements",
-        {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          order: "source_page.asc,created_at.asc,id.asc"
-        }
-      )
-    : [];
-  const technicalDescriptions = context.permissions.includes("technical_description.view")
-    ? await selectUserRows<Record<string, unknown> & { id: string }>(
-        "technical_description_documents",
-        {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          order: "created_at.desc"
-        }
-      )
-    : [];
-  const requirements = sortProjectRequirementsBySource(
-    enrichProjectRequirements(
-      rawRequirements,
-      technicalDescriptions
-    )
-  );
-  const productMemory = context.permissions.includes(
-    "project.product_suggestion.view"
-  )
-    ? await loadDistributorProductMemory(organizationId, rawRequirements)
-    : { mappingMemories: [], mappingAccessories: [] };
-
   const data: ProjectModuleData = {
     project,
-    systemTypes: await selectUserRows("project_system_types", {
-      project_id: `eq.${id}`,
-      organization_id: `eq.${organizationId}`,
-      order: "is_primary.desc,created_at.asc"
-    }),
-    standards: await selectUserRows("project_standards", {
-      project_id: `eq.${id}`,
-      organization_id: `eq.${organizationId}`,
-      order: "priority.asc,created_at.asc"
-    }),
-    suppliers: await selectUserRows("project_supplier_options", {
-      project_id: `eq.${id}`,
-      organization_id: `eq.${organizationId}`,
-      order: "supplier_kind.asc,selection_role.asc"
-    }),
-    technicalDescriptions,
-    requirements,
-    conflicts: context.permissions.includes("project.requirement.view")
-      ? await selectUserRows("project_requirement_conflicts", {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          order: "updated_at.desc"
-        })
-      : [],
-    suggestions: context.permissions.includes("project.product_suggestion.view")
-      ? await selectAllUserRows("project_product_suggestions", {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          order: "match_score.desc,id.asc"
-        })
-      : [],
-    decisions: context.permissions.includes("project.decision.view")
-      ? await selectUserRows("project_decisions", {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          order: "updated_at.desc"
-        })
-      : [],
-    mappingMemories: productMemory.mappingMemories,
-    mappingAccessories: productMemory.mappingAccessories,
-    documents: context.permissions.includes("document.view")
-      ? await selectUserRows("project_documents", {
-          project_id: `eq.${id}`,
-          organization_id: `eq.${organizationId}`,
-          status: "eq.active",
-          order: "created_at.desc"
-        })
-      : []
+    ...await loadProjectOverviewData(id, organizationId, context.permissions)
   };
 
   return (

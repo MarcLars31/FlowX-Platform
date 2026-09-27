@@ -6,6 +6,7 @@ import type {
 } from "@/lib/commercial-project-insights";
 import type { OrganizationContext } from "@/types/organization";
 import { selectAllUserRows } from "@/lib/supabase-user-rest";
+import { expandOverviewProjection, HOME_REQUIREMENT_SELECT } from "./project-overview";
 
 export type CommercialProfileRow = {
   id: string;
@@ -24,6 +25,7 @@ export type CommercialProjectData = {
 type CommercialProjectDataOptions = {
   includeProfiles?: boolean;
   projectScope?: "all" | "open";
+  summaryOnly?: boolean;
 };
 
 const PROJECT_FILTER_CHUNK_SIZE = 100;
@@ -63,7 +65,7 @@ export async function loadCommercialProjectData(
     hasRequirementInsights && projects.length > 0
       ? selectRowsForProjectScope<BusinessDevelopmentRequirementRow>(options.projectScope, "project_requirements", [...projectIds], {
           select:
-            "id,project_id,category,requirement_key,display_name,value_text,value_json,mapping_fingerprint,status",
+            options.summaryOnly ? HOME_REQUIREMENT_SELECT : "id,project_id,category,requirement_key,display_name,value_text,value_json,mapping_fingerprint,status",
           organization_id: `eq.${organizationId}`,
           deleted_at: "is.null",
           order: "id.asc"
@@ -80,7 +82,8 @@ export async function loadCommercialProjectData(
       : Promise.resolve([])
   ]);
 
-  const requirements = rawRequirements.filter((row) => projectIds.has(row.project_id));
+  const requirements = rawRequirements.filter((row) => projectIds.has(row.project_id)).map(row =>
+    options.summaryOnly ? expandOverviewProjection(row) as BusinessDevelopmentRequirementRow : row);
   const assignments = rawAssignments.filter((row) => projectIds.has(row.project_id));
   const ownerIds = [...new Set(
     projects

@@ -96,6 +96,7 @@ export async function insertUserRows(
   payloads: Record<string, unknown>[],
   options: { ignoreIdConflicts?: boolean } = {}
 ) {
+  const startedAt = Date.now();
   if (payloads.length === 0) return;
 
   const config = await getUserSupabaseConfig();
@@ -114,7 +115,12 @@ export async function insertUserRows(
     cache: "no-store"
   });
 
-  if (!response.ok) throw await readUserSupabaseError(response);
+  if (!response.ok) {
+    const error = await readUserSupabaseError(response);
+    // Identify the timed-out query without recording tokens, filter values or row data.
+    console.error("supabase_user_select_failed", { table, status: response.status, code: error.code, elapsedMs: Date.now() - startedAt });
+    throw error;
+  }
 }
 
 export async function updateUserRowsReturning<T>(

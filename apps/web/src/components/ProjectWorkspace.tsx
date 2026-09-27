@@ -207,6 +207,21 @@ export function ProjectWorkspace({
     return payload;
   }
 
+  async function reloadRequirement(requirementId: string) {
+    const response = await fetch(`/api/projects/${data.project.id}/requirements/${requirementId}?view=summary`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Produktvalet är sparat, men översikten kunde inte uppdateras. Ladda om sidan för att visa det senaste valet.");
+    const payload = await response.json() as { requirement: ProjectRow; assignments: ProjectRow[] };
+    setData(current => ({ ...current,
+      // Product selection only changes the resolution/status here. Keep the
+      // chapter and specification metadata recovered for legacy imports.
+      requirements: current.requirements.map(row => row.id === requirementId ? {
+        ...row, status: payload.requirement.status, updated_at: payload.requirement.updated_at,
+        value_json: { ...(isRecord(row.value_json) ? row.value_json : {}), productResolution: isRecord(payload.requirement.value_json) ? payload.requirement.value_json.productResolution : undefined }
+      } : row),
+      suggestions: [...current.suggestions.filter(row => row.requirement_id !== requirementId), ...payload.assignments]
+    }));
+  }
+
   async function saveProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -374,7 +389,7 @@ export function ProjectWorkspace({
     <div className={`space-y-6 pb-12 ${tab === "products" ? "min-w-0 w-full" : "mx-auto max-w-6xl"}`}>
       {data.project.demo_data_set_id && <DemoBadge />}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link
+        <Link prefetch={false}
           href="/projects"
           className="inline-flex min-h-11 items-center gap-2 text-base font-semibold text-ink-700 transition hover:text-flow-700"
         >
@@ -470,7 +485,7 @@ export function ProjectWorkspace({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {canCreateProject && (
-                    <Link
+                    <Link prefetch={false}
                       href="/projects/new"
                       className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-flow-600 px-5 py-3 text-base font-bold text-white shadow-sm transition hover:bg-flow-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
                     >
@@ -621,7 +636,7 @@ export function ProjectWorkspace({
                     <p className="mt-2 text-sm leading-6 text-emerald-900">Den tekniska beskrivningen är kopplad till projektet. Vill du analysera en annan PDF ska du starta en ny analys.</p>
                   </div>
                 </div>
-                {canCreateProject && <Link href="/projects/new" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border-2 border-emerald-600 bg-white px-5 py-3 text-base font-bold text-emerald-800 transition hover:bg-emerald-100"><FilePlus2 className="h-5 w-5" aria-hidden="true" />Ny analys med annan PDF</Link>}
+                {canCreateProject && <Link prefetch={false} href="/projects/new" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border-2 border-emerald-600 bg-white px-5 py-3 text-base font-bold text-emerald-800 transition hover:bg-emerald-100"><FilePlus2 className="h-5 w-5" aria-hidden="true" />Ny analys med annan PDF</Link>}
               </div>
             </section>
           )}
@@ -652,6 +667,7 @@ export function ProjectWorkspace({
             memories={data.mappingMemories}
             sourcePdfLookup={sourcePdfLookup}
             onReload={reload}
+            onRequirementSaved={reloadRequirement}
             onGoToDocuments={() => selectTab("documents")}
           />
         </div>
