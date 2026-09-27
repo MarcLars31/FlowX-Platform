@@ -17,6 +17,7 @@ import {
 } from "@/lib/sprinkler-technical-rules";
 import { ahlsellRequirementIntent, type AhlsellProductIntent } from "./ahlsell-requirement-intent";
 import { cableTrunkingRequirementGuide } from "./ahlsell-cable-trunking";
+import { functionalProductGuide } from "./ahlsell-functional-products";
 import { genericProductSearch, requirementDiscipline } from "./requirement-discipline";
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
@@ -175,6 +176,9 @@ export function buildAhlsellRequirementGuide(
   }
   if (intent === "cable_trunking") {
     return cableTrunkingRequirementGuide(attributes, dataWarnings.map(warning => warning.message), ahlsellSearchUrl);
+  }
+  if (intent === "luminaire" || intent === "energy_valve" || intent === "control_valve") {
+    return functionalProductGuide(requirement, intent, ahlsellSearchUrl, dataWarnings.map(warning => warning.message));
   }
   if (intent === "generic" && ["electrical", "ventilation"].includes(requirementDiscipline(requirement))) {
     const searchQuery = genericProductSearch(requirement);

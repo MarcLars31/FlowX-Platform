@@ -49,7 +49,8 @@ export function findAhlsellMldlCandidates(
     if (explicitArticles.has(normalizeArticle(product.articleNumber))) return true;
     if (product.model && modelNumbers(product.model).some((model) => explicitModels.has(model))) return true;
     if (expectedTypes.size > 0) return expectedTypes.has(product.productType);
-    return true;
+    // A shared DN/material alone cannot establish a product's function.
+    return false;
   });
 
   const productsByCandidateArticle = new Map(pool.map((product) => [

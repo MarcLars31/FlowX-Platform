@@ -3,6 +3,7 @@ import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
 import { MANIFOLD_CABINET_REVIEW_WARNING } from "./ahlsell-manifold-cabinet";
 import { cableTrunkingReviewWarnings } from "./ahlsell-cable-trunking";
+import { functionalProductReviewWarnings } from "./ahlsell-functional-products";
 import { isCompletePipeLengthDescription } from "./ns3420-product-classification";
 import { normalizeTechnicalText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 
@@ -22,6 +23,7 @@ export function engineeringRequirementWarnings(
   // family match cannot verify the whole assembly or inherit pipe dimensions.
   if (intent === "manifold_cabinet") return [MANIFOLD_CABINET_REVIEW_WARNING];
   if (intent === "cable_trunking") return cableTrunkingReviewWarnings(requirement, candidate);
+  if (intent === "luminaire" || intent === "energy_valve" || intent === "control_valve") return functionalProductReviewWarnings(requirement, intent);
   // A search URL, stock location or requirement-derived PDF reference is not
   // technical product evidence.
   const productText = `${candidate.productName} ${candidate.description ?? ""} ${candidate.specifications.join(" ")}`;

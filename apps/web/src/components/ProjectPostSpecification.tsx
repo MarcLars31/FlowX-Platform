@@ -32,10 +32,9 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
       <div className="min-w-0 px-3 py-3">
         {details.nsCode && <p className="break-words font-bold">{details.nsCode}</p>}
         {hasHeading && <p className="break-words font-bold leading-5">{description}</p>}
-        {showQuantity && <dl className="my-2 grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-4">
-          <dt>{amountLabel}</dt>
-          <dd><span className="sr-only">Enhet: </span>{quantity.unit === "?" ? "—" : quantity.unit}</dd>
-          {!rs && <dd><span className="sr-only">Mängd: </span>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)}</dd>}
+        {showQuantity && <dl className="my-2 flex flex-wrap items-baseline gap-x-2">
+          <dt>{amountLabel}:</dt>
+          <dd>{!rs && <>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)} </>}{quantity.unit === "?" ? "—" : quantity.unit}</dd>
         </dl>}
         {informationOnly && details.sourceExcerpt ? <>
           <div className="mt-4 space-y-3 break-words leading-6">{projectInformationParagraphs(projectInformationBody(details, description)).map((paragraph, index) =>
