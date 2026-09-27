@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collectAllRows, type OffsetPageRequest } from "./paginated-rows";
+import { collectAllRows, collectAllRowsById, type OffsetPageRequest } from "./paginated-rows";
 
 test("collects every page in stable offset order", async () => {
   const source = Array.from({ length: 7 }, (_, index) => ({ id: index + 1 }));
@@ -76,4 +76,32 @@ test("rejects invalid page sizes and backend pages larger than requested", async
     collectAllRows(async () => [1, 2], { pageSize: 1 }),
     /returned 2 rows for a page limited to 1/
   );
+});
+
+test("ID pagination keeps every row when the server caps pages, without repeating earlier rows", async () => {
+  const source = ["a", "c", "e", "g", "i"].map(id => ({ id }));
+  const cursors: Array<string | null> = [];
+  const rows = await collectAllRowsById(async ({ limit, afterId }) => {
+    cursors.push(afterId);
+    return source.filter(row => afterId === null || row.id > afterId).slice(0, Math.min(limit, 2));
+  }, { pageSize: 4 });
+  assert.deepEqual(rows, source);
+  assert.deepEqual(cursors, [null, "c", "g", "i"]);
+});
+
+test("deleting an earlier row between ID pages does not skip a later row", async () => {
+  const source = ["a", "b", "c", "d"].map(id => ({ id }));
+  const rows = await collectAllRowsById(async ({ afterId, limit }) => {
+    if (afterId === "b") source.shift();
+    return source.filter(row => afterId === null || row.id > afterId).slice(0, limit);
+  }, { pageSize: 2 });
+  assert.deepEqual(rows.map(row => row.id), ["a", "b", "c", "d"]);
+});
+
+test("ID pagination rejects repeated or unordered pages and preserves safety limits", async () => {
+  await assert.rejects(collectAllRowsById(async () => [{ id: "b" }, { id: "a" }]), /ascending order/);
+  await assert.rejects(collectAllRowsById(async () => [{ id: "a" }]), /ascending order/);
+  await assert.rejects(collectAllRowsById(async () => [{ value: "no id" }]), /unique string IDs/);
+  await assert.rejects(collectAllRowsById(async ({ afterId }) => [{ id: afterId ? "b" : "a" }], { maxRows: 1 }), /safety limit/);
+  assert.deepEqual(await collectAllRowsById(async ({ afterId }) => afterId ? [] : [{ id: "a" }], { maxRows: 1 }), [{ id: "a" }]);
 });

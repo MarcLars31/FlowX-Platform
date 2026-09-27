@@ -71,3 +71,23 @@ function positiveInteger(value: number, optionName: string) {
   }
   return value;
 }
+
+/** Continue after the last ID so the database need not re-scan and authorize
+ * all earlier rows for every page. Empty probes still detect backend caps. */
+export async function collectAllRowsById<T>(
+  loadPage: (request: { limit: number; afterId: string | null }) => Promise<T[]>,
+  options: CollectAllRowsOptions = {}
+) {
+  let afterId: string | null = null;
+  return collectAllRows(async ({ limit }) => {
+    const page = await loadPage({ limit, afterId });
+    for (const row of page) {
+      const id = row && typeof row === "object" && "id" in row ? row.id : null;
+      if (typeof id !== "string" || !id || (afterId !== null && id <= afterId)) {
+        throw new Error("ID pagination requires unique string IDs in ascending order.");
+      }
+      afterId = id;
+    }
+    return page;
+  }, options);
+}

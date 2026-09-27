@@ -112,7 +112,7 @@ function selectRowsForProjectScope<Row>(
 ) {
   return projectScope === "open"
     ? selectRowsForProjects<Row>(table, projectIds, params)
-    : selectAllUserRows<Row>(table, params);
+    : selectAllUserRows<Row>(table, params, { pagination: "id" });
 }
 
 async function selectRowsForProjects<Row>(
@@ -126,7 +126,7 @@ async function selectRowsForProjects<Row>(
     rows.push(...await selectAllUserRows<Row>(table, {
       ...params,
       project_id: `in.(${ids.join(",")})`
-    }));
+    }, { pagination: "id" }));
   }
   return rows;
 }

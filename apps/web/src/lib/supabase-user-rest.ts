@@ -1,6 +1,6 @@
 import "server-only";
 import { getCurrentAccessToken } from "@/lib/supabase-auth";
-import { collectAllRows } from "@/lib/paginated-rows";
+import { collectAllRows, collectAllRowsById } from "@/lib/paginated-rows";
 
 type UserSupabaseConfig = {
   url: string;
@@ -23,6 +23,7 @@ export async function selectUserRows<T>(
   table: string,
   params: Record<string, string> = {}
 ) {
+  const startedAt = Date.now();
   const config = await getUserSupabaseConfig();
   const url = restUrl(config.url, table);
 
@@ -37,14 +38,22 @@ export async function selectUserRows<T>(
     cache: "no-store"
   });
 
-  if (!response.ok) throw await readUserSupabaseError(response);
-  return (await response.json()) as T[];
+  if (!response.ok) {
+    const error = await readUserSupabaseError(response);
+    // No tokens, query filters or row content are recorded.
+    console.error("supabase_user_select_failed", { table, status: response.status, code: error.code, elapsedMs: Date.now() - startedAt });
+    throw error;
+  }
+  const rows = (await response.json()) as T[];
+  const elapsedMs = Date.now() - startedAt;
+  if (elapsedMs > 3000) console.warn("supabase_user_select_slow", { table, elapsedMs, rows: rows.length });
+  return rows;
 }
 
 export async function selectAllUserRows<T>(
   table: string,
   params: Record<string, string> & { order: string },
-  options: { pageSize?: number; maxRows?: number } = {}
+  options: { pageSize?: number; maxRows?: number; pagination?: "id" } = {}
 ) {
   if (typeof params.order !== "string" || !params.order.trim()) {
     throw new Error(
@@ -57,6 +66,14 @@ export async function selectAllUserRows<T>(
     );
   }
 
+  if (options.pagination === "id") {
+    if (params.order !== "id.asc" || params.id !== undefined) {
+      throw new Error("ID pagination requires id.asc order and no existing ID filter.");
+    }
+    return collectAllRowsById<T>(({ limit, afterId }) => selectUserRows<T>(table, {
+      ...params, limit: String(limit), ...(afterId ? { id: `gt.${afterId}` } : {})
+    }), { ...options, resourceLabel: `Supabase select from ${table}` });
+  }
   return collectAllRows<T>(
     ({ limit, offset }) =>
       selectUserRows<T>(table, {
@@ -96,7 +113,6 @@ export async function insertUserRows(
   payloads: Record<string, unknown>[],
   options: { ignoreIdConflicts?: boolean } = {}
 ) {
-  const startedAt = Date.now();
   if (payloads.length === 0) return;
 
   const config = await getUserSupabaseConfig();
@@ -115,12 +131,7 @@ export async function insertUserRows(
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const error = await readUserSupabaseError(response);
-    // Identify the timed-out query without recording tokens, filter values or row data.
-    console.error("supabase_user_select_failed", { table, status: response.status, code: error.code, elapsedMs: Date.now() - startedAt });
-    throw error;
-  }
+  if (!response.ok) throw await readUserSupabaseError(response);
 }
 
 export async function updateUserRowsReturning<T>(
