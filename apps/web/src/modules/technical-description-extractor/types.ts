@@ -30,6 +30,11 @@ export type TechnicalDescriptionCategory =
   | "other"
   | "unknown";
 
+export type TechnicalDescriptionChapter = {
+  title: string;
+  sourcePage: number;
+};
+
 export type TechnicalDescriptionMaterialLine = {
   id: string;
   postNumber?: string;
@@ -51,6 +56,7 @@ export type TechnicalDescriptionMaterialLine = {
   standardRefs: string[];
   technicalSpecification?: string;
   sourcePage: number;
+  sourceChapter?: TechnicalDescriptionChapter;
   sourcePages?: number[];
   sourceText: string;
   confidence: number;

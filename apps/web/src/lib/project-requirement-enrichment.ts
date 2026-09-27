@@ -4,6 +4,7 @@ import type {
   TechnicalDescriptionPage
 } from "@/modules/technical-description-extractor/types";
 import { projectRequirementDetails } from "@/lib/project-requirement-details";
+import { pdfChaptersByPage } from "@/modules/technical-description-extractor/pdf-chapters";
 
 type Row = Record<string, unknown> & { id: string };
 
@@ -20,11 +21,13 @@ export function enrichProjectRequirements(
     })
   );
   const linesByDocument = new Map<string, TechnicalDescriptionMaterialLine[]>();
+  const chaptersByDocument = new Map<string, ReturnType<typeof pdfChaptersByPage>>();
 
   for (const document of technicalDescriptions) {
     if (!requiredDocumentIds.has(document.id)) continue;
     const pages = technicalDescriptionPages(document.source_pages);
     if (!pages.length) continue;
+    chaptersByDocument.set(document.id, pdfChaptersByPage(pages));
     linesByDocument.set(
       document.id,
       extractTechnicalDescriptionFromPages(pages, {
@@ -38,7 +41,11 @@ export function enrichProjectRequirements(
       requirement.source_technical_description_document_id
     );
     const lines = documentId ? linesByDocument.get(documentId) : undefined;
-    if (!lines?.length) return requirement;
+    const sourceChapter = documentId ? chaptersByDocument.get(documentId)?.get(Number(requirement.source_page)) : undefined;
+    const withChapter = sourceChapter ? {
+      ...requirement, value_json: { ...record(requirement.value_json), sourceChapter }
+    } : requirement;
+    if (!lines?.length) return withChapter;
 
     const details = projectRequirementDetails(requirement);
     const description = normalized(stringValue(requirement.value_text));
@@ -53,7 +60,7 @@ export function enrichProjectRequirements(
       matchingPosts.find(candidate => candidate.sourcePage === sourcePage) ??
       (matchingDescriptions.length === 1 ? matchingDescriptions[0] : undefined)
       ?? (matchingPosts.length === 1 ? matchingPosts[0] : undefined);
-    if (!line) return requirement;
+    if (!line) return withChapter;
 
     const attributes = mergedAttributes(line.attributes, record(currentValue.attributes));
     const changedRequirements = Object.keys(line.attributes).filter(key =>
@@ -65,6 +72,7 @@ export function enrichProjectRequirements(
         stringValue(requirement.requirement_key) ?? line.nsCode ?? line.category,
       value_json: {
         ...currentValue,
+        sourceChapter: line.sourceChapter ?? sourceChapter ?? currentValue.sourceChapter ?? null,
         postNumber: line.postNumber ?? currentValue.postNumber ?? null,
         postScope: line.postScope ?? currentValue.postScope ?? null,
         parentPostNumber:

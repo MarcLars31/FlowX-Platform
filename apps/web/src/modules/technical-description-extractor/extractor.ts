@@ -15,6 +15,7 @@ import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 import { isManifoldCabinetProduct } from "@/lib/ahlsell-manifold-cabinet";
 import { distributorRequirementKind } from "@/lib/distributor-requirement-lines";
 import { conflictingMaterialRequirement } from "@/lib/requirement-extraction-warnings";
+import { pdfChaptersByPage } from "./pdf-chapters";
 
 type ExtractOptions = {
   fileName?: string;
@@ -66,6 +67,11 @@ export function extractTechnicalDescriptionFromPages(
   const warnings: TechnicalDescriptionWarning[] = [];
   const project = extractProject(pages);
   const materialLines = extractMaterialLines(pages, warnings);
+  const chapters = pdfChaptersByPage(pages);
+  for (const line of materialLines) {
+    const chapter = chapters.get(line.sourcePage);
+    if (chapter) line.sourceChapter = chapter;
+  }
   const pageChecks = reconcilePageQuantities(pages, materialLines, warnings);
   appendMaterialLineValidationWarnings(materialLines, warnings);
   const standards = unique(

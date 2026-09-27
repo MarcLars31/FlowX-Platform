@@ -12,7 +12,7 @@ import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { createProductCardHistory } from "@/lib/product-card-history";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
-import { groupProductRequirementsByMainPost } from "@/lib/product-post-groups";
+import { groupProductRequirementsByPdfChapter } from "@/lib/product-post-groups";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -53,7 +53,6 @@ import {
   type ProductAccessoryDraft
 } from "@/lib/product-card-accessories";
 import {
-  PRODUCT_REQUIREMENT_CATEGORIES,
   productRequirementCategory,
   productRequirementCategoryLabel
 } from "@/lib/product-requirement-category";
@@ -293,7 +292,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     ...yellowRequirements.map((requirement) => [requirement.id, "yellow"] as const),
     ...redRequirements.map((requirement) => [requirement.id, "red"] as const)
   ]), [greenRequirements, redRequirements, yellowRequirements]);
-  const [expandedMainPosts, setExpandedMainPosts] = useState<Set<string>>(() => new Set());
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(() => new Set());
   const [productTableSort, setProductTableSort] = useState<ProductTableSort | null>(null);
   const [productTableLayout, setProductTableLayout] = useState<ProductTableLayout>(() => normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
   const [productTableLayoutLoaded, setProductTableLayoutLoaded] = useState(false);
@@ -340,14 +339,14 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
       // The customized table still works for this session when browser storage is unavailable.
     }
   }, [productTableLayout, productTableLayoutLoaded]);
-  const allMainPostGroups = useMemo(
-    () => groupProductRequirementsByMainPost(productRequirements),
+  const allChapterGroups = useMemo(
+    () => groupProductRequirementsByPdfChapter(productRequirements),
     [productRequirements]
   );
-  const allQueueRequirements = useMemo(() => allMainPostGroups.flatMap(group => group.requirements), [allMainPostGroups]);
-  const approvedMainPostKeys = useMemo(() => new Set(allMainPostGroups
+  const allQueueRequirements = useMemo(() => allChapterGroups.flatMap(group => group.requirements), [allChapterGroups]);
+  const approvedChapterKeys = useMemo(() => new Set(allChapterGroups
     .filter(group => group.requirements.every(requirement => approvedRequirementIds.has(requirement.id)))
-    .map(group => group.key)), [allMainPostGroups, approvedRequirementIds]);
+    .map(group => group.key)), [allChapterGroups, approvedRequirementIds]);
   const bulkApprovalSelectionByRequirementId = useMemo(() => {
     const selections = new Map<string, BulkProductApprovalSelection>();
     for (const requirement of productRequirements) {
@@ -397,10 +396,10 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
       })
       .map(({ requirement }) => requirement);
   }, [allQueueRequirements, approvedAssignmentByRequirementId, approvedRequirementIds, bulkApprovalSelectionByRequirementId, groupByRequirementId, preferredMemoryByFingerprint, productLabelsByRequirementId, productTableSort]);
-  const mainPostGroups = useMemo(() => groupProductRequirementsByMainPost(sortedQueueRequirements, {
+  const chapterGroups = useMemo(() => groupProductRequirementsByPdfChapter(sortedQueueRequirements, {
     allRequirements: allQueueRequirements, preserveRowOrder: Boolean(productTableSort)
   }), [sortedQueueRequirements, allQueueRequirements, productTableSort]);
-  const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
+  const queueRequirements = useMemo(() => chapterGroups.flatMap(group => group.requirements), [chapterGroups]);
   const queuePositionById = useMemo(
     () => new Map(allQueueRequirements.map((requirement, index) => [requirement.id, index + 1])),
     [allQueueRequirements]
@@ -523,8 +522,8 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     if (!productCardHistory.current?.open(requirementId)) return;
     setProductCardDirty(false);
     setActiveRequirementId(requirementId);
-    const mainPost = mainPostGroups.find(group => group.requirements.some(item => item.id === requirementId));
-    if (mainPost) setExpandedMainPosts(current => new Set(current).add(mainPost.key));
+    const chapter = chapterGroups.find(group => group.requirements.some(item => item.id === requirementId));
+    if (chapter) setExpandedChapters(current => new Set(current).add(chapter.key));
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => document.getElementById("product-card-scroll")?.scrollTo({ top: 0, behavior: "smooth" }));
@@ -541,8 +540,8 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     setError(null);
   }
 
-  function toggleMainPost(key: string) {
-    setExpandedMainPosts(current => {
+  function toggleChapter(key: string) {
+    setExpandedChapters(current => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -705,22 +704,19 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
           {queueRequirements.length > 0 ? (
             productTableLayoutLoaded ? (
             <div className="space-y-3 px-4 py-3">
-              {mainPostGroups.map((mainPost, index) => {
-                const expanded = expandedMainPosts.has(mainPost.key);
-                const mainPostApproved = approvedMainPostKeys.has(mainPost.key);
-                const label = mainPost.postNumber ?? "Hovedpost mangler";
-                const regionId = `main-post-${index}-products`;
-                const headingId = `main-post-${index}-heading`;
-                const mainPostCategories = new Set((allMainPostGroups.find(group => group.key === mainPost.key)?.requirements ?? mainPost.requirements).map(productRequirementCategory));
-                const categoryLabels = PRODUCT_REQUIREMENT_CATEGORIES.filter(category => mainPostCategories.has(category.id)).map(category => category.shortLabel).join(" · ");
-                return <section key={mainPost.key} aria-labelledby={headingId}>
+              {chapterGroups.map((chapter, index) => {
+                const expanded = expandedChapters.has(chapter.key);
+                const chapterApproved = approvedChapterKeys.has(chapter.key);
+                const label = chapter.title;
+                const regionId = `pdf-chapter-${index}-products`;
+                const headingId = `pdf-chapter-${index}-heading`;
+                return <section key={chapter.key} aria-labelledby={headingId}>
                   <h4 id={headingId}>
                     <button type="button" data-appearance="text" aria-expanded={expanded} aria-controls={regionId}
-                      aria-label={`Hovedpost ${label}`} aria-describedby={`${headingId}-category`} onClick={() => toggleMainPost(mainPost.key)}
+                      aria-label={`${label} (${chapter.requirements.length})`} onClick={() => toggleChapter(chapter.key)}
                       className="inline-flex items-center gap-3 text-left text-sm font-semibold">
                       <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="flex items-center gap-2">{mainPostApproved && <><CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /><span className="sr-only">Godkjent · </span></>}{label}</span>
-                        <span id={`${headingId}-category`} className="text-sm font-semibold">{categoryLabels}</span>
+                        <span className="flex items-center gap-2">{chapterApproved && <><CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /><span className="sr-only">Godkjent · </span></>}{label} ({chapter.requirements.length})</span>
                       </span>
                       <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
                     </button>
@@ -755,7 +751,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                   </tr>
                 </thead>
                 <tbody>
-                  {mainPost.requirements.map((requirement) => (
+                  {chapter.requirements.map((requirement) => (
                     <RequirementQueueRow
                       key={requirement.id}
                       requirement={requirement}
@@ -2140,7 +2136,10 @@ function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByR
   const label = kind === "remove" ? "Prosjekt information" : "Rund Sum";
   return <section aria-labelledby="non-product-table-heading" className="overflow-hidden border border-ink-200 bg-white">
     <h2 id="non-product-table-heading" className="border-b border-ink-200 px-4 py-3 text-xl font-bold text-ink-950">{label} ({requirements.length})</h2>
-    <div className="overflow-x-auto">
+    <div className="space-y-3 px-4 py-3">
+    {groupProductRequirementsByPdfChapter(requirements).map(chapter => <details key={chapter.key}>
+      <summary className="cursor-pointer text-sm font-semibold">{chapter.title} ({chapter.requirements.length})</summary>
+      <div className="mt-2 overflow-x-auto">
       <table className="w-full min-w-[640px] border-collapse text-left text-sm">
         <thead className="bg-ink-50 text-xs font-bold text-ink-700">
           <tr>
@@ -2153,7 +2152,7 @@ function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByR
           </tr>
         </thead>
         <tbody>
-          {requirements.map((requirement, index) => {
+          {chapter.requirements.map((requirement, index) => {
             const details = projectRequirementDetails(requirement);
             const quantity = projectRequirementQuantity(requirement.value_json);
             const snapshot = record(assignmentsByRequirementId.get(requirement.id)?.product_snapshot);
@@ -2175,9 +2174,11 @@ function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByR
               <td className="px-4 py-3">{snapshot.name ? <>{String(snapshot.name)} <span className="whitespace-nowrap">{String(snapshot.productNumber ?? "")}</span></> : "—"}</td>
             </tr>;
           })}
-          {!requirements.length && <tr><td colSpan={6} className="px-4 py-6 text-ink-600">Inga poster i den här gruppen.</td></tr>}
         </tbody>
       </table>
+      </div>
+    </details>)}
+    {!requirements.length && <p className="py-3 text-ink-600">Inga poster i den här gruppen.</p>}
     </div>
   </section>;
 }
