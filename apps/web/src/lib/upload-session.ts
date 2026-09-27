@@ -186,6 +186,8 @@ export function useActiveUploadDocument() {
   });
 
   useEffect(() => {
+    // sessionStorage is browser-only and must be read after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(readActiveUploadDocument());
   }, []);
 

@@ -12,9 +12,9 @@ type AiAssistantPanelProps = {
 export function AiAssistantPanel({
   prompt = "Why was this sprinkler selected?",
   response = "This sprinkler was selected because it matches the selected system type, hazard classification and supplier preference. The result is based on the active engineering rules and product compatibility data.",
-  description = "AI explanation based on verified FlowX engineering results.",
+  description = "AI explanation based on verified Scipx engineering results.",
   badge = "Assistant",
-  contextLabel = "FlowX context"
+  contextLabel = "Scipx context"
 }: AiAssistantPanelProps) {
   return (
     <aside
