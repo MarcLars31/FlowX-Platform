@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "4868d66dd6937d0f3b818c163ba75558cfd47be1";
+export const RULE_CATALOG_VERSION = "911f4acbb5c09b936919137dcd0b6ff4be161f6e";
 export const RULE_CATALOG_DATE = "27 september 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
