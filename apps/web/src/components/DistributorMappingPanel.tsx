@@ -9,6 +9,7 @@ import { Button } from "@/components/Button";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
+import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 import { groupProductRequirementsByMainPost } from "@/lib/product-post-groups";
 import { ProductPostComments } from "@/components/ProductPostComments";
@@ -31,7 +32,7 @@ import {
   type ProductRequirementResolutionStatus
 } from "@/lib/product-requirement-resolution";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
-import { isAdditionalRequirementAttribute, projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
+import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
 import { bulkProductApprovalSelection, type BulkProductApprovalSelection } from "@/lib/bulk-product-approval";
@@ -1573,20 +1574,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       )}
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-neutral-200 bg-neutral-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="px-4 py-4 sm:px-6 sm:py-5">
-          <h3 id={`pdf-specification-${requirement.id}`} className="text-xl font-bold text-neutral-950">
-            {sourcePdfHref ? (
-              <a
-                href={sourcePdfHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
-                className="inline-flex items-center gap-2 underline decoration-neutral-400 underline-offset-4 hover:decoration-neutral-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600"
-              >
-                PDF-post {details.postNumber ?? "saknas"}
-                <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
-              </a>
-            ) : <>PDF-post {details.postNumber ?? "saknas"}</>}
-          </h3>
+          <ProjectPostSpecification id={requirement.id} details={details}
+            description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
+            quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
+            sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />
 
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
@@ -1608,20 +1599,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           ))}
 
 
-          <div className="mt-4 overflow-hidden rounded-md border border-neutral-200 bg-white">
-            <dl className="grid sm:grid-cols-2">
-              <SpecificationRow label="PDF-postnummer" value={details.postNumber ?? "Saknas"} />
-              <SpecificationRow label="Antal" value={formatProjectQuantity(quantity)} />
-              {details.chapterPost && <SpecificationRow label="Kapitelpost" value={details.chapterPost} />}
-              {details.parentPostNumber && <SpecificationRow label="Huvudpost" value={details.parentPostNumber} />}
-              {details.nsCode && <SpecificationRow label="NS-kod" value={details.nsCode} />}
-              {details.system && <SpecificationRow label="System" value={projectRequirementSystemLabel(details.system)} />}
-              {details.standardRefs.length > 0 && <SpecificationRow label="Standarder" value={details.standardRefs.join(", ")} />}
-              {pdfArticleNumber && <SpecificationRow label="NRF-nummer i PDF" value={pdfArticleNumber} />}
-              {details.attributes.filter(([key]) => !isAdditionalRequirementAttribute(key)).map(([key, value]) => <SpecificationRow key={key} label={specificationLabel(key)} value={value} />)}
-              {details.additionalRequirements && <SpecificationRow label="Andra krav" value={details.additionalRequirements} fullWidth />}
-            </dl>
-          </div>
           {details.sourceExcerpt && <details className="mt-3 border border-neutral-200 bg-white p-3 text-sm">
             <summary className="cursor-pointer font-semibold">Hela PDF-posten</summary>
             <p className="mt-3 whitespace-pre-wrap leading-6">{details.sourceExcerpt}</p>
@@ -2402,10 +2379,6 @@ function ProductSortHeader({ label, sortKey, sort, dragging, onSort, onDragStart
       </div>
     </th>
   );
-}
-
-function SpecificationRow({ label, value, fullWidth = false }: { label: string; value: string; fullWidth?: boolean }) {
-  return <div className={`border-b border-neutral-100 px-4 py-3 ${fullWidth ? "sm:col-span-2" : "sm:border-r"}`}><dt className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</dt><dd className={`mt-1 break-words text-sm leading-6 text-neutral-900 ${fullWidth ? "whitespace-pre-wrap" : ""}`}>{value}</dd></div>;
 }
 
 function CompactProductDetail({ label, value }: { label: string; value: string }) {
