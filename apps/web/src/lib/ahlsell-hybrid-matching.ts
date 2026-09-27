@@ -11,6 +11,7 @@ import { applyAhlsellProductDetails, fetchAhlsellProductDetails, safeAhlsellProd
 import { mergeAhlsellTechnicalEvidence, type AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
 import { technicalConflictWarnings, withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 import { requirementDiscipline } from "./requirement-discipline";
+import { genericProductIdentity, hasGenericProductIdentity } from "./ahlsell-generic-product-relevance";
 
 /** MLDL is always available. Only product search terms/NRFs go to Ahlsell. */
 export async function findAhlsellHybridCandidates(requirement: Record<string, unknown>, fetchImpl: typeof fetch = fetch, store?: AhlsellEvidenceStore): Promise<AhlsellCatalogResult> {
@@ -123,7 +124,11 @@ function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, cand
     candidates = candidates.filter(candidate => !/\b(?:sprinkler(?:hode|hoved|huvud|slange|head)?[a-z]*|firelock|alarmventil)\b/i.test(candidate.productName));
   }
   const intent = ahlsellRequirementIntent(requirement);
-  if (["shower_set", "toilet", "manifold_cabinet", "cable_trunking", "luminaire", "energy_valve", "control_valve", "alarm_device", "pressure_switch", "flow_meter", "shutoff_valve", "pipe"].includes(intent)) {
+  if (intent === "generic") {
+    const identity = genericProductIdentity(requirement);
+    return candidates.filter(candidate => hasGenericProductIdentity(identity, candidate.productName));
+  }
+  if (["shower_set", "toilet", "manifold_cabinet", "cable_trunking", "luminaire", "electric_heater", "heating_cable", "energy_valve", "control_valve", "alarm_device", "pressure_switch", "flow_meter", "shutoff_valve", "pipe"].includes(intent)) {
     return candidates.filter(candidate => !hasAhlsellProductFamilyMismatch(intent, candidate.productName));
   }
   return intent === "wet_alarm_valve" || intent === "dry_alarm_valve"

@@ -5,10 +5,11 @@ import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 import { immediateParentHeading, mainProductText } from "./ahlsell-requirement-context";
 import { CONTROL_VALVE_PATTERN, ENERGY_VALVE_PATTERN, isLuminaireProduct } from "./ahlsell-functional-products";
+import { electricalHeatingIntent } from "./ahlsell-electrical-heating";
 
 export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "manometer" | "pressure_switch"
   | "flow_switch" | "ball_valve" | "butterfly_valve" | "shutoff_valve" | "check_valve"
-  | "pressure_reducing_valve" | "energy_valve" | "control_valve" | "luminaire" | "pipe" | "coupling" | "flanged_bend" | "bend" | "tee"
+  | "pressure_reducing_valve" | "energy_valve" | "control_valve" | "luminaire" | "electric_heater" | "heating_cable" | "pipe" | "coupling" | "flanged_bend" | "bend" | "tee"
   | "reducer" | "cap" | "branch" | "flange_adapter" | "pump" | "strainer" | "support"
   | "test_drain" | "flushing_connection" | "sprinkler_head" | "sprinkler_guard" | "sprinkler_hose" | "sprinkler_cabinet"
   | "water_meter" | "flow_meter" | "alarm_device" | "sensor_pocket" | "foam_extinguisher" | "portable_fire_extinguisher"
@@ -32,6 +33,8 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   // Metres measure channels too; a named channel outranks a stale pipe category.
   if (isCableTrunkingProduct(description)) return "cable_trunking";
   if (isLuminaireProduct(description)) return "luminaire";
+  const heating = electricalHeatingIntent(requirement);
+  if (heating) return heating;
   const discipline = requirementDiscipline(requirement);
   if (discipline === "electrical" || discipline === "ventilation") return "generic";
   if (ENERGY_VALVE_PATTERN.test(source)) return "energy_valve";

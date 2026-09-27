@@ -2,8 +2,9 @@ import { ns3420ProductFamily } from "./ns3420-product-classification";
 import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 import { normalizeTechnicalText } from "./ahlsell-requirement-context";
 import { requirementDiscipline, requirementHeading, requirementNsCode } from "./requirement-discipline";
+import { electricalHeatingIntent } from "./ahlsell-electrical-heating";
 
-export const PRODUCT_REQUIREMENT_CATEGORY_VERSION = 2;
+export const PRODUCT_REQUIREMENT_CATEGORY_VERSION = 3;
 
 export const PRODUCT_REQUIREMENT_CATEGORIES = [
   { id: "sprinkler_head", label: "Sprinklerhuvuden och galler", shortLabel: "Sprinklerhuvuden" },
@@ -68,6 +69,7 @@ export function productRequirementCategory(requirement: Record<string, unknown>)
   const code = requirementNsCode(requirement);
   const discipline = requirementDiscipline(requirement);
   if (isCableTrunkingProduct(heading)) return "cable_trunking";
+  if (electricalHeatingIntent(requirement)) return "electrical_heating";
   for (const [pattern, category] of namedGroups) if (pattern.test(ownName)) return category;
 
   if (discipline === "electrical") {

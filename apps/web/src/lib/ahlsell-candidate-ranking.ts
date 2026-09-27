@@ -12,6 +12,8 @@ import { ahlsellRequirementIntent, type AhlsellProductIntent as ProductIntent } 
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 import { assessLuminaireFeatures, CONTROL_VALVE_PATTERN, ENERGY_VALVE_PATTERN, isLuminaireProduct, luminaireRequirements } from "./ahlsell-functional-products";
+import { assessElectricalHeating, electricalHeatingRequirements, isElectricalHeatingProduct } from "./ahlsell-electrical-heating";
+import { genericProductIdentity, hasGenericProductIdentity } from "./ahlsell-generic-product-relevance";
 import { isRigidPipeProduct } from "./pipe-product-family";
 import { capPrimaryConnection, pipeCandidateMaterial, pipeCandidateOutsideDiameter, pipeLimitWarnings, pipeRequirementDimensions, pipeRequirementLimits } from './pipe-matching-evidence';
 import { mainProductText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
@@ -45,6 +47,8 @@ type TechnicalProfile = {
   text: string;
   intent: ProductIntent;
   luminaire: ReturnType<typeof luminaireRequirements>;
+  heating: ReturnType<typeof electricalHeatingRequirements>;
+  genericIdentity: string | null;
   dn: number | null;
   pipeLimits: ReturnType<typeof pipeRequirementLimits>;
   outsideDiameter: number | null;
@@ -172,13 +176,14 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   // provenance and saved matching scores must not create technical demands.
   const text = normalize(`${primaryText} ${productTechnicalSpecification(requirement)}`);
   const pipeDimensions = intent === 'pipe' ? pipeRequirementDimensions(requirement) : null;
-  const outsideDiameter = intent === "cable_trunking" || intent === "luminaire" ? null : pipeDimensions ? pipeDimensions.outsideDiameter : extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
-  const dn = intent === "alarm_device" || intent === "cable_trunking" || intent === "luminaire" ? null : pipeDimensions ? pipeDimensions.dn : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
+  const nonPipe = ["cable_trunking", "luminaire", "electric_heater", "heating_cable"].includes(intent);
+  const outsideDiameter = nonPipe ? null : pipeDimensions ? pipeDimensions.outsideDiameter : extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
+  const dn = intent === "alarm_device" || nonPipe ? null : pipeDimensions ? pipeDimensions.dn : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
   const placementText = normalize(attributeText(attributes, /\b(?:plassering|placering|orientation|montasje|montering|mounting)\b/));
   const deckPlateText = normalize(attributeText(attributes, /\b(?:dekkskive|pyntering|rosett|escutcheon|cover plate)\b/));
   const materialText = normalize(attributeText(attributes, /\b(?:materiale|materialkvalitet|material|ror material)\b/)
     || mainProductText(String(requirement.value_text ?? requirement.display_name ?? "")));
-  const jointText = intent === "alarm_device" || intent === "cable_trunking" || intent === "luminaire" ? "" : normalize(requirementJointText(attributes, String(requirement.value_text ?? "")));
+  const jointText = intent === "alarm_device" || nonPipe ? "" : normalize(requirementJointText(attributes, String(requirement.value_text ?? "")));
   const sprinklerTypeText = normalize(attributeText(attributes, /\b(?:type sprinkler|sprinklertype|dekning|coverage)\b/));
   const sprinklerSystemText = normalize(attributeText(attributes, /\b(?:sprinkleranlegg|anleggstype|systemtype|sprinkler system)\b/));
   const coverageText = `${sprinklerTypeText} ${primaryText}`;
@@ -208,6 +213,8 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     text,
     intent,
     luminaire: luminaireRequirements(requirement),
+    heating: electricalHeatingRequirements(requirement),
+    genericIdentity: intent === "generic" ? genericProductIdentity(requirement) : null,
     dn,
     pipeLimits: pipeRequirementLimits(requirement),
     outsideDiameter: outsideDiameter ?? (dn === null ? null : PIPE_OUTSIDE_DIAMETER_BY_DN[dn] ?? null),
@@ -459,6 +466,20 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     score += scoreSprinklerAttributes(candidateText, candidateName, requirement, reasons, warnings);
   } else if (requirement.intent === "custom_fabrication") {
     warnings.push("Posten verkar vara specialtillverkad och måste verifieras via offert eller manuellt produktval.");
+  } else if (requirement.intent === "electric_heater" || requirement.intent === "heating_cable") {
+    if (isElectricalHeatingProduct(candidate.productName, requirement.intent)) {
+      score += 55;
+      reasons.push(requirement.intent === "electric_heater" ? "Produkten tillhör familjen elektriska värmeelement." : "Produkten är en värmekabel eller värmematta.");
+    }
+    const assessment = assessElectricalHeating(requirement.heating, candidate);
+    score += assessment.score;
+    reasons.push(...assessment.reasons);
+    warnings.push(...assessment.warnings);
+  } else if (requirement.intent === "generic") {
+    if (hasGenericProductIdentity(requirement.genericIdentity, candidate.productName)) {
+      score += 35;
+      reasons.push("Produktnamnet motsvarar huvudprodukten i PDF-posten; tekniska krav behöver granskas.");
+    } else warnings.push("Fel produkttyp: träffens produktnamn kan inte kopplas till PDF-postens huvudprodukt.");
   } else if (requirement.intent === "luminaire") {
     if (isLuminaireProduct(candidate.productName)) { score += 55; reasons.push("Produkten är en belysningsarmatur."); }
     const features = assessLuminaireFeatures(requirement.luminaire, candidate);
@@ -478,7 +499,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
   if (requirement.intent === "pipe" && /\b(?:[ty] ror|grenror|tee|sprinkler t|anb klammer)\b/.test(candidateName)) {
     warnings.push("Fel produkttyp: en grenrörsdel är inte en rak rörlängd.");
   }
-  if (requirement.intent !== "manifold_cabinet") {
+  if (!["manifold_cabinet", "electric_heater", "heating_cable"].includes(requirement.intent)) {
     score += scoreDimension(dimensionText, requirement, reasons, warnings);
     score += scorePressure(candidateText, requirement, reasons, warnings);
     score += scoreMaterialAndJoint(candidateText, requirement, reasons, warnings, materialText, jointText);
@@ -544,6 +565,7 @@ const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
 
 /** Family compatibility is necessary, but does not verify a complete assembly. */
 export function hasAhlsellProductFamilyMismatch(intent: ProductIntent, productName: string) {
+  if (intent === "electric_heater" || intent === "heating_cable") return !isElectricalHeatingProduct(productName, intent);
   if (intent === "luminaire") return !isLuminaireProduct(productName);
   if ((intent === "energy_valve" || intent === "control_valve") && /\b(?:aktuator|actuator|ventilmotor|tilbehor|tillbehor|klammer|sensor|kobling|kupling)\b/.test(mainProductText(productName))) return true;
   if (intent === "cable_trunking") return !isCableTrunkingProduct(productName);

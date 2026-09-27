@@ -23,6 +23,8 @@ export function engineeringRequirementWarnings(
   // family match cannot verify the whole assembly or inherit pipe dimensions.
   if (intent === "manifold_cabinet") return [MANIFOLD_CABINET_REVIEW_WARNING];
   if (intent === "cable_trunking") return cableTrunkingReviewWarnings(requirement, candidate);
+  // Heating has its own article-specific power, voltage and installation checks.
+  if (intent === "electric_heater" || intent === "heating_cable") return [];
   if (intent === "luminaire" || intent === "energy_valve" || intent === "control_valve") return functionalProductReviewWarnings(requirement, intent);
   // A search URL, stock location or requirement-derived PDF reference is not
   // technical product evidence.
