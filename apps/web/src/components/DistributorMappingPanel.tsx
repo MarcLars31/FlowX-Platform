@@ -2,7 +2,7 @@
 
 
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { Fragment, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
 import { Button } from "@/components/Button";
@@ -10,6 +10,7 @@ import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
+import { createProductCardHistory } from "@/lib/product-card-history";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 import { groupProductRequirementsByMainPost } from "@/lib/product-post-groups";
 import { ProductPostComments } from "@/components/ProductPostComments";
@@ -305,6 +306,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   const [productCardSaving, setProductCardSaving] = useState(false);
   const [productCardDirty, setProductCardDirty] = useState(false);
   const productDialogRef = useRef<HTMLDialogElement>(null);
+  const productCardHistory = useRef<ReturnType<typeof createProductCardHistory> | null>(null);
   const [productCardHeaderActions, setProductCardHeaderActions] = useState<HTMLDivElement | null>(null);
   const visibleProductTableColumns = productTableLayout.order.filter(
     (columnId) => !productTableLayout.hidden.includes(columnId)
@@ -445,6 +447,34 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   const activeRequirement = activeIndex >= 0 ? cardRequirements[activeIndex] : undefined;
   const productCardOpen = Boolean(activeRequirement);
 
+  function confirmDiscardProductChanges() {
+    if (!productCardDirty) return true;
+    return window.confirm("Du har osparade ändringar i produktkortet. Tryck Avbryt för att fortsätta och spara, eller OK för att stänga utan att spara.");
+  }
+
+  const canLeaveCardFromHistory = useEffectEvent(() => !productCardSaving && confirmDiscardProductChanges());
+  const navigateCardFromHistory = useEffectEvent((requirementId: string | null) => {
+    if (!requirementId && productDialogRef.current?.open) productDialogRef.current.close();
+    setActiveRequirementId(requirementId);
+    setProductCardDirty(false);
+    setMessage(null);
+    setError(null);
+  });
+  useEffect(() => {
+    const navigation = createProductCardHistory(window, `${projectId}:${view}`, {
+      canLeave: canLeaveCardFromHistory,
+      onNavigate: navigateCardFromHistory
+    });
+    productCardHistory.current = navigation;
+    const initialCard = navigation.current();
+    const frame = initialCard ? window.requestAnimationFrame(() => navigateCardFromHistory(initialCard)) : null;
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      navigation.dispose();
+      productCardHistory.current = null;
+    };
+  }, [projectId, view]);
+
   useEffect(() => {
     const dialog = productDialogRef.current;
     if (!dialog || !productCardOpen || dialog.open) return;
@@ -490,6 +520,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   function showRequirement(requirementId: string) {
     if (productCardSaving) return;
     if (activeRequirementId && activeRequirementId !== requirementId && !confirmDiscardProductChanges()) return;
+    if (!productCardHistory.current?.open(requirementId)) return;
     setProductCardDirty(false);
     setActiveRequirementId(requirementId);
     const mainPost = mainPostGroups.find(group => group.requirements.some(item => item.id === requirementId));
@@ -502,16 +533,12 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   function closeRequirement() {
     if (productCardSaving) return;
     if (!confirmDiscardProductChanges()) return;
+    productCardHistory.current?.close();
     if (productDialogRef.current?.open) productDialogRef.current.close();
     setProductCardDirty(false);
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
-  }
-
-  function confirmDiscardProductChanges() {
-    if (!productCardDirty) return true;
-    return window.confirm("Du har osparade ändringar i produktkortet. Tryck Avbryt för att fortsätta och spara, eller OK för att stänga utan att spara.");
   }
 
   function toggleMainPost(key: string) {
@@ -837,6 +864,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                         setError(null);
                         setMessage(successMessage);
                         await onReload();
+                        productCardHistory.current?.close();
                         if (productDialogRef.current?.open) productDialogRef.current.close();
                         setActiveRequirementId(null);
                       }}
