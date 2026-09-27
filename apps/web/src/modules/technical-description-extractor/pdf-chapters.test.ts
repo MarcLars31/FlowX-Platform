@@ -150,13 +150,31 @@ test("keeps consecutive orientation continuation pages together before the confi
   for (const number of [524, 525, 526]) assert.deepEqual(chapters.get(number), { title: distributionTitle, sourcePage: 524 });
 });
 
-test("does not infer an orientation chapter across gaps, other buildings, conflicting names or intervening chapters", () => {
+test("starts a new orientation chapter even when its page footer still names the preceding subchapter", () => {
+  const previous = "1401 HM - 50.562 Sentral driftskontroll og automatisering";
+  const next = "1401 HM - 50.563 Lokal automatisering";
+  const lines = extractTechnicalDescriptionFromPages([
+    page(425, `1401.50.562.44.4 YB4.1\nSENSOR\nAntall stk 1\n${previous}\n${table}`),
+    page(426, `563 Lokal automatisering\nOrientering\nKapittelet omfatter lokale komponenter og utstyr for automatiseringsanlegget.\n${previous}`),
+    page(427, `1401.50.563.1 YB4.1\nSENSOR\nAntall stk 2\n${next}\n${table}`)
+  ]).materialLines;
+  assert.equal(lines.length, 3);
+  assert.deepEqual(lines[0].sourcePages, [425]);
+  assert.equal(lines[1].chapterInformation, true);
+  assert.deepEqual(lines[1].sourceChapter, { title: next, sourcePage: 426 });
+});
+
+test("does not infer an orientation chapter across gaps, other buildings or intervening chapters", () => {
   for (const following of [page(526, distributionTitle), page(525, distributionTitle.replace("1402 VT", "1401 HM")),
-    page(525, distributionTitle.replace("Fordelingssystemer", "Andre systemer")),
     page(525, distributionTitle.replace("421", "422")), page(525, "421 Fordelingssystemer")]) {
     const chapters = pdfChaptersByPage([page(524, orientationText), following, page(527, distributionTitle)]);
     assert.equal(chapters.get(524)?.title, parentTitle);
   }
+});
+
+test("uses the confirmed chapter number when an area label or alternate description appears in its introduction", () => {
+  const chapters = pdfChaptersByPage([page(524, orientationText.replace("Orientering", "Område: VT\nOrientering").replace("421 Fordelingssystemer", "421 Fordeling av kraft")), page(525, distributionTitle)]);
+  assert.deepEqual(chapters.get(524), { title: distributionTitle, sourcePage: 524 });
 });
 
 test("keeps a new chapter's orientation as information instead of appending it to the preceding product", () => {

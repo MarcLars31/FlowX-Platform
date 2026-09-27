@@ -8,22 +8,24 @@ export function pdfChaptersByPage(pages: readonly Pick<TechnicalDescriptionPage,
   const ordered = [...pages].sort((left, right) => left.pageNumber - right.pageNumber);
   const titles = completeChapterTitles(ordered.map(page => chapterTitle(page.text)));
   // Orientation pages can still carry the parent chapter in the page header.
-  // Use the body heading only when the following chapter confirms both its
-  // number and name, in the same building and on consecutive PDF pages.
+  // Use the body heading when the following chapter confirms its number in
+  // the same building on consecutive pages. Descriptive wording can vary.
   for (let index = 0; index < ordered.length; index += 1) {
     const parentTitle = titles[index];
-    const parent = titles[index]?.match(/^(\d{3,6}\s+[A-ZÆØÅ][\wÆØÅæøå-]*(?:\s+[A-ZÆØÅ][\wÆØÅæøå-]*)?\s+[-–—]\s+\d{1,4})\s+\S/);
+    const parent = titles[index]?.match(/^(\d{3,6}\s+[A-ZÆØÅ][\wÆØÅæøå-]*(?:\s+[A-ZÆØÅ][\wÆØÅæøå-]*)?\s+[-–—]\s+\d{1,4})(?:\.\d+)*\s+\S/);
     if (!parent) continue;
     const lines = ordered[index].text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     const orientation = lines.findIndex(line => /^Orientering\s*:?$/i.test(line));
-    const heading = orientation > 0 ? lines[orientation - 1].match(/^(\d{3})\s+(.+)$/) : undefined;
+    const heading = orientation > 0 ? lines.slice(Math.max(0, orientation - 3), orientation)
+      .map(line => line.match(/^(\d{3})\s+(.+)$/)).find(Boolean) : undefined;
     if (!heading) continue;
     const expected = `${parent[1]}.${heading[1]} ${heading[2]}`;
     for (let next = index + 1; next < ordered.length; next += 1) {
       if (ordered[next].pageNumber !== ordered[next - 1].pageNumber + 1) break;
       const nextTitle = titles[next];
       if (nextTitle && normalizedChapter(nextTitle) !== normalizedChapter(titles[index]!)) {
-        if (normalizedChapter(nextTitle) === normalizedChapter(expected)) {
+        if (normalizedChapter(nextTitle).startsWith(normalizedChapter(`${parent[1]}.${heading[1]} `))
+          && nextTitle.match(/[-–—]\s+\d+(?:\.\d+)*\s/)?.[0].trim().endsWith(`.${heading[1]}`)) {
           for (let continuation = index; continuation < next; continuation += 1) titles[continuation] = nextTitle;
         }
         break;

@@ -484,7 +484,7 @@ function extractLegacyMaterialLines(
 
 function postBelongsToChapter(postNumber: string | undefined, title: string) {
   const parts = title.match(/^(\d{3,6})\s+[A-ZÆØÅ][\wÆØÅæøå-]*\s+[-–—]\s+(\d+(?:\.\d+)*)\s/);
-  return Boolean(parts && postNumber?.startsWith(`${parts[1]}.${parts[2]}.`));
+  return Boolean(parts && parts[2].includes(".") && postNumber?.startsWith(`${parts[1]}.${parts[2]}.`));
 }
 
 function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
