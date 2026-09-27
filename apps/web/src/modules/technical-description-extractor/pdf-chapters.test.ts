@@ -12,6 +12,31 @@ const distributionTitle = "1402 VT - 40.421 Fordelingssystemer";
 const parentTitle = "1402 VT - 40 Elkraftinstallasjoner";
 const orientationText = `421 Fordelingssystemer\nOrientering\nKapittelet omfatter:\nPrisbærende poster for høyspenningsutstyr. Hulltaking og tettinger beskrives i kapittel 26.\n${parentTitle}`;
 
+test("restores abbreviated chapter headers using the full name from the same building and document", () => {
+  const chapters = pdfChaptersByPage([
+    page(1, "1401 HM - 40 Elkraftinstallasjoner"), page(2, "1401 HM - 40."),
+    page(330, "1401 HM - 50 Tele- og automatiseringsinstallasjoner"), page(332, "1401 HM - 50."),
+    page(455, "1402 VT - 40 Elkraftinstallasjoner"), page(456, "1402 VT - 40."),
+    page(2222, "1410 UT - 75 Utendørs tele og automatisering"), page(2223, "1410 UT - 75.")
+  ]);
+  for (const [named, abbreviated] of [[1, 2], [330, 332], [455, 456], [2222, 2223]]) {
+    assert.deepEqual(chapters.get(abbreviated), chapters.get(named));
+  }
+  assert.equal(chapters.get(2)?.title, "1401 HM - 40 Elkraftinstallasjoner");
+  assert.equal(chapters.get(456)?.sourcePage, 455);
+});
+
+test("does not borrow names from another building, a subchapter, a different document or an ambiguous code", () => {
+  for (const other of ["1402 VT - 40 Elkraftinstallasjoner", "1401 HM - 40.411 Systemer for kabelføring"]) {
+    const chapters = pdfChaptersByPage([page(1, other), page(2, "1401 HM - 40.")]);
+    assert.equal(chapters.get(2)?.title, "1401 HM - 40.");
+  }
+  pdfChaptersByPage([page(1, "1401 HM - 40 Elkraftinstallasjoner")]);
+  assert.equal(pdfChaptersByPage([page(2, "1401 HM - 40.")]).get(2)?.title, "1401 HM - 40.");
+  const ambiguous = pdfChaptersByPage([page(1, "1401 HM - 40 Navn A"), page(2, "1401 HM - 40 Navn B"), page(3, "1401 HM - 40.")]);
+  assert.equal(ambiguous.get(3)?.title, "1401 HM - 40.");
+});
+
 test("places page 524's orientation under the chapter confirmed by page 525", () => {
   const pages = [page(523, `1402.40.412.11 WC1.13119A\nJORDINGSMATERIELL\nAntall stk 2\nSum:\n1402 VT - 40.412 Systemer for jording\n${table}`),
     page(524, orientationText),

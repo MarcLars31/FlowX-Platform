@@ -6,7 +6,7 @@ export function pdfChaptersByPage(pages: readonly Pick<TechnicalDescriptionPage,
   const chapters = new Map<string, TechnicalDescriptionChapter>();
   let current: TechnicalDescriptionChapter | undefined;
   const ordered = [...pages].sort((left, right) => left.pageNumber - right.pageNumber);
-  const titles = ordered.map(page => chapterTitle(page.text));
+  const titles = completeChapterTitles(ordered.map(page => chapterTitle(page.text)));
   // Orientation pages can still carry the parent chapter in the page header.
   // Use the body heading only when the following chapter confirms both its
   // number and name, in the same building and on consecutive PDF pages.
@@ -47,6 +47,28 @@ export function pdfChaptersByPage(pages: readonly Pick<TechnicalDescriptionPage,
 
 function normalizedChapter(title: string) {
   return title.toLocaleLowerCase("nb-NO").replace(/\s+/g, "");
+}
+
+function completeChapterTitles(titles: (string | undefined)[]) {
+  // A repeated header may contain only "1401 HM - 40.". Resolve it from a
+  // named header for that exact building and chapter in this document. Never
+  // borrow a subchapter's name or guess when the PDF has conflicting names.
+  const pattern = /^(\d{3,6}\s+[A-ZÆØÅ][\wÆØÅæøå-]*(?:\s+[A-ZÆØÅ][\wÆØÅæøå-]*)?\s+[-–—]\s+\d{1,4}(?:\.\d+)*)\.?(?:\s+(.+))?$/;
+  const parsed = titles.map(title => title?.match(pattern));
+  const named = new Map<string, string | null>();
+  const key = (code: string) => normalizedChapter(code.replace(/[–—]/g, "-"));
+  for (const parts of parsed) {
+    if (!parts?.[2]) continue;
+    const identity = key(parts[1]);
+    const title = `${parts[1]} ${parts[2]}`;
+    const previous = named.get(identity);
+    if (previous === undefined) named.set(identity, title);
+    else if (previous !== null && key(previous) !== key(title)) named.set(identity, null);
+  }
+  return titles.map((title, index) => {
+    const parts = parsed[index];
+    return parts && !parts[2] ? named.get(key(parts[1])) ?? title : title;
+  });
 }
 
 function chapterTitle(text: string) {
