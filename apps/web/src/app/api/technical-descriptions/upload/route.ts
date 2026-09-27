@@ -1,3 +1,4 @@
+import { selectUserRows } from "@/lib/supabase-user-rest";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
@@ -56,6 +57,11 @@ export async function DELETE(request: Request) {
       organizationId: authorization.context.organization.id,
       userId: authorization.user.id
     }, body?.uploadId);
+    const jobs = await selectUserRows("technical_description_jobs", {
+      organization_id: `eq.${authorization.context.organization.id}`, created_by: `eq.${authorization.user.id}`,
+      upload_id: `eq.${body?.uploadId}`, select: "id", limit: "1"
+    });
+    if (jobs.length) return new NextResponse(null, {status:409});
     await cleanupTechnicalDescriptionUpload(path);
     return new NextResponse(null, { status: 204 });
   } catch (error) {

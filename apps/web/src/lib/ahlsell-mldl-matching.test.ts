@@ -41,7 +41,7 @@ test("public-only screenshot articles and PDF references do not enter the MLDL b
   }
 });
 
-test("table labels stay local while automatic classification and product cards search the public assortment", async () => {
+test("table labels stay local and the retired background queue cannot search the public assortment", async () => {
   const routes = [
     "../app/api/projects/[id]/requirements/[requirementId]/ahlsell-subtitles/route.ts",
     "../app/api/projects/[id]/ahlsell-product-labels/route.ts"
@@ -55,9 +55,8 @@ test("table labels stay local while automatic classification and product cards s
   assert.match(panel, /catalogResult\?\.candidates \?\? guide.directCandidates/);
   const candidateRoute = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-candidates/route.ts", import.meta.url), "utf8");
   assert.doesNotMatch(candidateRoute, /findMldlOnlyCandidates/);
-  assert.match(candidateRoute, /classification: ahlsellCatalogStatusFromPayload\(result\)/);
   const searchCall = candidateRoute.indexOf("await findAhlsellHybridCandidates(requirement");
-  assert.ok(searchCall >= 0 && searchCall < candidateRoute.indexOf("if (classificationMode)"));
+  assert.ok(searchCall >= 0 && candidateRoute.indexOf('status: 410') < searchCall);
   const manualLookup = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-lookup/route.ts", import.meta.url), "utf8");
   assert.match(manualLookup, /lookupAhlsellProduct/);
 });

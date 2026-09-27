@@ -51,7 +51,8 @@ export default async function DashboardPage() {
   const insights = buildCommercialProjectInsights({
     projects: data.projects,
     requirements: data.hasProductSelectionInsights ? data.requirements : [],
-    assignments: data.assignments
+    assignments: data.assignments,
+    requirementCounts: data.requirementCounts
   });
   const ownerNames = ownerNameById(data.profiles);
   const productInsightsAvailable =

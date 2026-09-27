@@ -22,6 +22,7 @@ const PROJECT_READ_PERMISSIONS = [
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, context: RouteContext) {
+  const requestId=crypto.randomUUID(); const started=Date.now();
   try {
     const authorization = await requireOrganizationApi(PROJECT_READ_PERMISSIONS);
     if (authorization.error) return authorization.error;
@@ -40,9 +41,10 @@ export async function GET(_request: Request, context: RouteContext) {
     if (!project) return NextResponse.json({ error: "Projektet hittades inte." }, { status: 404 });
 
     const data = await loadProjectOverviewData(id, authorization.context.organization.id, authorization.context.permissions);
-    return NextResponse.json({ project, ...data, demoDataDisclaimer: project.demo_data_set_id ? DEMO_DATA_DISCLAIMER : null }, { headers: { "Cache-Control": "private, no-store" } });
+    console.info("project_overview_loaded", {requestId,projectId:id,elapsedMs:Date.now()-started});
+    return NextResponse.json({ requestId, project, ...data, demoDataDisclaimer: project.demo_data_set_id ? DEMO_DATA_DISCLAIMER : null }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return projectDetailError(error);
+    return projectDetailError(error,requestId,Date.now()-started);
   }
 }
 
@@ -192,16 +194,17 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function projectDetailError(error: unknown) {
+function projectDetailError(error: unknown, requestId=crypto.randomUUID(), elapsedMs?:number) {
+  console.error("project_request_failed",{requestId,elapsedMs,code:error instanceof UserSupabaseError ? error.code : undefined});
   if (error instanceof UserSupabaseError) {
     const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
     return NextResponse.json(
-      { error: forbidden ? "Projektåtkomsten nekades." : "Projektet kunde inte läsas eller uppdateras." },
+      { requestId, error: forbidden ? "Projektåtkomsten nekades." : "Projektet kunde inte läsas eller uppdateras." },
       { status: forbidden ? 403 : 500 }
     );
   }
   return NextResponse.json(
-    { error: "Projektet kunde inte läsas eller uppdateras." },
+    { requestId, error: "Projektet kunde inte läsas eller uppdateras." },
     { status: 500 }
   );
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import { requirementSnapshot } from "./requirement-snapshot";
 import { getCurrentAccessToken } from "@/lib/supabase-auth";
 import { collectAllRows, collectAllRowsById } from "@/lib/paginated-rows";
 
@@ -35,6 +36,7 @@ export async function selectUserRows<T>(
   const response = await fetch(url, {
     method: "GET",
     headers: userHeaders(config),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
 
@@ -47,7 +49,7 @@ export async function selectUserRows<T>(
   const rows = (await response.json()) as T[];
   const elapsedMs = Date.now() - startedAt;
   if (elapsedMs > 3000) console.warn("supabase_user_select_slow", { table, elapsedMs, rows: rows.length });
-  return rows;
+  return table === "project_requirements" ? rows.map(row => requirementSnapshot(row as Record<string, unknown>) as T) : rows;
 }
 
 export async function selectAllUserRows<T>(
@@ -97,6 +99,7 @@ export async function insertUserRowReturning<T>(
     method: "POST",
     headers: userHeaders(config, "return=representation"),
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
 
@@ -128,6 +131,7 @@ export async function insertUserRows(
     headers: userHeaders(config, options.ignoreIdConflicts
       ? "return=minimal,resolution=ignore-duplicates" : "return=minimal"),
     body: JSON.stringify(payloads),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
 
@@ -150,6 +154,7 @@ export async function updateUserRowsReturning<T>(
     method: "PATCH",
     headers: userHeaders(config, "return=representation"),
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
 
@@ -174,6 +179,7 @@ export async function deleteUserRows(
   const response = await fetch(url, {
     method: "DELETE",
     headers: userHeaders(config),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
 
@@ -190,6 +196,7 @@ export async function deleteUserRowsReturning<T>(
   const response = await fetch(url, {
     method: "DELETE",
     headers: userHeaders(config, "return=representation"),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
   if (!response.ok) throw await readUserSupabaseError(response);
@@ -205,6 +212,7 @@ export async function callUserRpc<T>(
     method: "POST",
     headers: userHeaders(config, "return=representation"),
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
 
@@ -236,7 +244,8 @@ export async function uploadUserStorageObject(
       body: Buffer.from(
         body instanceof ArrayBuffer ? new Uint8Array(body) : body
       ),
-      cache: "no-store"
+      signal: AbortSignal.timeout(20_000),
+    cache: "no-store"
     }
   );
 

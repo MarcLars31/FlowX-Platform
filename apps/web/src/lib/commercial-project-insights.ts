@@ -33,6 +33,8 @@ export type CommercialAssignmentRow = Record<string, unknown> & {
   selected_at?: string | null;
 };
 
+export type ProjectRequirementCounts = { project_id: string; total: number; approved: number; not_in_assortment: number; handled: number };
+
 export type CommercialTechnicalPhaseKey =
   | "new_request"
   | "analysis"
@@ -120,11 +122,13 @@ export function buildCommercialProjectInsights(
   {
     projects,
     requirements,
-    assignments
+    assignments,
+    requirementCounts
   }: {
     projects: readonly CommercialProjectRow[];
     requirements: readonly BusinessDevelopmentRequirementRow[];
     assignments: readonly CommercialAssignmentRow[];
+    requirementCounts?: readonly ProjectRequirementCounts[];
   },
   now = new Date()
 ): CommercialProjectInsights {
@@ -150,6 +154,8 @@ export function buildCommercialProjectInsights(
       project,
       productRequirements: productRequirementsByProject.get(project.id) ?? [],
       approvedAssignmentByRequirementId,
+      counts: requirementCounts ? requirementCounts.find(counts => counts.project_id === project.id)
+        ?? { project_id: project.id, total: 0, approved: 0, not_in_assortment: 0, handled: 0 } : undefined,
       now
     }))
     .sort(compareProjects);
@@ -188,11 +194,13 @@ function buildProjectInsight({
   project,
   productRequirements,
   approvedAssignmentByRequirementId,
+  counts,
   now
 }: {
   project: CommercialProjectRow;
   productRequirements: readonly BusinessDevelopmentRequirementRow[];
   approvedAssignmentByRequirementId: ReadonlyMap<string, CommercialAssignmentRow>;
+  counts?: ProjectRequirementCounts;
   now: Date;
 }): CommercialProjectInsight {
   const approvedRequirementIds = new Set(
@@ -209,8 +217,8 @@ function buildProjectInsight({
     ...approvedRequirementIds,
     ...notInAssortmentRequirementIds
   ]);
-  const totalProductRequirements = productRequirements.length;
-  const handledProductRequirements = handledRequirementIds.size;
+  const totalProductRequirements = counts ? Number(counts.total) : productRequirements.length;
+  const handledProductRequirements = counts ? Number(counts.handled) : handledRequirementIds.size;
   const currentStage = firstText(project.current_stage) ?? "setup";
   const isArchived = project.status === "archived";
   const isCompleted = !isArchived && (
@@ -224,7 +232,7 @@ function buildProjectInsight({
     0,
     totalProductRequirements - handledProductRequirements
   );
-  const notInAssortmentCount = notInAssortmentRequirementIds.size;
+  const notInAssortmentCount = counts ? Number(counts.not_in_assortment) : notInAssortmentRequirementIds.size;
   const needsFollowUp = isActive && (
     isOverdue || isStale || notInAssortmentCount > 0 || remainingProductRequirements > 0
   );
@@ -247,7 +255,7 @@ function buildProjectInsight({
       project.created_by
     ),
     totalProductRequirements,
-    approvedProductRequirements: approvedRequirementIds.size,
+    approvedProductRequirements: counts ? Number(counts.approved) : approvedRequirementIds.size,
     notInAssortmentCount,
     handledProductRequirements,
     remainingProductRequirements,

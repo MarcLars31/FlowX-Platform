@@ -297,8 +297,15 @@ export function ProjectWorkspace({
       );
       const payload = (await response.json().catch(() => null)) as { error?: string; persistedRequirementCount?: number } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Underlaget kunde inte extraheras.");
-      const refreshedData = await reload();
-      await advanceProjectStage("product_matching");
+      let refreshedData: ProjectModuleData;
+      try {
+        refreshedData = await reload();
+        await advanceProjectStage("product_matching");
+      } catch {
+        setMessage("Underlaget är sparat. Visningen kunde inte uppdateras — ladda om sidan eller öppna Importstatus.");
+        setSelectedFile(null); formElement.reset();
+        return;
+      }
       const requirementCount = payload?.persistedRequirementCount ?? 0;
       if (requirementCount > 0) {
         setMessage(`Underlaget är sparat. ${requirementCount} produktrader är klara för produktval.`);

@@ -7,13 +7,22 @@ export class RequestBodyTooLargeError extends Error {
 
 /** Reads JSON without allowing a chunked request to bypass the body limit. */
 export async function readJsonBody<T>(request: Request, maxBytes: number) {
+  return JSON.parse(new TextDecoder().decode(await readBoundedBody(request, maxBytes))) as T;
+}
+
+export async function readFormBody(request: Request, maxBytes: number) {
+  const bytes = await readBoundedBody(request, maxBytes);
+  return new Response(bytes, { headers: { "Content-Type": request.headers.get("content-type") ?? "" } }).formData();
+}
+
+async function readBoundedBody(request: Request, maxBytes: number) {
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (Number.isFinite(contentLength) && contentLength > maxBytes) {
     throw new RequestBodyTooLargeError();
   }
 
   const reader = request.body?.getReader();
-  if (!reader) return JSON.parse(await request.text()) as T;
+  if (!reader) return new Uint8Array();
 
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -40,5 +49,5 @@ export async function readJsonBody<T>(request: Request, maxBytes: number) {
     offset += chunk.byteLength;
   }
 
-  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+  return bytes;
 }

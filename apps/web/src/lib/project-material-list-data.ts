@@ -21,7 +21,7 @@ export async function loadProjectMaterialListData(
 
   const [requirements, assignments] = await Promise.all([
     selectAllUserRows<MaterialListRequirement>("project_requirements", {
-      select: "id,category,requirement_key,value_text,value_json",
+      select: "id,category,requirement_key,value_text,value_json,source_excerpt,updated_at",
       project_id: `eq.${projectId}`,
       organization_id: `eq.${organizationId}`,
       deleted_at: "is.null",

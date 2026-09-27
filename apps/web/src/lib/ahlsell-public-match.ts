@@ -17,6 +17,7 @@ import {
 } from "@/lib/sprinkler-technical-rules";
 import { ahlsellRequirementIntent, type AhlsellProductIntent } from "./ahlsell-requirement-intent";
 import { cableTrunkingRequirementGuide } from "./ahlsell-cable-trunking";
+import { genericProductSearch, requirementDiscipline } from "./requirement-discipline";
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
@@ -174,6 +175,14 @@ export function buildAhlsellRequirementGuide(
   }
   if (intent === "cable_trunking") {
     return cableTrunkingRequirementGuide(attributes, dataWarnings.map(warning => warning.message), ahlsellSearchUrl);
+  }
+  if (intent === "generic" && ["electrical", "ventilation"].includes(requirementDiscipline(requirement))) {
+    const searchQuery = genericProductSearch(requirement);
+    const url = new URL(ahlsellSearchUrl);
+    url.searchParams.set("parameters.SearchPhrase", searchQuery);
+    return { searchQuery, searchQueries: [searchQuery], searchUrl: url.toString(),
+      criteria: [...attributes].map(([key, value]) => `${key}: ${value}`),
+      warnings: dataWarnings.map(warning => warning.message), recognitionNotes: [], directCandidates: [] };
   }
 
   const rawKFactor = parseSprinklerKFactor(projectRequirementKFactorDisplayValue(requirement))

@@ -3,7 +3,7 @@ import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { selectUserRows, updateUserRowsReturning, UserSupabaseError } from "@/lib/supabase-user-rest";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
-import { enrichProjectRequirements } from "@/lib/project-requirement-enrichment";
+import { requirementSnapshot } from "@/lib/requirement-snapshot";
 import { compactProjectRequirement, type OverviewRow } from "@/lib/project-overview";
 
 export const runtime = "nodejs";
@@ -22,13 +22,11 @@ export async function GET(request: Request, context: RouteContext) {
     if (!raw) return NextResponse.json({ error: "Produktposten hittades inte." }, { status: 404 });
     const summaryOnly = new URL(request.url).searchParams.get("view") === "summary";
     const canReadProducts = auth.context.permissions.includes("project.product_suggestion.view");
-    const [documents, assignments, memory] = await Promise.all([
-      !summaryOnly && raw.source_technical_description_document_id && auth.context.permissions.includes("technical_description.view")
-        ? selectUserRows<OverviewRow>("technical_description_documents", { ...filters, id: `eq.${raw.source_technical_description_document_id}`, select: "id,file_name,source_pages", limit: "1" }) : [],
+    const [assignments, memory] = await Promise.all([
       canReadProducts ? selectUserRows<OverviewRow>("project_product_suggestions", { ...filters, requirement_id: `eq.${requirementId}`, status: "eq.selected", order: "updated_at.desc" }) : [],
       !summaryOnly && canReadProducts ? loadDistributorProductMemory(auth.context.organization.id, [raw]) : { mappingMemories: [], mappingAccessories: [] }
     ]);
-    const requirement = summaryOnly ? raw : enrichProjectRequirements([raw], documents)[0];
+    const requirement = requirementSnapshot(raw);
     return NextResponse.json({ requirement: summaryOnly ? compactProjectRequirement(requirement) : requirement, overviewRequirement: compactProjectRequirement(requirement), assignments, ...memory }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const forbidden = error instanceof UserSupabaseError && (error.status === 401 || error.status === 403 || error.code === "42501");

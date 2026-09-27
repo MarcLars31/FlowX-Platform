@@ -1379,7 +1379,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirementId: requirement.id, userApproved: true, ...chosen })
+        body: JSON.stringify({ requirementId: requirement.id, expectedRevision: requirement.edit_revision, userApproved: true, ...chosen })
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Produktvalet kunde inte sparas.");
@@ -1441,7 +1441,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       const response = await fetch(`/api/projects/${projectId}/product-resolutions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirementId: requirement.id, resolution: nextResolution })
+        body: JSON.stringify({ requirementId: requirement.id, expectedRevision: requirement.edit_revision, resolution: nextResolution })
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Märkningen kunde inte sparas.");

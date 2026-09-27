@@ -33,6 +33,7 @@ export default async function ProjectsPage() {
         description="Här visas endast projekt som inte är färdiga. Markera ett eller flera projekt om du vill flytta dem till papperskorgen."
         icon={<FolderKanban aria-hidden="true" />}
       >
+        <Link prefetch={false} href="/imports" className="inline-flex items-center border px-4 py-2 text-sm">Importstatus</Link>
         {canCreate && (
           <Link prefetch={false}
             href="/projects/new"

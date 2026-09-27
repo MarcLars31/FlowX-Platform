@@ -1,4 +1,5 @@
 import { normalizeQuantityUnit } from "./quantity-value";
+import { requirementDiscipline } from "./requirement-discipline";
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
@@ -29,6 +30,8 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   if (isManifoldCabinetProduct(description)) return "manifold_cabinet";
   // Metres measure channels too; a named channel outranks a stale pipe category.
   if (isCableTrunkingProduct(description)) return "cable_trunking";
+  const discipline = requirementDiscipline(requirement);
+  if (discipline === "electrical" || discipline === "ventilation") return "generic";
 
   // A named main item outranks old categories and references to equipment it serves.
   if (/^(?:nokkelbryter|nokkelboks|nyckelbrytare|nyckelbox|key switch|key box)\b/.test(primaryDescription)) return "key_switch";
@@ -101,9 +104,9 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   if (has(/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/)) return "custom_fabrication";
   if (category === "sprinkler_head" || has(/\bsprinkler head\b|\bk faktor\b|\butlosningstemperatur\b/)) return "sprinkler_head";
   if (codeFamily) return codeFamily;
-  if (category === "pipe" || (unit === "m" && !has(/\b(oppheng|isolasjon|kanal|kabel|groft)\b/))) return "pipe";
+  if (category === "pipe" && (dimensionOnly || /\b(?:ror|stalror|sprinklerror|rorledning)\b/.test(source))) return "pipe";
   if (category === "support" || has(/\b(oppheng|rorstotte|support|rorbarer|klammer)\b/)) return "support";
-  if (category === "fitting") return "coupling";
+  if (category === "fitting" && dimensionOnly) return "coupling";
   return "generic";
 }
 

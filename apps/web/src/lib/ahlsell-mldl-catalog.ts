@@ -2,6 +2,7 @@ import catalogData from "@/data/ahlsell-mldl-catalog.json";
 import { orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
+import { requirementDiscipline } from "./requirement-discipline";
 import { ahlsellRequirementIntent, catalogTypesForIntent } from "./ahlsell-requirement-intent";
 
 export type AhlsellMldlProduct = (typeof catalogData.products)[number];
@@ -36,6 +37,9 @@ export function findAhlsellMldlCandidates(
   requirement: Record<string, unknown>,
   limit = 50
 ): AhlsellPublicCandidate[] {
+  // This catalogue only contains plumbing products. Do not turn unrelated
+  // chapter dimensions into evidence for an electrical/ventilation product.
+  if (["electrical", "ventilation"].includes(requirementDiscipline(requirement))) return [];
   const requirementText = normalizedRequirementText(requirement);
   const primaryTypes = catalogTypesForIntent(ahlsellRequirementIntent(requirement));
   const expectedTypes = primaryTypes ? new Set(primaryTypes) : expectedCatalogTypes(requirementText);

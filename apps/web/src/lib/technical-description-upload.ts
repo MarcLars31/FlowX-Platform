@@ -11,6 +11,7 @@ export function uploadTechnicalDescriptionWithOcr(
   onProgress?: (progress: PdfUploadProgress) => void
 ) {
   return uploadTechnicalDescription(formData, file, {
+    background: true,
     fetch: globalThis.fetch.bind(globalThis),
     extractOcr: extractPdfPagesWithBrowserOcr
   }, onProgress);

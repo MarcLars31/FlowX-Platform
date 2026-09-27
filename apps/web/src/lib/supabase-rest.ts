@@ -107,6 +107,7 @@ export async function insertSupabaseRow(
 
   const response = await fetch(supabaseTableUrl(config.url, table), {
     method: "POST",
+    signal: AbortSignal.timeout(20_000),
     headers: supabaseHeaders(config),
     body: JSON.stringify(payload)
   });
@@ -124,6 +125,7 @@ export async function insertSupabaseRowReturning<T>(
 
   const response = await fetch(supabaseTableUrl(config.url, table), {
     method: "POST",
+    signal: AbortSignal.timeout(20_000),
     headers: supabaseHeaders(config, "application/json", "return=representation"),
     body: JSON.stringify(payload)
   });
@@ -155,6 +157,7 @@ export async function updateSupabaseRowsReturning<T>(
 
   const response = await fetch(url, {
     method: "PATCH",
+    signal: AbortSignal.timeout(20_000),
     headers: supabaseHeaders(config, "application/json", "return=representation"),
     body: JSON.stringify(payload)
   });
@@ -174,6 +177,7 @@ export async function callSupabaseRpc<T>(
   const baseUrl = config.url.endsWith("/") ? config.url : `${config.url}/`;
   const response = await fetch(new URL(`rest/v1/rpc/${functionName}`, baseUrl), {
     method: "POST",
+    signal: AbortSignal.timeout(20_000),
     headers: supabaseHeaders(config, "application/json", "return=representation"),
     body: JSON.stringify(payload)
   });
@@ -198,6 +202,7 @@ export async function selectSupabaseRows<T>(
 
   const response = await fetch(url, {
     method: "GET",
+    signal: AbortSignal.timeout(20_000),
     headers: supabaseHeaders(config, "application/json")
   });
 
@@ -221,6 +226,7 @@ export async function selectSupabaseRowsWithCount<T>(
 
   const response = await fetch(url, {
     method: "GET",
+    signal: AbortSignal.timeout(20_000),
     headers: supabaseHeaders(config, "application/json", "count=exact"),
     cache: "no-store"
   });

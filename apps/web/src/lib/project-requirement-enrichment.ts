@@ -36,6 +36,16 @@ export function enrichProjectRequirements(
     );
   }
 
+  const indexes = new Map([...linesByDocument].map(([id, lines]) => {
+    const byPost = new Map<string, TechnicalDescriptionMaterialLine[]>();
+    const byDescription = new Map<string, TechnicalDescriptionMaterialLine[]>();
+    for (const line of lines) {
+      if (line.postNumber) { const items = byPost.get(line.postNumber) ?? []; items.push(line); byPost.set(line.postNumber, items); }
+      const key = `${line.sourcePage}|${normalized(line.description)}`;
+      const items = byDescription.get(key) ?? []; items.push(line); byDescription.set(key, items);
+    }
+    return [id, { byPost, byDescription }] as const;
+  }));
   return requirements.map((requirement) => {
     const documentId = stringValue(
       requirement.source_technical_description_document_id
@@ -51,9 +61,9 @@ export function enrichProjectRequirements(
     const description = normalized(stringValue(requirement.value_text));
     const sourcePage = numberValue(requirement.source_page);
     const currentValue = record(requirement.value_json);
-    const matchingPosts = details.postNumber ? lines.filter(candidate => candidate.postNumber === details.postNumber
+    const matchingPosts = details.postNumber ? (indexes.get(documentId!)?.byPost.get(details.postNumber) ?? []).filter(candidate => candidate.postNumber === details.postNumber
       && (!currentValue.postScope || candidate.postScope === currentValue.postScope)) : [];
-    const matchingDescriptions = lines.filter(candidate => candidate.sourcePage === sourcePage
+    const matchingDescriptions = (indexes.get(documentId!)?.byDescription.get(`${sourcePage}|${description}`) ?? []).filter(candidate => candidate.sourcePage === sourcePage
       && normalized(candidate.description) === description
       && (currentValue.quantity == null || candidate.quantity === numberValue(currentValue.quantity)));
     const line =

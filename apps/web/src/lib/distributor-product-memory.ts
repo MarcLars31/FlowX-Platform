@@ -1,4 +1,5 @@
 import "server-only";
+import { boundedMap } from "./bounded-map";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 import { readProductSelectionReview } from "./product-selection-review";
 
@@ -35,8 +36,8 @@ export async function loadDistributorProductMemory(
     return { mappingMemories: [], mappingAccessories: [] };
   }
 
-  const mappingMemoryBatches = await Promise.all(
-    chunkValues([...fingerprints], 50).map((fingerprintBatch) =>
+  const mappingMemoryBatches = await boundedMap(
+    chunkValues([...fingerprints], 50), 3, (fingerprintBatch) =>
       selectUserRows<DistributorProductMemoryRow>(
         "distributor_product_memories",
         {
@@ -48,7 +49,6 @@ export async function loadDistributorProductMemory(
           limit: "1000"
         }
       )
-    )
   );
   const mappingMemories = mappingMemoryBatches.flat();
   const relevantMemories = mappingMemories.filter((memory) =>
@@ -58,8 +58,8 @@ export async function loadDistributorProductMemory(
     return { mappingMemories: [], mappingAccessories: [] };
   }
 
-  const accessoryBatches = await Promise.all(
-    chunkValues(relevantMemories.map((memory) => memory.id), 100).map((memoryIdBatch) =>
+  const accessoryBatches = await boundedMap(
+    chunkValues(relevantMemories.map((memory) => memory.id), 100), 3, (memoryIdBatch) =>
       selectUserRows<DistributorProductAccessoryRow>(
         "distributor_product_memory_accessories",
         {
@@ -69,7 +69,6 @@ export async function loadDistributorProductMemory(
           limit: "1000"
         }
       )
-    )
   );
   const mappingAccessories = accessoryBatches.flat();
 

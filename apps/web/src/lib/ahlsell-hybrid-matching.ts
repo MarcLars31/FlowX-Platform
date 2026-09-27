@@ -10,6 +10,7 @@ import { lookupAhlsellProduct } from "./ahlsell-product-lookup";
 import { applyAhlsellProductDetails, fetchAhlsellProductDetails, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
 import { mergeAhlsellTechnicalEvidence, type AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
 import { technicalConflictWarnings, withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
+import { requirementDiscipline } from "./requirement-discipline";
 
 /** MLDL is always available. Only product search terms/NRFs go to Ahlsell. */
 export async function findAhlsellHybridCandidates(requirement: Record<string, unknown>, fetchImpl: typeof fetch = fetch, store?: AhlsellEvidenceStore): Promise<AhlsellCatalogResult> {
@@ -118,6 +119,9 @@ export function assessAhlsellLookupCandidates(requirement: Record<string, unknow
 }
 
 function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
+  if (["electrical", "ventilation"].includes(requirementDiscipline(requirement))) {
+    candidates = candidates.filter(candidate => !/\b(?:sprinkler(?:hode|hoved|huvud|slange|head)?[a-z]*|firelock|alarmventil)\b/i.test(candidate.productName));
+  }
   const intent = ahlsellRequirementIntent(requirement);
   if (["shower_set", "toilet", "manifold_cabinet", "cable_trunking", "alarm_device", "pressure_switch", "flow_meter", "shutoff_valve", "pipe"].includes(intent)) {
     return candidates.filter(candidate => !hasAhlsellProductFamilyMismatch(intent, candidate.productName));

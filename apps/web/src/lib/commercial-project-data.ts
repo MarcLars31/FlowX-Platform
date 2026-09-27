@@ -2,11 +2,11 @@ import "server-only";
 import type { BusinessDevelopmentRequirementRow } from "@/lib/business-development-statistics";
 import type {
   CommercialAssignmentRow,
-  CommercialProjectRow
+  CommercialProjectRow,
+  ProjectRequirementCounts
 } from "@/lib/commercial-project-insights";
 import type { OrganizationContext } from "@/types/organization";
-import { selectAllUserRows } from "@/lib/supabase-user-rest";
-import { expandOverviewProjection, HOME_REQUIREMENT_SELECT } from "./project-overview";
+import { callUserRpc, selectAllUserRows } from "@/lib/supabase-user-rest";
 
 export type CommercialProfileRow = {
   id: string;
@@ -20,6 +20,7 @@ export type CommercialProjectData = {
   profiles: CommercialProfileRow[];
   hasRequirementInsights: boolean;
   hasProductSelectionInsights: boolean;
+  requirementCounts?: ProjectRequirementCounts[];
 };
 
 type CommercialProjectDataOptions = {
@@ -62,16 +63,16 @@ export async function loadCommercialProjectData(
   const projectIds = new Set(projects.map((project) => project.id));
 
   const [rawRequirements, rawAssignments] = await Promise.all([
-    hasRequirementInsights && projects.length > 0
+    !options.summaryOnly && hasRequirementInsights && projects.length > 0
       ? selectRowsForProjectScope<BusinessDevelopmentRequirementRow>(options.projectScope, "project_requirements", [...projectIds], {
           select:
-            options.summaryOnly ? HOME_REQUIREMENT_SELECT : "id,project_id,category,requirement_key,display_name,value_text,value_json,mapping_fingerprint,status",
+            "id,project_id,category,requirement_key,display_name,value_text,value_json,mapping_fingerprint,status",
           organization_id: `eq.${organizationId}`,
           deleted_at: "is.null",
           order: "id.asc"
         })
       : Promise.resolve([]),
-    hasRequirementInsights && hasProductSelectionInsights && projects.length > 0
+    !options.summaryOnly && hasRequirementInsights && hasProductSelectionInsights && projects.length > 0
       ? selectRowsForProjectScope<CommercialAssignmentRow>(options.projectScope, "project_product_suggestions", [...projectIds], {
           select:
             "id,project_id,requirement_id,status,product_snapshot,selected_at,created_at,updated_at",
@@ -82,8 +83,7 @@ export async function loadCommercialProjectData(
       : Promise.resolve([])
   ]);
 
-  const requirements = rawRequirements.filter((row) => projectIds.has(row.project_id)).map(row =>
-    options.summaryOnly ? expandOverviewProjection(row) as BusinessDevelopmentRequirementRow : row);
+  const requirements = rawRequirements.filter((row) => projectIds.has(row.project_id));
   const assignments = rawAssignments.filter((row) => projectIds.has(row.project_id));
   const ownerIds = [...new Set(
     projects
@@ -94,11 +94,21 @@ export async function loadCommercialProjectData(
     ? await selectOwnerProfiles(ownerIds)
     : [];
 
+  const requirementCounts: ProjectRequirementCounts[] | undefined = options.summaryOnly ? [] : undefined;
+  if (requirementCounts && hasRequirementInsights) {
+    for (let start = 0; start < projects.length; start += PROJECT_FILTER_CHUNK_SIZE) {
+      requirementCounts.push(...await callUserRpc<ProjectRequirementCounts[]>("project_requirement_counts", {
+        requested_project_ids: projects.slice(start, start + PROJECT_FILTER_CHUNK_SIZE).map(project => project.id)
+      }));
+    }
+  }
+
   return {
     projects,
     requirements,
     assignments,
     profiles,
+    requirementCounts,
     hasRequirementInsights,
     hasProductSelectionInsights
   };

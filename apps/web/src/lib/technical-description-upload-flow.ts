@@ -1,9 +1,11 @@
 import { validateTechnicalDescriptionFile } from "./technical-description-file";
 import type { ClientOcrPage } from "./technical-description-ocr-payload";
+import { waitForImportJob } from "./import-job-client";
 
 export type PdfUploadProgress = { label: string; percent: number };
 
 type UploadDependencies = {
+  background?: boolean;
   fetch: typeof fetch;
   extractOcr: (
     file: File,
@@ -39,6 +41,7 @@ export async function uploadTechnicalDescription(
   }
 
   let completed = false;
+  let acceptedJob = false;
   try {
     reportProgress(5);
     const stored = await dependencies.fetch(staged.signedUrl, {
@@ -62,9 +65,12 @@ export async function uploadTechnicalDescription(
     }
     analysis.set("uploadId", staged.uploadId);
     analysis.set("fileName", file.name);
-    let response = await dependencies.fetch("/api/technical-descriptions", {
+    const endpoint = dependencies.background ? "/api/technical-descriptions/jobs" : "/api/technical-descriptions";
+    let response = await dependencies.fetch(endpoint, {
       method: "POST", body: analysis
     });
+    acceptedJob = response.status === 202;
+    response = await waitForImportJob(response, dependencies.fetch, label => onProgress?.({label,percent:currentPercent}));
     const payload = await response.clone().json().catch(() => null) as {
       code?: string; pageNumbers?: number[];
     } | null;
@@ -79,15 +85,16 @@ export async function uploadTechnicalDescription(
       analysis.set("ocrPages", JSON.stringify(ocrPages));
       analysis.set("ocrRetry", "true");
       reportProgress(99);
-      response = await dependencies.fetch("/api/technical-descriptions", {
+      response = await dependencies.fetch(endpoint, {
         method: "POST", body: analysis
       });
+      response = await waitForImportJob(response, dependencies.fetch, label => onProgress?.({label,percent:currentPercent}));
     }
     completed = response.ok;
     if (completed) reportProgress(100);
     return readableUploadResponse(response);
   } finally {
-    if (!completed) {
+    if (!completed && !acceptedJob) {
       // The server cleans up successful analyses; this covers failed uploads
       // and failures during OCR in the browser. Do not mask the original error.
       await dependencies.fetch("/api/technical-descriptions/upload", {

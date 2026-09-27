@@ -1,3 +1,4 @@
+import { ahlsellRequestContext } from "@/lib/ahlsell-shared-fetch.server";
 import { ahlsellEvidenceStore } from "@/lib/ahlsell-evidence-store.server";
 import { NextResponse } from "next/server";
 import { AhlsellCatalogError, ahlsellMarketFromSearchUrl } from "@/lib/ahlsell-public-catalog";
@@ -18,6 +19,7 @@ type RouteContext = { params: Promise<{ id: string; requirementId: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 
 export async function POST(request: Request, context: RouteContext) {
+  const supplier = ahlsellRequestContext();
   try {
     const authorization = await requireOrganizationApi(["project.product_suggestion.view"]);
     if (authorization.error) return authorization.error;
@@ -39,11 +41,11 @@ export async function POST(request: Request, context: RouteContext) {
     if (component) {
       const result = await lookupAssemblyComponents({ requirement, component, mainArticleNumber: body?.mainArticleNumber,
         query: body?.query, automatic: body?.automatic === true,
-        market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, store: ahlsellEvidenceStore() });
+        market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, fetchImpl: supplier.fetch, store: ahlsellEvidenceStore() });
       return NextResponse.json(result, { headers });
     }
     const lookup = body?.accessory === true ? lookupAccessoryProducts : lookupAhlsellProduct;
-    const result = await lookup({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, store: ahlsellEvidenceStore() });
+    const result = await lookup({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, fetchImpl: supplier.fetch, store: ahlsellEvidenceStore() });
     // Accessories have their own compatibility check against the chosen head;
     // do not compare an escutcheon with the head's K-factor or temperature.
     const products = body?.accessory === true
@@ -52,6 +54,7 @@ export async function POST(request: Request, context: RouteContext) {
       .map(candidate => ({ ...candidate, subtitle: result.products.find(product => product.articleNumber === candidate.articleNumber)?.subtitle }));
     return NextResponse.json({ ...result, products }, { headers });
   } catch (error) {
+    if (supplier.retryAfter) return NextResponse.json({error:"Ahlsell-sökningen är tillfälligt upptagen. Försök igen om en stund."},{status:429,headers:{...headers,"Retry-After":String(supplier.retryAfter)}});
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Sökningen är för lång." }, { status: 413, headers });
     if (error instanceof AhlsellLookupInputError || error instanceof SyntaxError) return NextResponse.json({ error: error instanceof AhlsellLookupInputError ? error.message : "Sökningen har ogiltigt format." }, { status: 400, headers });
     if (error instanceof UserSupabaseError) {
