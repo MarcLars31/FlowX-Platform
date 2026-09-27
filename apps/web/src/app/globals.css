@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; --background: #ffffff; --foreground: #292929; }
+:root { color-scheme: light; --background: #ffffff; --foreground: #292929; --portal-accent: #164b35; }
 * { box-sizing: border-box; }
 html { scroll-padding-top: 104px; }
 body { margin: 0; min-height: 100vh; background: var(--background); color: var(--foreground); font: 13px/1.45 "Segoe UI", Arial, sans-serif; }
@@ -65,10 +65,11 @@ img, video, canvas { filter: grayscale(1); }
 .portal-account [role="menu"] { color: #292929; box-shadow: 0 3px 12px #00000020; border-color: #aaaaaa; }
 body .portal-account > div > button { min-height: 26px; height: 26px; width: 28px; padding: 2px; background: #5b5b5b; border-color: #777777; color: #ffffff; border-radius: 0; font-size: 11px; }
 body .portal-account > div > button:hover { background: #707070; }
-.portal-navigation { display: flex; align-items: stretch; gap: 24px; overflow-x: auto; padding: 0 32px; min-height: 43px; background: #f4f4f4; border-bottom: 1px solid #bdbdbd; }
-.portal-navigation a { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; padding: 11px 0 9px; border-bottom: 3px solid transparent; color: #555555; font-size: 13px; white-space: nowrap; }
-.portal-navigation a:hover { color: #222222; border-color: #aaaaaa; }
-.portal-navigation a[aria-current="page"] { color: #292929; font-weight: 600; border-color: #555555; }
+.portal-navigation { display: flex; align-items: stretch; gap: 24px; overflow-x: auto; padding: 0 32px; min-height: 43px; background: var(--portal-accent); border-bottom: 1px solid var(--portal-accent); }
+.portal-navigation a { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; padding: 11px 0 9px; border-bottom: 3px solid transparent; color: #ffffff; font-size: 13px; white-space: nowrap; }
+.portal-navigation a:hover { color: #ffffff; border-color: #ffffff; }
+.portal-navigation a[aria-current="page"] { color: #ffffff; font-weight: 600; border-color: #ffffff; }
+body .portal-navigation a:focus-visible { outline-color: #ffffff; outline-offset: -4px; }
 .portal-navigation svg { width: 16px; height: 16px; }
 .portal-page-header { margin-bottom: 20px; background: transparent; color: #292929; }
 .portal-page-header .portal-heading-icon { display: none; }
@@ -95,8 +96,10 @@ tbody tr[aria-selected="true"] { background-color: #e7e7e7; outline: 1px solid #
 body table th button:not([role="checkbox"], [role="switch"]) { border: 0; box-shadow: none; padding: 0; min-height: 24px; background: transparent; }
 .chapter-overview > thead > tr > th { padding: 12px 16px; font-size: 13px; white-space: nowrap; }
 .chapter-overview > tbody > .chapter-overview-row > td { padding: 13px 16px; vertical-align: middle; }
-.chapter-overview > tbody > .chapter-overview-row[data-expanded="true"] { background: #eeeeee; }
+.chapter-overview > tbody > .chapter-overview-row[data-expanded="true"] { background: var(--portal-accent); color: #ffffff; }
+body .chapter-overview-row[data-expanded="true"] button[data-appearance="text"]:is(:hover, :active, :focus-visible) { color: #ffffff; outline-color: #ffffff; }
 .chapter-overview > tbody > .chapter-overview-row:focus-within { outline: 2px solid #666666; outline-offset: -2px; }
+.chapter-overview > tbody > .chapter-overview-row[data-expanded="true"]:focus-within { outline-color: #ffffff; }
 .chapter-overview > tbody > .chapter-overview-detail > td { padding: 0; border: 0; background: #ffffff; }
 .chapter-overview-row button[data-appearance="text"] { white-space: normal; }
 body [role="alert"] { color: #292929; border-color: #777777; border-style: dashed; background-color: #ffffff; }
