@@ -35,7 +35,8 @@ export async function POST(request: Request) {
     if (error instanceof ClientOcrPayloadError) return NextResponse.json({error:error.message},{status:400});
     if (error instanceof UserSupabaseError && error.code === "42501") return NextResponse.json({error:"Du saknar behörighet för importen."},{status:403});
     if (error instanceof UserSupabaseError && error.code === "54000") return NextResponse.json({error:"Högst tre importer kan pågå samtidigt. Vänta tills en är klar."},{status:429,headers:{"Retry-After":"30"}});
-    console.error("import_enqueue_failed",{requestId,name:error instanceof Error ? error.name : "Error"});
+    console.error("import_enqueue_failed",{requestId,name:error instanceof Error ? error.name : "Error",
+      ...(error instanceof UserSupabaseError ? {status:error.status,code:error.code} : {})});
     return NextResponse.json({error:"Importen kunde inte startas. Försök igen.",requestId},{status:503});
   }
 }
