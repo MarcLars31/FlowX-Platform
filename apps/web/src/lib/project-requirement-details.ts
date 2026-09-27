@@ -86,7 +86,7 @@ export function projectInformationParagraphs(source: string) {
     }
     if (/^[•●▪]\s*/.test(line)) { flush(); kind = "bullet"; }
     pending += `${pending && !pending.endsWith("-") ? " " : ""}${line}`;
-    if (/[.!?]$/.test(line)) flush();
+    if (/[.!?]$/.test(line) || /^[•●▪]\s*\d+(?:\.\d+)+$/.test(line)) flush();
   }
   flush();
   return paragraphs;

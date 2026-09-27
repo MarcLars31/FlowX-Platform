@@ -10,6 +10,10 @@ import {
 } from "./project-requirement-details";
 
 test("information prose fills available width without losing PDF headings or bullet items", () => {
+  assert.deepEqual(projectInformationParagraphs("\uF0B7\uF020 1401.40.7\nI deler av anlegget skal kabelstiger monteres\ni felles oppheng."), [
+    { kind: "bullet", text: "• 1401.40.7" },
+    { kind: "text", text: "I deler av anlegget skal kabelstiger monteres i felles oppheng." }
+  ]);
   assert.deepEqual(projectInformationParagraphs("a) Omfang\nTekniske bestemmelser for\nkabelføring.\nHenvisninger:\n\uF0B7\uF020 1401.40.4\n\uF0B7\uF020 Temperatur: AA5 - normale\nforhold\nFORTSETTELSE SIDE 9\nb) Materialer\nKabelstige-\nsystemet skal leveres."), [
     { kind: "heading", text: "a) Omfang" },
     { kind: "text", text: "Tekniske bestemmelser for kabelføring." },
