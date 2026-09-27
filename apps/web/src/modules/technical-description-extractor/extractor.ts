@@ -468,6 +468,7 @@ function extractLegacyMaterialLines(
 
 function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   const materialLines: TechnicalDescriptionMaterialLine[] = [];
+  const projectHeading = extractProject(pages).name?.replace(/\s+/g, " ").trim();
   const seen = new Set<string>();
   const parentContexts = new Map<string, TableParentContext>();
   const prepared = recoverMissingStructuredPostNumbers(
@@ -528,12 +529,13 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
     const attachedContinuation = mergeLeadingPageContinuation({
       page,
       pageLines,
+      projectHeading,
       firstStartIndex: starts[0]?.lineIndex,
       previousMaterialLine,
       previousContext
     });
     if (!attachedContinuation && inFireProtectionSection) {
-      const leading = leadingPageBody(pageLines, starts[0]?.lineIndex);
+      const leading = leadingPageBody(pageLines, starts[0]?.lineIndex, projectHeading);
       // A fragment from a page omitted from this file has no trustworthy post
       // number or quantity. Preserve it without assigning it to the next post.
       if (leading.length && !leading.some(line => NS3420_CODE_PATTERN.test(line))
@@ -1126,12 +1128,14 @@ function decrementFinalPostNumber(postNumber: string, decrement: number) {
 function mergeLeadingPageContinuation({
   page,
   pageLines,
+  projectHeading,
   firstStartIndex,
   previousMaterialLine,
   previousContext
 }: {
   page: TechnicalDescriptionPage;
   pageLines: string[];
+  projectHeading?: string;
   firstStartIndex?: number;
   previousMaterialLine?: TechnicalDescriptionMaterialLine;
   previousContext?: TableParentContext;
@@ -1149,7 +1153,7 @@ function mergeLeadingPageContinuation({
   const lastPage = previousContext?.sourcePages.at(-1)
     ?? previousMaterialLine?.sourcePages?.at(-1) ?? previousMaterialLine?.sourcePage;
   if (lastPage !== page.pageNumber - 1) return;
-  const continuation = leadingPageBody(pageLines, firstStartIndex);
+  const continuation = leadingPageBody(pageLines, firstStartIndex, projectHeading);
   if (continuation.length === 0) return;
   // An unplaced NS row is a new post, never an extension of the previous one.
   // OCR recovery or manual review must establish its identity first.
@@ -1164,12 +1168,18 @@ function mergeLeadingPageContinuation({
   return true;
 }
 
-function leadingPageBody(pageLines: string[], firstStartIndex?: number) {
+function leadingPageBody(pageLines: string[], firstStartIndex?: number, projectHeading?: string) {
   const leading = pageLines.slice(0, firstStartIndex ?? pageLines.length);
+  // OCR can put the project title and page number on separate lines. Only
+  // discard the known title beside a page marker, never mentions in the body.
+  const isHeaderLine = (line: string, index: number) => isPageFurniture(line)
+    || (projectHeading && line.toLocaleLowerCase() === projectHeading.toLocaleLowerCase()
+      && /^Side\s+\d/i.test(leading[index + 1] ?? ""));
   const candidateHeader = leading.findIndex(line => /^Postnr(?:[.:]|\s|$)/i.test(line));
-  const headerIndex = candidateHeader >= 0 && leading.slice(0, candidateHeader).every(isPageFurniture) ? candidateHeader : -1;
-  const body = leading.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
-  return body.slice(0, footerIndex(body, -1)).filter(line => !isPageFurniture(line));
+  const headerIndex = candidateHeader >= 0 && leading.slice(0, candidateHeader).every(isHeaderLine) ? candidateHeader : -1;
+  const bodyStart = headerIndex >= 0 ? headerIndex + 1 : 0;
+  const body = leading.slice(bodyStart);
+  return body.slice(0, footerIndex(body, -1)).filter((line, index) => !isHeaderLine(line, bodyStart + index));
 }
 
 function isPageFurniture(line: string) {

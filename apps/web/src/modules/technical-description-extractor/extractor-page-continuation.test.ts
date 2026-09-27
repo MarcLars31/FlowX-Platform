@@ -7,6 +7,35 @@ const page = (pageNumber: number, text: string, annotations?: TechnicalDescripti
   ({ pageNumber, text, annotations, method: "text", confidence: 0.98 });
 const header = "Kapittel: 33 Brannslokking\nPostnr. NS-kode/Spesifikasjon Enhet Mengde Pris Sum\n";
 
+test("a project title split from the page number cannot extend the previous material field", () => {
+  const title = "K2 3395 HOK. Ombygging Kleppestø";
+  const { materialLines } = extractTechnicalDescriptionFromPages([
+    page(4, `Multiconsult\n22.06.2026\n${title} Side 297\n${header}30.332.10 UC1.9111118A\nINNENDØRS STENGEVENTIL\nAntall stk 1\nMateriale: Støpejern\nSum: 0`),
+    page(5, `Multiconsult\n22.06.2026\n${title}\nSide 298\n${header}Skjøt: Rilleskjøt\nLokalisering: Sprinklersentral i "Nybygget", plan 1.\nTrykk: 12 bar\nDimensjon, tilkoblinger: DN100\nAndre krav:\na) Omfang og prisgrunnlag\nOmfatter også tilpassing av eksisterende DN100 rør.\nSum:`, [
+      { id: "continued-note", subtype: "Text", continuesPreviousPost: true, text: "Kontroller serviceventilen." }
+    ])
+  ]);
+  assert.equal(materialLines.length, 1);
+  const line = materialLines[0];
+  assert.equal(line.attributes.materiale, "Støpejern");
+  assert.equal(line.attributes.skjøt, "Rilleskjøt");
+  assert.equal(line.attributes.trykk, "12 bar");
+  assert.equal(line.attributes["dimensjon, tilkoblinger"], "DN100");
+  assert.equal(line.attributes["pdf-kommentar"], "Kontroller serviceventilen.");
+  assert.deepEqual(line.sourcePages, [4, 5]);
+  assert.match(line.sourceText, /a\) Omfang og prisgrunnlag\nOmfatter også tilpassing/);
+  assert.doesNotMatch(line.sourceText, /K2 3395|Side 298|Multiconsult/);
+});
+
+test("a genuine project name inside a requirement remains part of the specification", () => {
+  const title = "K2 3395 HOK. Ombygging Kleppestø";
+  const { materialLines } = extractTechnicalDescriptionFromPages([
+    page(1, `${title} Side 297\n${header}30.332.10 UC1.9111118A\nINNENDØRS STENGEVENTIL\nAntall stk 1\nMateriale: Støpejern\nSum:`),
+    page(2, `${title}\nSide 298\n${header}Lokalisering: Prosjekt\n${title}\nSkjøt: Rilleskjøt\nSum:`)
+  ]);
+  assert.equal(materialLines[0].attributes.lokalisering, `Prosjekt ${title}`);
+});
+
 test("retains prose, split attribute sentences and comments through three page breaks", () => {
   const result = extractTechnicalDescriptionFromPages([
     page(1, `${header}33.332.1 UE2.11112312\nSPRINKLER\nAntall stk 39\nLokalisering: Over systemhimling i\nSum:`),
