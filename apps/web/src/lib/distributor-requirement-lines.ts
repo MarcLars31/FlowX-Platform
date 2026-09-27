@@ -25,8 +25,9 @@ export function splitDistributorRequirementLines<
 export function distributorRequirementKind(
   requirement: DistributorRequirementRow
 ): "product" | "remove" | "work" {
-  if (distributorRequirementOperation(requirement) === "remove") return "remove";
   const value = record(requirement.value_json);
+  if (distributorRequirementOperation(requirement) === "remove") return "remove";
+  if (Array.isArray(value.reviewFlags) && value.reviewFlags.includes("project-information")) return "work";
   if (isDistributorLumpSumRequirement(requirement)) return "work";
   const heading = normalize(String(requirement.display_name ?? requirement.value_text ?? ""));
   if (/^(?:forberedende moter|byggemoter|byggemote|prosjekteringsmoter)\b/.test(heading)) return "work";

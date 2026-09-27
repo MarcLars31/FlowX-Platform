@@ -130,7 +130,7 @@ export function extractTechnicalDescriptionFromPages(
   }
 
   const missingQuantityLines = materialLines.filter(
-    (line) => line.quantity === undefined && line.operation !== "remove"
+    (line) => line.quantity === undefined && line.operation !== "remove" && line.reviewFlags.includes("missing-quantity")
   );
   if (missingQuantityLines.length > 0) {
     warnings.push({
@@ -323,7 +323,8 @@ function extractMaterialLines(
   }
 
   warnings.push(...legacyWarnings);
-  return legacyLines;
+  return [...legacyLines, ...structuredLines.filter(line => line.reviewFlags.includes("project-information")
+    && !legacyLines.some(existing => existing.sourcePage === line.sourcePage && existing.postNumber === line.postNumber))];
 }
 
 function structuredExtractionWarnings(lines: TechnicalDescriptionMaterialLine[]) {
@@ -346,7 +347,7 @@ function usableMaterialLineCount(lines: TechnicalDescriptionMaterialLine[]) {
 }
 
 function materialLineQuality(lines: TechnicalDescriptionMaterialLine[]) {
-  return lines.reduce(
+  return lines.filter(line => !line.reviewFlags.includes("project-information")).reduce(
     (score, line) =>
       score +
       (line.postNumber ? 2 : -2) +
@@ -524,13 +525,38 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         .filter(line => !/^(?:Prosjekt:|Kapittel:|Postnr\.)/i.test(line)).join("\n")}`;
     }
 
-    mergeLeadingPageContinuation({
+    const attachedContinuation = mergeLeadingPageContinuation({
       page,
       pageLines,
       firstStartIndex: starts[0]?.lineIndex,
       previousMaterialLine,
       previousContext
     });
+    if (!attachedContinuation && inFireProtectionSection) {
+      const leading = leadingPageBody(pageLines, starts[0]?.lineIndex);
+      // A fragment from a page omitted from this file has no trustworthy post
+      // number or quantity. Preserve it without assigning it to the next post.
+      if (leading.length && !leading.some(line => NS3420_CODE_PATTERN.test(line))
+        && pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line))
+        && (leading.some(isTechnicalContinuationLine) || (leading.length > 1 && leading.join(" ").length > 80))) {
+        const sourceText = leading.join("\n");
+        const attributes = extractTableAttributes(leading);
+        const comments = (page.annotations ?? []).filter(comment => comment.continuesPreviousPost);
+        if (comments.length) attributes["pdf-kommentar"] = comments.map(comment => comment.text).join("\n\n");
+        const information: TechnicalDescriptionMaterialLine = {
+          id: `technical-information-${page.pageNumber}`, postScope: postScope || undefined,
+          category: "other", operation: "unknown", description: leading[0],
+          attributes: { ...(chapterPost ? { kapittelpost: chapterPost } : {}), ...attributes },
+          standardRefs: unique([...sourceText.matchAll(STANDARD_PATTERN)].map(match => normalizeStandard(match[1]))),
+          sourcePage: page.pageNumber, sourcePages: [page.pageNumber], sourceText,
+          technicalSpecification: sourceText, confidence: page.confidence,
+          reviewFlags: ["project-information"]
+        };
+        materialLines.push(information);
+        previousMaterialLine = information;
+        previousContext = undefined;
+      }
+    }
 
     // A continuation can extend through a page without a sprinkler keyword;
     // that does not make unrelated posts on the page part of this section.
@@ -667,6 +693,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         attributes["pdf-kommentar"] = `${parent.attributes["pdf-kommentar"]}\n\n${ownAttributes["pdf-kommentar"]}`;
       }
       const reviewFlags: string[] = [];
+      if (!quantity || quantity.unit === "?") reviewFlags.push("project-information");
       if (missingParent) reviewFlags.push("missing-parent-context");
       if (adjacentPipeParent) reviewFlags.push("inferred-parent-context");
       if (category === "unknown") reviewFlags.push("unknown-category");
@@ -733,16 +760,15 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
     }
   }
 
-  // An unquantified parent with quantified subposts supplies their shared
-  // specification; it is not an additional product with a missing quantity.
-  return materialLines.filter((line) =>
-    line.quantity !== undefined
-    || line.operation === "remove"
-    || !materialLines.some((child) =>
-      child.quantity !== undefined && child.postScope === line.postScope
-      && child.postNumber?.startsWith(`${line.postNumber}.`)
-    )
-  );
+  // Keep unquantified parents as project information as well as preserving
+  // their shared requirements on the measured children.
+  for (const line of materialLines) {
+    if (line.quantity === undefined && line.postNumber && materialLines.some(child =>
+      child.quantity !== undefined && child.postScope === line.postScope && child.postNumber?.startsWith(`${line.postNumber}.`))) {
+      line.reviewFlags = line.reviewFlags.filter(flag => flag !== "missing-quantity");
+    }
+  }
+  return materialLines;
 }
 
 type StructuredPostStart = {
@@ -1123,25 +1149,27 @@ function mergeLeadingPageContinuation({
   const lastPage = previousContext?.sourcePages.at(-1)
     ?? previousMaterialLine?.sourcePages?.at(-1) ?? previousMaterialLine?.sourcePage;
   if (lastPage !== page.pageNumber - 1) return;
-  const leading = pageLines.slice(0, firstStartIndex ?? pageLines.length);
-  const candidateHeader = leading.findIndex(line => /^Postnr(?:[.:]|\s|$)/i.test(line));
-  // Some PDFs serialize the page's header after the entire description body.
-  // It is a leading header only when no body text precedes it.
-  const headerIndex = candidateHeader >= 0 && leading.slice(0, candidateHeader).every(isPageFurniture)
-    ? candidateHeader : -1;
-  const body = leading.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
-  const continuation = body.slice(0, footerIndex(body, -1)).filter(line => !isPageFurniture(line));
+  const continuation = leadingPageBody(pageLines, firstStartIndex);
   if (continuation.length === 0) return;
   // An unplaced NS row is a new post, never an extension of the previous one.
   // OCR recovery or manual review must establish its identity first.
   if (continuation.some(line => NS3420_CODE_PATTERN.test(line))) return;
   // Prose and captions before the next post belong to the still-open row too.
   // Never infer a continuation through an unrelated chapter/orientation page.
-  if (headerIndex < 0 && firstStartIndex === undefined && !continuation.some(isTechnicalContinuationLine)
+  if (!pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line)) && firstStartIndex === undefined && !continuation.some(isTechnicalContinuationLine)
     && (!previousContext?.nsCode || /^(?:\d+\s+|[A-ZÆØÅ -]{12,}$)/.test(continuation[0]))) return;
   appendPostContinuation(page, continuation,
     !previousContext || previousMaterialLine?.postNumber === previousContext.postNumber ? previousMaterialLine : undefined,
     previousContext, true);
+  return true;
+}
+
+function leadingPageBody(pageLines: string[], firstStartIndex?: number) {
+  const leading = pageLines.slice(0, firstStartIndex ?? pageLines.length);
+  const candidateHeader = leading.findIndex(line => /^Postnr(?:[.:]|\s|$)/i.test(line));
+  const headerIndex = candidateHeader >= 0 && leading.slice(0, candidateHeader).every(isPageFurniture) ? candidateHeader : -1;
+  const body = leading.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
+  return body.slice(0, footerIndex(body, -1)).filter(line => !isPageFurniture(line));
 }
 
 function isPageFurniture(line: string) {
@@ -1170,7 +1198,7 @@ function appendPostContinuation(page: TechnicalDescriptionPage, continuation: st
     for (const [key, value] of Object.entries(attributes)) {
       if (target.attributes[key] !== value) {
         target.attributes[key] = value;
-        target.attributeSources = { ...target.attributeSources, [key]: { postNumber: postNumber!, sourcePage: page.pageNumber } };
+        if (postNumber) target.attributeSources = { ...target.attributeSources, [key]: { postNumber, sourcePage: page.pageNumber } };
       }
     }
     if (comments.length) target.attributes["pdf-kommentar"] = [target.attributes["pdf-kommentar"], ...comments.map(comment => comment.text)].filter(Boolean).join("\n\n");
@@ -1186,6 +1214,9 @@ function appendPostContinuation(page: TechnicalDescriptionPage, continuation: st
         line.quantity = quantity.quantity; line.unit = quantity.unit; line.quantityText = quantity.text;
         line.reviewFlags = line.reviewFlags.filter(flag => flag !== "missing-quantity");
       }
+    }
+    if (line.quantity !== undefined && line.unit && line.unit !== "?") {
+      line.reviewFlags = line.reviewFlags.filter(flag => flag !== "project-information");
     }
   }
 }

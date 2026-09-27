@@ -39,16 +39,33 @@ test("a repeated post number on the next page extends the same post and supplies
   assert.equal(materialLines[0].reviewFlags.includes("missing-quantity"), false);
 });
 
-test("keeps unquantified leaf posts but uses a parent only as the children's specification", () => {
+test("keeps unquantified parents as information and as the children's specification", () => {
   const { materialLines } = extractTechnicalDescriptionFromPages([
     page(1, `${header}33.332.1 UB1.1194300932A\nINNENDØRS VANNLEDNING\nMateriale: Stål\n33.332.1.1 DN25\nLengde m 10\n33.332.2 UE2.11112312\nSPRINKLER\nMateriale: Messing\nSum:`, [
       { id: "parent", postNumber: "33.332.1", text: "Alle rørdeler skal inngå.", subtype: "Text" }
     ])
   ]);
-  assert.deepEqual(materialLines.map(line => line.postNumber), ["33.332.1.1", "33.332.2"]);
-  assert.equal(materialLines[0].attributes["pdf-kommentar"], "Alle rørdeler skal inngå.");
-  assert.equal(materialLines[1].quantity, undefined);
-  assert.equal(materialLines[1].reviewFlags.includes("missing-quantity"), true);
+  assert.deepEqual(materialLines.map(line => line.postNumber), ["33.332.1", "33.332.1.1", "33.332.2"]);
+  assert.equal(materialLines[0].reviewFlags.includes("project-information"), true);
+  assert.equal(materialLines[1].attributes["pdf-kommentar"], "Alle rørdeler skal inngå.");
+  assert.equal(materialLines[2].quantity, undefined);
+  assert.equal(materialLines[2].reviewFlags.includes("missing-quantity"), true);
+});
+
+test("keeps the opening Sprinkler2 fragment as information without borrowing the next post's RS", () => {
+  const fragment = 'Lokalisering: Tilkobling til eksisterende anlegg, DN80, i\n"Gamlebygget" plan 1. Se tilbudstegning.\nDimensjon hovedledning: DN80\nDimensjon avgreningsledning: DN80\nTrykk: 12 bar\nAndre krav: Nei';
+  const { materialLines } = extractTechnicalDescriptionFromPages([page(1,
+    `Multiconsult 22.06.2026\nK2 3395 HOK. Ombygging Kleppestø Side 294\n30 VVS-installasjoner\nPostnr NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum\n${fragment}\n30.332.5 UB3.8114343\nTILKOBLING AV VANNLEDNING VED ANBORING\nRund sum RS\nLokalisering: Sprinkler\n30.332.6 UB1.33114699900A\nSPRINKLERSLANGE\nAntall stk 132\nSum:`,
+    [{ id: "fragment-comment", text: "Bevara även denna kommentar.", subtype: "Text", continuesPreviousPost: true }])]);
+  const information = materialLines.find(line => line.reviewFlags.includes("project-information"))!;
+  assert.equal(information.sourceText, fragment);
+  assert.equal(information.postNumber, undefined);
+  assert.equal(information.unit, undefined);
+  assert.equal(information.quantity, undefined);
+  assert.equal(information.attributes["pdf-kommentar"], "Bevara även denna kommentar.");
+  assert.equal(materialLines.find(line => line.postNumber === "30.332.5")?.unit, "RS");
+  assert.equal(materialLines.find(line => line.postNumber === "30.332.6")?.quantity, 132);
+  assert.ok(materialLines.filter(line => line.postNumber).every(line => !line.sourceText.includes('"Gamlebygget"')));
 });
 
 test("does not append unrelated chapters or bridge an unread page", () => {
@@ -78,10 +95,11 @@ test("retains a quantity whose unit OCR missed without guessing a unit", () => {
   const { materialLines } = extractTechnicalDescriptionFromPages([
     page(1, `${header}33.332.1 UB1.1194300932A\nINNENDØRS VANNLEDNING\nMateriale: Stål\n33.332.1.1 DN25\nLengde 126\nSum:`)
   ]);
-  assert.equal(materialLines.length, 1);
-  assert.equal(materialLines[0].quantity, 126);
-  assert.equal(materialLines[0].unit, "?");
-  assert.equal(materialLines[0].reviewFlags.includes("missing-unit"), true);
+  assert.equal(materialLines.length, 2);
+  const child = materialLines.find(line => line.postNumber === "33.332.1.1")!;
+  assert.equal(child.quantity, 126);
+  assert.equal(child.unit, "?");
+  assert.equal(child.reviewFlags.includes("missing-unit"), true);
 });
 
 test("recovers a missing post and quantity only inside an exact neighbouring sequence", () => {

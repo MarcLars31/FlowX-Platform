@@ -101,7 +101,7 @@ export function enrichProjectRequirements(
 
 function mergedReviewFlags(extracted: string[], current: unknown) {
   const extractionFlags = new Set(["unknown-category", "inferred-post-number", "inferred-parent-context", "missing-parent-context",
-    "missing-post-number", "missing-quantity", "ocr-source", "pipe-unit-not-length", "unresolved-source-quantity", "reextracted-requirement-conflict"]);
+    "missing-post-number", "missing-quantity", "missing-unit", "project-information", "ocr-source", "pipe-unit-not-length", "unresolved-source-quantity", "reextracted-requirement-conflict"]);
   const stored = Array.isArray(current)
     ? current.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
     : [];

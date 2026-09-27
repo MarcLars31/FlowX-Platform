@@ -25,7 +25,7 @@ test('same short post numbers in separate chapters retain their own quantities a
   page(2,'Kapittel: 30 VVS - 33 Brannslokking - 3322 Ledningsnett\n1 UB1.1194300932A\nINNENDØRS VANNLEDNING – KOMPLETT\nMateriale: Stål\nSkjøt: Gjenget skjøt\n1.1 DN25\nLengde m 219'),
   page(3,'Kapittel: 30 VVS - 33 Brannslokking - 3324 Armatur\n1.1 Ventil DN100\nAntall stk 9')
  ]);
- assert.deepEqual(result.materialLines.map(l=>[l.postNumber,l.quantity,l.nsCode]),[['1.1',3,'UC1.3121191A'],['1.1',219,'UB1.1194300932A'],['1.1',9,undefined]]);
+ assert.deepEqual(result.materialLines.filter(l=>l.quantity!==undefined).map(l=>[l.postNumber,l.quantity,l.nsCode]),[['1.1',3,'UC1.3121191A'],['1.1',219,'UB1.1194300932A'],['1.1',9,undefined]]);
  assert.equal(new Set(result.materialLines.map(l=>l.postScope)).size,3);
 });
 
@@ -38,7 +38,7 @@ test('preserves D1 and B1 prefixes and recognizes their children instead of NS c
  assert.ok(result.materialLines.some(l=>l.postNumber==='D1.3.33.332.3322.8'&&l.quantity===592&&l.nsCode==='UE2.11199612A'));
  assert.ok(result.materialLines.some(l=>l.postNumber==='D1.3.33.332.3322.4.1'&&l.quantity===1));
  assert.ok(result.materialLines.some(l=>l.postNumber==='B1.30.33.332.10.2'&&l.quantity===330&&l.attributes.materiale==='Rustfritt stål 316'));
- assert.equal(result.materialLines.length,3);
+ assert.equal(result.materialLines.filter(l=>l.quantity!==undefined).length,3);
 });
 
 test('joins numeric wrapped columns without duplicating quantities through the fallback reader',()=>{

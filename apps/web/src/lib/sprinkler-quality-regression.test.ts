@@ -32,7 +32,7 @@ Dimensjon: Se under
 Lengde m 126
 30.332.7.2 DN32, ink. deler og oppheng
 Lengde m 384` }]);
-  assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.category, line.quantity]), [
+  assert.deepEqual(result.materialLines.filter(line => line.quantity !== undefined).map(line => [line.postNumber, line.category, line.quantity]), [
     ["30.332.7.1", "pipe", 126], ["30.332.7.2", "pipe", 384]
   ]);
   // Previously uploaded rows still carry support; the inherited code must also

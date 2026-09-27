@@ -65,7 +65,7 @@ test("preserves quantified alarm, valve, flowmeter and reserve cabinet posts wit
     }
   ]);
 
-  assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.quantity, line.unit]), [
+  assert.deepEqual(result.materialLines.filter(line => line.quantity !== undefined).map(line => [line.postNumber, line.quantity, line.unit]), [
     ["33.3.2", 1, "st"],
     ["33.3.2.1", 2, "st"],
     ["33.3.5", 1, "st"],
@@ -75,18 +75,18 @@ test("preserves quantified alarm, valve, flowmeter and reserve cabinet posts wit
     ["33.3.8", 1, "RS"],
     ["33.4.25", 1, "st"]
   ]);
-  const monitored = result.materialLines.find(line => line.postNumber === "33.3.6.2")!;
-  const unmonitored = result.materialLines.find(line => line.postNumber === "33.3.6.3")!;
+  const monitored = result.materialLines.filter(line => line.quantity !== undefined).find(line => line.postNumber === "33.3.6.2")!;
+  const unmonitored = result.materialLines.filter(line => line.quantity !== undefined).find(line => line.postNumber === "33.3.6.3")!;
   assert.doesNotMatch(monitored.sourceText, /uten overvåking/);
   assert.doesNotMatch(unmonitored.sourceText, /Med signal/);
   assert.equal(monitored.nsCode, "UC1");
-  const meter = result.materialLines.find(line => line.postNumber === "33.3.7.1")!;
+  const meter = result.materialLines.filter(line => line.quantity !== undefined).find(line => line.postNumber === "33.3.7.1")!;
   assert.equal(meter.parentPostNumber, "33.3.7");
   assert.equal(meter.attributes["måleområde"], "300 - 3000 l/min");
   assert.match(meter.technicalSpecification!, /KAPASITETSMÅLER/);
   assert.equal(result.warnings.some(warning => warning.code === "MISSING_QUANTITY"), false);
 
-  const groups = splitDistributorRequirementLines(result.materialLines.map(line => ({
+  const groups = splitDistributorRequirementLines(result.materialLines.filter(line => line.quantity !== undefined).map(line => ({
     id: line.id, value_text: line.description, value_json: line, source_excerpt: line.sourceText
   })));
   assert.equal(groups.productRequirements.length, 7);
@@ -141,10 +141,10 @@ test("keeps scoped pipe instructions and positioned comments separate from the r
       text: "Kapittel: 33 Brannslokking\n0.33.332.3 UB1.1194300932A\n322.1 INNENDØRS VANNLEDNING - KOMPLETT\nMateriale: Stål\n0.33.332.3 DN25 m 274 0 0\n322.1.1\n0.33.332.3 UE2.11112912A\n325.2.2 SPRINKLER\nAntall stk 188 0 0",
       annotations: [{ id: "nrf", subtype: "Text", text: "1001012", postNumber: "0.33.332.3322.1.1" }] }
   ]);
-  assert.match(result.materialLines[0].attributes["generelle krav"], /varmgalvaniserte/);
-  assert.equal(result.materialLines[0].attributes["pdf-kommentar"], "1001012");
-  assert.equal(result.materialLines[1].attributes["generelle krav"], undefined);
-  assert.equal(result.materialLines[1].attributes["pdf-kommentar"], undefined);
+  assert.match(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes["generelle krav"], /varmgalvaniserte/);
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes["pdf-kommentar"], "1001012");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[1].attributes["generelle krav"], undefined);
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[1].attributes["pdf-kommentar"], undefined);
 });
 
 test("preserves both reducer dimensions in structured attributes", () => {
@@ -282,7 +282,7 @@ test("keeps visually aligned Ahlsell article numbers, posts and quantities toget
     ].join("\n")
   }]);
 
-  assert.deepEqual(result.materialLines.map((line) => ({
+  assert.deepEqual(result.materialLines.filter(line => line.quantity !== undefined).map((line) => ({
     postNumber: line.postNumber,
     quantity: line.quantity,
     unit: line.unit,
@@ -293,8 +293,8 @@ test("keeps visually aligned Ahlsell article numbers, posts and quantities toget
     { postNumber: "2.2", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN100 VIC 705, overvåket åpen 9253499" },
     { postNumber: "2.3", quantity: 2, unit: "st", category: "valve", description: "Dimensjon: DN150 VIC 705, overvåket åpen 9253502" }
   ]);
-  assert.equal(result.materialLines[0].attributes.dimensjon, "DN65");
-  assert.equal(result.materialLines[0].attributes.kapittelpost, "3325 Utstyr");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes.dimensjon, "DN65");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes.kapittelpost, "3325 Utstyr");
 });
 
 test("extracts NS 3420 table quantities and pipe lengths", () => {
@@ -373,9 +373,9 @@ test("extracts NS 3420 table quantities and pipe lengths", () => {
   });
 
   assert.equal(result.project.projectNumber, "100870");
-  assert.equal(result.materialLines.length, 7);
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined).length, 7);
   assert.deepEqual(
-    result.materialLines.map((line) => ({
+    result.materialLines.filter(line => line.quantity !== undefined).map((line) => ({
       postNumber: line.postNumber,
       quantity: line.quantity,
       unit: line.unit,
@@ -391,22 +391,22 @@ test("extracts NS 3420 table quantities and pipe lengths", () => {
       { postNumber: "1403.33.332.24", quantity: 10, unit: "st", category: "pipe" }
     ]
   );
-  assert.equal(result.materialLines[0].parentPostNumber, "1403.33.332.1");
-  assert.equal(result.materialLines[0].nsCode, "UB1.31114921934A");
-  assert.equal(result.materialLines[0].attributes.dimensjon, "DN100");
-  assert.equal(result.materialLines[0].attributes.trykk, "12 bar");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].parentPostNumber, "1403.33.332.1");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].nsCode, "UB1.31114921934A");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes.dimensjon, "DN100");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes.trykk, "12 bar");
   assert.equal(
-    result.materialLines[0].attributes.materialkvalitet,
+    result.materialLines.filter(line => line.quantity !== undefined)[0].attributes.materialkvalitet,
     "Pulverlakkerte sorte stålrør og deler inkl. oppheng. Leveres i RAL3001."
   );
-  assert.deepEqual(result.materialLines[0].standardRefs, ["NFPA-13:2025"]);
+  assert.deepEqual(result.materialLines.filter(line => line.quantity !== undefined)[0].standardRefs, ["NFPA-13:2025"]);
   assert.match(
-    result.materialLines[0].technicalSpecification ?? "",
+    result.materialLines.filter(line => line.quantity !== undefined)[0].technicalSpecification ?? "",
     /Materiale: Stål – malingsbehandlet[\s\S]*UNDERPOST[\s\S]*Rillede rør/
   );
-  assert.equal(result.materialLines[5].attributes["k-faktor"], "80");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[5].attributes["k-faktor"], "80");
   assert.equal(
-    result.materialLines[5].attributes["utløsningstemperatur"],
+    result.materialLines.filter(line => line.quantity !== undefined)[5].attributes["utløsningstemperatur"],
     "68 °C"
   );
   assert.equal(
@@ -447,7 +447,7 @@ test("extracts GAB rows where quantity precedes a wrapped post number", () => {
   });
 
   assert.deepEqual(
-    result.materialLines.map((line) => ({
+    result.materialLines.filter(line => line.quantity !== undefined).map((line) => ({
       postNumber: line.postNumber,
       parentPostNumber: line.parentPostNumber,
       description: line.description,
@@ -474,7 +474,7 @@ test("extracts GAB rows where quantity precedes a wrapped post number", () => {
       }
     ]
   );
-  assert.equal(result.materialLines[0].attributes.trykk, "12 bar");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes.trykk, "12 bar");
   assert.equal(result.warnings.length, 0);
 });
 
@@ -511,7 +511,7 @@ test("keeps all quantified rows when full and split post formats are mixed", () 
   });
 
   assert.deepEqual(
-    result.materialLines.map((line) => ({
+    result.materialLines.filter(line => line.quantity !== undefined).map((line) => ({
       postNumber: line.postNumber,
       quantity: line.quantity,
       unit: line.unit,
@@ -523,7 +523,7 @@ test("keeps all quantified rows when full and split post formats are mixed", () 
       { postNumber: "33.332.11.1", quantity: 28, unit: "st", category: "sprinkler_hose" }
     ]
   );
-  assert.equal(result.materialLines[0].attributes["k-faktor"], "80");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes["k-faktor"], "80");
   assert.equal(result.warnings.length, 0);
 });
 
@@ -589,11 +589,11 @@ test("joins project-prefixed post numbers split across lines", () => {
   });
 
   assert.equal(result.project.name, "Fornebubanen");
-  assert.equal(result.materialLines.length, 1);
-  assert.equal(result.materialLines[0].postNumber, "120000.30.331.2.1");
-  assert.equal(result.materialLines[0].parentPostNumber, "120000.30.331.2");
-  assert.equal(result.materialLines[0].quantity, 35.4);
-  assert.equal(result.materialLines[0].unit, "m");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined).length, 1);
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].postNumber, "120000.30.331.2.1");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].parentPostNumber, "120000.30.331.2");
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].quantity, 35.4);
+  assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].unit, "m");
   assert.equal(result.warnings.length, 0);
 });
 
@@ -636,7 +636,7 @@ test("extracts scanned NS 3420 pipe rows with delimiters and OCR lm units", () =
     ].join("\n")
   }]);
 
-  assert.deepEqual(result.materialLines.map((line) => ({
+  assert.deepEqual(result.materialLines.filter(line => line.quantity !== undefined).map((line) => ({
     postNumber: line.postNumber,
     description: line.description,
     quantity: line.quantity,
@@ -795,7 +795,7 @@ test("reconnects visually wrapped post columns without shifting descriptions", (
     ].join("\n")
   }]);
 
-  assert.deepEqual(result.materialLines.map((line) => ({
+  assert.deepEqual(result.materialLines.filter(line => line.quantity !== undefined).map((line) => ({
     postNumber: line.postNumber,
     parentPostNumber: line.parentPostNumber,
     description: line.description,
@@ -841,7 +841,7 @@ test("reconnects wrapped GAB post suffixes printed below quantified rows", () =>
     ].join("\n")
   }]);
 
-  assert.deepEqual(result.materialLines.map((line) => ({
+  assert.deepEqual(result.materialLines.filter(line => line.quantity !== undefined).map((line) => ({
     postNumber: line.postNumber,
     parentPostNumber: line.parentPostNumber,
     description: line.description,
@@ -889,7 +889,7 @@ test("inherits pipe context for dimension-only rows and reads a descriptive leng
     ].join("\n")
   }]);
 
-  assert.deepEqual(result.materialLines.map((line) => ({
+  assert.deepEqual(result.materialLines.filter(line => line.quantity !== undefined).map((line) => ({
     postNumber: line.postNumber,
     description: line.description,
     quantity: line.quantity,

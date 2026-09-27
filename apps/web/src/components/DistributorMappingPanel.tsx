@@ -2132,7 +2132,7 @@ function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByR
   onOpen: (requirementId: string) => void;
   assignmentsByRequirementId: Map<string, Row>;
 }) {
-  const label = kind === "remove" ? "Demontering" : "Rund Sum";
+  const label = kind === "remove" ? "Prosjekt information" : "Rund Sum";
   return <section aria-labelledby="non-product-table-heading" className="overflow-hidden border border-ink-200 bg-white">
     <h2 id="non-product-table-heading" className="border-b border-ink-200 px-4 py-3 text-xl font-bold text-ink-950">{label} ({requirements.length})</h2>
     <div className="overflow-x-auto">
@@ -2159,8 +2159,8 @@ function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByR
                     <MissingProductIndicator detail={productRequirementResolution(requirement)?.label} />
                   )}
                   <button type="button" data-appearance="text" className="font-semibold underline" aria-haspopup="dialog"
-                    aria-label={`Öppna PDF-post ${details.postNumber ?? index + 1}`}
-                    onClick={() => onOpen(requirement.id)}>{details.postNumber ?? "Saknas"}</button>
+                    aria-label={details.postNumber ? `Öppna PDF-post ${details.postNumber}` : `Öppna information från PDF-sida ${requirement.source_page ?? index + 1}`}
+                    onClick={() => onOpen(requirement.id)}>{details.postNumber ?? `Sida ${requirement.source_page ?? index + 1}`}</button>
                 </div>
               </td>
               <td className="px-4 py-3">{details.nsCode ?? "—"}</td>
