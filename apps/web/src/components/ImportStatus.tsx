@@ -6,12 +6,27 @@ const labels:Record<string,string>={queued:"I kö",running:"Bearbetas",awaiting_
 export function ImportStatus() {
   const [jobs,setJobs]=useState<ImportJobStatus[]>([]);
   const [error,setError]=useState(""); const [busy,setBusy]=useState<string|null>(null);
-  const load=useCallback(async()=>{
-    const response=await fetch("/api/technical-descriptions/jobs",{cache:"no-store"});
+  const load=useCallback(async(signal?:AbortSignal)=>{
+    const response=await fetch("/api/technical-descriptions/jobs",{cache:"no-store",signal:signal??AbortSignal.timeout(20_000)});
     if(!response.ok)throw new Error("Importstatus kunde inte laddas.");
     const payload=await response.json();return payload.jobs as ImportJobStatus[];
   },[]);
-  useEffect(()=>{void load().then(setJobs).catch(error=>setError(error.message));const timer=setInterval(()=>void load().then(setJobs).catch(()=>undefined),5000);return()=>clearInterval(timer);},[load]);
+  useEffect(()=>{
+    let cancelled=false;let timer:ReturnType<typeof setTimeout>|undefined;let controller:AbortController|undefined;
+    async function poll(){
+      let delay=30_000;
+      try {
+        if(document.visibilityState==="visible"){
+          controller=new AbortController();
+          const next=await load(AbortSignal.any([controller.signal,AbortSignal.timeout(20_000)]));
+          if(!cancelled){setJobs(next);setError("");}
+          if(next.some(job=>job.status==="queued"||job.status==="running"))delay=5000;
+        }
+      } catch(error){if(!cancelled)setError(error instanceof Error?error.message:"Importstatus kunde inte laddas.");}
+      if(!cancelled)timer=setTimeout(()=>void poll(),delay);
+    }
+    void poll();return()=>{cancelled=true;clearTimeout(timer);controller?.abort();};
+  },[load]);
   async function resume(job:ImportJobStatus) {
     setBusy(job.id);setError("");
     try {

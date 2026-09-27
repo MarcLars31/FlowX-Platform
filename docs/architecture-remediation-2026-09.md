@@ -2,9 +2,13 @@
 
 Underlag: granskningen av ab1276d. Utgångspunkt för denna ändring: a27ab51.
 
-**Status:** Koden är implementerad och lokalt verifierad. Användaren har godkänt
-aktivering av importkön och publicering. Alla fem databasändringar är installerade
-i produktion; schemaläggaren slås på när den nya webbversionen är publicerad.
+**Status:** Produktionsversionen är publicerad efter användarens godkännande.
+Alla fem databasändringar är installerade och importkön är aktiverad. Vercels
+produktionsbygge och GitHub-kontroller passerade med 663 godkända tester.
+Schemaläggaren har körts utan fel; intern köstart gav HTTP 202 och obehöriga
+anrop gav HTTP 401. Hem, projektlistan, 3 560 poster och ett produktkort har
+kontrollerats inloggat. Väggkanalsposten visar 71,75 m och förslag på kanaler.
+Kontrollen med tom kö bevisar inte en fullständig produktionsimport.
 Den tidigare optimeringen av projektöversikten i facd58f/a27ab51 är redan publicerad.
 
 | ID | Ändring | Verifiering |
@@ -31,6 +35,14 @@ Läsande kontroll av produktionen: Supabase Free/Nano i London; ungefär 312 MB
 uppmätt databasstorlek vid kontrollen. Dashboardens mätare visade 327/500 MB,
 14 % CPU, 60 % minne och 17/60 anslutningar vid ett annat mättillfälle.
 Det är ögonblicksbilder, ingen kapacitetscertifiering.
+
+Efter publicering svarade Hem på cirka 5,5 sekunder och kapitelöversikten med
+3 560 poster på cirka 6,2 sekunder enligt Vercels runtime-loggar. Dessa enskilda
+anrop lyckades, men svarstiderna visar att fortsatt kapacitetsarbete behövs.
+Ett lyckat PostgREST-anrop med HTTP 204 upptäcktes felaktigt ge en kvotvarning;
+svaret hanteras nu utan JSON-tolkning och transporttestet täcker detta.
+Importstatus uppdateras bara var femte sekund vid aktiv import, var trettionde
+sekund vid vila och gör inga anrop när fliken är dold.
 
 RLS är aktiverat för projektkraven. Både `project-files` och `product-documents`
 är privata. De fem tidigare kravindexen inventerades. Historiska SQL-statistikgrupper

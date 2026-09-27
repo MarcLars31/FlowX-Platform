@@ -186,6 +186,8 @@ export async function callSupabaseRpc<T>(
     throw new Error(await readSupabaseError(response));
   }
 
+  // PostgREST returns 204 for successful SQL functions declared RETURNS void.
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 

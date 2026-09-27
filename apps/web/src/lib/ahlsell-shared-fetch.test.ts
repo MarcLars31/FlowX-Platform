@@ -8,6 +8,7 @@ test("shared supplier transport fails closed, caches only public content, and pr
   process.env.SUPABASE_URL="https://database.example.test"; process.env.SUPABASE_SERVICE_ROLE_KEY="local-test-only";
   t.after(()=>{if(oldUrl===undefined) delete process.env.SUPABASE_URL;else process.env.SUPABASE_URL=oldUrl;if(oldKey===undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;else process.env.SUPABASE_SERVICE_ROLE_KEY=oldKey;});
   let mode="acquired", supplierCalls=0; const finished:Record<string,unknown>[]=[];
+  const warnings=t.mock.method(console,"warn",()=>undefined);
   t.mock.method(globalThis,"fetch",async(input:RequestInfo|URL,init?:RequestInit)=>{
     const url=String(input);
     if (url.includes("/rpc/claim_ahlsell_request")) {
@@ -15,7 +16,7 @@ test("shared supplier transport fails closed, caches only public content, and pr
       return Response.json({state:mode==="cached"?"cached":mode==="limited"?"limited":"acquired",retryAfter:17,
         ...(mode==="cached"?{response:{status:200,body:"cached article",headers:{"content-type":"text/plain"}}}:{})});
     }
-    if(url.includes("/rpc/finish_ahlsell_request")){finished.push(JSON.parse(String(init?.body)));return Response.json(null);}
+    if(url.includes("/rpc/finish_ahlsell_request")){finished.push(JSON.parse(String(init?.body)));return new Response(null,{status:204});}
     assert.equal(new URL(url).hostname,"www.ahlsell.no");supplierCalls++;
     return mode==="backoff"?new Response("try later",{status:429,headers:{"retry-after":"30"}}):new Response("public article");
   });
@@ -27,4 +28,5 @@ test("shared supplier transport fails closed, caches only public content, and pr
   mode="limited";const context=ahlsellRequestContext();assert.equal((await context.fetch(url)).status,429);assert.equal(context.retryAfter,17);assert.equal(supplierCalls,1);
   mode="backoff";assert.equal((await sharedAhlsellFetch(url)).status,429);assert.equal(finished.at(-1)?.requested_response,null);assert.equal(finished.at(-1)?.requested_backoff,30);
   mode="offline";await assert.rejects(sharedAhlsellFetch(url),/offline/);assert.equal(supplierCalls,2);
+  assert.equal(warnings.mock.callCount(),0,"successful empty RPC responses must not be reported as lease failures");
 });
