@@ -293,7 +293,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     ...yellowRequirements.map((requirement) => [requirement.id, "yellow"] as const),
     ...redRequirements.map((requirement) => [requirement.id, "red"] as const)
   ]), [greenRequirements, redRequirements, yellowRequirements]);
-  const [expandedMainPosts, setExpandedMainPosts] = useState<Set<string>>(() => new Set(groupProductRequirementsByMainPost(productRequirements).map(group => group.key)));
+  const [expandedMainPosts, setExpandedMainPosts] = useState<Set<string>>(() => new Set());
   const [productTableSort, setProductTableSort] = useState<ProductTableSort | null>(null);
   const [productTableLayout, setProductTableLayout] = useState<ProductTableLayout>(() => normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
   const [productTableLayoutLoaded, setProductTableLayoutLoaded] = useState(false);
