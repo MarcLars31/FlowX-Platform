@@ -33,13 +33,13 @@ test("wrapped unit/quantity cells preserve fractional metres through display, se
   const line = materialLines[0];
   assert.equal(line.quantity, 1234.5);
   assert.equal(line.unit, "m");
-  const requirement = { id: "pipe", value_text: line.description, value_json: line };
+  const requirement = { id: "pipe", category: "material", requirement_key: "pipe", value_text: line.description, value_json: line };
   assert.deepEqual(projectRequirementQuantity(line), { quantity: 1234.5, unit: "m" });
   assert.deepEqual(parseProductOrderQuantity({ quantity: "1 234,50", unit: "M" }), { quantity: 1234.5, unit: "m" });
   const rows = buildProjectMaterialRows({ requirements: [requirement], assignments: [] });
   assert.equal(rows[0].quantity, 1234.5);
   assert.equal(rows[0].unit, "m");
-  const workbook = await createProjectMaterialListWorkbook({ organizationName: "Test", project: { name: "Mängdtest" }, rows });
+  const workbook = await createProjectMaterialListWorkbook({ organizationName: "Test", project: { id: "quantity-test", name: "Mängdtest", project_number: null, customer_name: null, end_customer: null, standard: null, system_type: null, supplier: null, status: "draft" }, rows });
   assert.ok(workbook.byteLength > 0);
 });
 

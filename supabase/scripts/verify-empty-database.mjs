@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { verifyProductPostComments } from "./verify-product-post-comments.mjs";
 import { verifyOptionalScopeProducts } from "./verify-optional-scope-products.mjs";
+import { verifyRuleFeedback } from "./verify-rule-feedback.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const supabaseDirectory = join(scriptDirectory, "..");
@@ -18,6 +19,8 @@ const bootstrapSql = String.raw`
 
   create schema auth;
   create schema storage;
+  -- Supabase grants access to its auth helper functions through this schema.
+  grant usage on schema auth to authenticated, anon;
 
   create table auth.users (
     id uuid primary key default gen_random_uuid(),
@@ -587,6 +590,7 @@ try {
   process.stdout.write("PASS failure after base manual approval rolls back assignment and product memory\n");
   await verifyProductPostComments(database, project.id);
   await verifyOptionalScopeProducts(database, project.id);
+  await verifyRuleFeedback(database);
 
   await database.exec(`
     insert into public.project_requirements (

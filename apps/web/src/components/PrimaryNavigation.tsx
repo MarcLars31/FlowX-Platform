@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AlertTriangle, BarChart3, ClipboardCheck, FileJson, FileText, FolderKanban, Handshake, History, Home, PackageSearch, RefreshCw } from "lucide-react";
+import { AlertTriangle, BarChart3, ClipboardCheck, FileJson, FileText, FolderKanban, Handshake, History, Home, PackageSearch, RefreshCw, SlidersHorizontal } from "lucide-react";
 import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
 
-const icons = { home: Home, products: PackageSearch, projects: FolderKanban, history: History, statistics: BarChart3, crm: Handshake, technical_description: FileText };
+const icons = { home: Home, products: PackageSearch, projects: FolderKanban, history: History, statistics: BarChart3, crm: Handshake, technical_description: FileText, rules: SlidersHorizontal };
 const administration = [
   { name: "JSON Import", href: "/admin", icon: FileJson, exact: true },
   { name: "Till godkännande", href: "/admin/review", icon: ClipboardCheck, exact: true },
   { name: "Olästa datablad", href: "/admin/documents/failed", icon: AlertTriangle },
   { name: "Sprsok-synk", href: "/admin/sprsok", icon: RefreshCw },
-  { name: "Products", href: "/products", icon: PackageSearch }
+  { name: "Products", href: "/products", icon: PackageSearch },
+  { name: "Regler", href: "/regler", icon: SlidersHorizontal }
 ];
 
 export function PrimaryNavigation({ navigation }: { navigation?: readonly OrganizationNavigationItem[] }) {

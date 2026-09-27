@@ -31,7 +31,7 @@ jobs:
         run: npm ci
 
       - name: Build Cloudflare worker
-        run: npm run build:cloudflare
+        run: npm run test:rules && npm run build:cloudflare
 
       - name: Stage Sites archive
         run: |

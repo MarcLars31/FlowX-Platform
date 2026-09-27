@@ -13,7 +13,8 @@ import {
   History,
   Home,
   PackageSearch,
-  RefreshCw
+  RefreshCw,
+  SlidersHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrganizationNavigationItem } from "@/lib/organization-navigation";
@@ -39,7 +40,8 @@ const adminNavigation: SidebarItem[] = [
     icon: AlertTriangle
   },
   { name: "Sprsok-synk", href: "/admin/sprsok", icon: RefreshCw },
-  { name: "Products", href: "/products", icon: PackageSearch }
+  { name: "Products", href: "/products", icon: PackageSearch },
+  { name: "Regler", href: "/regler", icon: SlidersHorizontal }
 ];
 
 const organizationIcons = {
@@ -49,7 +51,8 @@ const organizationIcons = {
   history: History,
   statistics: BarChart3,
   crm: Handshake,
-  technical_description: FileText
+  technical_description: FileText,
+  rules: SlidersHorizontal
 } satisfies Record<OrganizationNavigationItem["icon"], typeof Home>;
 
 export function Sidebar({

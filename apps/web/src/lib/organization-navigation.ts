@@ -10,7 +10,8 @@ export type OrganizationNavigationItem = {
     | "history"
     | "statistics"
     | "crm"
-    | "technical_description";
+    | "technical_description"
+    | "rules";
   anyPermissions?: readonly PermissionKey[];
 };
 
@@ -63,6 +64,12 @@ export const ORGANIZATION_NAVIGATION: readonly OrganizationNavigationItem[] = [
       "project.view_organization",
       "project.view_all"
     ]
+  },
+  {
+    name: "Regler",
+    href: "/regler",
+    icon: "rules",
+    anyPermissions: ["project.product_suggestion.view"]
   }
 ];
 
