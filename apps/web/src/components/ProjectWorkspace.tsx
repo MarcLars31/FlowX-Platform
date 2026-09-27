@@ -274,6 +274,7 @@ export function ProjectWorkspace({
     setMessage(null);
     try {
       form.set("projectId", data.project.id);
+      form.set("responseMode", "summary");
       const response = await uploadTechnicalDescriptionWithOcr(
         form,
         selectedFile,

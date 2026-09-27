@@ -93,14 +93,23 @@ export async function insertUserRowReturning<T>(
 
 export async function insertUserRows(
   table: string,
-  payloads: Record<string, unknown>[]
+  payloads: Record<string, unknown>[],
+  options: { ignoreIdConflicts?: boolean } = {}
 ) {
   if (payloads.length === 0) return;
 
   const config = await getUserSupabaseConfig();
-  const response = await fetch(restUrl(config.url, table), {
+  const url = restUrl(config.url, table);
+  if (options.ignoreIdConflicts) {
+    if (payloads.some(row => typeof row.id !== "string" || !row.id)) {
+      throw new Error("Resumable inserts require an explicit ID for every row.");
+    }
+    url.searchParams.set("on_conflict", "id");
+  }
+  const response = await fetch(url, {
     method: "POST",
-    headers: userHeaders(config),
+    headers: userHeaders(config, options.ignoreIdConflicts
+      ? "return=minimal,resolution=ignore-duplicates" : "return=minimal"),
     body: JSON.stringify(payloads),
     cache: "no-store"
   });

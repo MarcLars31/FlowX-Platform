@@ -1,19 +1,20 @@
 import type { TechnicalDescriptionExtractionResult } from "@/modules/technical-description-extractor";
 
 export function clientTechnicalDescriptionResult(
-  result: TechnicalDescriptionExtractionResult
+  result: TechnicalDescriptionExtractionResult,
+  options: { summaryOnly?: boolean } = {}
 ) {
   return {
     document: result.document,
     project: result.project,
-    pageChecks: result.pageChecks,
-    materialLines: result.materialLines.map((line) => {
+    pageChecks: options.summaryOnly ? undefined : result.pageChecks,
+    materialLines: (options.summaryOnly ? [] : result.materialLines).map((line) => {
       const clientLine = { ...line };
       delete clientLine.technicalSpecification;
       return clientLine;
     }),
     standards: result.standards,
-    ruleHints: result.ruleHints,
-    warnings: result.warnings
+    ruleHints: options.summaryOnly ? [] : result.ruleHints,
+    warnings: options.summaryOnly ? [] : result.warnings
   };
 }

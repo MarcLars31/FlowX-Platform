@@ -43,6 +43,7 @@ export default function CreateProjectPage() {
     const form = new FormData();
     form.set("file", selectedFile);
     form.set("createProject", "true");
+    form.set("responseMode", "summary");
 
     try {
       const response = await uploadTechnicalDescriptionWithOcr(

@@ -46,4 +46,16 @@ test("keeps the saved extraction result compact in the HTTP response", () => {
     false
   );
   assert.equal(clientResult.materialLines[0].postNumber, "33.335.1");
+
+  const largeResult = { ...result,
+    materialLines: Array.from({ length: 3560 }, () => ({ ...result.materialLines[0], sourceText: "krav ".repeat(1000) })),
+    warnings: Array.from({ length: 3560 }, () => ({ code: "unknown", message: "Needs review", severity: "warning" as const }))
+  };
+  const summary = clientTechnicalDescriptionResult(largeResult, { summaryOnly: true });
+  assert.ok(Buffer.byteLength(JSON.stringify(summary)) < 10_000);
+  assert.equal(summary.document.pageCount, 1);
+  assert.equal(summary.project.name, "Test");
+  assert.equal(summary.materialLines.length, 0);
+  assert.equal(largeResult.materialLines.length, 3560);
+  assert.equal(largeResult.materialLines[0].sourceText.length, 5000);
 });

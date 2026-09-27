@@ -5,6 +5,7 @@ import {
   callUserRpc,
   insertUserRowReturning,
   insertUserRows,
+  selectAllUserRows,
   selectUserRows,
   updateUserRowsReturning,
   uploadUserStorageObject,
@@ -34,6 +35,12 @@ import {
   mergeClientOcrPages,
   parseClientOcrPages
 } from "@/lib/technical-description-ocr-payload";
+import {
+  isCompleteTechnicalDescription,
+  persistenceKey,
+  persistTechnicalDescriptionBatches,
+  planTechnicalDescriptionRows
+} from "@/lib/technical-description-persistence";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -88,6 +95,7 @@ export async function POST(request: Request) {
     if (authorization.error) return authorization.error;
 
     const formData = await request.formData();
+    const clientResultOptions = { summaryOnly: formData.get("responseMode") === "summary" };
     const hasClientOcrPayload = formData.has("ocrPages");
     const limit = consumeRateLimit(
       requestRateLimitKey(
@@ -242,31 +250,8 @@ export async function POST(request: Request) {
           limit: "1"
         });
         if (existingProject) {
-          const [persistedLines, persistedRequirements] = await Promise.all([
-            selectUserRows<{ id: string }>("technical_description_material_lines", {
-              select: "id",
-              document_id: `eq.${existingSourceDocument.id}`
-            }),
-            selectUserRows<{ id: string }>("project_requirements", {
-              select: "id",
-              project_id: `eq.${existingProject.id}`,
-              source_technical_description_document_id: `eq.${existingSourceDocument.id}`,
-              deleted_at: "is.null"
-            })
-          ]);
-          if (persistedLines.length > 0 || persistedRequirements.length > 0) {
-            return NextResponse.json({
-              projectId: existingProject.id,
-              projectName: existingProject.name,
-              projectCreated: false,
-              reusedExistingProject: true,
-              documentId: existingSourceDocument.id,
-              persistedLineCount: persistedLines.length,
-              persistedRequirementCount: persistedRequirements.length,
-              duplicate: true,
-              ...clientTechnicalDescriptionResult(result)
-            });
-          }
+          // A partial batch is not a completed import. Resume this project and
+          // check the document's completion marker below before returning.
           projectId = existingProject.id;
           reusedExistingEmptyProject = true;
         }
@@ -474,18 +459,28 @@ export async function POST(request: Request) {
 
       if (alreadyProcessed) {
         const [persistedLines, persistedRequirements] = await Promise.all([
-          selectUserRows<{ id: string }>("technical_description_material_lines", {
+          selectAllUserRows<{ id: string }>("technical_description_material_lines", {
             select: "id",
-            document_id: `eq.${document.id}`
+            organization_id: `eq.${authorization.context.organization.id}`,
+            document_id: `eq.${document.id}`,
+            order: "id.asc"
           }),
-          selectUserRows<{ id: string }>("project_requirements", {
+          selectAllUserRows<{ id: string }>("project_requirements", {
             select: "id",
+            organization_id: `eq.${authorization.context.organization.id}`,
             project_id: `eq.${projectId}`,
             source_technical_description_document_id: `eq.${document.id}`,
-            deleted_at: "is.null"
+            deleted_at: "is.null",
+            order: "id.asc"
           })
         ]);
-        if (persistedLines.length > 0 || persistedRequirements.length > 0) {
+        if (isCompleteTechnicalDescription(
+          projectDocument!.processing_status,
+          persistedLines.length,
+          persistedRequirements.length,
+          result.materialLines.length,
+          authorization.context.permissions.includes("project.requirement.create")
+        )) {
           return NextResponse.json({
             projectId,
             projectName: projects[0].name,
@@ -493,7 +488,7 @@ export async function POST(request: Request) {
             persistedLineCount: persistedLines.length,
             persistedRequirementCount: persistedRequirements.length,
             duplicate: true,
-            ...clientTechnicalDescriptionResult(result)
+            ...clientTechnicalDescriptionResult(result, clientResultOptions)
           });
         }
       }
@@ -601,16 +596,20 @@ export async function POST(request: Request) {
             extractionRunPayload
           );
 
-      const existingPages = await selectUserRows<{
+      const existingPages = await selectAllUserRows<{
         id: string;
         page_number: number;
+        extracted_text: string;
+        extraction_method: string;
+        metadata: unknown;
       }>(
         "document_pages",
         {
-          select: "id,page_number",
+          select: "id,page_number,extracted_text,extraction_method,metadata",
           organization_id: `eq.${authorization.context.organization.id}`,
           project_id: `eq.${projectId}`,
-          document_id: `eq.${projectDocument.id}`
+          document_id: `eq.${projectDocument.id}`,
+          order: "page_number.asc,id.asc"
         }
       );
       const existingPageNumbers = new Set(
@@ -620,11 +619,20 @@ export async function POST(request: Request) {
         existingPages.map((page) => [page.page_number, page] as const)
       );
       const projectDocumentId = projectDocument.id;
-      await Promise.all(
-        result.pages
-          .filter((page) => existingPageNumbers.has(page.pageNumber))
-          .map((page) =>
-            updateUserRowsReturning<{ id: string }>(
+      const pageMetadata = (page: typeof result.pages[number]) => ({
+        confidence: page.confidence,
+        annotations: page.annotations ?? [],
+        annotation_read_failed: page.annotationReadFailed ?? false
+      });
+      const changedPages = result.pages.filter(page => {
+        const previous = existingPageByNumber.get(page.pageNumber);
+        return previous && (previous.extracted_text !== page.text
+          || previous.extraction_method !== page.method
+          || persistenceKey(previous.metadata) !== persistenceKey(pageMetadata(page)));
+      });
+      for (let offset = 0; offset < changedPages.length; offset += 4) {
+        await Promise.all(changedPages.slice(offset, offset + 4).map(page =>
+          updateUserRowsReturning<{ id: string }>(
               "document_pages",
               {
                 id: `eq.${existingPageByNumber.get(page.pageNumber)?.id}`,
@@ -635,17 +643,16 @@ export async function POST(request: Request) {
               {
                 extracted_text: page.text,
                 extraction_method: page.method,
-                metadata: {
-                  confidence: page.confidence,
-                  annotations: page.annotations ?? [],
-                  annotation_read_failed: page.annotationReadFailed ?? false
-                }
+                metadata: pageMetadata(page)
               }
             )
-          )
-      );
-      await insertUserRows(
+          ));
+      }
+      await persistRows(
         "document_pages",
+        { organization_id: `eq.${authorization.context.organization.id}`, project_id: `eq.${projectId}`, document_id: `eq.${projectDocumentId}` },
+        "page_number",
+        row => row.page_number,
         result.pages
           .filter((page) => !existingPageNumbers.has(page.pageNumber))
           .map((page) => ({
@@ -655,17 +662,20 @@ export async function POST(request: Request) {
             page_number: page.pageNumber,
             extracted_text: page.text,
             extraction_method: page.method,
-            metadata: {
-              confidence: page.confidence,
-              annotations: page.annotations ?? [],
-              annotation_read_failed: page.annotationReadFailed ?? false
-            }
+            metadata: pageMetadata(page)
           }))
       );
     }
 
-    await insertUserRows(
+    const documentScope = {
+      organization_id: `eq.${authorization.context.organization.id}`,
+      document_id: `eq.${document.id}`
+    };
+    await persistRows(
       "technical_description_material_lines",
+      documentScope,
+      "source_page,post_number,ns_code,source_text",
+      row => [row.source_page, row.post_number, row.ns_code, row.source_text],
       result.materialLines.map((line) =>
         materialLinePayload(
           line,
@@ -676,8 +686,11 @@ export async function POST(request: Request) {
       )
     );
 
-    await insertUserRows(
+    await persistRows(
       "technical_description_rule_hints",
+      documentScope,
+      "rule_key,rule_value,source_page,source_text",
+      row => [row.rule_key, row.rule_value, row.source_page, row.source_text],
       result.ruleHints.map((hint) => ({
         organization_id: authorization.context.organization.id,
         document_id: document.id,
@@ -721,7 +734,6 @@ export async function POST(request: Request) {
 
       const requirementSetId = requirementSet.id;
       const candidatePayloads = result.materialLines.map((line) => ({
-        id: randomUUID(),
         organization_id: authorization.context.organization.id,
         project_id: projectId,
         extraction_run_id: extractionRun?.id ?? null,
@@ -757,15 +769,26 @@ export async function POST(request: Request) {
         status: line.reviewFlags.length ? "requires_review" : "extracted",
         created_by: authorization.user.id
       }));
-      await insertUserRows("requirement_candidates", candidatePayloads);
+      const savedCandidates = await persistRows("requirement_candidates", {
+        organization_id: `eq.${authorization.context.organization.id}`,
+        project_id: `eq.${projectId}`,
+        technical_description_document_id: `eq.${document.id}`
+      }, "page_number,raw_text", row => [row.page_number, row.raw_text], candidatePayloads);
 
-      await insertUserRows(
+      await persistRows(
         "project_requirements",
+        {
+          organization_id: `eq.${authorization.context.organization.id}`,
+          project_id: `eq.${projectId}`,
+          source_technical_description_document_id: `eq.${document.id}`
+        },
+        "source_page,source_excerpt",
+        row => [row.source_page, row.source_excerpt],
         result.materialLines.map((line, index) => ({
           organization_id: authorization.context.organization.id,
           project_id: projectId,
           requirement_set_id: requirementSetId,
-          source_candidate_id: candidatePayloads[index].id,
+          source_candidate_id: savedCandidates[index].id,
           category: line.category,
           requirement_key: line.nsCode ?? line.category,
           attribute_key: line.nsCode ?? line.category,
@@ -851,7 +874,7 @@ export async function POST(request: Request) {
         documentId: document.id,
         persistedLineCount: result.materialLines.length,
         persistedRequirementCount,
-        ...clientTechnicalDescriptionResult(result)
+        ...clientTechnicalDescriptionResult(result, clientResultOptions)
       },
       { status: 201 }
     );
@@ -859,6 +882,32 @@ export async function POST(request: Request) {
     return technicalDescriptionErrorResponse(error);
   } finally {
     if (stagedPath && !awaitingOcr) await cleanupTechnicalDescriptionUpload(stagedPath);
+  }
+}
+
+async function persistRows<T extends Record<string, unknown>>(
+  table: string,
+  scope: Record<string, string>,
+  identityColumns: string,
+  key: (row: Record<string, unknown>) => unknown,
+  payloads: T[]
+) {
+  if (!payloads.length) return [] as Array<T & { id: string }>;
+  try {
+    const existing = await selectAllUserRows<Record<string, unknown> & { id: string }>(table, {
+      ...scope, select: `id,${identityColumns}`, order: "created_at.asc,id.asc"
+    });
+    const plan = planTechnicalDescriptionRows(`${table}|${persistenceKey(scope)}`, payloads, existing, key);
+    await persistTechnicalDescriptionBatches(plan.missing, batch =>
+      insertUserRows(table, batch, { ignoreIdConflicts: true }));
+    return plan.rows;
+  } catch (error) {
+    console.error("Technical description persistence failed", {
+      table, rowCount: payloads.length,
+      status: error instanceof UserSupabaseError ? error.status : undefined,
+      code: error instanceof UserSupabaseError ? error.code : undefined
+    });
+    throw error;
   }
 }
 
