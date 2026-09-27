@@ -8,6 +8,21 @@ const title = "1404 LB - 40.434 Elkraftfordeling til driftstekniske installasjon
 const table = "Postnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum";
 const page = (pageNumber: number, text: string) => ({ pageNumber, text, method: "text" as const, confidence: .98 });
 
+test("keeps a new chapter's orientation as information instead of appending it to the preceding product", () => {
+  const nextTitle = "1404 LB - 40.442 Belysningsutstyr";
+  const lines = extractTechnicalDescriptionFromPages([
+    page(1, `1404.40.434.9 WL1.330A\nPUNKT\nAntall stk 1\nAndre krav: Nei\nSum:\n${title}\n${table}`),
+    page(2, `442 Belysningsutstyr\nOrientering\nKapittelet inneholder:\nAlle lysarmaturer skal leveres komplett med kabler og festemateriell.\nProsjekt: Test\n${nextTitle}`),
+    page(3, `1404.40.442.1 WT1.1A\nLYSARMATUR\nAntall stk 3\nSum:\n${nextTitle}\n${table}`)
+  ]).materialLines;
+  assert.equal(lines.length, 3);
+  assert.doesNotMatch(lines[0].sourceText, /Orientering/);
+  assert.equal(lines[1].postNumber, undefined);
+  assert.equal(lines[1].sourceChapter?.title, nextTitle);
+  assert.deepEqual(lines[1].reviewFlags, ["project-information"]);
+  assert.match(lines[1].sourceText, /komplett med kabler og festemateriell/);
+});
+
 test("reads full ISY headers in both visual and stream order and retains their first page", () => {
   const chapters = pdfChaptersByPage([
     page(1498, `${title}\n${table}\n1404.40.434.10 PUNKT`),

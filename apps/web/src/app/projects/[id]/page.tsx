@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { selectUserRows } from "@/lib/supabase-user-rest";
+import { selectUserRows, selectAllUserRows } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
 import { ProjectWorkspace, type ProjectModuleData } from "@/components/ProjectWorkspace";
 import { ProjectAccessEditor } from "@/components/ProjectAccessEditor";
@@ -89,12 +89,12 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   }
 
   const rawRequirements = context.permissions.includes("project.requirement.view")
-    ? await selectUserRows<Record<string, unknown> & { id: string }>(
+    ? await selectAllUserRows<Record<string, unknown> & { id: string }>(
         "project_requirements",
         {
           project_id: `eq.${id}`,
           organization_id: `eq.${organizationId}`,
-          order: "source_page.asc,created_at.asc"
+          order: "source_page.asc,created_at.asc,id.asc"
         }
       )
     : [];
@@ -147,10 +147,10 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         })
       : [],
     suggestions: context.permissions.includes("project.product_suggestion.view")
-      ? await selectUserRows("project_product_suggestions", {
+      ? await selectAllUserRows("project_product_suggestions", {
           project_id: `eq.${id}`,
           organization_id: `eq.${organizationId}`,
-          order: "match_score.desc"
+          order: "match_score.desc,id.asc"
         })
       : [],
     decisions: context.permissions.includes("project.decision.view")

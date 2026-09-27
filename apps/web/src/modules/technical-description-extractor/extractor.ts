@@ -474,6 +474,7 @@ function extractLegacyMaterialLines(
 
 function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   const materialLines: TechnicalDescriptionMaterialLine[] = [];
+  const chapters = pdfChaptersByPage(pages);
   const projectHeading = extractProject(pages).name?.replace(/\s+/g, " ").trim();
   const seen = new Set<string>();
   const parentContexts = new Map<string, TableParentContext>();
@@ -486,6 +487,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   let previousContext: TableParentContext | undefined;
   let pipeSection: { number: string; sourcePage: number; text: string } | undefined;
   let postScope = "";
+  let chapterTitle: string | undefined;
 
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
     const page = pages[pageIndex];
@@ -495,7 +497,14 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       continue;
     }
     const pageLines = prepared.pageLines[pageIndex];
-    const pageText = pageLines.join("\n");
+    const nextChapterTitle = chapters.get(page.pageNumber)?.title;
+    if (chapterTitle && nextChapterTitle && nextChapterTitle !== chapterTitle) {
+      parentContexts.clear();
+      previousContext = undefined;
+      previousMaterialLine = undefined;
+      pipeSection = undefined;
+    }
+    if (nextChapterTitle) chapterTitle = nextChapterTitle;
     const scope = extractPostScope(pageLines);
     if (scope && scope !== postScope) {
       parentContexts.clear();
@@ -504,11 +513,6 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       pipeSection = undefined;
       postScope = scope;
     }
-    const inFireProtectionSection = isFireProtectionPage(pageText)
-      || isFireProtectionPage(prepared.pageLines[pageIndex - 1]?.join("\n") ?? "")
-      || isFireProtectionPage(prepared.pageLines[pageIndex + 1]?.join("\n") ?? "");
-    const followsPrevious = previousContext?.sourcePages.at(-1) === page.pageNumber - 1;
-    if (!inFireProtectionSection && !followsPrevious) continue;
     const chapterPost = extractChapterPost(pageLines);
 
     const starts: StructuredPostStart[] = [];
@@ -540,12 +544,12 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       previousMaterialLine,
       previousContext
     });
-    if (!attachedContinuation && inFireProtectionSection) {
+    if (!attachedContinuation) {
       const leading = leadingPageBody(pageLines, starts[0]?.lineIndex, projectHeading);
       // A fragment from a page omitted from this file has no trustworthy post
       // number or quantity. Preserve it without assigning it to the next post.
       if (leading.length && !leading.some(line => NS3420_CODE_PATTERN.test(line))
-        && pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line))
+        && (pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line)) || Boolean(chapterTitle))
         && (leading.some(isTechnicalContinuationLine) || (leading.length > 1 && leading.join(" ").length > 80))) {
         const sourceText = leading.join("\n");
         const attributes = extractTableAttributes(leading);
@@ -564,13 +568,6 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         previousMaterialLine = information;
         previousContext = undefined;
       }
-    }
-
-    // A continuation can extend through a page without a sprinkler keyword;
-    // that does not make unrelated posts on the page part of this section.
-    if (!inFireProtectionSection) {
-      if (starts.length) { previousContext = undefined; previousMaterialLine = undefined; }
-      continue;
     }
 
     for (let startIndex = 0; startIndex < starts.length; startIndex += 1) {
@@ -1271,10 +1268,6 @@ function findTableParent(
     .sort((left, right) => right.postNumber.length - left.postNumber.length)[0];
 }
 
-function isFireProtectionPage(text: string) {
-  return /sprinkler|brann(?:slokk|vann|vern)|slokke(?:anlegg|gass|vann)|inergen|håndsl[ou]kker|\b\d+(?:\.\d+)*\.332(?:\.|\b)/i.test(text);
-}
-
 function isNonMaterialReferencePage(text: string) {
   const hydraulicReport = /(?:^|\n)Sprinkler report\b/i.test(text)
     && /\b(?:Calculation date|Property Value Unit|General results)\b/i.test(text);
@@ -1306,7 +1299,7 @@ function normalizedPageLines(text: string) {
 }
 
 function reconcilePageQuantities(pages: TechnicalDescriptionPage[], lines: TechnicalDescriptionMaterialLine[], warnings: TechnicalDescriptionWarning[]) {
-  return pages.filter(page => isFireProtectionPage(page.text) && !isNonMaterialReferencePage(page.text)).flatMap(page => {
+  return pages.filter(page => !isNonMaterialReferencePage(page.text)).flatMap(page => {
     const pageLines = normalizedPageLines(page.text);
     // "Rund sum" in the measurement rules repeats the RS table cell; it is
     // not a second quantity. Also count rows whose unit precedes the post.

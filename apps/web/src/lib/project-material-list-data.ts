@@ -4,7 +4,7 @@ import {
   type MaterialListProject,
   type MaterialListRequirement
 } from "@/lib/project-material-list-export";
-import { selectUserRows } from "@/lib/supabase-user-rest";
+import { selectUserRows, selectAllUserRows } from "@/lib/supabase-user-rest";
 
 export async function loadProjectMaterialListData(
   projectId: string,
@@ -20,22 +20,20 @@ export async function loadProjectMaterialListData(
   if (!project) return null;
 
   const [requirements, assignments] = await Promise.all([
-    selectUserRows<MaterialListRequirement>("project_requirements", {
+    selectAllUserRows<MaterialListRequirement>("project_requirements", {
       select: "id,category,requirement_key,value_text,value_json",
       project_id: `eq.${projectId}`,
       organization_id: `eq.${organizationId}`,
       deleted_at: "is.null",
-      order: "created_at.asc",
-      status: "not.in.(rejected,superseded)",
-      limit: "1000"
+      order: "source_page.asc,created_at.asc,id.asc",
+      status: "not.in.(rejected,superseded)"
     }),
-    selectUserRows<MaterialListAssignment>("project_product_suggestions", {
+    selectAllUserRows<MaterialListAssignment>("project_product_suggestions", {
       select: "id,requirement_id,status,product_snapshot,selected_at",
       project_id: `eq.${projectId}`,
       organization_id: `eq.${organizationId}`,
       status: "eq.selected",
-      order: "selected_at.asc.nullslast,created_at.asc",
-      limit: "1000"
+      order: "selected_at.asc.nullslast,created_at.asc,id.asc"
     })
   ]);
 

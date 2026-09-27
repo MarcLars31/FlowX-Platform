@@ -3,6 +3,7 @@ import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
   callUserRpc,
   selectUserRows,
+  selectAllUserRows,
   updateUserRowsReturning,
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
@@ -47,9 +48,9 @@ export async function GET(_request: Request, context: RouteContext) {
         selectUserRows("project_system_types", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "is_primary.desc,created_at.asc" }),
         selectUserRows("project_standards", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "priority.asc,created_at.asc" }),
         selectUserRows("project_supplier_options", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "supplier_kind.asc,selection_role.asc" }),
-        selectUserRows("project_requirements", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "source_page.asc,created_at.asc" }),
+        selectAllUserRows("project_requirements", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "source_page.asc,created_at.asc,id.asc" }),
         selectUserRows("project_requirement_conflicts", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "updated_at.desc" }),
-        selectUserRows("project_product_suggestions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "match_score.desc" }),
+        selectAllUserRows("project_product_suggestions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "match_score.desc,id.asc" }),
         selectUserRows("project_decisions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "updated_at.desc" }),
         selectUserRows("project_versions", { project_id: `eq.${id}`, organization_id: `eq.${organizationId}`, order: "version_number.desc" })
       ]);

@@ -35,7 +35,7 @@ import {
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
-import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
+import { groupProjectRequirementViews } from "@/lib/project-requirement-views";
 import { bulkProductApprovalSelection, type BulkProductApprovalSelection } from "@/lib/bulk-product-approval";
 import { ahlsellCatalogStatusFromPayload, mergeAhlsellCatalogAssessments, type AhlsellCatalogAssessment, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
 import { isMatchingAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
@@ -119,7 +119,7 @@ const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefi
   control: { label: "Kontroll", className: "w-16 text-center", align: "center", minimumWidth: 72 },
   post: { label: "PDF-post", className: "w-28", minimumWidth: 120 },
   nsCode: { label: "NS-kod", className: "min-w-40", minimumWidth: 160 },
-  requirement: { label: "Produktkrav", className: "min-w-64", minimumWidth: 320 },
+  requirement: { label: "Beskrivning", className: "min-w-64", minimumWidth: 320 },
   category: { label: "Produktgrupp", className: "w-36", minimumWidth: 160 },
   quantity: { label: "Mängd", className: "w-24", minimumWidth: 104 },
   product: { label: "Vald produkt", className: "w-48", minimumWidth: 208 }
@@ -127,8 +127,7 @@ const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefi
 
 const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
 
-export function DistributorMappingPanel({ view = "products", projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments }: {
-  view?: ProjectRequirementView;
+export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments }: {
   projectId: string;
   currency?: string;
   requirements: Row[];
@@ -340,8 +339,8 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     }
   }, [productTableLayout, productTableLayoutLoaded]);
   const allChapterGroups = useMemo(
-    () => groupProductRequirementsByPdfChapter(productRequirements),
-    [productRequirements]
+    () => groupProductRequirementsByPdfChapter([...productRequirements, ...rsRequirements, ...removalRequirements]),
+    [productRequirements, rsRequirements, removalRequirements]
   );
   const allQueueRequirements = useMemo(() => allChapterGroups.flatMap(group => group.requirements), [allChapterGroups]);
   const approvedChapterKeys = useMemo(() => new Set(allChapterGroups
@@ -440,7 +439,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     return () => controller.abort();
   }, [projectId, productLabelRequestKey]);
 
-  const cardRequirements = view === "products" ? queueRequirements : view === "removal" ? removalRequirements : rsRequirements;
+  const cardRequirements = queueRequirements;
   const requestedActiveIndex = cardRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
   const activeIndex = requestedActiveIndex;
   const activeRequirement = activeIndex >= 0 ? cardRequirements[activeIndex] : undefined;
@@ -460,7 +459,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     setError(null);
   });
   useEffect(() => {
-    const navigation = createProductCardHistory(window, `${projectId}:${view}`, {
+    const navigation = createProductCardHistory(window, `${projectId}:chapters`, {
       canLeave: canLeaveCardFromHistory,
       onNavigate: navigateCardFromHistory
     });
@@ -472,7 +471,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
       navigation.dispose();
       productCardHistory.current = null;
     };
-  }, [projectId, view]);
+  }, [projectId]);
 
   useEffect(() => {
     const dialog = productDialogRef.current;
@@ -502,7 +501,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
     return () => window.removeEventListener("beforeunload", protectUnsavedProduct);
   }, [productCardDirty, productCardOpen]);
 
-  const visibleQueueRemainingCount = queueRequirements.filter(
+  const visibleQueueRemainingCount = productRequirements.filter(
     (requirement) => !handledRequirementIds.has(requirement.id)
   ).length;
   const checkedCatalogCount = catalogCheckRequirementIds.filter((requirementId) => catalogStatuses[requirementId]).length;
@@ -511,9 +510,9 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   const ahlsellCoveragePercent = productRequirements.length > 0
     ? Math.round((matchedRequirementCount / productRequirements.length) * 100)
     : 0;
-  const visibleHandledCount = queueRequirements.length - visibleQueueRemainingCount;
-  const progressPercent = queueRequirements.length > 0
-    ? Math.round((visibleHandledCount / queueRequirements.length) * 100)
+  const visibleHandledCount = productRequirements.length - visibleQueueRemainingCount;
+  const progressPercent = productRequirements.length > 0
+    ? Math.round((visibleHandledCount / productRequirements.length) * 100)
     : 100;
 
   function showRequirement(requirementId: string) {
@@ -609,12 +608,11 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
   }
 
   return (
-    <section id="project-requirement-table" aria-label={PROJECT_REQUIREMENT_VIEWS.find(item => item.id === view)?.label} className="space-y-6">
-      {view === "products" && (
+    <section id="project-requirement-table" aria-label="Alla poster efter PDF-kapitel" className="space-y-6">
         <section id="product-table" aria-labelledby="product-table-heading" className="scroll-mt-28 overflow-hidden border border-ink-200 bg-white">
           <div className="flex flex-col gap-2 border-b border-ink-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 id="product-table-heading" className="text-xl font-black text-ink-950">Produktposter ({queueRequirements.length})</h2>
+              <h2 id="product-table-heading" className="text-xl font-black text-ink-950">Poster efter PDF-kapitel ({queueRequirements.length})</h2>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">
                 {catalogChecksRemaining > 0
                   ? `Scipx söker automatiskt på Ahlsells webbplats för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
@@ -755,6 +753,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                     <RequirementQueueRow
                       key={requirement.id}
                       requirement={requirement}
+                      postType={rsRequirements.some(row => row.id === requirement.id) ? "Rund Sum" : removalRequirements.some(row => row.id === requirement.id) ? "Prosjekt information" : "Produktpost"}
                       position={queuePositionById.get(requirement.id) ?? 1}
                       approved={approvedRequirementIds.has(requirement.id)}
                       assignment={approvedAssignmentByRequirementId.get(requirement.id)}
@@ -780,10 +779,9 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
               </div>
             )
           ) : (
-            <p className="p-5 text-center text-ink-600">Inga produktposter att visa.</p>
+            <p className="p-5 text-center text-ink-600">Inga poster att visa.</p>
           )}
         </section>
-      )}
 
       {(message || error) && (
         <div role="status" aria-live="polite" className={error ? "rounded-xl border-2 border-rose-300 bg-rose-50 p-5 text-base font-semibold text-rose-900" : "rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 text-base font-semibold text-emerald-900"}>
@@ -824,7 +822,6 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
                       <div ref={setProductCardHeaderActions} className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:col-start-3" />
                     </div>
                     <div
-                      hidden={view !== "products"}
                       role="progressbar"
                       aria-label="Hanterade produktposter"
                       aria-valuenow={progressPercent}
@@ -872,11 +869,7 @@ export function DistributorMappingPanel({ view = "products", projectId, currency
             );
           })()}
 
-          {view !== "products" && (
-            <NonProductRequirementTable key={view} requirements={view === "removal" ? removalRequirements : rsRequirements}
-              kind={view === "removal" ? "remove" : view} onOpen={showRequirement}
-              assignmentsByRequirementId={approvedAssignmentByRequirementId} />
-          )}
+
 
         </div>
       )}
@@ -2127,64 +2120,9 @@ function MissingProductIndicator({ detail }: { detail?: string }) {
   );
 }
 
-function NonProductRequirementTable({ requirements, kind, onOpen, assignmentsByRequirementId }: {
-  requirements: Row[];
-  kind: "remove" | "rs";
-  onOpen: (requirementId: string) => void;
-  assignmentsByRequirementId: Map<string, Row>;
-}) {
-  const label = kind === "remove" ? "Prosjekt information" : "Rund Sum";
-  return <section aria-labelledby="non-product-table-heading" className="overflow-hidden border border-ink-200 bg-white">
-    <h2 id="non-product-table-heading" className="border-b border-ink-200 px-4 py-3 text-xl font-bold text-ink-950">{label} ({requirements.length})</h2>
-    <div className="space-y-3 px-4 py-3">
-    {groupProductRequirementsByPdfChapter(requirements).map(chapter => <details key={chapter.key}>
-      <summary className="cursor-pointer text-sm font-semibold">{chapter.title} ({chapter.requirements.length})</summary>
-      <div className="mt-2 overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-        <thead className="bg-ink-50 text-xs font-bold text-ink-700">
-          <tr>
-            <th scope="col" className="w-32 border-b border-ink-200 px-4 py-3">PDF-post</th>
-            <th scope="col" className="w-44 border-b border-ink-200 px-4 py-3">NS-kod</th>
-            <th scope="col" className="border-b border-ink-200 px-4 py-3">Beskrivning</th>
-            <th scope="col" className="w-24 border-b border-ink-200 px-4 py-3">Mängd</th>
-            <th scope="col" className="w-24 border-b border-ink-200 px-4 py-3">Enhet</th>
-            <th scope="col" className="border-b border-ink-200 px-4 py-3">Vald produkt</th>
-          </tr>
-        </thead>
-        <tbody>
-          {chapter.requirements.map((requirement, index) => {
-            const details = projectRequirementDetails(requirement);
-            const quantity = projectRequirementQuantity(requirement.value_json);
-            const snapshot = record(assignmentsByRequirementId.get(requirement.id)?.product_snapshot);
-            return <tr key={requirement.id} className="border-b border-ink-200 align-top hover:bg-ink-50">
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  {!(String(snapshot.name ?? "").trim() || String(snapshot.productNumber ?? "").trim()) && (
-                    <MissingProductIndicator detail={productRequirementResolution(requirement)?.label} />
-                  )}
-                  <button type="button" data-appearance="text" className="font-semibold underline" aria-haspopup="dialog"
-                    aria-label={details.postNumber ? `Öppna PDF-post ${details.postNumber}` : `Öppna information från PDF-sida ${requirement.source_page ?? index + 1}`}
-                    onClick={() => onOpen(requirement.id)}>{details.postNumber ?? `Sida ${requirement.source_page ?? index + 1}`}</button>
-                </div>
-              </td>
-              <td className="px-4 py-3">{details.nsCode ?? "—"}</td>
-              <td className="px-4 py-3">{String(requirement.value_text ?? requirement.display_name ?? "—")}</td>
-              <td className="whitespace-nowrap px-4 py-3">{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)}</td>
-              <td className="px-4 py-3">{String(record(requirement.value_json).unit ?? (kind === "rs" ? "RS" : "—")) || "—"}</td>
-              <td className="px-4 py-3">{snapshot.name ? <>{String(snapshot.name)} <span className="whitespace-nowrap">{String(snapshot.productNumber ?? "")}</span></> : "—"}</td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-      </div>
-    </details>)}
-    {!requirements.length && <p className="py-3 text-ink-600">Inga poster i den här gruppen.</p>}
-    </div>
-  </section>;
-}
-
-function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, productLabel, sourcePdfHref, columns, position, approved, onOpen }: {
+function RequirementQueueRow({ requirement, postType, assignment, memory, bulkSelection, productLabel, sourcePdfHref, columns, position, approved, onOpen }: {
   requirement: Row;
+  postType: string;
   assignment?: Row;
   memory?: Row;
   bulkSelection?: BulkProductApprovalSelection;
@@ -2243,7 +2181,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
               onClick={onOpen}
               className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600"
             >
-              {details.postNumber ?? position}
+              {details.postNumber ?? `Sida ${details.sourcePage ?? requirement.source_page ?? position}`}
             </button>
           {sourcePdfHref && (
             <a
@@ -2274,6 +2212,7 @@ function RequirementQueueRow({ requirement, assignment, memory, bulkSelection, p
       return (
         <td key={columnId} className="px-3 py-2.5 align-middle">
           <button type="button" data-appearance="text" aria-haspopup="dialog" onClick={onOpen} className="text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{productTableRequirementLabel(requirement)}</button>
+          <span className="block text-[10px] font-normal text-ink-600">{postType}</span>
           {!approved && dataWarnings.map((warning) => (
             <span key={warning.code} title={warning.message} className="mt-0.5 flex items-center gap-1 text-[10px] font-bold leading-4 text-amber-800">
               <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />

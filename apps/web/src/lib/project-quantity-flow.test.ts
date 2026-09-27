@@ -13,7 +13,7 @@ import { enrichProjectRequirements } from "./project-requirement-enrichment";
 
 const page = (text: string) => ({ pageNumber: 1, method: "text" as const, confidence: .98, text });
 
-test("fallback posts keep length and piece quantities, full post numbers and square-metre units", () => {
+test("non-sprinkler posts keep length and piece quantities, full post numbers and square-metre units", () => {
   const result = extractTechnicalDescriptionFromPages([page([
     "18 Fasader", "18.265.2 PN6.2117292A", "NEDLØPSRØR", "Lengde m 180", "Materiale: Aluminium",
     "18.265.4 PN6.231729A", "GRENRØR", "Antall STK 15", "Materiale: Aluminium",
@@ -21,7 +21,7 @@ test("fallback posts keep length and piece quantities, full post numbers and squ
     "17.284.2 PN8.5124211A", "PLATE", "Areal m² 12,50", "Andre krav:", "Maks avstand mellom festene: 2 m"
   ].join("\n"))]);
   assert.deepEqual(result.materialLines.map(r => [r.postNumber, r.quantity, r.unit]), [
-    ["18.265.2", 180, "m"], ["18.265.4", 15, "st"], ["17.284.1.5", 80, "m"], ["17.284.2", 12.5, "m2"]
+    ["17.284.1.5", 80, "m"], ["17.284.2", 12.5, "m2"], ["18.265.2", 180, "m"], ["18.265.4", 15, "st"]
   ]);
 });
 

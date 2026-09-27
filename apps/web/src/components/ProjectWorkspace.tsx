@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/Button";
 import { DemoBadge } from "@/components/DemoBadge";
 import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
-import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
+import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS } from "@/lib/project-requirement-views";
 import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterialListPdfExportButton";
@@ -89,7 +89,6 @@ export function ProjectWorkspace({
   const router = useRouter();
   const [data, setData] = useState(initialData);
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [requirementView, setRequirementView] = useState<ProjectRequirementView>("products");
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -432,9 +431,7 @@ export function ProjectWorkspace({
       {tab === "products" ? (
         <nav aria-label="Posttyper" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
           {PROJECT_REQUIREMENT_VIEWS.map(view => (
-            <Button key={view.id} type="button" variant={requirementView === view.id ? "primary" : "secondary"}
-              aria-pressed={requirementView === view.id} aria-controls="project-requirement-table"
-              onClick={() => setRequirementView(view.id)}>{view.label} ({requirementGroups[view.id].length})</Button>
+            <span key={view.id} className="self-center px-2 text-sm font-semibold">{view.label} ({requirementGroups[view.id].length})</span>
           ))}
           <Button type="button" className="ml-auto" disabled={finishing} onClick={() => void finishProject()}>
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
@@ -647,7 +644,6 @@ export function ProjectWorkspace({
       {tab === "products" && (
         <div className="space-y-5">
           <DistributorMappingPanel
-            view={requirementView}
             projectId={data.project.id}
             currency={data.project.currency ?? "NOK"}
             requirements={data.requirements}

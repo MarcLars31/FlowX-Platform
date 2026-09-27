@@ -1,8 +1,46 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { groupProductRequirementsByPdfChapter } from "./product-post-groups";
+import { groupProjectRequirementViews } from "./project-requirement-views";
+import { extractTechnicalDescriptionFromPages } from "../modules/technical-description-extractor/extractor";
 
 const title = "1404 LB - 40.434 Elkraftfordeling til driftstekniske installasjoner";
+
+test("electrical chapters include RS, information and products together, retaining page continuations", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    { pageNumber: 1, method: "text" as const, confidence: .98, text: `1404.40.434.1 AM1.824A
+KOORDINERENDE YTELSER
+Rund Sum RS 0,00 0,00
+Andre krav:
+a) Omfang og prisgrunnlag
+Gjelder maskininstallasjoner.
+Sum denne side:
+${title}
+Postnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum` },
+    { pageNumber: 2, method: "text" as const, confidence: .98, text: `b) Materialer
+Korrosjonsklasse C4.
+1404.40.434.2 WD2.1A
+FELLES KRAV FOR FORDELING
+Materiale: Stål
+1404.40.434.2.1 WD2.1A
+FORDELINGSSKAP
+Antall stk 2
+Sum denne side:
+${title}
+Postnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum` }
+  ]);
+  const rows = result.materialLines.map(line => ({ id: line.id, source_page: line.sourcePage,
+    value_text: line.description, category: line.category, value_json: line }));
+  const types = groupProjectRequirementViews(rows);
+  assert.deepEqual([types.products.length, types.rs.length, types.removal.length], [1, 1, 1]);
+  const chapters = groupProductRequirementsByPdfChapter([...types.products, ...types.rs, ...types.removal]);
+  assert.equal(chapters.length, 1);
+  assert.equal(chapters[0].title, title);
+  assert.deepEqual(chapters[0].requirements.map(row => row.value_json.postNumber),
+    ["1404.40.434.1", "1404.40.434.2", "1404.40.434.2.1"]);
+  assert.match(types.rs[0].value_json.technicalSpecification!, /Korrosjonsklasse C4/);
+  assert.deepEqual(types.rs[0].value_json.sourcePages, [1, 2]);
+});
 function post(id: string, postNumber: string | undefined, source_page: number, chapter = title, document = "pdf") {
   return { id, source_page, source_technical_description_document_id: document,
     value_json: { postNumber, sourceChapter: chapter ? { title: chapter, sourcePage: 1 } : null } };
