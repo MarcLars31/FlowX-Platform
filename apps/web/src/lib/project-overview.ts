@@ -1,6 +1,6 @@
 import { distributorRequirementKind, isDistributorLumpSumRequirement } from "./distributor-requirement-lines";
 import { projectRequirementDetails } from "./project-requirement-details";
-import { productRequirementCategory } from "./product-requirement-category";
+import { productRequirementCategory, PRODUCT_REQUIREMENT_CATEGORY_VERSION } from "./product-requirement-category";
 import { projectRequirementDataWarnings } from "./project-requirement-data-warnings";
 import { projectRequirementOrderPostNumber } from "./project-requirement-order";
 
@@ -30,6 +30,7 @@ export function compactProjectRequirement(row: OverviewRow): OverviewRow {
   const overview = {
     sortPostNumber: projectRequirementOrderPostNumber(row),
     category: productRequirementCategory(row),
+    categoryVersion: PRODUCT_REQUIREMENT_CATEGORY_VERSION,
     warnings: projectRequirementDataWarnings(row),
     kind: distributorRequirementKind(row),
     lumpSum: isDistributorLumpSumRequirement(row)

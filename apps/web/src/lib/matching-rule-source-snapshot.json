@@ -1,5 +1,5 @@
 {
-  "version": "ahlsell-product-rules-2026-09-27.3",
+  "version": "ahlsell-product-rules-2026-09-27.4",
   "sources": {
     "ahlsell-accessory-suggestions.ts": "a10b5f459889722e1aa0d7b125247ca7dc94d791bdad156564e06fb5d97cc238",
     "ahlsell-cable-trunking.ts": "ff672cb6ea5a2e8005f35977800772eb513bf54c66439a1e4e666a4c0b2e966c",
@@ -29,10 +29,10 @@
     "pipe-technical-terms.ts": "6b8e4ee5cea36cbd736a7411738088cd7d69cd60d57c9a197a43e28b5d96acf4",
     "product-assembly-plan.ts": "86b2409290dad8e3e962853ad8f5951eac8ab37688c5dc38993bca5597192b38",
     "product-card-accessories.ts": "99a679f608539dcef9986c20603b1795bb80a1f45fd17ee7e4bcd8bdb27376d0",
-    "product-requirement-category.ts": "15cc517aff764c356569d7ce9f4624021ecdd889bdc84b13b56968ac9cb550ae",
+    "product-requirement-category.ts": "0c9f5d72138f9d5dd4421ecbdb07b44ae0bbc2627b4a708b4a29481d0aee6a16",
     "product-selection-review.ts": "766816ed0991a18d97b0095574fff578df177b8e8272b60b8a4fc1fe90ee7909",
     "project-requirement-views.ts": "ef553e809a9189f9800781e3333bb0596bb795cc776fe2ae4366e15c5411e312",
-    "requirement-discipline.ts": "01454fcb98019df03c3871e82a16b3b6f8680fa06b1c666bdba33f8d45e42090",
+    "requirement-discipline.ts": "2ccf468875fc23406b77500a39273b2a386eb3448209f760df5928c7eff8f28c",
     "requirement-extraction-warnings.ts": "a362d42013633a14be8d7ddb51e99fd2ed86ddb783035e282e7cb94c8a71221e",
     "requirement-snapshot.ts": "e1d06e737a44af52e1070595100220f6e72e8374ccae3f40ed591d4e74cc51bd",
     "sprinkler-assembly-plan.ts": "653883d4bcf630508683c4bc7b564fa7ea7792cfd6b7758802b2752ce5b1ca91",
