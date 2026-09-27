@@ -597,6 +597,52 @@ test("joins project-prefixed post numbers split across lines", () => {
   assert.equal(result.warnings.length, 0);
 });
 
+test("keeps full wrapped E04 post numbers after references in the specification", () => {
+  // E04 pages 180/181: the reference in Andre krav is followed immediately
+  // by a new row whose post-number column wraps onto the next line.
+  for (const visual of [false, true]) {
+    const { materialLines } = extractTechnicalDescriptionFromPages([{
+      pageNumber: 180,
+      method: "text",
+      confidence: 0.98,
+      text: [
+        "Postnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum",
+        ...(visual ? ["1401.40.434. WL1.310A", "47 PUNKT"] : ["1401.40.434.", "47", "WL1.310A", "PUNKT"]),
+        "Lokalisering: Sprinkleranlegg",
+        "Andre krav:",
+        "a) Omfang og prisgrunnlag",
+        "Omfatter også krav gitt i tekniske bestemmelser, post",
+        "1401.40.434.1",
+        ...(visual
+          ? ["1401.40.434. %MTZ.001 - Avfukter 280m3/h - Montasjenivå 1", "47.1 stk 2 0,00 0,00"]
+          : ["1401.40.434.", "47.1", "%MTZ.001 - Avfukter 280m3/h - Montasjenivå 1", "stk 2 0,00 0,00"]),
+        "Nødvendig tilkobling, overganger etc. medtas i post.",
+        ...(visual
+          ? ["1401.40.434. %MTZ.004 - Avfukter 3606.026 - Montasjenivå 1", "47.2 stk 1 0,00 0,00"]
+          : ["1401.40.434.", "47.2", "%MTZ.004 - Avfukter 3606.026 - Montasjenivå 1", "stk 1 0,00 0,00"]),
+        "Sum denne side:"
+      ].join("\n")
+    }]);
+    assert.deepEqual(materialLines.map(line => line.postNumber), ["1401.40.434.47", "1401.40.434.47.1", "1401.40.434.47.2"]);
+    assert.match(materialLines[0].sourceText, /Omfatter også krav gitt i tekniske bestemmelser, post\n1401\.40\.434\.1/);
+    assert.equal(materialLines[1].parentPostNumber, "1401.40.434.47");
+    assert.match(materialLines[1].technicalSpecification!, /bestemmelser, post\n1401\.40\.434\.1/);
+    assert.equal(materialLines[1].description, "%MTZ.001 - Avfukter 280m3/h - Montasjenivå 1");
+    assert.equal(materialLines[1].quantity, 2);
+    assert.equal(materialLines[1].unit, "st");
+    assert.equal(materialLines[2].quantity, 1);
+    assert.ok(materialLines.every(line => !line.reviewFlags.includes("inferred-post-number")));
+  }
+});
+
+test("does not consume a new full post as the suffix of a preceding standalone post", () => {
+  const { materialLines } = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1, method: "text", confidence: 0.98,
+    text: "Kapittel: 33 Brannslokking\n1401.33.332.1.\n1401.33.332.\n47\nUE2.11112312\nSPRINKLER\nAntall stk 2\nSum:"
+  }]);
+  assert.deepEqual(materialLines.filter(line => line.quantity !== undefined).map(line => line.postNumber), ["1401.33.332.47"]);
+});
+
 test("reads project identity from an Ahlsell request cover sheet", () => {
   const result = extractTechnicalDescriptionFromPages([{
     pageNumber: 1,

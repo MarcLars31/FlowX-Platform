@@ -817,8 +817,10 @@ function parseStructuredPostStart(
 ): StructuredPostStart | undefined {
   const line = lines[lineIndex];
   if (isTechnicalDescriptionDateHeader(line.split(/\s+/)[0])) return undefined;
-  // A reference printed on its own line is not the row's identity.
-  if (/(?:beskrevet\s+under\s+post|se\s+post|henvises\s+til\s+post)\s*$/i.test(lines[lineIndex - 1] ?? "")) return undefined;
+  // References such as "krav gitt i tekniske bestemmelser, post" often wrap
+  // immediately before the next row. Keep that number in the specification;
+  // treating it as a row would consume the next row's wrapped prefix.
+  if (/(?:beskrevet\s+under|se|henvises\s+til|bestemmelser,?)\s+post(?:\s*(?:nr\.?|nummer))?\s*:?\s*$/i.test(lines[lineIndex - 1] ?? "")) return undefined;
   const wrapped = parseWrappedVisualPostStart(lines, lineIndex);
   if (wrapped) return wrapped;
 
@@ -975,7 +977,7 @@ function completeStructuredStart({
   }
 
   const continuation = lines[lineIndex + 1]?.match(POST_CONTINUATION_PATTERN);
-  if (!continuation || continuation[1].startsWith(`${cleanPost.split(".").slice(0, -1).join(".")}.`)) {
+  if (!continuation || continuation[1].replace(/^\./, "").startsWith(`${cleanPost.split(".")[0]}.`)) {
     return {
       lineIndex,
       consumedLineCount: 1,
