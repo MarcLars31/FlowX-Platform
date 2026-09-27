@@ -211,21 +211,10 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       ));
     return safe ? [requirement.id] : [];
   })), [handledRequirementIds, memoryFingerprints, productRequirements]);
-  const catalogCheckRequirementIds = useMemo(
-    () => productRequirements
-      .filter((requirement) =>
-        !handledRequirementIds.has(requirement.id)
-        && !hasProjectRequirementDataWarning(requirement)
-      )
-      .map((requirement) => requirement.id),
-    [productRequirements, handledRequirementIds]
-  );
   const catalogRevisions = useMemo(() => Object.fromEntries(requirements.map(requirement => [
     requirement.id, JSON.stringify([projectId, requirement.category, requirement.value_text, requirement.value_json, requirement.source_excerpt])
   ])), [requirements, projectId]);
-  const catalogCheckKey = useMemo(() => JSON.stringify(catalogCheckRequirementIds.map(id => [id, catalogRevisions[id]])), [catalogCheckRequirementIds, catalogRevisions]);
   const [catalogAssessments, setCatalogAssessments] = useState<Record<string, AhlsellCatalogAssessment>>({});
-  const completedCatalogChecks = useRef(new Set<string>());
   const catalogStatuses = useMemo(() => Object.fromEntries(Object.entries(catalogAssessments)
     .filter(([id, result]) => result.revision === catalogRevisions[id])
     .map(([id, result]) => [id, result.status])), [catalogAssessments, catalogRevisions]);
@@ -234,44 +223,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       [requirementId]: { revision: catalogRevisions[requirementId], status, fullSearch: true }
     }));
   }, [catalogRevisions]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const requirementIds = (JSON.parse(catalogCheckKey) as Array<[string, string]>)
-      .filter(entry => !completedCatalogChecks.current.has(JSON.stringify(entry)));
-    let nextIndex = 0;
-
-    async function worker() {
-      while (!controller.signal.aborted) {
-        const [requirementId, revision] = requirementIds[nextIndex] ?? [];
-        nextIndex += 1;
-        if (!requirementId) return;
-        let status: AhlsellCatalogMatchStatus = "incomplete";
-        let fullSearch = false;
-        try {
-          const response = await fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates?classification=1`, {
-            signal: controller.signal,
-            headers: { Accept: "application/json" }
-          });
-          if (!response.ok) throw new Error("Ahlsell-sökningen kunde inte slutföras.");
-          const payload = await response.json().catch(() => null);
-          const classification = ahlsellCatalogStatusFromPayload(payload);
-          if (classification) status = classification;
-          fullSearch = payload?.fullSearch === true;
-        } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") return;
-        }
-        if (controller.signal.aborted) return;
-        completedCatalogChecks.current.add(JSON.stringify([requirementId, revision]));
-        setCatalogAssessments(current => mergeAhlsellCatalogAssessments(current, {
-          [requirementId]: { revision, status, fullSearch }
-        }));
-      }
-    }
-
-    void Promise.all(Array.from({ length: Math.min(3, requirementIds.length) }, () => worker()));
-    return () => controller.abort();
-  }, [catalogCheckKey, projectId]);
 
   const { greenRequirements, yellowRequirements, redRequirements } = useMemo(
     () => splitAhlsellMatchGroups(productRequirements, {
@@ -403,7 +354,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     () => new Map(allQueueRequirements.map((requirement, index) => [requirement.id, index + 1])),
     [allQueueRequirements]
   );
-  const productLabelItems = useMemo(() => queueRequirements.flatMap((requirement) => {
+  // Product-page lookups belong to the open card, never to the chapter overview.
+  const productLabelItems = useMemo(() => queueRequirements.filter(requirement => requirement.id === activeRequirementId).flatMap((requirement) => {
     const assignmentSnapshot = record(approvedAssignmentByRequirementId.get(requirement.id)?.product_snapshot);
     if (typeof assignmentSnapshot.subtitle === "string" && assignmentSnapshot.subtitle.trim()) return [];
     const productNumber = String(
@@ -420,7 +372,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     return productNumber
       ? [{ requirementId: requirement.id, articleNumber: productNumber } satisfies AhlsellProductLabelItem]
       : [];
-  }), [approvedAssignmentByRequirementId, bulkApprovalSelectionByRequirementId, productLabelsByRequirementId, queueRequirements]);
+  }), [activeRequirementId, approvedAssignmentByRequirementId, bulkApprovalSelectionByRequirementId, productLabelsByRequirementId, queueRequirements]);
   const productLabelRequestKey = JSON.stringify(productLabelItems);
 
   useEffect(() => {
@@ -504,12 +456,6 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const visibleQueueRemainingCount = productRequirements.filter(
     (requirement) => !handledRequirementIds.has(requirement.id)
   ).length;
-  const checkedCatalogCount = catalogCheckRequirementIds.filter((requirementId) => catalogStatuses[requirementId]).length;
-  const catalogChecksRemaining = Math.max(0, catalogCheckRequirementIds.length - checkedCatalogCount);
-  const matchedRequirementCount = greenRequirements.length + yellowRequirements.filter(requirement => catalogStatuses[requirement.id] === "found").length;
-  const ahlsellCoveragePercent = productRequirements.length > 0
-    ? Math.round((matchedRequirementCount / productRequirements.length) * 100)
-    : 0;
   const visibleHandledCount = productRequirements.length - visibleQueueRemainingCount;
   const progressPercent = productRequirements.length > 0
     ? Math.round((visibleHandledCount / productRequirements.length) * 100)
@@ -614,11 +560,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
             <div>
               <h2 id="product-table-heading" className="text-xl font-black text-ink-950">Poster efter PDF-kapitel ({queueRequirements.length})</h2>
               <p className="mt-0.5 text-xs font-semibold text-ink-600">
-                {catalogChecksRemaining > 0
-                  ? `Scipx söker automatiskt på Ahlsells webbplats för ${catalogChecksRemaining} ${catalogChecksRemaining === 1 ? "post" : "poster"}.`
-                  : catalogCheckRequirementIds.some(id => catalogStatuses[id] === "incomplete")
-                  ? "Alla sökningar kunde inte slutföras. Berörda poster behöver kontrolleras när Ahlsell kan ge ett fullständigt sökresultat."
-                  : `Produktförslag för ${matchedRequirementCount} av ${productRequirements.length} poster (${ahlsellCoveragePercent} %).`}
+                Produktförslag hämtas från Ahlsell när du öppnar ett produktkort.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

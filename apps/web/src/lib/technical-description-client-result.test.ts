@@ -49,7 +49,7 @@ test("keeps the saved extraction result compact in the HTTP response", () => {
 
   const largeResult = { ...result,
     materialLines: Array.from({ length: 3560 }, () => ({ ...result.materialLines[0], sourceText: "krav ".repeat(1000) })),
-    warnings: Array.from({ length: 3560 }, () => ({ code: "unknown", message: "Needs review", severity: "warning" as const }))
+    warnings: Array.from({ length: 3560 }, (_, index) => ({ id: `warning-${index}`, code: "unknown", message: "Needs review", severity: "warning" as const }))
   };
   const summary = clientTechnicalDescriptionResult(largeResult, { summaryOnly: true });
   assert.ok(Buffer.byteLength(JSON.stringify(summary)) < 10_000);

@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "ahlsell-product-rules-2026-09-27.1";
+export const RULE_CATALOG_VERSION = "ahlsell-product-rules-2026-09-27.2";
 export const RULE_CATALOG_DATE = "27 september 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -56,7 +56,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     description: "Sökkällor, sökfraser och hur stort urval som undersöks.",
     sources: ["ahlsell-hybrid-matching.ts", "ahlsell-public-match.ts", "ahlsell-public-catalog.ts", "ahlsell-mldl-catalog.ts"],
     rules: [
-      rule("tva-kataloger", "Kombinera MLDL och offentlig katalog", "Scipx söker huvudprodukt.", "Bedöm lokala MLDL-artiklar och komplettera med Ahlsells offentliga katalog. Offentliga och manuella produkter behöver inte finnas i MLDL.", { notes: ["MLDL-urvalet filtreras på produktfamilj. Uttryckligt NRF eller modell kan också ta in en artikel i urvalet, men den måste fortfarande genomgå teknisk bedömning.", "Lokala osannolika kandidater tas bort innan de bästa 50 väljs."] }),
+      rule("tva-kataloger", "Kombinera MLDL och offentlig katalog", "Ett produktkort öppnas och Scipx söker huvudprodukt för den posten.", "Bedöm lokala MLDL-artiklar och komplettera med Ahlsells offentliga katalog. Offentliga och manuella produkter behöver inte finnas i MLDL.", { notes: ["Uppladdning, projektöversikt och öppning av PDF-kapitel startar inga sökningar mot Ahlsell. Sökning och hämtning av produkttexter sker bara för det öppna produktkortet.", "MLDL-urvalet filtreras på produktfamilj. Uttryckligt NRF eller modell kan också ta in en artikel i urvalet, men den måste fortfarande genomgå teknisk bedömning.", "Lokala osannolika kandidater tas bort innan de bästa 50 väljs."] }),
       rule("marknad", "Kravspråket väljer Ahlsell-marknad", "Underlaget innehåller norska tekniska ord.", "Sök normalt på ahlsell.no; annars ahlsell.se. Marknaden följer inte enbart kontots språk.", { kind: "assumption" }),
       rule("exakt-nrf", "Kontrollera ett ledande NRF separat", "PDF-kommentaren har ett artikelnummer, annars finns en lokal kandidat utan teknisk konflikt.", "Slå upp första kommentarsnumret eller den ledande lokala artikeln separat. Behåll endast resultat med samma normaliserade artikelnummer."),
       rule("tekniska-sokord", "Bygg sökfraser från egna egenskaper", "Produktfamilj och tekniska krav har identifierats.", "Sök med produktfamilj, relevanta dimensioner och andra igenkända egenskaper. Skicka sökord/NRF till Ahlsell, inte hela PDF-filen.", { table: table(["Familj", "Sökord"], [["Sprinklerhuvud", "K, QR/SR, upp/ned/vägg, temperatur, finish, torrt/öppet"], ["Sprinklerslang", "Sprinklerslange/Fleksibelslange/VicFlex och DN"], ["Rör", "Material, materialkvalitet, DN/Ø, SDR, skarv och PN"], ["Ventil", "Ventiltyp, DN, PN och övervakning"], ["Rördel", "Deltyp, anslutningar, dimension och skarv"], ["Övriga/okänd", "Produktens egna namn och igenkända egenskaper"]]) }),

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { AHLSELL_MLDL_CATALOG_VERSION, AHLSELL_MLDL_PRODUCT_COUNT } from "@/lib/ahlsell-mldl-catalog";
 import { findAhlsellHybridCandidates } from "@/lib/ahlsell-hybrid-matching";
 import { ahlsellEvidenceStore } from "@/lib/ahlsell-evidence-store.server";
-import { ahlsellCatalogStatusFromPayload } from "@/lib/ahlsell-match-groups";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { PRODUCT_MATCHING_ENGINE_VERSION, productLearningCandidateSnapshots } from "@/lib/product-learning-feedback";
@@ -27,10 +26,18 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Ogiltigt projekt- eller krav-id." }, { status: 400 });
     }
 
-    const classificationMode = new URL(request.url).searchParams.get("classification") === "1";
+    // Older open overview tabs may still run the retired background queue.
+    // Reject it before database/product lookups or the open card's rate limit.
+    if (new URL(request.url).searchParams.get("classification") === "1") {
+      return NextResponse.json(
+        { error: "Bakgrundssökningen har tagits bort. Ladda om sidan och öppna ett produktkort för att söka." },
+        { status: 410, headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
+
     const rateLimit = consumeRateLimit(
-      requestRateLimitKey(request, classificationMode ? "ahlsell-classification" : "ahlsell-catalog", authorization.user.id),
-      classificationMode ? 120 : 30,
+      requestRateLimitKey(request, "ahlsell-catalog", authorization.user.id),
+      30,
       60_000
     );
     if (!rateLimit.allowed) {
@@ -55,16 +62,6 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const result = await findAhlsellHybridCandidates(requirement, fetch, ahlsellEvidenceStore());
-    if (classificationMode) {
-      // The automatic queue searches the same public assortment as the card,
-      // including products that have no MLDL entry.
-      return NextResponse.json({
-        classification: ahlsellCatalogStatusFromPayload(result),
-        publicSearchStatus: result.publicSearchStatus, truncated: result.truncated, fullSearch: true
-      }, {
-        headers: { "Cache-Control": "private, no-store" }
-      });
-    }
     const { candidates } = result;
     await recordCandidateImpression({
       projectId: id, requirementId, candidates,
