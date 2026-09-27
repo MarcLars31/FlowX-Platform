@@ -7,6 +7,15 @@ export function sortProjectRequirementsBySource<
       const pageDifference = sourcePage(left.requirement) - sourcePage(right.requirement);
       if (pageDifference !== 0) return pageDifference;
 
+      const leftValue = record(left.requirement.value_json);
+      const rightValue = record(right.requirement.value_json);
+      const informationDifference = Number(rightValue.chapterInformation === true) - Number(leftValue.chapterInformation === true);
+      if (informationDifference !== 0) return informationDifference;
+      const leftOrder = Number(leftValue.sourceOrder);
+      const rightOrder = Number(rightValue.sourceOrder);
+      if (leftOrder > 0 && rightOrder > 0 && Number.isFinite(leftOrder) && Number.isFinite(rightOrder)
+        && leftOrder !== rightOrder) return leftOrder - rightOrder;
+
       const postDifference = comparePostNumbers(
         projectRequirementOrderPostNumber(left.requirement),
         projectRequirementOrderPostNumber(right.requirement)
@@ -45,6 +54,7 @@ export function projectRequirementOrderPostNumber(requirement: Record<string, un
   if ("sortPostNumber" in overview) return typeof overview.sortPostNumber === "string" ? overview.sortPostNumber : null;
   const value = record(requirement.value_json).postNumber;
   if (typeof value === "string" && value.trim()) return value.trim();
+  if ("postNumber" in record(requirement.value_json)) return null;
   const source = typeof requirement.source_excerpt === "string"
     ? requirement.source_excerpt
     : "";

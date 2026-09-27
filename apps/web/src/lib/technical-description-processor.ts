@@ -724,6 +724,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
         raw_value: line.description,
         normalized_value: {
           sourceChapter: line.sourceChapter ?? null,
+          sourceOrder: line.sourceOrder ?? null,
+          chapterInformation: line.chapterInformation ?? false,
           sourcePages: line.sourcePages ?? [line.sourcePage],
           postNumber: line.postNumber ?? null,
           postScope: line.postScope ?? null,
@@ -778,6 +780,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
             extractionVersion: 1,
             sourceText: line.sourceText,
             sourceChapter: line.sourceChapter ?? null,
+            sourceOrder: line.sourceOrder ?? null,
+            chapterInformation: line.chapterInformation ?? false,
             sourcePages: line.sourcePages ?? [line.sourcePage],
             postNumber: line.postNumber ?? null,
             postScope: line.postScope ?? null,

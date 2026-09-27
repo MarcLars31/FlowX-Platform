@@ -29,7 +29,7 @@ const STANDARD_PATTERN =
   /\b((?:NS(?:[-\s]?EN)?|NFPA)\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
 const ATTRIBUTE_PATTERN = /^\s*([^:]{2,60}):\s*(.*?)\s*$/;
 const NS3420_CODE_PATTERN =
-  /^(%?[A-ZÆØÅ]{2}\d(?:\.[A-ZÆØÅ0-9]+)*[A-ZÆØÅ]?|RQA?|AOA|WZA)(?=\s|$)\s*(?:-\s*)?(.*)$/i;
+  /^(%?[A-ZÆØÅ]{2}\d(?:\.[A-ZÆØÅ0-9]+)*[A-ZÆØÅ]?|RQA?|AOA|WZA|WSA|YBA|XEA)(?=\s|$)\s*(?:-\s*)?(.*)$/i;
 const QUANTITY_UNIT_SOURCE = String.raw`(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|liter|l)`;
 const QUANTITY_NUMBER_SOURCE = String.raw`(?:\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)`;
 const TABLE_QUANTITY_PATTERN = new RegExp(
@@ -68,9 +68,19 @@ export function extractTechnicalDescriptionFromPages(
   const project = extractProject(pages);
   const materialLines = extractMaterialLines(pages, warnings);
   const chapters = pdfChaptersByPage(pages);
-  for (const line of materialLines) {
-    const chapter = chapters.get(line.sourcePage);
+  for (const [index, line] of materialLines.entries()) {
+    let chapter = chapters.get(line.sourcePage);
+    const nextChapter = chapters.get(line.sourcePage + 1);
+    // A chapter can begin halfway down a page whose footer still names the
+    // preceding chapter. The post number and next page must both confirm it.
+    if (nextChapter && nextChapter.sourcePage === line.sourcePage + 1 && postBelongsToChapter(line.postNumber, nextChapter.title)) {
+      nextChapter.sourcePage = line.sourcePage;
+      chapter = nextChapter;
+    }
     if (chapter) line.sourceChapter = chapter;
+    line.sourceOrder = index + 1;
+    line.chapterInformation = Boolean(chapter && line.sourcePage === chapter.sourcePage
+      && line.reviewFlags.includes("project-information") && !line.unit && line.quantity === undefined);
   }
   const pageChecks = reconcilePageQuantities(pages, materialLines, warnings);
   appendMaterialLineValidationWarnings(materialLines, warnings);
@@ -472,6 +482,11 @@ function extractLegacyMaterialLines(
   return lines;
 }
 
+function postBelongsToChapter(postNumber: string | undefined, title: string) {
+  const parts = title.match(/^(\d{3,6})\s+[A-ZÆØÅ][\wÆØÅæøå-]*\s+[-–—]\s+(\d+(?:\.\d+)*)\s/);
+  return Boolean(parts && postNumber?.startsWith(`${parts[1]}.${parts[2]}.`));
+}
+
 function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   const materialLines: TechnicalDescriptionMaterialLine[] = [];
   const chapters = pdfChaptersByPage(pages);
@@ -498,7 +513,8 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
     }
     const pageLines = prepared.pageLines[pageIndex];
     const nextChapterTitle = chapters.get(page.pageNumber)?.title;
-    if (chapterTitle && nextChapterTitle && nextChapterTitle !== chapterTitle) {
+    if (chapterTitle && nextChapterTitle && nextChapterTitle !== chapterTitle
+      && !postBelongsToChapter(previousContext?.postNumber ?? previousMaterialLine?.postNumber, nextChapterTitle)) {
       parentContexts.clear();
       previousContext = undefined;
       previousMaterialLine = undefined;
@@ -550,7 +566,11 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       // number or quantity. Preserve it without assigning it to the next post.
       if (leading.length && !leading.some(line => NS3420_CODE_PATTERN.test(line))
         && (pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line)) || Boolean(chapterTitle))
-        && (leading.some(isTechnicalContinuationLine) || (leading.length > 1 && leading.join(" ").length > 80))) {
+        && (leading.some(isTechnicalContinuationLine) || (leading.length > 1 && leading.join(" ").length > 80)
+          || (chapters.get(page.pageNumber)?.sourcePage === page.pageNumber
+            && leading[0] !== chapterTitle && /^\d+\s+\S/.test(leading[0])
+            && Boolean(chapterTitle?.toLocaleLowerCase("nb-NO").replace(/[-–—]/g, "").replace(/\s+/g, " ")
+              .endsWith(leading[0].toLocaleLowerCase("nb-NO").replace(/[-–—]/g, "").replace(/\s+/g, " ")))))) {
         const sourceText = leading.join("\n");
         const attributes = extractTableAttributes(leading);
         const comments = (page.annotations ?? []).filter(comment => comment.continuesPreviousPost);
@@ -820,6 +840,9 @@ function parseStructuredPostStart(
 ): StructuredPostStart | undefined {
   const line = lines[lineIndex];
   if (isTechnicalDescriptionDateHeader(line.split(/\s+/)[0])) return undefined;
+  // Wrapped IO-list identifiers are references inside a specification, not
+  // rows in the post-number column.
+  if (/^\d+(?:\.\d+)+$/.test(line) && /(?:^|[_\s])IO[- ]liste(?:\s+fordeling)?\s*$/i.test(lines[lineIndex - 1] ?? "")) return undefined;
   // References such as "krav gitt i tekniske bestemmelser, post" often wrap
   // immediately before the next row. Keep that number in the specification;
   // treating it as a row would consume the next row's wrapped prefix.
@@ -1163,7 +1186,7 @@ function mergeLeadingPageContinuation({
   // An unplaced NS row is a new post, never an extension of the previous one.
   // OCR recovery or manual review must establish its identity first.
   const precedingText = previousContext?.sourceText ?? previousMaterialLine?.sourceText ?? "";
-  const environmentalSpecification = /NEK\s*400|ytre påvirkninger|Tabell\s+51A/i.test(precedingText);
+  const environmentalSpecification = /NEK\s*400|ytre påvirkninger|Tabell\s+51A/i.test(`${precedingText}\n${continuation.join("\n")}`);
   if (continuation.some(line => NS3420_CODE_PATTERN.test(line)
     // Wrapped environmental classifications (for example "AE4 - Lett støv")
     // are prose within the open NEK 400 specification, not new NS 3420 rows.

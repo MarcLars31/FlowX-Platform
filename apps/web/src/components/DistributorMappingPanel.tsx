@@ -731,7 +731,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                     <RequirementQueueRow
                       key={requirement.id}
                       requirement={requirement}
-                      postType={rsRequirements.some(row => row.id === requirement.id) ? "Rund Sum" : removalRequirements.some(row => row.id === requirement.id) ? "Prosjekt information" : "Produktpost"}
+                      postType={record(requirement.value_json).chapterInformation === true ? "Kapitelinformation" : rsRequirements.some(row => row.id === requirement.id) ? "Rund Sum" : removalRequirements.some(row => row.id === requirement.id) ? "Prosjekt information" : "Produktpost"}
                       position={queuePositionById.get(requirement.id) ?? 1}
                       approved={approvedRequirementIds.has(requirement.id)}
                       assignment={approvedAssignmentByRequirementId.get(requirement.id)}

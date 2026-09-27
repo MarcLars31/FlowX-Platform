@@ -24,9 +24,12 @@ export function groupProductRequirementsByPdfChapter<T extends Requirement>(
   // Sorting a column only changes rows inside their own chapter. The full
   // PDF order remains stable even when a view filters out some of its rows.
   const chapterOrder = new Map<string, number>();
+  const chapterStartPage = new Map<string, number>();
   for (const requirement of sortProjectRequirementsBySource(allRequirements)) {
     const { key } = chapterIdentity(requirement);
     if (!chapterOrder.has(key)) chapterOrder.set(key, chapterOrder.size);
+    const page = Number(record(record(requirement.value_json).sourceChapter).sourcePage ?? requirement.source_page);
+    if (Number.isFinite(page) && page > 0) chapterStartPage.set(key, Math.min(chapterStartPage.get(key) ?? Infinity, page));
   }
   const groups = new Map<string, ProductChapterGroup<T>>();
   for (const requirement of preserveRowOrder ? requirements : sortProjectRequirementsBySource(requirements)) {
@@ -35,8 +38,14 @@ export function groupProductRequirementsByPdfChapter<T extends Requirement>(
     group.requirements.push(requirement);
     groups.set(key, group);
   }
+  for (const group of groups.values()) {
+    // The chapter introduction stays first even when a user sorts product columns.
+    group.requirements.sort((left, right) => Number(record(right.value_json).chapterInformation === true)
+      - Number(record(left.value_json).chapterInformation === true));
+  }
   return [...groups.values()].sort((left, right) =>
-    (chapterOrder.get(left.key) ?? Infinity) - (chapterOrder.get(right.key) ?? Infinity));
+    (chapterStartPage.get(left.key) ?? Infinity) - (chapterStartPage.get(right.key) ?? Infinity)
+    || (chapterOrder.get(left.key) ?? Infinity) - (chapterOrder.get(right.key) ?? Infinity));
 }
 
 function chapterIdentity(requirement: Requirement) {

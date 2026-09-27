@@ -6,6 +6,14 @@ import { extractTechnicalDescriptionFromPages } from "../modules/technical-descr
 
 const title = "1404 LB - 40.434 Elkraftfordeling til driftstekniske installasjoner";
 
+test("chapter introductions stay first when products are explicitly sorted", () => {
+  const intro = { ...post("intro", undefined, 1), value_json: { sourceChapter: { title, sourcePage: 1 }, chapterInformation: true, sourceOrder: 1 } };
+  const first = post("first", "1404.40.434.1", 2);
+  const second = post("second", "1404.40.434.2", 3);
+  const groups = groupProductRequirementsByPdfChapter([second, first, intro], { allRequirements: [intro, first, second], preserveRowOrder: true });
+  assert.deepEqual(groups[0].requirements.map(row => row.id), ["intro", "second", "first"]);
+});
+
 test("electrical chapters include RS, information and products together, retaining page continuations", () => {
   const result = extractTechnicalDescriptionFromPages([
     { pageNumber: 1, method: "text" as const, confidence: .98, text: `1404.40.434.1 AM1.824A

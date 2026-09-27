@@ -11,6 +11,7 @@ export function pdfChaptersByPage(pages: readonly Pick<TechnicalDescriptionPage,
   // Use the body heading only when the following chapter confirms both its
   // number and name, in the same building and on consecutive PDF pages.
   for (let index = 0; index < ordered.length; index += 1) {
+    const parentTitle = titles[index];
     const parent = titles[index]?.match(/^(\d{3,6}\s+[A-ZÆØÅ][\wÆØÅæøå-]*(?:\s+[A-ZÆØÅ][\wÆØÅæøå-]*)?\s+[-–—]\s+\d{1,4})\s+\S/);
     if (!parent) continue;
     const lines = ordered[index].text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
@@ -29,6 +30,9 @@ export function pdfChaptersByPage(pages: readonly Pick<TechnicalDescriptionPage,
       }
       if (/^Orientering\s*:?\s*$/im.test(ordered[next].text)) break;
     }
+    // A general 560 orientation introduces the 56x family, rather than being
+    // a late continuation of chapter 50 or an invented part of chapter 562.
+    if (heading[1].endsWith("0") && titles[index] === parentTitle) titles[index] = expected;
   }
   for (const [index, page] of ordered.entries()) {
     const title = titles[index];
@@ -67,6 +71,16 @@ function completeChapterTitles(titles: (string | undefined)[]) {
   }
   return titles.map((title, index) => {
     const parts = parsed[index];
+    const alternate = title?.match(/^(\d{4})\.(\d+(?:\.\d+)*)\s+(.+)$/);
+    if (alternate) {
+      const matches = [...named.values()].filter((candidate): candidate is string => {
+        if (!candidate) return false;
+        const full = candidate.match(pattern);
+        return Boolean(full && full[1].startsWith(`${alternate[1]} `)
+          && full[1].endsWith(`- ${alternate[2]}`) && key(full[2]) === key(alternate[3]));
+      });
+      if (matches.length === 1) return matches[0];
+    }
     return parts && !parts[2] ? named.get(key(parts[1])) ?? title : title;
   });
 }

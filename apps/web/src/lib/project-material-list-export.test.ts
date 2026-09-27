@@ -9,6 +9,21 @@ import type { MaterialListComment } from "./project-material-list-export";
 import { validateDistributorProductMapping } from "./distributor-product-mapping";
 import { newProductAccessoryDraft, productAccessoryPayload, readProductAccessoryDrafts } from "./product-card-accessories";
 
+test("exports chapter information first and products in PDF order regardless of database row order", () => {
+  const row = (id: string, page: number, post: string | null, chapter: string, start: number, intro = false) => ({
+    id, category: "Elkraft", requirement_key: "post", value_text: id, source_page: page,
+    value_json: { postNumber: post, chapterInformation: intro, sourceChapter: { title: chapter, sourcePage: start } }
+  });
+  const rows = buildProjectMaterialRows({ requirements: [
+    row("second chapter", 5, "1401.50.1", "1401 HM - 50 Tele", 4),
+    row("product 10", 2, "1401.40.10", "1401 HM - 40 Elkraft", 1),
+    row("chapter information", 1, null, "1401 HM - 40 Elkraft", 1, true),
+    row("product 2", 2, "1401.40.2", "1401 HM - 40 Elkraft", 1),
+    row("second information", 4, null, "1401 HM - 50 Tele", 4, true)
+  ], assignments: [] });
+  assert.deepEqual(rows.map(row => row.requirementId), ["chapter information", "product 2", "product 10", "second information", "second chapter"]);
+});
+
 const requirements = [
   {
     id: "requirement-1",

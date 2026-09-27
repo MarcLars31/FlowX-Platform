@@ -83,6 +83,8 @@ export function enrichProjectRequirements(
       value_json: {
         ...currentValue,
         sourceChapter: line.sourceChapter ?? sourceChapter ?? currentValue.sourceChapter ?? null,
+        sourceOrder: line.sourceOrder ?? currentValue.sourceOrder ?? null,
+        chapterInformation: line.chapterInformation ?? currentValue.chapterInformation ?? false,
         postNumber: line.postNumber ?? currentValue.postNumber ?? null,
         postScope: line.postScope ?? currentValue.postScope ?? null,
         parentPostNumber:

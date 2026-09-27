@@ -6,6 +6,7 @@ import { projectRequirementDetails } from "@/lib/project-requirement-details";
 import { projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { normalizeNrfNumber } from "@/lib/product-card-candidates";
 import type { ProductPostComment } from "@/lib/product-post-comments";
+import { groupProductRequirementsByPdfChapter } from "./product-post-groups";
 
 export type MaterialListComment = ProductPostComment & { requirement_id: string };
 type ExportComment = MaterialListComment & { postNumber: string };
@@ -80,7 +81,7 @@ export function buildProjectMaterialRows({
   );
   const rows: ProjectMaterialRow[] = [];
 
-  for (const requirement of requirements) {
+  for (const requirement of groupProductRequirementsByPdfChapter(requirements).flatMap(group => group.requirements)) {
     const assignment = assignmentsByRequirementId.get(requirement.id);
     const snapshot = record(assignment?.product_snapshot);
     const details = projectRequirementDetails(requirement);

@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { comparePostNumbers, sortProjectRequirementsBySource } from "./project-requirement-order";
+import { comparePostNumbers, sortProjectRequirementsBySource, projectRequirementOrderPostNumber } from "./project-requirement-order";
+
+test("keeps the chapter introduction before numbered posts and retains explicit source order on a page", () => {
+  const rows = [
+    { id: "product", source_page: 1, value_json: { postNumber: "40.2", sourceOrder: 3 } },
+    { id: "introduction", source_page: 1, value_json: { postNumber: null, sourceOrder: 1, chapterInformation: true } },
+    { id: "information", source_page: 1, value_json: { postNumber: null, sourceOrder: 2 } }
+  ];
+  assert.deepEqual(sortProjectRequirementsBySource(rows).map(row => row.id), ["introduction", "information", "product"]);
+  assert.equal(projectRequirementOrderPostNumber({ value_json: { postNumber: null }, source_excerpt: "Se post 40.411.3 for flere krav" }), null);
+});
 
 test("sorts product rows by page and natural post-number order", () => {
   const rows = [

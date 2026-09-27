@@ -57,6 +57,8 @@ export type TechnicalDescriptionMaterialLine = {
   technicalSpecification?: string;
   sourcePage: number;
   sourceChapter?: TechnicalDescriptionChapter;
+  sourceOrder?: number;
+  chapterInformation?: boolean;
   sourcePages?: number[];
   sourceText: string;
   confidence: number;
