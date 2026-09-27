@@ -1,4 +1,5 @@
 import { ns3420ProductFamily } from "./ns3420-product-classification";
+import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 
 export type ProductRequirementCategory =
   | "sprinkler_head"
@@ -8,6 +9,7 @@ export type ProductRequirementCategory =
   | "valve"
   | "control"
   | "support"
+  | "cable_trunking"
   | "other";
 
 export const PRODUCT_REQUIREMENT_CATEGORIES: ReadonlyArray<{
@@ -22,6 +24,7 @@ export const PRODUCT_REQUIREMENT_CATEGORIES: ReadonlyArray<{
   { id: "valve", label: "Ventiler", shortLabel: "Ventiler" },
   { id: "control", label: "Styrning och mätning", shortLabel: "Styrning" },
   { id: "support", label: "Upphängning och montage", shortLabel: "Upphängning" },
+  { id: "cable_trunking", label: "Vägg- och installationskanaler", shortLabel: "Kabelkanaler" },
   { id: "other", label: "Övriga produkter", shortLabel: "Övrigt" }
 ];
 
@@ -33,6 +36,7 @@ export function productRequirementCategory(
   requirement: Record<string, unknown>
 ): ProductRequirementCategory {
   const category = String(requirement.category ?? "").toLowerCase();
+  if (isCableTrunkingProduct(String(requirement.value_text ?? requirement.display_name ?? ""))) return "cable_trunking";
   const codeFamily = ns3420ProductFamily(flattenText(requirement.value_json) + " " + String(requirement.requirement_key ?? ""),
     String(requirement.value_text ?? requirement.display_name ?? ""));
   if (codeFamily) return codeFamily;
@@ -101,6 +105,7 @@ function isProductRequirementCategory(value: string): value is ProductRequiremen
     || value === "valve"
     || value === "control"
     || value === "support"
+    || value === "cable_trunking"
     || value === "other";
 }
 

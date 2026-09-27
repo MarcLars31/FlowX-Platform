@@ -2,6 +2,7 @@ import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
 import { MANIFOLD_CABINET_REVIEW_WARNING } from "./ahlsell-manifold-cabinet";
+import { cableTrunkingReviewWarnings } from "./ahlsell-cable-trunking";
 import { isCompletePipeLengthDescription } from "./ns3420-product-classification";
 import { normalizeTechnicalText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 
@@ -20,6 +21,7 @@ export function engineeringRequirementWarnings(
   // Cabinet, manifolds and supply pipes need separate evidence. A cabinet
   // family match cannot verify the whole assembly or inherit pipe dimensions.
   if (intent === "manifold_cabinet") return [MANIFOLD_CABINET_REVIEW_WARNING];
+  if (intent === "cable_trunking") return cableTrunkingReviewWarnings(requirement, candidate);
   // A search URL, stock location or requirement-derived PDF reference is not
   // technical product evidence.
   const productText = `${candidate.productName} ${candidate.description ?? ""} ${candidate.specifications.join(" ")}`;

@@ -1,11 +1,12 @@
 import { normalizeTechnicalText } from './ahlsell-requirement-context';
+import { isCableTrunkingProduct } from './ahlsell-cable-trunking';
 
 export function requirementExtractionWarnings(requirement: Record<string, unknown>): string[] {
   const value = record(requirement.value_json);
   const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
   const warnings: string[] = [];
   if (flags.includes('missing-parent-context')) warnings.push('Underpostens huvudpost och gemensamma krav har inte kunnat identifieras. Kontrollera material, anslutning och övriga krav i PDF-filen.');
-  if (flags.includes('unknown-category')) warnings.push('PDF-postens huvudprodukt har inte kunnat identifieras säkert. Kontrollera produktgruppen före produktval.');
+  if (flags.includes('unknown-category') && !isCableTrunkingProduct(String(requirement.value_text ?? requirement.display_name ?? ''))) warnings.push('PDF-postens huvudprodukt har inte kunnat identifieras säkert. Kontrollera produktgruppen före produktval.');
   if (flags.includes('reextracted-requirement-conflict')) warnings.push('Sparade krav skiljer sig från den nya PDF-läsningen. Kontrollera ändringarna innan produktvalet verifieras.');
   if (flags.includes('missing-quantity')) warnings.push('PDF-postens mängd saknas i läsningen och behöver kontrolleras.');
   if (flags.includes('inferred-post-number')) warnings.push('Postnumret har tolkats från omgivande poster. Kontrollera det mot PDF-filen.');

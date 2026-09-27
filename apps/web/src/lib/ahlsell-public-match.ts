@@ -16,6 +16,7 @@ import {
   sprinklerResponse
 } from "@/lib/sprinkler-technical-rules";
 import { ahlsellRequirementIntent, type AhlsellProductIntent } from "./ahlsell-requirement-intent";
+import { cableTrunkingRequirementGuide } from "./ahlsell-cable-trunking";
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
@@ -171,6 +172,9 @@ export function buildAhlsellRequirementGuide(
   if (intent === "manifold_cabinet") {
     return manifoldCabinetRequirementGuide(attributes, dataWarnings.map(warning => warning.message), ahlsellSearchUrl);
   }
+  if (intent === "cable_trunking") {
+    return cableTrunkingRequirementGuide(attributes, dataWarnings.map(warning => warning.message), ahlsellSearchUrl);
+  }
 
   const rawKFactor = parseSprinklerKFactor(projectRequirementKFactorDisplayValue(requirement))
     ?? numberFromAttribute(attributes, ["k faktor", "k factor", "k verdi", "k value"])
@@ -281,7 +285,7 @@ export function buildAhlsellRequirementGuide(
   );
 
   const searchDescription = usefulDescription(description) && !isSprinklerAccessory
-    ? description.replace(/\s+/g, " ").trim().slice(0, 110)
+    ? description.replace(/\s*[-–—]\s*(?:lengde|samlet lengde|antall|areal|volum|vekt|mengde|längd|antal)\s*$/i, "").replace(/\s+/g, " ").trim().slice(0, 110)
     : null;
   const plannedQueries = pdfReferenceCandidate
     ? [pdfReferenceCandidate.articleNumber]

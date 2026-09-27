@@ -119,7 +119,7 @@ export function assessAhlsellLookupCandidates(requirement: Record<string, unknow
 
 function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
   const intent = ahlsellRequirementIntent(requirement);
-  if (["shower_set", "toilet", "manifold_cabinet", "alarm_device", "pressure_switch", "flow_meter", "shutoff_valve", "pipe"].includes(intent)) {
+  if (["shower_set", "toilet", "manifold_cabinet", "cable_trunking", "alarm_device", "pressure_switch", "flow_meter", "shutoff_valve", "pipe"].includes(intent)) {
     return candidates.filter(candidate => !hasAhlsellProductFamilyMismatch(intent, candidate.productName));
   }
   return intent === "wet_alarm_valve" || intent === "dry_alarm_valve"

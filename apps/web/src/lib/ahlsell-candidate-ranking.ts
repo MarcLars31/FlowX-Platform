@@ -10,6 +10,7 @@ import {
 } from "@/lib/project-requirement-data-warnings";
 import { ahlsellRequirementIntent, type AhlsellProductIntent as ProductIntent } from "./ahlsell-requirement-intent";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
+import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 import { isRigidPipeProduct } from "./pipe-product-family";
 import { capPrimaryConnection, pipeCandidateMaterial, pipeCandidateOutsideDiameter, pipeLimitWarnings, pipeRequirementDimensions, pipeRequirementLimits } from './pipe-matching-evidence';
 import { mainProductText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
@@ -169,13 +170,13 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   // provenance and saved matching scores must not create technical demands.
   const text = normalize(`${primaryText} ${productTechnicalSpecification(requirement)}`);
   const pipeDimensions = intent === 'pipe' ? pipeRequirementDimensions(requirement) : null;
-  const outsideDiameter = pipeDimensions ? pipeDimensions.outsideDiameter : extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
-  const dn = intent === "alarm_device" ? null : pipeDimensions ? pipeDimensions.dn : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
+  const outsideDiameter = intent === "cable_trunking" ? null : pipeDimensions ? pipeDimensions.outsideDiameter : extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
+  const dn = intent === "alarm_device" || intent === "cable_trunking" ? null : pipeDimensions ? pipeDimensions.dn : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
   const placementText = normalize(attributeText(attributes, /\b(?:plassering|placering|orientation|montasje|montering|mounting)\b/));
   const deckPlateText = normalize(attributeText(attributes, /\b(?:dekkskive|pyntering|rosett|escutcheon|cover plate)\b/));
   const materialText = normalize(attributeText(attributes, /\b(?:materiale|materialkvalitet|material|ror material)\b/)
     || mainProductText(String(requirement.value_text ?? requirement.display_name ?? "")));
-  const jointText = intent === "alarm_device" ? "" : normalize(requirementJointText(attributes, String(requirement.value_text ?? "")));
+  const jointText = intent === "alarm_device" || intent === "cable_trunking" ? "" : normalize(requirementJointText(attributes, String(requirement.value_text ?? "")));
   const sprinklerTypeText = normalize(attributeText(attributes, /\b(?:type sprinkler|sprinklertype|dekning|coverage)\b/));
   const sprinklerSystemText = normalize(attributeText(attributes, /\b(?:sprinkleranlegg|anleggstype|systemtype|sprinkler system)\b/));
   const coverageText = `${sprinklerTypeText} ${primaryText}`;
@@ -273,6 +274,11 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     if (isManifoldCabinetProduct(candidate.productName)) {
       score += 65;
       reasons.push("Produkten är ett fördelarskåp; innehåll och komplett leveransomfattning behöver kontrolleras.");
+    }
+  } else if (requirement.intent === "cable_trunking") {
+    if (isCableTrunkingProduct(candidate.productName)) {
+      score += 65;
+      reasons.push("Produkten är en vägg-/installationskanal; mått, antal rum och leveransomfattning behöver kontrolleras.");
     }
   } else if (requirement.intent === "toilet") {
     score += scoreNamedProductFamily(candidateName, /\b(klosett|toalett(?:modul|kassett)?|wc|toilet)\b/, "Produkten tillhör toalettfamiljen; komplett utförande behöver kontrolleras.", reasons);
@@ -525,6 +531,7 @@ const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
 
 /** Family compatibility is necessary, but does not verify a complete assembly. */
 export function hasAhlsellProductFamilyMismatch(intent: ProductIntent, productName: string) {
+  if (intent === "cable_trunking") return !isCableTrunkingProduct(productName);
   if (intent === "pipe") return !isRigidPipeProduct(productName);
   if (intent === "manifold_cabinet") return !isManifoldCabinetProduct(productName);
   if (intent === "sprinkler_head") {

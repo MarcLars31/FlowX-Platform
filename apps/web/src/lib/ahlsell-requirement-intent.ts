@@ -1,6 +1,7 @@
 import { normalizeQuantityUnit } from "./quantity-value";
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
+import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 import { immediateParentHeading, mainProductText } from "./ahlsell-requirement-context";
 
 export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "manometer" | "pressure_switch"
@@ -9,7 +10,7 @@ export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "mano
   | "reducer" | "cap" | "branch" | "flange_adapter" | "pump" | "strainer" | "support"
   | "test_drain" | "flushing_connection" | "sprinkler_head" | "sprinkler_guard" | "sprinkler_hose" | "sprinkler_cabinet"
   | "water_meter" | "flow_meter" | "alarm_device" | "sensor_pocket" | "foam_extinguisher" | "portable_fire_extinguisher"
-  | "toilet" | "shower_set" | "manifold_cabinet" | "custom_fabrication" | "key_switch" | "valve_actuator" | "generic";
+  | "toilet" | "shower_set" | "manifold_cabinet" | "cable_trunking" | "custom_fabrication" | "key_switch" | "valve_actuator" | "generic";
 
 /** The row's product and attributes govern retrieval, before included parts. */
 export function ahlsellRequirementIntent(requirement: Record<string, unknown>): AhlsellProductIntent {
@@ -26,6 +27,8 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   const primaryDescription = normalize(description);
   const codeFamily = ns3420ProductFamily(String(value.nsCode ?? requirement.requirement_key ?? ""), description);
   if (isManifoldCabinetProduct(description)) return "manifold_cabinet";
+  // Metres measure channels too; a named channel outranks a stale pipe category.
+  if (isCableTrunkingProduct(description)) return "cable_trunking";
 
   // A named main item outranks old categories and references to equipment it serves.
   if (/^(?:nokkelbryter|nokkelboks|nyckelbrytare|nyckelbox|key switch|key box)\b/.test(primaryDescription)) return "key_switch";
