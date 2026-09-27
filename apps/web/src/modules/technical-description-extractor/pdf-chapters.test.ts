@@ -8,6 +8,42 @@ const title = "1404 LB - 40.434 Elkraftfordeling til driftstekniske installasjon
 const table = "Postnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum";
 const page = (pageNumber: number, text: string) => ({ pageNumber, text, method: "text" as const, confidence: .98 });
 
+const distributionTitle = "1402 VT - 40.421 Fordelingssystemer";
+const parentTitle = "1402 VT - 40 Elkraftinstallasjoner";
+const orientationText = `421 Fordelingssystemer\nOrientering\nKapittelet omfatter:\nPrisbærende poster for høyspenningsutstyr. Hulltaking og tettinger beskrives i kapittel 26.\n${parentTitle}`;
+
+test("places page 524's orientation under the chapter confirmed by page 525", () => {
+  const pages = [page(523, `1402.40.412.11 WC1.13119A\nJORDINGSMATERIELL\nAntall stk 2\nSum:\n1402 VT - 40.412 Systemer for jording\n${table}`),
+    page(524, orientationText),
+    page(525, `1402.40.421.1 WZA\nInstallasjoner for elkraft og ekom\nAndre krav:\nAlle vern skal ha signalkontakt.\n${distributionTitle}\nPostnr: Beskrivelse`)];
+  const lines = extractTechnicalDescriptionFromPages(pages).materialLines;
+  const orientation = lines.find(line => line.sourcePage === 524)!;
+  assert.equal(lines.length, 3);
+  assert.equal(orientation.sourceChapter?.title, distributionTitle);
+  assert.equal(orientation.sourceChapter?.sourcePage, 524);
+  assert.equal(orientation.postNumber, undefined);
+  assert.deepEqual(orientation.reviewFlags, ["project-information"]);
+  assert.match(orientation.sourceText, /Hulltaking og tettinger/);
+  assert.doesNotMatch(lines[0].sourceText, /Orientering/);
+  assert.equal(lines[2].sourceChapter?.sourcePage, 524);
+});
+
+test("keeps consecutive orientation continuation pages together before the confirmed chapter", () => {
+  const chapters = pdfChaptersByPage([page(524, orientationText),
+    page(525, `Videre krav til fordelingssystemene.\n${parentTitle}`),
+    page(526, distributionTitle)]);
+  for (const number of [524, 525, 526]) assert.deepEqual(chapters.get(number), { title: distributionTitle, sourcePage: 524 });
+});
+
+test("does not infer an orientation chapter across gaps, other buildings, conflicting names or intervening chapters", () => {
+  for (const following of [page(526, distributionTitle), page(525, distributionTitle.replace("1402 VT", "1401 HM")),
+    page(525, distributionTitle.replace("Fordelingssystemer", "Andre systemer")),
+    page(525, distributionTitle.replace("421", "422")), page(525, "421 Fordelingssystemer")]) {
+    const chapters = pdfChaptersByPage([page(524, orientationText), following, page(527, distributionTitle)]);
+    assert.equal(chapters.get(524)?.title, parentTitle);
+  }
+});
+
 test("keeps a new chapter's orientation as information instead of appending it to the preceding product", () => {
   const nextTitle = "1404 LB - 40.442 Belysningsutstyr";
   const lines = extractTechnicalDescriptionFromPages([

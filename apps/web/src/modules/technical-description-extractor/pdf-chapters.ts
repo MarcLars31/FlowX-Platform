@@ -5,11 +5,36 @@ export function pdfChaptersByPage(pages: readonly Pick<TechnicalDescriptionPage,
   const byPage = new Map<number, TechnicalDescriptionChapter>();
   const chapters = new Map<string, TechnicalDescriptionChapter>();
   let current: TechnicalDescriptionChapter | undefined;
-  for (const page of [...pages].sort((left, right) => left.pageNumber - right.pageNumber)) {
-    const title = chapterTitle(page.text);
+  const ordered = [...pages].sort((left, right) => left.pageNumber - right.pageNumber);
+  const titles = ordered.map(page => chapterTitle(page.text));
+  // Orientation pages can still carry the parent chapter in the page header.
+  // Use the body heading only when the following chapter confirms both its
+  // number and name, in the same building and on consecutive PDF pages.
+  for (let index = 0; index < ordered.length; index += 1) {
+    const parent = titles[index]?.match(/^(\d{3,6}\s+[A-ZÆØÅ][\wÆØÅæøå-]*(?:\s+[A-ZÆØÅ][\wÆØÅæøå-]*)?\s+[-–—]\s+\d{1,4})\s+\S/);
+    if (!parent) continue;
+    const lines = ordered[index].text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const orientation = lines.findIndex(line => /^Orientering\s*:?$/i.test(line));
+    const heading = orientation > 0 ? lines[orientation - 1].match(/^(\d{3})\s+(.+)$/) : undefined;
+    if (!heading) continue;
+    const expected = `${parent[1]}.${heading[1]} ${heading[2]}`;
+    for (let next = index + 1; next < ordered.length; next += 1) {
+      if (ordered[next].pageNumber !== ordered[next - 1].pageNumber + 1) break;
+      const nextTitle = titles[next];
+      if (nextTitle && normalizedChapter(nextTitle) !== normalizedChapter(titles[index]!)) {
+        if (normalizedChapter(nextTitle) === normalizedChapter(expected)) {
+          for (let continuation = index; continuation < next; continuation += 1) titles[continuation] = nextTitle;
+        }
+        break;
+      }
+      if (/^Orientering\s*:?\s*$/im.test(ordered[next].text)) break;
+    }
+  }
+  for (const [index, page] of ordered.entries()) {
+    const title = titles[index];
     if (title) {
       // OCR may insert spaces inside words in a repeated header.
-      const key = title.toLocaleLowerCase("nb-NO").replace(/\s+/g, "");
+      const key = normalizedChapter(title);
       current = chapters.get(key) ?? { title, sourcePage: page.pageNumber };
       chapters.set(key, current);
     }
@@ -18,6 +43,10 @@ export function pdfChaptersByPage(pages: readonly Pick<TechnicalDescriptionPage,
     if (current) byPage.set(page.pageNumber, current);
   }
   return byPage;
+}
+
+function normalizedChapter(title: string) {
+  return title.toLocaleLowerCase("nb-NO").replace(/\s+/g, "");
 }
 
 function chapterTitle(text: string) {
