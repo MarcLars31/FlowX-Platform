@@ -1,5 +1,5 @@
 import { FileText } from "lucide-react";
-import { projectInformationBody, projectRequirementSystemLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
+import { projectInformationBody, projectInformationParagraphs, projectRequirementSystemLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
 import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { orderedSpecificationAttributes } from "@/lib/project-specification-layout";
 
@@ -38,7 +38,9 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
           {!rs && <dd><span className="sr-only">Mängd: </span>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)}</dd>}
         </dl>}
         {informationOnly && details.sourceExcerpt ? <>
-          <div className="mt-3 whitespace-pre-wrap break-words leading-7">{projectInformationBody(details, description)}</div>
+          <div className="mt-4 space-y-3 break-words leading-6">{projectInformationParagraphs(projectInformationBody(details, description)).map((paragraph, index) =>
+            <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "heading" ? "font-bold" : paragraph.kind === "bullet" ? "pl-4 -indent-4" : undefined}>{paragraph.text}</p>
+          )}</div>
           {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
         </> : <dl className="mt-2 space-y-1">
           {fields.map(field => <SpecificationField key={field.key} label={field.label} value={field.value} strong={/^materiale\b/i.test(field.label)} />)}

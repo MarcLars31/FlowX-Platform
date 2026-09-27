@@ -4,9 +4,23 @@ import { enrichProjectRequirements } from "./project-requirement-enrichment";
 import {
   postNumberFromSource,
   projectInformationBody,
+  projectInformationParagraphs,
   projectRequirementSystemLabel,
   projectRequirementDetails
 } from "./project-requirement-details";
+
+test("information prose fills available width without losing PDF headings or bullet items", () => {
+  assert.deepEqual(projectInformationParagraphs("a) Omfang\nTekniske bestemmelser for\nkabelføring.\nHenvisninger:\n\uF0B7\uF020 1401.40.4\n\uF0B7\uF020 Temperatur: AA5 - normale\nforhold\nFORTSETTELSE SIDE 9\nb) Materialer\nKabelstige-\nsystemet skal leveres."), [
+    { kind: "heading", text: "a) Omfang" },
+    { kind: "text", text: "Tekniske bestemmelser for kabelføring." },
+    { kind: "heading", text: "Henvisninger:" },
+    { kind: "bullet", text: "• 1401.40.4" },
+    { kind: "bullet", text: "• Temperatur: AA5 - normale forhold" },
+    { kind: "page", text: "Sida 9" },
+    { kind: "heading", text: "b) Materialer" },
+    { kind: "text", text: "Kabelstige-systemet skal leveres." }
+  ]);
+});
 
 test("information cards keep all prose and internal references in source order", () => {
   const details = projectRequirementDetails({ source_page: 8, value_json: {

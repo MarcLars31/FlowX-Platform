@@ -69,6 +69,29 @@ export function projectInformationBody(details: ProjectRequirementDetail, descri
   return lines.join("\n").trim();
 }
 
+/** Reflow PDF column wraps while keeping sections and individual list items. */
+export function projectInformationParagraphs(source: string) {
+  const paragraphs: Array<{ text: string; kind: "text" | "heading" | "bullet" | "page" }> = [];
+  let pending = "";
+  let kind: "text" | "bullet" = "text";
+  const flush = () => { if (pending) paragraphs.push({ text: pending, kind }); pending = ""; kind = "text"; };
+  for (const raw of source.split(/\r?\n/)) {
+    const line = raw.trim().replace(/^\uF0B7[\uF020\s]*/, "• ");
+    if (!line) { flush(); continue; }
+    const page = line.match(/^FORTSETTELSE SIDE (\d+)$/);
+    if (page || /^[a-z]\)\s+\S/i.test(line) || (line.endsWith(":") && line.length < 100)) {
+      flush();
+      paragraphs.push({ text: page ? `Sida ${page[1]}` : line, kind: page ? "page" : "heading" });
+      continue;
+    }
+    if (/^[•●▪]\s*/.test(line)) { flush(); kind = "bullet"; }
+    pending += `${pending && !pending.endsWith("-") ? " " : ""}${line}`;
+    if (/[.!?]$/.test(line)) flush();
+  }
+  flush();
+  return paragraphs;
+}
+
 function additionalRequirementsFromSources(
   sources: Array<string | null>,
   attributes: Record<string, unknown>
