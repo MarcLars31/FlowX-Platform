@@ -2,6 +2,12 @@ import { sortProjectRequirementsBySource } from "./project-requirement-order";
 
 type Requirement = Record<string, unknown> & { id: string };
 
+export function productChapterHeading(title: string) {
+  const parts = title.match(/^(\d{3,6}\s+[A-ZÆØÅ][\wÆØÅæøå-]*(?:\s+[A-ZÆØÅ][\wÆØÅæøå-]*)?\s+[-–—]\s+\d+(?:\.\d+)*\.?)(?:\s+(.+))?$/)
+    ?? title.match(/^(\d+(?:\.\d+)*\.?)(?:\s+(.+))?$/);
+  return parts ? { chapter: parts[1], description: parts[2] ?? "—" } : { chapter: "—", description: title };
+}
+
 export type ProductChapterGroup<T extends Requirement> = {
   key: string;
   title: string;

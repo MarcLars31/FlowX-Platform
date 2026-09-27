@@ -12,7 +12,7 @@ import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { createProductCardHistory } from "@/lib/product-card-history";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
-import { groupProductRequirementsByPdfChapter } from "@/lib/product-post-groups";
+import { groupProductRequirementsByPdfChapter, productChapterHeading } from "@/lib/product-post-groups";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -296,9 +296,10 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     [productRequirements, rsRequirements, removalRequirements]
   );
   const allQueueRequirements = useMemo(() => allChapterGroups.flatMap(group => group.requirements), [allChapterGroups]);
-  const approvedChapterKeys = useMemo(() => new Set(allChapterGroups
-    .filter(group => group.requirements.every(requirement => approvedRequirementIds.has(requirement.id)))
-    .map(group => group.key)), [allChapterGroups, approvedRequirementIds]);
+  const completedPostsByChapter = useMemo(() => new Map(allChapterGroups.map(group => [group.key,
+    group.requirements.filter(requirement => approvedRequirementIds.has(requirement.id)
+      || isProductRequirementResolvedWithoutProduct(requirement)).length
+  ])), [allChapterGroups, approvedRequirementIds]);
   const bulkApprovalSelectionByRequirementId = useMemo(() => {
     const selections = new Map<string, BulkProductApprovalSelection>();
     for (const requirement of productRequirements) {
@@ -646,25 +647,57 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
 
           {queueRequirements.length > 0 ? (
             productTableLayoutLoaded ? (
-            <div className="space-y-3 px-4 py-3">
+            <div className="overflow-x-auto">
+              <table className="chapter-overview w-full min-w-[720px] table-fixed text-left" aria-label="Kapitelöversikt">
+                <colgroup>
+                  <col className="w-52" />
+                  <col />
+                  <col className="w-24" />
+                  <col className="w-36" />
+                  <col className="w-12" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">Kapitel</th>
+                    <th scope="col">Beskrivning</th>
+                    <th scope="col" className="text-center">Poster</th>
+                    <th scope="col" className="text-center" title="Poster med godkänd produkt eller markerade som Inte i sortiment">Färdiga poster</th>
+                    <th scope="col"><span className="sr-only">Visa poster</span></th>
+                  </tr>
+                </thead>
+                <tbody>
               {chapterGroups.map((chapter, index) => {
                 const expanded = expandedChapters.has(chapter.key);
-                const chapterApproved = approvedChapterKeys.has(chapter.key);
+                const completedPosts = completedPostsByChapter.get(chapter.key) ?? 0;
+                const chapterApproved = completedPosts === chapter.requirements.length;
+                const heading = productChapterHeading(chapter.title);
                 const label = chapter.title;
                 const regionId = `pdf-chapter-${index}-products`;
                 const headingId = `pdf-chapter-${index}-heading`;
-                return <section key={chapter.key} aria-labelledby={headingId}>
-                  <h4 id={headingId}>
-                    <button type="button" data-appearance="text" aria-expanded={expanded} aria-controls={regionId}
-                      aria-label={`${label} (${chapter.requirements.length})`} onClick={() => toggleChapter(chapter.key)}
-                      className="inline-flex items-center gap-3 text-left text-sm font-semibold">
-                      <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="flex items-center gap-2">{chapterApproved && <><CheckCircle2 className="h-5 w-5 text-emerald-700" aria-hidden="true" /><span className="sr-only">Godkjent · </span></>}{label} ({chapter.requirements.length})</span>
-                      </span>
-                      <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                return <Fragment key={chapter.key}>
+                  <tr className="chapter-overview-row cursor-pointer" data-expanded={expanded} onClick={() => toggleChapter(chapter.key)}>
+                    <td>
+                    <button id={headingId} type="button" data-appearance="text" aria-expanded={expanded} aria-controls={expanded ? regionId : undefined}
+                      aria-label={`${label} (${chapter.requirements.length})`}
+                      onClick={event => { event.stopPropagation(); toggleChapter(chapter.key); }}
+                      className="text-left text-sm font-semibold">
+                      {heading.chapter}
                     </button>
-                  </h4>
-                  {expanded && <div id={regionId} role="region" aria-labelledby={headingId} className="mt-2 overflow-x-auto border-t border-ink-200" tabIndex={0}>
+                    </td>
+                    <td className="font-medium">{heading.description}</td>
+                    <td className="text-center tabular-nums">{chapter.requirements.length}</td>
+                    <td className="text-center tabular-nums">
+                      <span className="inline-flex items-center gap-2 font-semibold">
+                        {chapterApproved && <CheckCircle2 className="h-4 w-4" aria-label="Alla poster färdiga" />}
+                        {completedPosts}
+                      </span>
+                    </td>
+                    <td className="text-center">
+                      <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                    </td>
+                  </tr>
+                  {expanded && <tr className="chapter-overview-detail"><td colSpan={5}>
+                  <div id={regionId} role="region" aria-labelledby={headingId} className="overflow-x-auto border-b border-ink-300" tabIndex={0}>
               <table className="w-full border-collapse whitespace-nowrap text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
                 <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
                   <tr>
@@ -712,9 +745,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                   ))}
                 </tbody>
               </table>
-                  </div>}
-                </section>;
+                  </div></td></tr>}
+                </Fragment>;
               })}
+                </tbody>
+              </table>
             </div>
             ) : (
               <div className="flex min-h-28 items-center justify-center gap-2 p-5 text-sm font-bold text-ink-700" role="status">
