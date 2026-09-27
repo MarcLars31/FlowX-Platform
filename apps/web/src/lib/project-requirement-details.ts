@@ -51,6 +51,24 @@ export function isAdditionalRequirementAttribute(key: string) {
   return /^(?:omfatter også|andre krav|andra krav)$/i.test(key.replace(/[_-]+/g, " ").trim());
 }
 
+/** Information posts retain prose, bullets and lettered clauses in PDF order. */
+export function projectInformationBody(details: ProjectRequirementDetail, description: string) {
+  const lines = (details.sourceExcerpt ?? "").trim().split(/\r?\n/);
+  // These identifiers already appear in the card heading. Remove only an
+  // exact leading match, never post references or headings inside the body.
+  for (const heading of [details.postNumber, details.nsCode, description]) {
+    if (!heading) continue;
+    for (let count = 1; count <= Math.min(4, lines.length); count += 1) {
+      const prefix = lines.slice(0, count).join(" ").replace(/\s+/g, " ").trim();
+      if (prefix === heading || prefix.replace(/\s/g, "") === heading.replace(/\s/g, "")) {
+        lines.splice(0, count);
+        break;
+      }
+    }
+  }
+  return lines.join("\n").trim();
+}
+
 function additionalRequirementsFromSources(
   sources: Array<string | null>,
   attributes: Record<string, unknown>

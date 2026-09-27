@@ -760,9 +760,9 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
                   <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-neutral-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
                     <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
                       <div className="min-w-0 text-center lg:col-start-2">
-                        <p className="text-sm font-bold text-neutral-950 sm:text-base">Produktvalg</p>
+                        <p className="text-sm font-bold text-neutral-950 sm:text-base">{groupProjectRequirementViews([requirement]).removal.length && !assignment ? "Postinformation" : "Produktvalg"}</p>
                         <p className="mt-0.5 text-sm font-bold text-neutral-950 sm:text-base">Post {activeIndex + 1} av {cardRequirements.length}</p>
-                        <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>
+                        {(!groupProjectRequirementViews([requirement]).removal.length || assignment) && <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>}
                       </div>
                       <div ref={setProductCardHeaderActions} className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:col-start-3" />
                     </div>
@@ -847,8 +847,8 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
     });
     return () => controller.abort();
   }, [attempt, needsDetails, props.projectId, props.requirement.id]);
-  if (!needsDetails) return <RequirementProductMappingCard {...props} />;
-  if (detail) return <RequirementProductMappingCard {...props} requirement={detail.requirement}
+  if (!needsDetails) return <ResolvedRequirementCard {...props} />;
+  if (detail) return <ResolvedRequirementCard {...props} requirement={detail.requirement}
     assignment={detail.assignments.find(isUserApprovedProductAssignment)} memories={detail.mappingMemories.filter(memory =>
       ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes))} />;
   return <div className="space-y-4 p-6" aria-live="polite">
@@ -858,6 +858,34 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
       <Button variant="secondary" onClick={props.onClose}>Stäng kortet</Button>
     </div>
   </div>;
+}
+
+function ResolvedRequirementCard(props: ComponentProps<typeof RequirementProductMappingCard>) {
+  const [chooseProduct, setChooseProduct] = useState(false);
+  const informationOnly = groupProjectRequirementViews([props.requirement]).removal.length > 0 && !props.assignment;
+  if (!informationOnly || chooseProduct) return <RequirementProductMappingCard {...props} />;
+  return <RequirementInformationCard {...props} onChooseProduct={() => setChooseProduct(true)} />;
+}
+
+function RequirementInformationCard({ projectId, requirement, sourcePdfHref, headerActions, onClose, onDirtyChange, onSavingChange, onChooseProduct }: ComponentProps<typeof RequirementProductMappingCard> & { onChooseProduct: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const details = projectRequirementDetails(requirement);
+  useEffect(() => { onSavingChange(saving); }, [saving, onSavingChange]);
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  return <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber="" productName=""
+    disabled={false} onDirtyChange={setDirty} onSavingChange={setSaving}>
+    {({ postComments }) => <article id={`post-${requirement.id}`} className="h-full w-full overflow-y-auto bg-white px-4 py-4 sm:px-6 sm:py-5">
+      {headerActions && createPortal(<>
+        <Button neutral variant="secondary" type="button" disabled={saving || dirty} onClick={onChooseProduct}>Välj produkt</Button>
+        <Button neutral autoFocus variant="secondary" type="button" disabled={saving} onClick={onClose}><X className="h-4 w-4" aria-hidden="true" />Stäng kortet</Button>
+      </>, headerActions)}
+      <ProjectPostSpecification id={requirement.id} details={details} informationOnly
+        description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
+        quantity={projectRequirementQuantity(requirement)} sourcePdfHref={sourcePdfHref} />
+      <div className="mt-4">{postComments}</div>
+    </article>}
+  </ProductPostComments>;
 }
 
 function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, memories, headerActions, onClose, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {

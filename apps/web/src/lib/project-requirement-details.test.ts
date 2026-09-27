@@ -3,9 +3,19 @@ import test from "node:test";
 import { enrichProjectRequirements } from "./project-requirement-enrichment";
 import {
   postNumberFromSource,
+  projectInformationBody,
   projectRequirementSystemLabel,
   projectRequirementDetails
 } from "./project-requirement-details";
+
+test("information cards keep all prose and internal references in source order", () => {
+  const details = projectRequirementDetails({ source_page: 8, value_json: {
+    postNumber: "1401.40.411.1", nsCode: "WZA", technicalSpecification:
+      "1401.40.411.\n1\nWZA\nInstallasjoner for elkraft og ekom\nAndre krav:\na) Omfang\nSe post 1401.40.411.1.\nFORTSETTELSE SIDE 9\nAE4 - Lett støv\nb) Materialer\nFORTSETTELSE SIDE 10\nAll tekst skal beholdes.\nFORTSETTELSE SIDE 11\nc) Utførelse\nSiste avsnitt."
+  } });
+  assert.equal(projectInformationBody(details, "Installasjoner for elkraft og ekom"),
+    "Andre krav:\na) Omfang\nSe post 1401.40.411.1.\nFORTSETTELSE SIDE 9\nAE4 - Lett støv\nb) Materialer\nFORTSETTELSE SIDE 10\nAll tekst skal beholdes.\nFORTSETTELSE SIDE 11\nc) Utførelse\nSiste avsnitt.");
+});
 
 test("reopening a project preserves source comments recovered from continuation pages", () => {
   const pages = [

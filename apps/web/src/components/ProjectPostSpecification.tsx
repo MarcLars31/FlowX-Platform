@@ -1,9 +1,9 @@
 import { FileText } from "lucide-react";
-import { projectRequirementSystemLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
+import { projectInformationBody, projectRequirementSystemLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
 import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { orderedSpecificationAttributes } from "@/lib/project-specification-layout";
 
-export function ProjectPostSpecification({ id, details, description, quantity, quantityText, sourcePdfHref, pdfArticleNumber }: {
+export function ProjectPostSpecification({ id, details, description, quantity, quantityText, sourcePdfHref, pdfArticleNumber, informationOnly = false }: {
   id: string;
   details: ProjectRequirementDetail;
   description: string;
@@ -11,6 +11,7 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
   quantityText?: string;
   sourcePdfHref?: string | null;
   pdfArticleNumber?: string | null;
+  informationOnly?: boolean;
 }) {
   const fields = orderedSpecificationAttributes(details);
   const rs = quantity.unit === "RS";
@@ -36,10 +37,13 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
           <dd><span className="sr-only">Enhet: </span>{quantity.unit === "?" ? "—" : quantity.unit}</dd>
           {!rs && <dd><span className="sr-only">Mängd: </span>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)}</dd>}
         </dl>}
-        <dl className="mt-2 space-y-1">
+        {informationOnly && details.sourceExcerpt ? <>
+          <div className="mt-3 whitespace-pre-wrap break-words leading-7">{projectInformationBody(details, description)}</div>
+          {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
+        </> : <dl className="mt-2 space-y-1">
           {fields.map(field => <SpecificationField key={field.key} label={field.label} value={field.value} strong={/^materiale\b/i.test(field.label)} />)}
           {details.additionalRequirements && <SpecificationField label="Andra krav" value={details.additionalRequirements} block={details.additionalRequirements.includes("\n")} />}
-        </dl>
+        </dl>}
         {(details.chapterPost || details.parentPostNumber || details.system || details.standardRefs.length > 0 || pdfArticleNumber) &&
           <dl className="mt-4 space-y-1 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
             {details.chapterPost && <SpecificationField label="Kapitelpost" value={details.chapterPost} />}

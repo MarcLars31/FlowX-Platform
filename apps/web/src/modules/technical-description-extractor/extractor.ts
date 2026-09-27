@@ -29,7 +29,7 @@ const STANDARD_PATTERN =
   /\b((?:NS(?:[-\s]?EN)?|NFPA)\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
 const ATTRIBUTE_PATTERN = /^\s*([^:]{2,60}):\s*(.*?)\s*$/;
 const NS3420_CODE_PATTERN =
-  /^(%?[A-ZÆØÅ]{2}\d(?:\.[A-ZÆØÅ0-9]+)*[A-ZÆØÅ]?|RQA?|AOA)(?=\s|$)\s*(?:-\s*)?(.*)$/i;
+  /^(%?[A-ZÆØÅ]{2}\d(?:\.[A-ZÆØÅ0-9]+)*[A-ZÆØÅ]?|RQA?|AOA|WZA)(?=\s|$)\s*(?:-\s*)?(.*)$/i;
 const QUANTITY_UNIT_SOURCE = String.raw`(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|liter|l)`;
 const QUANTITY_NUMBER_SOURCE = String.raw`(?:\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)`;
 const TABLE_QUANTITY_PATTERN = new RegExp(
@@ -579,7 +579,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const bodyStart = start.lineIndex + start.consumedLineCount;
       const blockLines = [
         ...(start.description ? [start.description] : []),
-        ...pageLines.slice(bodyStart, blockEnd)
+        ...pageLines.slice(bodyStart, blockEnd).filter(line => !isPageFurniture(line))
       ];
       const quantity = start.quantity ?? findTableQuantity(blockLines);
       const fullPostNumber = start.postNumber;
@@ -605,7 +605,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const description = parsedDescription.description
         || (start.description && !NS3420_CODE_PATTERN.test(start.description)
           ? start.description.trim().replace(/:$/, "") : "");
-      const sourceText = pageLines.slice(start.lineIndex, blockEnd).join("\n");
+      const sourceText = pageLines.slice(start.lineIndex, blockEnd).filter(line => !isPageFurniture(line)).join("\n");
       const ownAttributes: Record<string, string> = {
         ...(chapterPost ? { kapittelpost: chapterPost } : {}),
         ...extractTableAttributes(blockLines),
@@ -1162,7 +1162,12 @@ function mergeLeadingPageContinuation({
   if (continuation.length === 0) return;
   // An unplaced NS row is a new post, never an extension of the previous one.
   // OCR recovery or manual review must establish its identity first.
-  if (continuation.some(line => NS3420_CODE_PATTERN.test(line))) return;
+  const precedingText = previousContext?.sourceText ?? previousMaterialLine?.sourceText ?? "";
+  const environmentalSpecification = /NEK\s*400|ytre påvirkninger|Tabell\s+51A/i.test(precedingText);
+  if (continuation.some(line => NS3420_CODE_PATTERN.test(line)
+    // Wrapped environmental classifications (for example "AE4 - Lett støv")
+    // are prose within the open NEK 400 specification, not new NS 3420 rows.
+    && !(environmentalSpecification && /^(?:A[A-HK-NP-S]|B[A-E]|C[AB])\d\s*[-–—]\s*\S/i.test(line)))) return;
   // Prose and captions before the next post belong to the still-open row too.
   // Never infer a continuation through an unrelated chapter/orientation page.
   if (!pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line)) && firstStartIndex === undefined && !continuation.some(isTechnicalContinuationLine)

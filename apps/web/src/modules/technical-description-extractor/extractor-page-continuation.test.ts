@@ -7,6 +7,39 @@ const page = (pageNumber: number, text: string, annotations?: TechnicalDescripti
   ({ pageNumber, text, annotations, method: "text", confidence: 0.98 });
 const header = "Kapittel: 33 Brannslokking\nPostnr. NS-kode/Spesifikasjon Enhet Mengde Pris Sum\n";
 
+test("a four-page WZA information post retains environmental classes and every continuation", () => {
+  const footer = "\n20.03.2026\nSum denne side:\nAkkumulert 1401 HM:\nProsjekt: Eksempel Side 1401-8\n1401 HM - 40.411 Systemer for kabelføring\nPostnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum\n0,00";
+  const result = extractTechnicalDescriptionFromPages([
+    page(8, `1401.40.411.\n1\nWZA\nInstallasjoner for elkraft og ekom\nAndre krav:\na) Omfang og prisgrunnlag\nAlle ytelser skal inngå.\nb) Materialer\nYtre påvirkninger i henhold til NEK 400 Tabell 51A:\nAE4 - Lett støv${footer}`),
+    page(9, `S40:\nTilstedeværelse av faste fremmedlegemer:\nAE4 - Lett støv, IP5X\nForurensende stoffer: AF3 - Kortvarig.\nGarderober:${footer}`, [{ id: "middle", subtype: "Text", continuesPreviousPost: true, text: "Kommentar på mellansidan." }]),
+    page(10, `AE2 - Små gjenstander\nAlt festemateriell skal beholde sin integritet under brann.\nc) Utførelse\nAlle kabelstiger skal påsettes endelokk.${footer}`),
+    page(11, `Kabelstiger skal avsluttes 200 mm fra utsparinger.\nI FDV-dokumentasjon skal produkter markeres.${footer}`),
+    page(12, `1401.40.411.\n2\nWL2.125\nGRENSTAV\nAntall stk 10\nMateriale: Stål${footer}`)
+  ]);
+  assert.equal(result.materialLines.length, 2);
+  const information = result.materialLines[0];
+  assert.equal(information.postNumber, "1401.40.411.1");
+  assert.equal(information.nsCode, "WZA");
+  assert.deepEqual(information.sourcePages, [8, 9, 10, 11]);
+  assert.equal(information.quantity, undefined);
+  assert.ok(information.reviewFlags.includes("project-information"));
+  assert.equal(information.attributes["pdf-kommentar"], "Kommentar på mellansidan.");
+  assert.match(information.sourceText, /IP5X[\s\S]*integritet under brann[\s\S]*FDV-dokumentasjon/);
+  assert.doesNotMatch(information.sourceText, /20\.03\.2026|Sum denne side|Akkumulert|GRENSTAV/);
+  assert.equal(information.technicalSpecification, information.sourceText);
+  assert.equal(result.materialLines[1].quantity, 10);
+});
+
+test("a genuine unnumbered NS row still stops a NEK specification continuation", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    page(1, `${header}1401.40.411.1 WZA\nInstallasjoner for elkraft\nAndre krav:\nNEK 400 Tabell 51A gjelder.`),
+    page(2, `${header}WC2.511115\nVEGGKANAL\nLengde m 25\nMateriale: Aluminium`)
+  ]);
+  const information = result.materialLines.find(line => line.postNumber === "1401.40.411.1")!;
+  assert.deepEqual(information.sourcePages, [1]);
+  assert.doesNotMatch(information.sourceText, /VEGGKANAL|Aluminium/);
+});
+
 test("a project title split from the page number cannot extend the previous material field", () => {
   const title = "K2 3395 HOK. Ombygging Kleppestø";
   const { materialLines } = extractTechnicalDescriptionFromPages([
