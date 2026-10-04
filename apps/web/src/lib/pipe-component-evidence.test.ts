@@ -97,3 +97,12 @@ test('enrichment can resolve missing pipe evidence without clearing actual confl
   const wrong = rankAhlsellCandidates(plug, [cap]);
   assert.ok(complementMldlCandidates(plug, wrong, [candidate('Plugg DN25 gjenget')]).every(product => !['exact', 'matched'].includes(ahlsellCandidateMatchState(product))));
 });
+
+// Historical Ahlsell offer formats expose these variants explicitly.
+test('copper pipe child OD overrides a parent reference and does not read wall thickness as diameter', () => {
+ const requirement={category:'pipe',value_text:'Kobberrør Ytre diameter=12',value_json:{unit:'m',quantity:20,attributes:{dimensjon:'Kfr. underposter',materiale:'Kobber'}}};
+ assert.equal(isRigidPipeProduct('12 x 1.0mm kobberrør f/kap.lod Lgd.a 3mtr'),true);
+ assert.notEqual(state(requirement,candidate('12 x 1.0mm kobberrør f/kap.lod Lgd.a 3mtr')),'mismatch');
+ assert.equal(state(requirement,candidate('15 x 1.0mm kobberrør f/kap.lod Lgd.a 3mtr')),'mismatch');
+ assert.equal(isRigidPipeProduct('Kobling for kobberrør 12mm'),false);
+});

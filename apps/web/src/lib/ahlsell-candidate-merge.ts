@@ -92,6 +92,7 @@ function inferredEvidence(source: AhlsellPublicCandidate["source"]): NonNullable
   if (source === "structured_database") return ["mldl_database"];
   if (source === "verified_database") return ["mldl_database", "victaulic_verified"];
   if (source === "pdf_reference") return ["pdf_reference"];
+  if (source === "offer_catalog") return ["offer_catalog"];
   if (source === "confirmed_history") return ["confirmed_history"];
   return ["ahlsell_public"];
 }

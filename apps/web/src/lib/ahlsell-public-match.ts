@@ -42,7 +42,7 @@ export type AhlsellPublicCandidate = {
   imageUrl?: string;
   specifications: string[];
   technicalEvidence?: AhlsellTechnicalEvidence;
-  source: "public_verified" | "verified_database" | "structured_database" | "pdf_reference" | "catalog_search" | "confirmed_history";
+  source: "public_verified" | "verified_database" | "structured_database" | "pdf_reference" | "catalog_search" | "confirmed_history" | "offer_catalog";
   evidenceSources?: AhlsellCandidateEvidenceSource[];
   verifiedAt?: string;
   matchScore?: number;
@@ -68,7 +68,8 @@ export type AhlsellCandidateEvidenceSource =
   | "ahlsell_public"
   | "victaulic_verified"
   | "pdf_reference"
-  | "confirmed_history";
+  | "confirmed_history"
+  | "offer_catalog";
 
 export type AhlsellAccessorySuggestion = {
   articleNumber: string;

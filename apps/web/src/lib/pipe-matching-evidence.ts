@@ -11,9 +11,11 @@ const plain = (value: string) => value.toLowerCase().replace(/ø/g, 'o').normali
 export function pipeRequirementDimensions(requirement: Record<string, unknown>) {
   const attributes = Object.entries(productRequirementAttributes(requirement));
   const explicit = attributes.find(([key]) => /^(?:nominell diameter|dimensjon(?: dn)?|dimension|dn|(?:utvendig|ytre|outside) (?:ror)?diameter)$/.test(label(key)));
-  const raw = explicit ? String(explicit[1]) : String(requirement.value_text ?? requirement.display_name ?? '')
+  const usableExplicit = explicit && !/kfr|underpost|se post|see sub/i.test(String(explicit[1])) ? explicit : undefined;
+  const raw = usableExplicit ? String(usableExplicit[1]) : String(requirement.value_text ?? requirement.display_name ?? '')
     .split(/\b(?:avsluttes|avslutning|med flens|inkludert|including)\b/i)[0];
-  const od = numeric(raw.match(new RegExp(`[Øø⌀]\\s*${number}`))?.[1])
+  const namedOd = numeric(raw.match(/(?:ytre|utvendig|outside)\s+(?:ror)?diameter\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i)?.[1]);
+  const od = namedOd ?? numeric(raw.match(new RegExp(`[Øø⌀]\\s*${number}`))?.[1])
     ?? numeric(raw.match(new RegExp(`\\b${number}\\s*mm\\b`, 'i'))?.[1]);
   if (od !== null) return { dn: null, outsideDiameter: od };
   const dn = numeric(raw.match(/\bDN\s*(\d+)\b/i)?.[1]);
@@ -48,7 +50,9 @@ export function pipeCandidateOutsideDiameter(candidate: AhlsellPublicCandidate) 
     return numeric(raw.match(new RegExp(`^${number}`))?.[1]);
   }
   const primary = candidate.productName.split(/\b(?:med|with|for|til)\b|\bf\//i)[0];
-  return numeric(primary.match(new RegExp(`[Øø⌀]\\s*${number}`))?.[1])
+  // Supplier pipe names write outside diameter × wall thickness, e.g. 12 x 1.0mm.
+  const diameterWall = numeric(primary.match(/\b(\d+(?:[.,]\d+)?)\s*[x×]\s*\d+(?:[.,]\d+)?\s*mm\b/i)?.[1]);
+  return diameterWall ?? numeric(primary.match(new RegExp(`[Øø⌀]\\s*${number}`))?.[1])
     ?? numeric(primary.match(new RegExp(`\\b${number}\\s*mm\\b`, 'i'))?.[1]);
 }
 

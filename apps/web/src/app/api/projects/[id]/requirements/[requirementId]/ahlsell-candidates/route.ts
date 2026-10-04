@@ -1,3 +1,4 @@
+import { organizationAhlsellOfferCatalog } from "@/lib/ahlsell-offer-catalog.server";
 import { ahlsellRequestContext } from "@/lib/ahlsell-shared-fetch.server";
 import { NextResponse } from "next/server";
 import { AHLSELL_MLDL_CATALOG_VERSION, AHLSELL_MLDL_PRODUCT_COUNT } from "@/lib/ahlsell-mldl-catalog";
@@ -63,12 +64,15 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404 });
     }
 
-    const result = await findAhlsellHybridCandidates(requirement, supplier.fetch, ahlsellEvidenceStore());
+    const offers = await organizationAhlsellOfferCatalog(authorization.context.organization.id);
+    const result = await findAhlsellHybridCandidates(requirement, supplier.fetch, ahlsellEvidenceStore(), offers.catalog);
     const { candidates } = result;
     if (!candidates.length && supplier.retryAfter) return NextResponse.json({error:"Ahlsell-sökningen är tillfälligt upptagen. Försök igen om en stund."},{status:429,headers:{"Retry-After":String(supplier.retryAfter),"Cache-Control":"private, no-store"}});
     await recordCandidateImpression({
       projectId: id, requirementId, candidates,
       metadata: { candidateSource: "mldl_and_ahlsell", publicSearchStatus: result.publicSearchStatus,
+        offerCatalogVersion: offers.catalog?.version ?? null, offerCatalogStatus: offers.status,
+        offerCatalogProductCount: offers.catalog?.products.length ?? 0,
         databaseProductCount: AHLSELL_MLDL_PRODUCT_COUNT, shownCandidateCount: Math.min(candidates.length, 3) }
     });
     return NextResponse.json({
@@ -77,6 +81,8 @@ export async function GET(request: Request, context: RouteContext) {
       matchingEngine: {
         version: PRODUCT_MATCHING_ENGINE_VERSION, source: "mldl_and_ahlsell",
         catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
+        offerCatalogVersion: offers.catalog?.version ?? null, offerCatalogStatus: offers.status,
+        offerCatalogProductCount: offers.catalog?.products.length ?? 0,
         sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
         catalogProductCount: AHLSELL_MLDL_PRODUCT_COUNT, publicSearchAvailable: result.publicSearchStatus !== "unavailable"
       }

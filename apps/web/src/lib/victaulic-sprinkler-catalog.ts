@@ -45,7 +45,7 @@ const verifiedArticles = new Map(catalogJson.products
 
 /** Exact article identity is required; a similar model or a search URL is insufficient. */
 export function verifiedVictaulicArticle(candidate: AhlsellPublicCandidate) {
-  if (candidate.source === "pdf_reference" || candidate.source === "confirmed_history") return null;
+  if (candidate.source === "pdf_reference" || candidate.source === "confirmed_history" || candidate.source === "offer_catalog") return null;
   const product = verifiedArticles.get(candidate.articleNumber.trim().toUpperCase());
   if (!product) return null;
   if (candidate.manufacturer && !/victaulic/i.test(candidate.manufacturer)) return null;

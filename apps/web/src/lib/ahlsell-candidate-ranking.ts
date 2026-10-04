@@ -118,7 +118,7 @@ export function orderAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandid
 
 export function isExactAhlsellCandidate(candidate: AhlsellPublicCandidate) {
   if (candidate.requiresAccessoryReview || candidate.requiresProductSelection) return false;
-  if (candidate.source === "pdf_reference" || candidate.recommendation === "unlikely") return false;
+  if ((candidate.source === "pdf_reference" || candidate.source === "offer_catalog") || candidate.recommendation === "unlikely") return false;
   if ((candidate.matchWarnings?.length ?? 0) > 0) return false;
   return candidate.exactMatch === true;
 }
@@ -126,7 +126,7 @@ export function isExactAhlsellCandidate(candidate: AhlsellPublicCandidate) {
 /** Green describes a technically supported proposal, independently of approval. */
 export function isMatchingAhlsellCandidate(candidate: Pick<AhlsellPublicCandidate, "source" | "recommendation" | "matchScore" | "matchWarnings" | "exactMatch" | "requiresAccessoryReview">) {
   if (candidate.requiresAccessoryReview) return false;
-  if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely" || candidate.source === "pdf_reference") return false;
+  if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely" || (candidate.source === "pdf_reference" || candidate.source === "offer_catalog")) return false;
   return candidate.exactMatch === true || (candidate.recommendation === "recommended" && (candidate.matchScore ?? 0) >= 75);
 }
 

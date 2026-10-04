@@ -54,7 +54,7 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
       || Object.keys(attributes).some(key => normalize(key) === "rordel"));
   if (dimensionOnly && unit === "m" && codeFamily !== "sprinkler_hose" && !explicitFitting) return "pipe";
   const mainHeading = dimensionOnly ? normalize(immediateParentHeading(requirement)) : mainProductText(description);
-  if (/^(?:(?:innendors|utendors|komplett|nye)\s+)*(?:vannledning|stalror|sprinklerror|rorledning|ror)\b/.test(mainHeading)
+  if (/^(?:(?:innendors|utendors|komplett|nye)\s+)*(?:vannledning|stalror|kobberror|kopparror|trykkror|avlopsror|sprinklerror|rorledning|ror)\b/.test(mainHeading)
     && !explicitFitting && !/\brordel\b/.test(mainHeading) && (unit === "m" || /\b(?:vannledning|rorledning)\b/.test(mainHeading)) && codeFamily !== "sprinkler_hose") return "pipe";
 
   // A quantified pipe assembly includes fittings; they are not its main item.

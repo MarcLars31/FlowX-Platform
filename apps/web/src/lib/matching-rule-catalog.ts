@@ -1,6 +1,6 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "ahlsell-product-rules-2026-09-27.6";
-export const RULE_CATALOG_DATE = "27 september 2026";
+export const RULE_CATALOG_VERSION = "ahlsell-product-rules-2026-10-04.1";
+export const RULE_CATALOG_DATE = "4 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
@@ -21,6 +21,17 @@ const rule = (id: string, title: string, when: string, result: string, extra: Pa
 const table = (columns: string[], rows: string[][]) => ({ columns, rows });
 
 export const MATCHING_RULE_GROUPS: RuleGroup[] = [
+  {
+    id: "tidigare-offert", title: "Ahlsells tidigare offerter", appliesTo: "Organisationens importerade offertartiklar", kind: "review",
+    description: "Sökbara historiska artikelidentiteter som alltid kräver teknisk granskning.",
+    sources: ["ahlsell-offer-catalog.ts"],
+    rules: [
+      rule("offert-katalog", "Återanvänd artikelidentitet, inte ett tidigare godkännande", "En artikel finns i organisationens privata offertkatalog.", "Sök på beskrivning, produktfamilj och tekniska egenskaper. Filnamn och historiskt postnummer styr inte förslaget. Offertartikeln märks för granskning och kan inte ensam bli grön eller exakt match. Tidigare priser och mängder är inte aktuella produktfakta."),
+      rule("offert-undantag", "Behåll osäkerhet från offertunderlaget", "Källan innehåller alternativ, undantag eller flera benämningar för artikeln.", "Visa kontrollbehov för variant och leveransomfattning. Skriv inte över oberoende bedömda katalogartiklar med offertuppgifterna."),
+      rule("offert-kabelvariant", "Jämför uttrycklig kabelvariant", "Krav och offertnamn anger kabeltyp, ledarantal eller tvärsnitt.", "Filtrera bort känd avvikelse i familj, antal och tvärsnitt. Verktyg, klammer och kabelbärsystem är inte kabeln. Saknad variantinformation kräver fortsatt granskning."),
+      rule("kopparror-diameter", "Läs kopparrörets ytterdiameter", "Underposten anger exempelvis Kobberrør Ytre diameter=12 medan huvudpostens dimension hänvisar till underposter.", "Använd underpostens 12 mm. I produktnamnet 12 x 1.0mm är 12 ytterdiameter och 1.0 godstjocklek. Ett 15 mm rör får inte matcha 12 mm kravet.")
+    ]
+  },
   {
     id: "underlag", title: "PDF-postens underlag", appliesTo: "Alla produktposter", kind: "requirement",
     description: "Vilken text och vilka egenskaper som får styra produktvalet.",

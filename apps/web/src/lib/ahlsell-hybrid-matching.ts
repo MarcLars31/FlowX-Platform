@@ -1,3 +1,4 @@
+import { withAhlsellOfferCandidates, offerRequirementIdentity, offerVariantCompatible, type AhlsellOfferCatalog } from "./ahlsell-offer-catalog";
 import { attachAhlsellAccessorySuggestions } from "./ahlsell-accessory-suggestions";
 import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
 import { hasAhlsellProductFamilyMismatch, isAhlsellSignageCandidate, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
@@ -14,9 +15,9 @@ import { requirementDiscipline } from "./requirement-discipline";
 import { genericProductIdentity, hasGenericProductIdentity } from "./ahlsell-generic-product-relevance";
 
 /** MLDL is always available. Only product search terms/NRFs go to Ahlsell. */
-export async function findAhlsellHybridCandidates(requirement: Record<string, unknown>, fetchImpl: typeof fetch = fetch, store?: AhlsellEvidenceStore): Promise<AhlsellCatalogResult> {
+export async function findAhlsellHybridCandidates(requirement: Record<string, unknown>, fetchImpl: typeof fetch = fetch, store?: AhlsellEvidenceStore, offerCatalog?: AhlsellOfferCatalog | null): Promise<AhlsellCatalogResult> {
   const guide = buildAhlsellRequirementGuide(requirement);
-  const local = findMldlOnlyCandidates(requirement);
+  const local = withAhlsellOfferCandidates(requirement, findMldlOnlyCandidates(requirement), offerCatalog);
   const market = ahlsellMarketFromSearchUrl(guide.searchUrl);
   const value = requirement.value_json as { attributes?: Record<string, unknown> } | undefined;
   const commentArticle = String(value?.attributes?.["pdf-kommentar"] ?? "").match(/\b\d{6,8}(?:N5)?\b/i)?.[0];
@@ -126,7 +127,10 @@ function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, cand
   const intent = ahlsellRequirementIntent(requirement);
   if (intent === "generic") {
     const identity = genericProductIdentity(requirement);
-    return candidates.filter(candidate => hasGenericProductIdentity(identity, candidate.productName));
+    const offerIdentity = genericProductIdentity(offerRequirementIdentity(requirement));
+    return candidates.filter(candidate => candidate.source === "offer_catalog"
+      ? hasGenericProductIdentity(offerIdentity, candidate.productName) && offerVariantCompatible(requirement, candidate.productName)
+      : hasGenericProductIdentity(identity, candidate.productName));
   }
   if (["shower_set", "toilet", "manifold_cabinet", "cable_trunking", "luminaire", "electric_heater", "heating_cable", "energy_valve", "control_valve", "alarm_device", "pressure_switch", "flow_meter", "shutoff_valve", "pipe"].includes(intent)) {
     return candidates.filter(candidate => !hasAhlsellProductFamilyMismatch(intent, candidate.productName));
