@@ -195,6 +195,7 @@ function isUuid(value: string) {
 }
 
 function projectDetailError(error: unknown, requestId=crypto.randomUUID(), elapsedMs?:number) {
+  if (error instanceof UserSupabaseError && error.code === "PDC01") return NextResponse.json({ error: "Granska återstående leveranser under Produktval innan projektet markeras klart." }, { status: 409 });
   console.error("project_request_failed",{requestId,elapsedMs,code:error instanceof UserSupabaseError ? error.code : undefined});
   if (error instanceof UserSupabaseError) {
     const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";

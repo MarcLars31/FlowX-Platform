@@ -1,5 +1,5 @@
 {
-  "version": "ahlsell-product-rules-2026-10-04.1",
+  "version": "ahlsell-product-rules-2026-10-04.2",
   "sources": {
     "ahlsell-accessory-suggestions.ts": "a10b5f459889722e1aa0d7b125247ca7dc94d791bdad156564e06fb5d97cc238",
     "ahlsell-cable-trunking.ts": "ff672cb6ea5a2e8005f35977800772eb513bf54c66439a1e4e666a4c0b2e966c",
@@ -12,7 +12,7 @@
     "ahlsell-hybrid-matching.ts": "849783a51e2a5f29b3982919b5e0d0f1371b3650c1d1c2bce64e233187174151",
     "ahlsell-match-groups.ts": "9f10ca23022122a63b78d91d01b0bfb8c119a73aebc2dd55dd3a243df556643a",
     "ahlsell-mldl-catalog.ts": "0e276396f70c2cbbff23d25d52651aff6b6387ad88b06d87a44b4724aa942bf9",
-    "ahlsell-offer-catalog.ts": "b3fc8b737e77d80237a2b4a5ba3dbde280a20a4944d6bae5d702bee17cd965c8",
+    "ahlsell-offer-catalog.ts": "59d8f677a20373c6233423e76c06ed65522d8eec54948d2428e94c3acd521a49",
     "ahlsell-product-lookup.ts": "5ce219f544f05434a1b232b3c5751fb4a1ef4aa483d35ff2dea7d284624a9c9e",
     "ahlsell-product-subtitle.ts": "0e0ce5d481e7cc877bb885380f7d6c21faeaa5fbe3f3325715100cb68336c77d",
     "ahlsell-public-catalog.ts": "b69a7e6cb40d04c69fcf2b56e360d2279bbd0b0994c697e6bacf94d85a6c0e3c",
@@ -42,6 +42,7 @@
     "sprinkler-assembly-plan.ts": "653883d4bcf630508683c4bc7b564fa7ea7792cfd6b7758802b2752ce5b1ca91",
     "sprinkler-technical-rules.ts": "f35a53b23efa0c5c1fd0abf77ae6c0f835e86068ef1704da4d127782ea6d38b4",
     "victaulic-sprinkler-catalog.ts": "c16b197ca2dbd88d5d5038dcdfc4fca1084ab22e3ba61a39704ed1241732bbb0",
-    "victaulic-working-pressure.ts": "a1d66336be6258e02f8e758bf7a5712f1d81f1fee598be9c30dd22e4c9b80e9d"
+    "victaulic-working-pressure.ts": "a1d66336be6258e02f8e758bf7a5712f1d81f1fee598be9c30dd22e4c9b80e9d",
+    "supplier-article-identity.ts": "a85b69c73210a681337bc868d2932349c8f101a63e64ae5446f7b5745981764d"
   }
 }

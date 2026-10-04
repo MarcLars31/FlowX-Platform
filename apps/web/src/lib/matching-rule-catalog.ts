@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "ahlsell-product-rules-2026-10-04.1";
+export const RULE_CATALOG_VERSION = "ahlsell-product-rules-2026-10-04.2";
 export const RULE_CATALOG_DATE = "4 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -24,8 +24,10 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
   {
     id: "tidigare-offert", title: "Ahlsells tidigare offerter", appliesTo: "Organisationens importerade offertartiklar", kind: "review",
     description: "Sökbara historiska artikelidentiteter som alltid kräver teknisk granskning.",
-    sources: ["ahlsell-offer-catalog.ts"],
+    sources: ["ahlsell-offer-catalog.ts", "supplier-article-identity.ts"],
     rules: [
+      rule("offert-artikelidentitet", "Bevara leverantörens artikelidentitet", "Artikeln anges med EL-, NRF- eller leverantörsnummer.", "Bevara N-prefix och variantändelser. Ett leverantörsnamn utan artikelkod blir ingen produktidentitet. Saknad typ av nummer tolkas inte automatiskt som NRF."),
+      rule("offert-elkontroll", "Kontrollera uttryckliga eldata", "Krav och offert anger spänning, AC/DC, poltal eller IP-klass.", "Filtrera motsägande angivna data. Lägre IP-skydd än kravet accepteras inte. Saknade data ger ingen verifiering och offertförslaget kräver granskning."),
       rule("offert-katalog", "Återanvänd artikelidentitet, inte ett tidigare godkännande", "En artikel finns i organisationens privata offertkatalog.", "Sök på beskrivning, produktfamilj och tekniska egenskaper. Filnamn och historiskt postnummer styr inte förslaget. Offertartikeln märks för granskning och kan inte ensam bli grön eller exakt match. Tidigare priser och mängder är inte aktuella produktfakta."),
       rule("offert-undantag", "Behåll osäkerhet från offertunderlaget", "Källan innehåller alternativ, undantag eller flera benämningar för artikeln.", "Visa kontrollbehov för variant och leveransomfattning. Skriv inte över oberoende bedömda katalogartiklar med offertuppgifterna."),
       rule("offert-kabelvariant", "Jämför uttrycklig kabelvariant", "Krav och offertnamn anger kabeltyp, ledarantal eller tvärsnitt.", "Filtrera bort känd avvikelse i familj, antal och tvärsnitt. Verktyg, klammer och kabelbärsystem är inte kabeln. Saknad variantinformation kräver fortsatt granskning."),

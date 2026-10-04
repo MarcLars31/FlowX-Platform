@@ -80,7 +80,7 @@ export function AccessoryProductPicker({ projectId, requirementId, mainArticleNu
       </Button>
     </div>
     {searchOpen && <form id={`${id}-search`} className="mb-3 space-y-2" onSubmit={event => { event.preventDefault(); if (!disabled && query.trim()) void search(query); }}>
-      <label htmlFor={id} className="block text-sm font-bold text-neutral-900">Produktnamn, NRF-nummer eller Ahlsell-länk</label>
+      <label htmlFor={id} className="block text-sm font-bold text-neutral-900">Produktnamn, Artikelnummer eller Ahlsell-länk</label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input id={id} type="search" value={query} disabled={disabled} maxLength={2000} className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-600 focus:ring-neutral-600" onChange={event => {
           request.current?.abort(); if (timer.current) clearTimeout(timer.current);

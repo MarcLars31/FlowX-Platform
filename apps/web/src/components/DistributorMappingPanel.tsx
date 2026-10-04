@@ -9,6 +9,7 @@ import { ProductPostNavigation } from "@/components/ProductPostNavigation";
 import { Button } from "@/components/Button";
 import { ManualProductCard, type ManualProductChoice } from "@/components/ManualProductCard";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
+import { PostDeliveryReview } from "@/components/PostDeliveryReview";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 import { productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
@@ -300,9 +301,9 @@ function RequirementInformationCard({ projectId, requirement, sourcePdfHref, onD
   useEffect(() => { onSavingChange(saving); return () => onSavingChange(false); }, [saving, onSavingChange]);
   useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
   return <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber="" productName=""
-    disabled={false} onDirtyChange={setDirty} onSavingChange={setSaving}>
+    disabled={requirement.can_edit === false} onDirtyChange={setDirty} onSavingChange={setSaving}>
     {({ postComments }) => <article className="product-information-card">
-      <header className="product-panel-caption">Prosjektinformasjon<Button neutral variant="secondary" type="button" disabled={saving || dirty} onClick={onChooseProduct}>Velg produkt</Button></header>
+      <header className="product-panel-caption">Prosjektinformasjon<Button neutral variant="secondary" type="button" disabled={requirement.can_edit === false || saving || dirty} onClick={onChooseProduct}>Velg produkt</Button></header>
       <div className="product-information-content"><ProjectPostSpecification id={requirement.id} details={details} informationOnly
         description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
         quantity={projectRequirementQuantity(requirement.value_json)} sourcePdfHref={sourcePdfHref} />
@@ -356,6 +357,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [accessoryLookupOpen, setAccessoryLookupOpen] = useState(false);
   const [accessoryComponentId, setAccessoryComponentId] = useState<string | null>(null);
   const [suggestedAccessories, setSuggestedAccessories] = useState<AhlsellAccessorySuggestion[]>([]);
+  const [deliverySaving, setDeliverySaving] = useState(false);
+  const [deliveryDirty, setDeliveryDirty] = useState(false);
   const [commentDraftDirty, setCommentDraftDirty] = useState(false);
   const [commentsSaving, setCommentsSaving] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -374,7 +377,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const dataWarnings = projectRequirementDataWarnings(requirement);
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
-  const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty || commentDraftDirty;
+  const hasUnsavedChanges = deliveryDirty || hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty || commentDraftDirty;
   const selectedProductAccessories = accessoriesForSelectedProduct({
     currentProductNumber: accessoryOwnerProductNumber,
     nextProductNumber: productNumber,
@@ -406,7 +409,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     return () => onDirtyChange(false);
   }, [hasUnsavedChanges, onDirtyChange]);
 
-  useEffect(() => { onSavingChange(commentsSaving); }, [commentsSaving, onSavingChange]);
+  useEffect(() => { onSavingChange(commentsSaving || deliverySaving || saving || attachmentSaving); }, [commentsSaving, deliverySaving, saving, attachmentSaving, onSavingChange]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -497,7 +500,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   function applyMemory(memory: Row, resolved?: { productName?: string; productSubtitle?: string }) {
     showSelection(
       selectionFromMemory(memory, resolved),
-      `Tidigare godkänd produkt har valts för kontroll: ${String(memory.product_name)} · NRF-nummer ${String(memory.product_number)}.`
+      `Tidigare godkänd produkt har valts för kontroll: ${String(memory.product_name)} · Artikelnummer ${String(memory.product_number)}.`
     );
     setSelectionReview(readProductSelectionReview(memory.notes));
     onError("");
@@ -513,7 +516,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       deliveryTimeDays: "",
       unitPrice: "",
       currency: defaultCurrency
-    }, `Produkt har valts för kontroll: ${candidate.productName} · NRF-nummer ${candidate.articleNumber}.`, false, candidate.suggestedAccessories ?? []);
+    }, `Produkt har valts för kontroll: ${candidate.productName} · Artikelnummer ${candidate.articleNumber}.`, false, candidate.suggestedAccessories ?? []);
     setSelectionReview(candidateSelectionReview(candidate) ?? (dataWarnings.length ? {
       status: "review", warnings: dataWarnings.map(warning => warning.message)
     } : null));
@@ -597,7 +600,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   function applyAhlsellAccessory(candidate: AhlsellLookupProduct, amount: { quantity: string; unit: string }) {
     if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
     if (selectedProductAccessories.some((accessory) => normalizeNrfNumber(accessory.productNumber) === normalizeNrfNumber(candidate.articleNumber))) {
-      onError(`Tillbehöret med NRF-nummer ${candidate.articleNumber} är redan tillagt.`);
+      onError(`Tillbehöret med Artikelnummer ${candidate.articleNumber} är redan tillagt.`);
       return;
     }
     setAccessories([...selectedProductAccessories, {
@@ -610,7 +613,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setAccessoryStepOpen(true);
     setAccessoryLookupOpen(false);
     setHasUnapprovedChanges(true);
-    setDraftNotice(`Tillbehöret med NRF-nummer ${candidate.articleNumber} har lagts till för kontroll.`);
+    setDraftNotice(`Tillbehöret med Artikelnummer ${candidate.articleNumber} har lagts till för kontroll.`);
     onError("");
     window.requestAnimationFrame(() => document.getElementById(`accessory-${requirement.id}-${selectedProductAccessories.length}-quantity`)?.focus());
   }
@@ -904,7 +907,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                     <AccessoryInput id={`accessory-name-${requirement.id}-${index}`} label="Delprodukt / tillbehör" value={accessory.name} required onChange={(value) => updateAccessory(index, "name", value)} />
-                    <AccessoryInput id={`accessory-nrf-${requirement.id}-${index}`} label="NRF-nummer" value={accessory.productNumber} onChange={(value) => updateAccessory(index, "productNumber", value)} />
+                    <AccessoryInput id={`accessory-nrf-${requirement.id}-${index}`} label="Artikelnummer" value={accessory.productNumber} onChange={(value) => updateAccessory(index, "productNumber", value)} />
                     </div>
                     {accessory.quantityBasis === "total" ? <ProductQuantityFields id={`accessory-${requirement.id}-${index}`} quantity={accessory.quantity} unit={accessory.unit} disabled={saving}
                       onQuantityChange={value => updateAccessory(index, "quantity", value)} onUnitChange={value => updateAccessory(index, "unit", value)} /> : <div className="space-y-2">
@@ -940,8 +943,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   return (
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
-      disabled={saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
+      disabled={requirement.can_edit === false || saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
       {({ postComments, productComments }) => <article id={`post-${requirement.id}`} className="product-mapping-card">
+      {requirement.can_edit === false && <p className="m-3 rounded bg-amber-50 p-3 text-sm text-amber-900">Läsläge: posten är tilldelad en annan person. Projektansvarig kan ändra tilldelningen.</p>}
+      <fieldset disabled={requirement.can_edit === false} className="contents">
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
         <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>PDF-post {details.postNumber ?? "saknas"}</h3><span>PDF-grunnlag</span></div>
         <div className="product-requirement-content">
@@ -1016,7 +1021,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           {productNumber.trim() && (
             <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className="product-selected-item">
               <div className="product-linked-table-scroll"><table className="product-linked-table">
-                <thead><tr><th scope="col">NRF</th><th scope="col">Produkt</th><th scope="col">Mengde / enhet</th><th scope="col">Valg</th></tr></thead>
+                <thead><tr><th scope="col">Artikel</th><th scope="col">Produkt</th><th scope="col">Mengde / enhet</th><th scope="col">Valg</th></tr></thead>
                 <tbody><tr aria-selected="true">
                   <td><a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer" className="underline">{productNumber}</a></td>
                   <td><strong>{productName || "Produkt"}</strong>{productSubtitle && productSubtitle.trim() !== productName.trim() && <p>{productSubtitle}</p>}</td>
@@ -1086,10 +1091,19 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </div>
           </div>
 
+        <PostDeliveryReview projectId={projectId} requirementId={requirement.id} selectedNumbers={[productNumber, ...selectedProductAccessories.map(a => a.productNumber)].filter(Boolean)} productDirty={hasUnapprovedChanges} onDirtyChange={setDeliveryDirty} onSavingChange={setDeliverySaving}
+          onApplyQuantity={(target, amount, unit) => {
+            if (target === productNumber) setOrderQuantity({ quantity: String(amount), unit });
+            else setAccessories(current => current.map(a => a.productNumber === target ? { ...a, quantity: String(amount), unit, quantityBasis: "total" } : a));
+            setHasUnapprovedChanges(true);
+          }} onChooseAlternative={(number, name) => {
+            showSelection({ productNumber: number, productName: name, productSubtitle: "", manufacturerArticleNumber: "", manufacturerName: "", deliveryTimeDays: "", unitPrice: "", currency: defaultCurrency }, "Alternativ valt för granskning. Kontrollera kraven och spara produktvalet.");
+            setSelectionReview(candidateSelectionReview());
+          }} />
         <div className="product-save-footer">
           <span className="text-sm text-neutral-600">{isApproved ? "Produktvalget er lagret" : productNumber.trim() ? "Produkt valgt · ikke lagret" : "Velg et produkt for å lagre posten"}</span>
           <Button type="button" onClick={() => void save()}
-            disabled={!productNumber.trim() || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
+            disabled={deliveryDirty || deliverySaving || !productNumber.trim() || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
             {saving ? "Lagrer…" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
           </Button>
@@ -1183,7 +1197,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
         )}
       </fieldset>
-    </article>}
+    </fieldset></article>}
     </ProductPostComments>
   );
 }
@@ -1326,7 +1340,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                       {productSubtitle && (
                         <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-neutral-700" title={productSubtitle}>{productSubtitle}</p>
                       )}
-                      <p className="mt-0.5 text-xs font-bold text-neutral-800">NRF-nummer {articleNumber}</p>
+                      <p className="mt-0.5 text-xs font-bold text-neutral-800">Artikelnummer {articleNumber}</p>
                       <p className={memoriesAreExact ? "mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-800" : "mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900"}>
                         {memoriesAreExact ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
                         {memoriesAreExact ? "Eksakt treff · tidligere bekreftet" : "Tidligere bekreftet · kontroll kreves"}
@@ -1343,7 +1357,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                           productName: candidate?.productName || productName,
                           productSubtitle: resolvedSubtitle
                         })}
-                        aria-label={`${isSelected ? "Fjern valget av" : "Velg"} tidligere bekreftet produkt ${productName}, NRF-nummer ${articleNumber}`}
+                        aria-label={`${isSelected ? "Fjern valget av" : "Velg"} tidligere bekreftet produkt ${productName}, Artikelnummer ${articleNumber}`}
                         className="h-5 w-5 shrink-0 cursor-pointer rounded border-neutral-300 text-neutral-700 focus:ring-neutral-600 disabled:cursor-not-allowed"
                       />
                       <span aria-hidden="true">{isSelected ? "Fjern valg" : "Velg"}</span>
@@ -1402,7 +1416,7 @@ function buildProductPostMailHref({ postNumber, productRequirement, quantity, ns
 Originaltext fra PDF:
 ${sourceExcerpt.slice(0, 1200)}` : null,
     "",
-    "Vennligst kom tilbake med egnet produkt og NRF-nummer."
+    "Vennligst kom tilbake med egnet produkt og Artikelnummer."
   ].filter((line): line is string => line !== null).join("\n");
 
   return `mailto:?subject=${encodeURIComponent(`Produktspørsmål – PDF-post ${postNumber}`)}&body=${encodeURIComponent(body)}`;

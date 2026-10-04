@@ -76,7 +76,7 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
     const validation = draft.manual ? validateManualDistributorProduct(draft.product, initial.product.currency) : null;
     const accessoryError = productAccessoryDraftError(draft.accessories);
     const invalidUnit = draft.accessories.find(row => !parseProductOrderQuantity(row));
-    const problem = !draft.product.productNumber.trim() ? "Fyll inn NRF-nummer for hovedproduktet."
+    const problem = !draft.product.productNumber.trim() ? "Fyll inn Artikelnummer for hovedproduktet."
       : validation && "error" in validation ? validation.error
       : !amount ? "Angi gyldig total mengde og enhet for hovedproduktet."
       : accessoryError ?? (invalidUnit ? "Angi gyldig mengde og enhet for alle tilbehør." : "");
@@ -115,7 +115,7 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
         </details>
         <div className="manual-product-form-grid">
           <Field id={`${prefix}-name`} label="Produktnavn" value={draft.product.productName} maxLength={240} onChange={value => updateProduct("productName", value)} />
-          <Field id={`${prefix}-nrf`} label="NRF-nummer" value={draft.product.productNumber} required maxLength={120} onChange={value => updateProduct("productNumber", value)} />
+          <Field id={`${prefix}-nrf`} label="Artikelnummer" value={draft.product.productNumber} required maxLength={120} onChange={value => updateProduct("productNumber", value)} />
           <Field id={`${prefix}-article`} label="Artikkelnummer" value={draft.product.manufacturerArticleNumber} required={draft.manual} maxLength={120} onChange={value => updateProduct("manufacturerArticleNumber", value)} />
           <Field id={`${prefix}-manufacturer`} label="Produsent" value={draft.product.manufacturerName} required={draft.manual} maxLength={200} onChange={value => updateProduct("manufacturerName", value)} />
           <Field id={`${prefix}-delivery`} label="Leveringstid (dager)" value={draft.product.deliveryTimeDays} required={draft.manual} inputMode="numeric" maxLength={4} onChange={value => updateProduct("deliveryTimeDays", value)} />
@@ -131,7 +131,7 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
           <div className="manual-product-section-heading"><h4>Tilbehør {index + 1}</h4><Button variant="ghost" aria-label={`Fjern tilbehør ${index + 1}`} onClick={() => change({ accessories: draft.accessories.filter((_, current) => current !== index) })}><Trash2 aria-hidden="true" className="h-4 w-4" />Fjern</Button></div>
           <div className="manual-product-form-grid">
             <Field id={`${prefix}-accessory-${index}-name`} label="Navn på tilbehør" value={accessory.name} required maxLength={240} onChange={value => updateAccessory(index, { name: value })} />
-            <Field id={`${prefix}-accessory-${index}-nrf`} label="NRF-nummer (valgfritt)" value={accessory.productNumber} maxLength={120} onChange={value => updateAccessory(index, { productNumber: value })} />
+            <Field id={`${prefix}-accessory-${index}-nrf`} label="Artikelnummer (valgfritt)" value={accessory.productNumber} maxLength={120} onChange={value => updateAccessory(index, { productNumber: value })} />
           </div>
           {accessory.quantityBasis === "total" ? <ProductQuantityFields id={`${prefix}-accessory-${index}`} quantity={accessory.quantity} unit={accessory.unit}
             onQuantityChange={value => updateAccessory(index, { quantity: value })} onUnitChange={value => updateAccessory(index, { unit: value })} />
@@ -146,7 +146,7 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
             onSelect={(candidate, amount) => { if (draft.accessories.length < 20 && !draft.accessories.some(row => normalizeNrfNumber(row.productNumber) === normalizeNrfNumber(candidate.articleNumber))) change({ accessories: [...draft.accessories, { ...newProductAccessoryDraft(), ...amount, name: candidate.subtitle || candidate.productName, productNumber: candidate.articleNumber, notes: `Valgt fra Ahlsell: ${candidate.productUrl}` }] }); }}
             onDeselect={candidate => change({ accessories: draft.accessories.filter(row => normalizeNrfNumber(row.productNumber) !== normalizeNrfNumber(candidate.articleNumber)) })}
             onQuantityChange={(candidate, amount) => change({ accessories: draft.accessories.map(row => normalizeNrfNumber(row.productNumber) === normalizeNrfNumber(candidate.articleNumber) ? { ...row, ...amount, quantityBasis: "total" } : row) })} />
-            : <p>Fyll inn hovedproduktets NRF-nummer først.</p>}
+            : <p>Fyll inn hovedproduktets Artikelnummer først.</p>}
         </details>
       </section>
     </div>

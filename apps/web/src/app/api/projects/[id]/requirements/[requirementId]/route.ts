@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
-import { selectUserRows, updateUserRowsReturning, UserSupabaseError } from "@/lib/supabase-user-rest";
+import { callUserRpc, selectUserRows, updateUserRowsReturning, UserSupabaseError } from "@/lib/supabase-user-rest";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
 import { requirementSnapshot } from "@/lib/requirement-snapshot";
@@ -26,7 +26,7 @@ export async function GET(request: Request, context: RouteContext) {
       canReadProducts ? selectUserRows<OverviewRow>("project_product_suggestions", { ...filters, requirement_id: `eq.${requirementId}`, status: "eq.selected", order: "updated_at.desc" }) : [],
       !summaryOnly && canReadProducts ? loadDistributorProductMemory(auth.context.organization.id, [raw]) : { mappingMemories: [], mappingAccessories: [] }
     ]);
-    const requirement = requirementSnapshot(raw);
+    const requirement = { ...requirementSnapshot(raw), can_edit: await callUserRpc<boolean>("can_edit_project_requirement", { rid: requirementId }) };
     return NextResponse.json({ requirement: summaryOnly ? compactProjectRequirement(requirement) : requirement, overviewRequirement: compactProjectRequirement(requirement), assignments, ...memory }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const forbidden = error instanceof UserSupabaseError && (error.status === 401 || error.status === 403 || error.code === "42501");

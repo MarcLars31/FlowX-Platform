@@ -1,3 +1,4 @@
+import { deliveryExportNotes, type DeliveryReview } from "./project-delivery";
 import {
   buildProjectMaterialRows,
   type MaterialListAssignment,
@@ -19,9 +20,9 @@ export async function loadProjectMaterialListData(
   });
   if (!project) return null;
 
-  const [requirements, assignments] = await Promise.all([
+  const [requirements, assignments, reviews] = await Promise.all([
     selectAllUserRows<MaterialListRequirement>("project_requirements", {
-      select: "id,category,requirement_key,value_text,value_json,source_excerpt,updated_at",
+      select: "id,category,requirement_key,value_text,value_json,source_excerpt,updated_at,edit_revision",
       project_id: `eq.${projectId}`,
       organization_id: `eq.${organizationId}`,
       deleted_at: "is.null",
@@ -34,11 +35,16 @@ export async function loadProjectMaterialListData(
       organization_id: `eq.${organizationId}`,
       status: "eq.selected",
       order: "selected_at.asc.nullslast,created_at.asc,id.asc"
-    })
+    }),
+    selectAllUserRows<{ requirement_id: string; product_revision: number; review: DeliveryReview }>("project_post_workflows", { project_id: `eq.${projectId}`, organization_id: `eq.${organizationId}`, order: "requirement_id.asc" })
   ]);
 
   return {
     project,
-    rows: buildProjectMaterialRows({ requirements, assignments })
+    rows: buildProjectMaterialRows({ requirements, assignments }).map(row => {
+      const workflow = reviews.find(w => w.requirement_id === row.requirementId);
+      const requirement = requirements.find(r => r.id === row.requirementId) as (MaterialListRequirement & { edit_revision: number }) | undefined;
+      return { ...row, notes: [row.notes, deliveryExportNotes(workflow?.review, Boolean(workflow && workflow.product_revision !== requirement?.edit_revision))].filter(Boolean).join(" · ") };
+    })
   };
 }
