@@ -42,7 +42,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
           onChange={() => onSelect(candidate)} /></td>
         <td><a href={candidate.productUrl} target="_blank" rel="noreferrer" className="underline" aria-label={`Åpne Ahlsell artikkel ${candidate.articleNumber}`}>{candidate.articleNumber}</a></td>
         <td>
-          <p>{candidate.productName}</p>
+          <p className="product-candidate-name">{candidate.productName}</p>
           {candidate.description && candidate.description !== candidate.productName && <p className="product-candidate-description">{candidate.description}</p>}
           <span className="product-candidate-assessment">{matched ? "Samsvarer med kravene" : state === "mismatch" ? "Avvik mot kravene" : "Må kontrolleres"}</span>
           <AhlsellCandidateWarnings candidate={candidate} />
@@ -149,7 +149,7 @@ export function AhlsellCandidateWarnings({ candidate }: { candidate: AhlsellPubl
   const review = (candidate.matchWarnings ?? []).filter(warning => !conflicts.includes(warning));
   return <>{[{ warnings: conflicts, title: "Avvikelser mot PDF-kravet:", style: "border-neutral-200 bg-neutral-50 text-neutral-900" },
     { warnings: review, title: "Behöver kontrolleras:", style: "border-neutral-200 bg-neutral-50 text-neutral-950" }].map(group => group.warnings.length > 0 && (
-    <div key={group.title} className={`mt-1.5 rounded-sm border px-2 py-1.5 text-xs leading-4 ${group.style}`}>
+    <div key={group.title} className={`product-candidate-warnings mt-1.5 rounded-sm border px-2 py-1.5 text-xs leading-4 ${group.style}`}>
       <p className="font-bold">{group.title}</p><ul className="mt-0.5 list-disc space-y-0.5 pl-4">{[...new Set(group.warnings)].map(warning => <li key={warning}>{warning}</li>)}</ul>
     </div>
   ))}</>;
