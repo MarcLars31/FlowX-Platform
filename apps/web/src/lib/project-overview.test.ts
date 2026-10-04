@@ -48,9 +48,11 @@ test("large specification and PDF comments remain intact in the original detail 
 });
 
 test("database projections reconstruct fields without requesting full JSON or source pages", () => {
-  const expanded = expandOverviewProjection({ id: "a", overview_postNumber: "1.2.3", overview_quantity: 3, overview_unit: "st", overview_productResolution: { status: "not_in_assortment" } });
+  const expanded = expandOverviewProjection({ id: "a", overview_postNumber: "1.2.3", overview_postScope: "building-a", overview_quantity: 3, overview_unit: "st", overview_productResolution: { status: "not_in_assortment" } });
   assert.equal((expanded.value_json as Record<string, unknown>).postNumber, "1.2.3");
   assert.equal(expanded.overview_postNumber, undefined);
+  assert.equal((compactProjectRequirement(expanded).value_json as Record<string, unknown>).postScope, "building-a");
+  assert.ok(REQUIREMENT_SUMMARY_SELECT.includes("overview_postScope:value_json->postScope"));
   assert.ok(!REQUIREMENT_SUMMARY_SELECT.split(",").includes("value_json"));
   assert.ok(!REQUIREMENT_SUMMARY_SELECT.includes("source_excerpt"));
   assert.ok(!REQUIREMENT_OVERVIEW_SELECT.includes("technicalSpecification"));

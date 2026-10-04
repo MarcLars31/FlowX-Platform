@@ -11,7 +11,7 @@ import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
-import { groupProductRequirementsByPdfChapter } from "@/lib/product-post-groups";
+import { productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -141,7 +141,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
   const recordFullCatalogResult = useCallback(() => {}, []);
   const viewRequirements = useMemo(() => view === "all" ? [...productRequirements, ...rsRequirements, ...removalRequirements]
     : view === "products" ? productRequirements : view === "removal" ? removalRequirements : rsRequirements, [view, productRequirements, rsRequirements, removalRequirements]);
-  const mainPostGroups = useMemo(() => groupProductRequirementsByPdfChapter(viewRequirements, { allRequirements: requirements }), [viewRequirements, requirements]);
+  const mainPostGroups = useMemo(() => productPostNavigationGroups(viewRequirements, requirements), [viewRequirements, requirements]);
   const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
   const [expandedMainPosts, setExpandedMainPosts] = useState<Set<string>>(() => new Set(mainPostGroups.slice(0, 1).map(group => group.key)));
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(() => queueRequirements[0]?.id ?? null);
@@ -186,12 +186,13 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
   }, [productCardDirty, productCardSaving]);
 
   function showRequirement(requirementId: string) {
-    if (productCardSaving || requirementId === activeRequirement?.id) return;
-    if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du bytte post uten å lagre?")) return;
+    if (productCardSaving) return false;
+    if (requirementId === activeRequirement?.id) return true;
+    if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du bytte post uten å lagre?")) return false;
     setProductCardDirty(false);
     setActiveRequirementId(requirementId);
-    const group = mainPostGroups.find(item => item.requirements.some(requirement => requirement.id === requirementId));
-    if (group) setExpandedMainPosts(current => new Set(current).add(group.key));
+    const keys = productPostExpansionKeys(mainPostGroups, requirementId);
+    setExpandedMainPosts(current => new Set([...current, ...keys]));
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => {
@@ -199,6 +200,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
       if (window.matchMedia("(max-width: 900px)").matches) detail?.scrollIntoView({ block: "start", behavior: "instant" });
       detail?.focus({ preventScroll: true });
     });
+    return true;
   }
 
   function toggleMainPost(key: string) {

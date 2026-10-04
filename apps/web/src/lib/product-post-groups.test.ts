@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { buildProductPostTree, productPostNavigationGroups, productPostExpansionKeys } from "./product-post-tree";
 import test from "node:test";
 import { groupProductRequirementsByPdfChapter } from "./product-post-groups";
 import { groupProjectRequirementViews } from "./project-requirement-views";
@@ -92,4 +93,48 @@ test("retains unnumbered rows and keeps buildings and documents separate", () =>
   assert.equal(groups.length, 4);
   assert.equal(groups.find(group => group.requirements[0].id === "unnumbered")?.title, "Kapitel saknas i PDF");
   assert.equal(new Set(groups.flatMap(group => group.requirements.map(row => row.id))).size, rows.length);
+});
+
+test("numbered information headings stay in numeric order and own all their children", () => {
+  const parent = { ...post("parent", "30.332.7", 1), value_json: { postNumber: "30.332.7", sourceChapter: { title }, chapterInformation: true } };
+  const children = [7, 2, 1, 6, 3, 5, 4].map(n => post(`child${n}`, `30.332.7.${n}`, n + 3));
+  const rows = [parent, ...children, post("previous6", "30.332.6", 2), post("previous5", "30.332.5", 2), post("next", "30.332.8", 3)];
+  const [group] = productPostNavigationGroups(rows);
+  assert.deepEqual(group.posts.map(node => node.requirement.id), ["previous5", "previous6", "parent", "next"]);
+  assert.deepEqual(group.posts[2].children.map(node => node.requirement.id), Array.from({ length: 7 }, (_, n) => `child${n + 1}`));
+  assert.deepEqual(group.requirements.map(row => row.id), ["previous5", "previous6", "parent", "child1", "child2", "child3", "child4", "child5", "child6", "child7", "next"]);
+});
+
+test("post trees use nearest numbered ancestor, numeric siblings and segment boundaries", () => {
+  const rows = [post("ten", "30.332.7.10", 1), post("deep", "30.332.7.2.1", 1), post("two", "30.332.7.2", 2),
+    post("parent", "30.332.7", 3), post("separate", "30.332.70.1", 1), post("missing-middle", "30.332.7.4.1", 1)];
+  const roots = buildProductPostTree(rows);
+  assert.deepEqual(roots.map(node => node.requirement.id), ["parent", "separate"]);
+  assert.deepEqual(roots[0].children.map(node => node.requirement.id), ["two", "missing-middle", "ten"]);
+  assert.equal(roots[0].children[0].children[0].requirement.id, "deep");
+});
+
+test("filtered product views retain ancestor information and expose the active branch", () => {
+  const parent = post("parent", "30.332.7", 1), middle = post("middle", "30.332.7.2", 2), child = post("child", "30.332.7.2.1", 3);
+  const groups = productPostNavigationGroups([child], [post("other", "30.332.8", 4), parent, middle, child]);
+  assert.deepEqual(groups[0].requirements.map(row => row.id), ["parent", "middle", "child"]);
+  assert.deepEqual(productPostExpansionKeys(groups, "child"), [groups[0].key, "post:parent", "post:middle"]);
+  assert.deepEqual(productPostExpansionKeys(groups, "parent"), [groups[0].key]);
+});
+
+test("a repeated number in another document or section never supplies a parent", () => {
+  const parent = post("parent", "30.332.7", 1);
+  const child = post("child", "30.332.7.1", 2, title, "other-pdf");
+  const scopedChild = { ...post("scope-child", "30.332.7.2", 2), value_json: { postNumber: "30.332.7.2", postScope: "another-section" } };
+  assert.equal(buildProductPostTree([parent, child, scopedChild]).length, 3);
+  const duplicate = { ...parent, id: "duplicate" };
+  assert.equal(buildProductPostTree([parent, duplicate, post("ambiguous", "30.332.7.1", 2)]).length, 3);
+});
+
+test("unnumbered chapter information remains first without swallowing numbered posts", () => {
+  const intro = { ...post("intro", undefined, 1), value_json: { chapterInformation: true, sourceChapter: { title } } };
+  const rows = [post("last", undefined, 2), post("parent", "30.332.7", 1), intro, post("child", "30.332.7.1", 1)];
+  const tree = buildProductPostTree(rows);
+  assert.deepEqual(tree.map(node => node.requirement.id), ["intro", "parent", "last"]);
+  assert.equal(tree[1].children[0].requirement.id, "child");
 });
