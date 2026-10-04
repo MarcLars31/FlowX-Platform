@@ -7,7 +7,7 @@ import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, Exter
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ProductPostNavigation } from "@/components/ProductPostNavigation";
 import { Button } from "@/components/Button";
-import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
+import { ManualProductCard, type ManualProductChoice } from "@/components/ManualProductCard";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
@@ -57,16 +57,6 @@ type Row = Record<string, unknown> & { id: string };
 type ProductSelection = {
   productName: string;
   productSubtitle: string;
-  productNumber: string;
-  manufacturerArticleNumber: string;
-  manufacturerName: string;
-  deliveryTimeDays: string;
-  unitPrice: string;
-  currency: string;
-};
-type ManualProductDraft = {
-  quantity: string;
-  unit: string;
   productNumber: string;
   manufacturerArticleNumber: string;
   manufacturerName: string;
@@ -353,24 +343,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [unitPrice, setUnitPrice] = useState(String(currentSnapshot.unitPrice ?? ""));
   const [priceCurrency, setPriceCurrency] = useState(normalizeCurrencyCode(String(currentSnapshot.currency ?? "")) || defaultCurrency);
   const [manualProductSelected, setManualProductSelected] = useState(Boolean(
-    currentSnapshot.manufacturerArticleNumber != null
-    || currentSnapshot.deliveryTimeDays != null
-    || currentSnapshot.unitPrice != null
+    currentSnapshot.entryMethod === "manual"
+    || currentSnapshot.entryMethod == null && [currentSnapshot.manufacturerArticleNumber, currentSnapshot.deliveryTimeDays, currentSnapshot.unitPrice]
+      .some(value => value != null && String(value).trim() !== "")
   ));
-  const [manualProductRequired, setManualProductRequired] = useState(false);
   const [manualProductOpen, setManualProductOpen] = useState(false);
   const [manualProductDraftDirty, setManualProductDraftDirty] = useState(false);
   const [manualProductError, setManualProductError] = useState<string | null>(null);
-  const [manualProductDraft, setManualProductDraft] = useState<ManualProductDraft>(() => ({
-    quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""),
-    unit: orderQuantity?.unit ?? (quantity.unit || "st"),
-    productNumber: String(currentSnapshot.productNumber ?? ""),
-    manufacturerArticleNumber: String(currentSnapshot.manufacturerArticleNumber ?? ""),
-    manufacturerName: String(currentSnapshot.manufacturer ?? ""),
-    deliveryTimeDays: String(currentSnapshot.deliveryTimeDays ?? ""),
-    unitPrice: String(currentSnapshot.unitPrice ?? ""),
-    currency: normalizeCurrencyCode(String(currentSnapshot.currency ?? "")) || defaultCurrency
-  }));
   const [accessories, setAccessories] = useState<ProductAccessoryDraft[]>(() => readProductAccessoryDrafts(currentSnapshot.accessories));
   const [accessoryOwnerProductNumber, setAccessoryOwnerProductNumber] = useState(() => accessories.length > 0 ? productNumber : "");
   const [accessoryStepOpen, setAccessoryStepOpen] = useState(false);
@@ -492,7 +471,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setPriceCurrency(normalizeCurrencyCode(selection.currency) || defaultCurrency);
     setManualProductSelected(manual);
     setSelectionReview(manual ? candidateSelectionReview() : null);
-    setManualProductRequired(false);
     setManualProductOpen(false);
     setManualProductDraftDirty(false);
     setManualProductError(null);
@@ -557,27 +535,15 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setUnitPrice("");
     setPriceCurrency(defaultCurrency);
     setManualProductSelected(false);
-    setManualProductRequired(false);
     setSuggestedAccessories([]);
     setDraftNotice(null);
     setHasUnapprovedChanges(true);
   }
 
   function openManualProductCard() {
-    setManualProductDraft({
-      quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""),
-      unit: orderQuantity?.unit ?? (quantity.unit || "st"),
-      productNumber,
-      manufacturerArticleNumber,
-      manufacturerName,
-      deliveryTimeDays,
-      unitPrice,
-      currency: priceCurrency
-    });
     setManualProductDraftDirty(false);
     setManualProductError(null);
     setManualProductOpen(true);
-    window.requestAnimationFrame(() => document.getElementById(`ahlsell-product-lookup-${requirement.id}`)?.focus());
   }
 
   function closeManualProductCard() {
@@ -587,42 +553,14 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     window.requestAnimationFrame(() => document.getElementById(`manual-product-trigger-${requirement.id}`)?.focus());
   }
 
-  function updateManualProductDraft(key: keyof ManualProductDraft, value: string) {
-    setManualProductDraft((current) => ({ ...current, [key]: value }));
-    setManualProductDraftDirty(true);
-    setManualProductError(null);
-  }
-
-  function applyManualProduct() {
-    const amount = parseProductOrderQuantity(manualProductDraft);
-    if (!amount) {
-      setManualProductError("Angi en gyldig total mengde (0,001–100 000) og enhet for produktet.");
-      return;
-    }
-    const validation = validateManualDistributorProduct({
-      ...manualProductDraft
-    }, defaultCurrency);
-    if ("error" in validation) {
-      setManualProductError(validation.error);
-      return;
-    }
-    const manualProduct = validation.data;
-    const preservesSelectedProduct = Boolean(normalizeNrfNumber(productNumber))
-      && normalizeNrfNumber(productNumber) === normalizeNrfNumber(manualProduct.productNumber);
-    showSelection({
-      productName: preservesSelectedProduct ? productName : "",
-      productSubtitle: preservesSelectedProduct ? productSubtitle : "",
-      productNumber: manualProduct.productNumber,
-      manufacturerArticleNumber: manualProduct.manufacturerArticleNumber,
-      manufacturerName: manualProduct.manufacturerName,
-      deliveryTimeDays: String(manualProduct.deliveryTimeDays),
-      unitPrice: String(manualProduct.unitPrice),
-      currency: manualProduct.currency
-    }, `Produkten med NRF-nummer ${manualProduct.productNumber} har lagts till för kontroll.`, true);
-    setOrderQuantity({ quantity: String(amount.quantity), unit: amount.unit });
-    setManualProductOpen(false);
-    setManualProductDraftDirty(false);
-    setManualProductError(null);
+  function applyManualProduct(choice: ManualProductChoice) {
+    showSelection(choice.product, "Produkt og tilbehør er lagt til. Lagre produktvalget for å bekrefte posten.", choice.manual);
+    setOrderQuantity(choice.quantity);
+    setAccessories(choice.accessories);
+    setAccessoryOwnerProductNumber(choice.product.productNumber);
+    setAccessoryStepOpen(false);
+    setAccessoryLookupOpen(false);
+    setSelectionReview(choice.review ?? (dataWarnings.length ? { status: "review", warnings: dataWarnings.map(warning => warning.message) } : null));
     onError("");
   }
 
@@ -738,7 +676,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       onError("Spara kommentarerna eller töm kommentarsfälten före godkännandet.");
       return;
     }
-    if (manualProductRequired || manualProductDraftDirty) {
+    if (manualProductDraftDirty) {
       setManualProductOpen(true);
       setManualProductError("Lägg till produkten från kortet innan du godkänner och sparar.");
       return;
@@ -753,19 +691,9 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         currency: priceCurrency
       }, priceCurrency || defaultCurrency);
       if ("error" in manualValidation) {
-        setManualProductDraft({
-          quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""),
-          unit: orderQuantity?.unit ?? (quantity.unit || "st"),
-          productNumber,
-          manufacturerArticleNumber,
-          manufacturerName,
-          deliveryTimeDays,
-          unitPrice,
-          currency: priceCurrency
-        });
         setManualProductOpen(true);
         setManualProductError(manualValidation.error);
-        window.requestAnimationFrame(() => document.getElementById(`manual-product-nrf-${requirement.id}`)?.focus());
+        window.requestAnimationFrame(() => document.getElementById(`manual-product-${requirement.id}-nrf`)?.focus());
         return;
       }
     }
@@ -1053,9 +981,9 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="product-mapping-fields">
         <div id={`product-selection-header-${requirement.id}`} className="product-action-bar">
           <nav id={`product-post-actions-${requirement.id}`} aria-label="Handlinger for produktposten" className="product-post-actions">
-            {!productNumber.trim() && <Button neutral id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
-              <Plus className="h-4 w-4" aria-hidden="true" />Legg til produkt
-            </Button>}
+            <Button neutral id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-haspopup="dialog" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
+              <Plus className="h-4 w-4" aria-hidden="true" />{productNumber.trim() ? "Endre produkt og tilbehør" : "Legg til produkt"}
+            </Button>
             {!resolution && (
               <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
                 <Tag className="h-4 w-4" aria-hidden="true" />Ikke i sortiment
@@ -1083,9 +1011,9 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         <section className="product-linked-panel" aria-label="Koblede produkter">
           <h3 className="product-panel-caption">Koblede produkter <span>{isApproved ? "Lagret" : productNumber.trim() ? "Ikke lagret" : "Ingen valgt"}</span></h3>
           <div className="product-linked-content">
-          {!productNumber.trim() && !manualProductOpen && <p className="product-linked-empty">Velg et produkt fra listen over tilgjengelige produkter.</p>}
+          {!productNumber.trim() && <p className="product-linked-empty">Velg et produkt fra listen over tilgjengelige produkter.</p>}
           <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
-          {productNumber.trim() && !manualProductOpen && (
+          {productNumber.trim() && (
             <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className="product-selected-item">
               <div className="product-linked-table-scroll"><table className="product-linked-table">
                 <thead><tr><th scope="col">NRF</th><th scope="col">Produkt</th><th scope="col">Mengde / enhet</th><th scope="col">Valg</th></tr></thead>
@@ -1116,46 +1044,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </details>
           )}
 
-          {manualProductOpen && (
-            <section id={`manual-product-card-${requirement.id}`} aria-labelledby={`manual-product-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border-2 border-neutral-300 bg-white shadow-sm">
-              <div className="flex items-start justify-between gap-4 border-b border-neutral-200 bg-neutral-50 px-4 py-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">Produktvalg fra Ahlsell</p>
-                  <h5 id={`manual-product-title-${requirement.id}`} className="mt-0.5 text-base font-bold text-neutral-950">Legg til produkt</h5>
-                  <p className="mt-1 text-xs leading-5 text-neutral-600">Søk på Ahlsells nettsted eller lime inn produktets lenke. Produktet lagres når du godkjenner valget.</p>
-                </div>
-                <button type="button" aria-label="Lukk Legg til produkt" title="Lukk" onClick={closeManualProductCard} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-              <div className="p-4">
-                <AhlsellProductLookup projectId={projectId} requirementId={requirement.id} id={`ahlsell-product-lookup-${requirement.id}`} disabled={saving}
-                  defaultQuantity={String(quantity.quantity ?? "")} defaultUnit={quantity.unit || "st"}
-                  selections={productNumber ? [{ productNumber, quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: orderQuantity?.unit ?? (quantity.unit || "st") }] : []}
-                  onSelect={(candidate, amount) => { applyAhlsellCandidate(candidate, candidate.subtitle); updateOrderQuantity(amount); }}
-                  onDeselect={clearSelectedProduct} onQuantityChange={(_candidate, amount) => updateOrderQuantity(amount)} />
-              </div>
-              <details className="border-t border-neutral-200">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-neutral-800">Registrer produkt manuelt</summary>
-                <form className="space-y-4 p-4" onSubmit={(event) => { event.preventDefault(); applyManualProduct(); }}>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <ProductFormInput id={`manual-product-nrf-${requirement.id}`} label="NRF-nummer" value={manualProductDraft.productNumber} onChange={(value) => updateManualProductDraft("productNumber", value)} required />
-                  <ProductFormInput id={`manual-product-article-${requirement.id}`} label="Artikelnummer" value={manualProductDraft.manufacturerArticleNumber} onChange={(value) => updateManualProductDraft("manufacturerArticleNumber", value)} required />
-                  <ProductFormInput id={`manual-product-manufacturer-${requirement.id}`} label="Produsent" value={manualProductDraft.manufacturerName} onChange={(value) => updateManualProductDraft("manufacturerName", value)} required />
-                  <ProductFormInput id={`manual-product-delivery-${requirement.id}`} label="Leveringstid (dager)" type="number" min="0" max="3650" step="1" inputMode="numeric" value={manualProductDraft.deliveryTimeDays} onChange={(value) => updateManualProductDraft("deliveryTimeDays", value)} required />
-                  <ProductFormInput id={`manual-product-price-${requirement.id}`} label={`Pris per enhet (${normalizeCurrencyCode(manualProductDraft.currency) || defaultCurrency})`} inputMode="decimal" placeholder="0,00" value={manualProductDraft.unitPrice} onChange={(value) => updateManualProductDraft("unitPrice", value)} required />
-                </div>
-                <ProductQuantityFields id={`manual-product-${requirement.id}`} quantity={manualProductDraft.quantity} unit={manualProductDraft.unit} disabled={saving}
-                  onQuantityChange={value => updateManualProductDraft("quantity", value)} onUnitChange={value => updateManualProductDraft("unit", value)} />
-                {manualProductError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-900">{manualProductError}</p>}
-                <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end">
-                  <Button neutral type="button" variant="secondary" className="justify-center" onClick={closeManualProductCard}>Avbryt</Button>
-                  <Button neutral type="submit" className="justify-center"><Plus className="h-4 w-4" aria-hidden="true" />Legg til produkt</Button>
-                </div>
-              </form>
-              </details>
-            </section>
-          )}
+          {manualProductOpen && <ManualProductCard projectId={projectId} requirementId={requirement.id} postNumber={details.postNumber}
+            initial={{ product: { productName, productSubtitle, productNumber, manufacturerArticleNumber, manufacturerName, deliveryTimeDays, unitPrice, currency: priceCurrency },
+              quantity: orderQuantity ?? { quantity: String(quantity.quantity ?? ""), unit: quantity.unit || "st" },
+              accessories: selectedProductAccessories, manual: manualProductSelected || !productNumber.trim(), review: selectionReview }}
+            initialError={manualProductError} onApply={applyManualProduct} onCancel={closeManualProductCard} onDirtyChange={setManualProductDraftDirty} />}
 
           {productNumber.trim() && commentDraftDirty && <p className="text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
           <details>
@@ -1196,7 +1089,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         <div className="product-save-footer">
           <span className="text-sm text-neutral-600">{isApproved ? "Produktvalget er lagret" : productNumber.trim() ? "Produkt valgt · ikke lagret" : "Velg et produkt for å lagre posten"}</span>
           <Button type="button" onClick={() => void save()}
-            disabled={!productNumber.trim() || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
+            disabled={!productNumber.trim() || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
             {saving ? "Lagrer…" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
           </Button>
@@ -1530,31 +1423,6 @@ function AccessoryInput({ id, label, value, onChange, type = "text", min, max, s
     <label className="block" htmlFor={id}>
       <span className="mb-1 block text-xs font-semibold text-neutral-600">{label}{required && <span className="ml-1 font-black text-neutral-600">*</span>}</span>
       <input id={id} type={type} min={min} max={max} step={step} required={required} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-neutral-300 bg-white text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500" />
-    </label>
-  );
-}
-
-function ProductFormInput({ id, label, value, onChange, required = false, optional = false, readOnly = false, type = "text", min, max, step, inputMode, placeholder }: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-  optional?: boolean;
-  readOnly?: boolean;
-  type?: string;
-  min?: string;
-  max?: string;
-  step?: string;
-  inputMode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
-  placeholder?: string;
-}) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="mb-1 block text-xs font-semibold text-neutral-600">
-        {label}{required && <span className="ml-1 font-black text-neutral-600">*</span>}{optional && <span className="ml-1 font-normal text-neutral-500">(valgfritt)</span>}
-      </span>
-      <input id={id} type={type} min={min} max={max} step={step} inputMode={inputMode} placeholder={placeholder} required={required} readOnly={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-neutral-300 bg-neutral-50 text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500 read-only:cursor-default read-only:bg-neutral-100" />
     </label>
   );
 }
