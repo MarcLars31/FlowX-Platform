@@ -420,7 +420,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   });
   const accessoryError = productAccessoryDraftError(selectedProductAccessories);
   const assemblyPlan = productAssemblyPlan(requirement);
-  const hasAccessoryStep = Boolean(assemblyPlan?.components.length || suggestedAccessories.length || selectedProductAccessories.length);
   const accessoryComponent = assemblyPlan?.components.find(component => component.id === accessoryComponentId);
   const accessoryQuery = accessoryComponent
     ? assemblyComponentSearch(accessoryComponent, `${productName} ${productSubtitle} ${manufacturerName}`)
@@ -664,7 +663,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function openAccessoryLookup(component?: AssemblyComponent) {
-    if (!hasAccessoryStep || !productNumber.trim() || selectedProductAccessories.length >= 20) return;
+    if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
     setAccessoryStepOpen(true);
     setAccessoryComponentId(component?.id ?? null);
     setAccessoryLookupOpen(true);
@@ -940,7 +939,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       </select>
     </div> : null;
 
-  const accessoryLookup = hasAccessoryStep && accessoryLookupOpen && productNumber.trim() ? (
+  const accessoryLookup = accessoryLookupOpen && productNumber.trim() ? (
     <AccessoryProductPicker key={productNumber + ":" + (accessoryComponentId ?? "manual")} projectId={projectId} requirementId={requirement.id}
       mainArticleNumber={productNumber} component={accessoryComponent} automaticQuery={accessoryQuery} suggestions={suggestedAccessories}
       selections={selectedProductAccessories.map(item => item.productNumber)} disabled={saving} selectionLimitReached={selectedProductAccessories.length >= 20}
@@ -956,13 +955,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     </AccessoryProductPicker>
   ) : null;
 
-  const accessorySection = hasAccessoryStep && productNumber.trim() ? (
+  const accessorySection = productNumber.trim() ? (
     <section id={`accessory-step-${requirement.id}`} tabIndex={-1} aria-labelledby={`accessory-step-title-${requirement.id}`} className="border-t border-neutral-200 bg-white p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h5 id={`accessory-step-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-neutral-950"><PackagePlus className="h-5 w-5" aria-hidden="true" />{accessoryStepOpen ? "3. Välj tillbehör" : `Dina tillbehör (${selectedProductAccessories.length})`}</h5>
         </div>
-        {!accessoryStepOpen && <Button neutral type="button" variant="secondary" onClick={editAccessories}>Ändra tillbehör</Button>}
+        {!accessoryStepOpen && <Button neutral type="button" variant="secondary" onClick={editAccessories}>{selectedProductAccessories.length ? "Ändra tillbehör" : "Lägg till tillbehör"}</Button>}
       </div>
       {accessoryStepOpen && <div className="mb-4 space-y-4">
         {accessoryLookup ?? accessoryTypeSelector}
