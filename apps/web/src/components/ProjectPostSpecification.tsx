@@ -27,18 +27,15 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
     <div className="post-specification-scroll" role="region" aria-label={`Strukturerte krav ${details.postNumber ?? "informasjon"}`} tabIndex={0}>
       <table className="post-specification-table">
         <caption className="sr-only" id={`pdf-specification-${id}`}>{informationOnly ? "Prosjektinformasjon" : "Krav fra PDF"} {details.postNumber}</caption>
-        <colgroup><col className="post-specification-number" /><col /><col className="post-specification-unit" /><col className="post-specification-amount" /></colgroup>
-        <thead><tr><th scope="col">Postnr.</th><th scope="col">NS 3420 kode/Spesifikasjon</th><th scope="col">Enh.</th><th scope="col">Mengde</th></tr></thead>
+        <colgroup><col className="post-specification-number" /><col /></colgroup>
+        <thead><tr><th scope="col">Postnr.</th><th scope="col">NS 3420 kode/Spesifikasjon</th></tr></thead>
         <tbody>
           <tr>
             <th scope="rowgroup" rowSpan={blocks.length + 1} className="post-specification-post">{details.postNumber ?? "—"}</th>
             <td className="post-specification-title">{details.nsCode && <p>{details.nsCode}</p>}{hasHeading && <p>{description}</p>}</td>
-            <td /><td />
           </tr>
           {blocks.map((block, index) => <tr key={index}>
-            <td><SpecificationBlockContent block={block} /></td>
-            <td className="post-specification-unit-value">{block.kind === "quantity" && sourceQuantityUnit(block.text, quantity.unit)}</td>
-            <td className="post-specification-amount-value">{block.kind === "quantity" && amount}</td>
+            <td><SpecificationBlockContent block={block} amount={amount} unit={quantity.unit} /></td>
           </tr>)}
         </tbody>
       </table>
@@ -57,9 +54,9 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
   </div>;
 }
 
-function SpecificationBlockContent({ block }: { block: SpecificationBlock }) {
+function SpecificationBlockContent({ block, amount, unit }: { block: SpecificationBlock; amount: string; unit: string }) {
   if (block.kind === "field") return <p className="post-specification-field"><span>{block.label}: </span>{block.text}</p>;
-  if (block.kind === "quantity") return <p>{block.text.match(/^(?:Antall|Antal|Lengde|Areal|Volum|Vekt|Tid|Rund sum)\b/i)?.[0] ?? "Mengde"}</p>;
+  if (block.kind === "quantity") return <p className="post-specification-quantity">{block.text.match(/^(?:Antall|Antal|Lengde|Areal|Volum|Vekt|Tid|Rund sum)\b/i)?.[0] ?? "Mengde"}: <strong>{amount}{unit !== "?" && <> {sourceQuantityUnit(block.text, unit)}</>}</strong></p>;
   return <p className={`post-specification-${block.kind}`}>{block.text}</p>;
 }
 

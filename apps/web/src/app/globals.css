@@ -319,24 +319,22 @@ body .product-information-card .product-panel-caption button { min-height:25px; 
 /* Selected-post specification, using the source document's column structure. */
 .post-specification { min-width: 0; background: #fff; color: #171717; }
 .post-specification-scroll { overflow-x: auto; }
-body .post-specification-table { width: 100%; min-width: 440px; table-layout: fixed; border-collapse: collapse; }
+body .post-specification-table { width: 100%; min-width: 320px; table-layout: fixed; border-collapse: collapse; }
 .post-specification-number { width: 86px; }
-.post-specification-unit { width: 44px; }
-.post-specification-amount { width: 64px; }
 body .product-selection-workspace .post-specification-table thead th { padding: 6px 7px; border: 1px solid #b7c2cc; border-top: 0; background: #f7f8f9; font-size: 11px; white-space: normal; text-align: center; }
 body .product-selection-workspace .post-specification-table tbody :is(td, th) { padding: 1px 9px; border: 0; border-right: 1px solid #c9d1d8; background: #fff; font-size: 12px; line-height: 1.45; vertical-align: top; overflow-wrap: anywhere; }
 body .product-selection-workspace .post-specification-table tbody tr:first-child > :is(td, th) { padding-top: 10px; }
 body .product-selection-workspace .post-specification-table tbody tr:last-child > td { padding-bottom: 12px; }
 body .product-selection-workspace .post-specification-table .post-specification-post { padding-inline: 7px; font-weight: 700; text-align: left; }
 .post-specification-title { font-weight: 700; }
+.post-specification-quantity { padding-block: 2px; font-variant-numeric: tabular-nums; }
+.post-specification-quantity strong { font-weight: 600; }
 .post-specification-title p, .post-specification-field { white-space: pre-wrap; }
 .post-specification-field > span { font-style: italic; }
 .post-specification-heading { padding-top: 5px; font-weight: 700; }
 .post-specification-text { white-space: pre-wrap; }
 .post-specification-bullet { padding-left: 12px; text-indent: -12px; }
 .post-specification-page { margin-top: 6px; padding-top: 4px; border-top: 1px solid #e1e6ea; font-size: 10px; color: #697680; }
-body .post-specification-table .post-specification-unit-value { text-align: center; }
-body .post-specification-table .post-specification-amount-value { text-align: right; font-variant-numeric: tabular-nums; }
 .post-specification-source { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; padding: 7px 9px; border-block: 1px solid #d7dce1; background: #fafbfc; font-size: 11px; color: #4b6171; }
 .post-specification-source a { display: inline-flex; align-items: center; gap: 4px; text-decoration: underline; }
 .post-specification-source svg { width: 12px; height: 12px; }
