@@ -9,7 +9,6 @@ import { ProductPostNavigation } from "@/components/ProductPostNavigation";
 import { Button } from "@/components/Button";
 import { ManualProductCard, type ManualProductChoice } from "@/components/ManualProductCard";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
-import { PostDeliveryReview } from "@/components/PostDeliveryReview";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 import { productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
@@ -357,8 +356,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [accessoryLookupOpen, setAccessoryLookupOpen] = useState(false);
   const [accessoryComponentId, setAccessoryComponentId] = useState<string | null>(null);
   const [suggestedAccessories, setSuggestedAccessories] = useState<AhlsellAccessorySuggestion[]>([]);
-  const [deliverySaving, setDeliverySaving] = useState(false);
-  const [deliveryDirty, setDeliveryDirty] = useState(false);
   const [commentDraftDirty, setCommentDraftDirty] = useState(false);
   const [commentsSaving, setCommentsSaving] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -377,7 +374,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const dataWarnings = projectRequirementDataWarnings(requirement);
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
-  const hasUnsavedChanges = deliveryDirty || hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty || commentDraftDirty;
+  const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty || commentDraftDirty;
   const selectedProductAccessories = accessoriesForSelectedProduct({
     currentProductNumber: accessoryOwnerProductNumber,
     nextProductNumber: productNumber,
@@ -409,7 +406,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     return () => onDirtyChange(false);
   }, [hasUnsavedChanges, onDirtyChange]);
 
-  useEffect(() => { onSavingChange(commentsSaving || deliverySaving || saving || attachmentSaving); }, [commentsSaving, deliverySaving, saving, attachmentSaving, onSavingChange]);
+  useEffect(() => { onSavingChange(commentsSaving || saving || attachmentSaving); }, [commentsSaving, saving, attachmentSaving, onSavingChange]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1091,19 +1088,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </div>
           </div>
 
-        <PostDeliveryReview projectId={projectId} requirementId={requirement.id} selectedNumbers={[productNumber, ...selectedProductAccessories.map(a => a.productNumber)].filter(Boolean)} productDirty={hasUnapprovedChanges} onDirtyChange={setDeliveryDirty} onSavingChange={setDeliverySaving}
-          onApplyQuantity={(target, amount, unit) => {
-            if (target === productNumber) setOrderQuantity({ quantity: String(amount), unit });
-            else setAccessories(current => current.map(a => a.productNumber === target ? { ...a, quantity: String(amount), unit, quantityBasis: "total" } : a));
-            setHasUnapprovedChanges(true);
-          }} onChooseAlternative={(number, name) => {
-            showSelection({ productNumber: number, productName: name, productSubtitle: "", manufacturerArticleNumber: "", manufacturerName: "", deliveryTimeDays: "", unitPrice: "", currency: defaultCurrency }, "Alternativ valt för granskning. Kontrollera kraven och spara produktvalet.");
-            setSelectionReview(candidateSelectionReview());
-          }} />
         <div className="product-save-footer">
           <span className="text-sm text-neutral-600">{isApproved ? "Produktvalget er lagret" : productNumber.trim() ? "Produkt valgt · ikke lagret" : "Velg et produkt for å lagre posten"}</span>
           <Button type="button" onClick={() => void save()}
-            disabled={deliveryDirty || deliverySaving || !productNumber.trim() || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
+            disabled={!productNumber.trim() || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
             {saving ? "Lagrer…" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
           </Button>

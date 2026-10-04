@@ -33,6 +33,7 @@ async function fixture(){
  grant select,update on projects to authenticated;grant select,insert,update,delete on project_requirements,project_product_suggestions to authenticated;
  `);
  await db.exec(readFileSync(new URL('../../../supabase/migrations/20261004120000_project_delivery_control.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../../../supabase/migrations/20261004220000_remove_product_delivery_gate.sql',import.meta.url),'utf8'));
  await db.query("select set_config('test.user',$1,false)",[manager]);
  return db;
 }
@@ -61,7 +62,6 @@ test('delivery readiness validates components and decisions, and rejects a stale
  await assert.rejects(save(review),/Unresolved delivery component/);
  review.components[0]={...review.components[0],status:'separate',productNumber:'part'};
  await save({...review,state:'draft'});
- await assert.rejects(db.query("update projects set status='completed' where id=$1",[project]),/Complete the delivery reviews/);
  await save(review,0);await assert.rejects(save(review,-1),/Delivery review changed/);
  await db.query("update projects set status='completed' where id=$1",[project]);
  await assert.rejects(save(review,0,9),/Product post changed/);
@@ -81,5 +81,24 @@ test('new documents remain pending, activation is scoped and replacement invalid
  assert.equal((await db.query<{status:string}>('select status from project_product_suggestions')).rows[0].status,'rejected');
  assert.equal((await db.query<{status:string}>('select status from project_requirements where id=$1',[id(10)])).rows[0].status,'extracted_unreviewed');
  await assert.rejects(activate(),/Document changed/);
+ }finally{await db.close();}
+});
+
+test('managed projects can finish without a delivery checklist while only managers can complete them',async()=>{
+ const db=await fixture();try{
+ await db.query('select save_work_package($1,$2,null)',[project,JSON.stringify({scope_type:'chapter',scope_value:'30.332.7',assigned_to:alice})]);
+ await db.query("insert into project_product_suggestions(project_id,organization_id,requirement_id,status,product_snapshot) values($1,$2,$3,'selected',$4)",[project,org,first,JSON.stringify({productNumber:'main'})]);
+ await db.exec('set role authenticated');
+ await db.query("select set_config('test.user',$1,false)",[alice]);
+ await assert.rejects(db.query("update projects set status='completed' where id=$1",[project]),/Only the project manager/);
+ await assert.rejects(db.query("update projects set current_stage='completed' where id=$1",[project]),/Only the project manager/);
+ await db.query("select set_config('test.user',$1,false)",[manager]);
+ await db.query("update projects set status='completed',current_stage='completed' where id=$1",[project]);
+ await db.query("update projects set status='active',current_stage='product_matching' where id=$1",[project]);
+ await db.query('select save_post_delivery($1,$2,-1,0,$3)',[project,first,JSON.stringify({state:'draft',components:[],deviations:[],alternatives:[],calculations:[]})]);
+ await db.query("update project_requirements set edit_revision=edit_revision+1 where id=$1",[first]);
+ await db.query("update projects set status='completed',current_stage='completed' where id=$1",[project]);
+ assert.equal((await db.query<{status:string}>('select status from projects where id=$1',[project])).rows[0].status,'completed');
+ assert.equal((await db.query('select * from project_post_workflows')).rows.length,1);
  }finally{await db.close();}
 });
