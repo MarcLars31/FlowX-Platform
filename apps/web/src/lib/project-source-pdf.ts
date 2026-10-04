@@ -124,3 +124,30 @@ function positiveInteger(value: unknown) {
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
+
+/** Locate the selected post without confusing 33.1 with 33.10 or a cross-reference. */
+export function findPdfPostAnchor(items: readonly unknown[], postNumber: string) {
+  const escaped = postNumber.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!escaped) return null;
+  const pattern = new RegExp(`^${escaped}(?:\\s|$)`);
+  const positioned = items.flatMap(item => {
+    if (!item || typeof item !== "object" || !("str" in item) || !("transform" in item)) return [];
+    const { str, transform } = item;
+    if (typeof str !== "string" || !Array.isArray(transform)) return [];
+    const x = Number(transform[4]), y = Number(transform[5]);
+    return Number.isFinite(x) && Number.isFinite(y) ? [{ str: str.trim(), x, y }] : [];
+  }).sort((left, right) => right.y - left.y || left.x - right.x);
+  for (const item of positioned) {
+    if (pattern.test(item.str)) return { x: item.x, y: item.y };
+    // Post numbers can be split into adjacent PDF text fragments.
+    const row = positioned.filter(other => Math.abs(other.y - item.y) <= 2 && other.x >= item.x).sort((a, b) => a.x - b.x);
+    let prefix = "";
+    for (const part of row.slice(0, 4)) {
+      if (!/^[\d.]+$/.test(part.str)) break;
+      prefix += part.str;
+      if (prefix === postNumber.trim()) return { x: item.x, y: item.y };
+      if (!postNumber.trim().startsWith(prefix)) break;
+    }
+  }
+  return null;
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  buildProjectSourcePdfLookup,
+  findPdfPostAnchor, buildProjectSourcePdfLookup,
   projectRequirementSourcePdfHref
 } from "./project-source-pdf";
 
@@ -106,4 +106,19 @@ test("requires a unique file-name match when hash metadata is missing", () => {
   );
 
   assert.equal(lookup.byTechnicalDescriptionId[technicalDescriptionId], null);
+});
+
+test("locates the exact PDF post in visual order, including split text fragments", () => {
+  const item = (str: string, x: number, y: number) => ({ str, transform: [1, 0, 0, 1, x, y] });
+  assert.deepEqual(findPdfPostAnchor([
+    item("33.1.10", 20, 750), item("Se post 33.1.1", 150, 730),
+    item("33.1.1", 20, 500), item("SPRINKLER", 100, 500)
+  ], "33.1.1"), { x: 20, y: 500 });
+  assert.deepEqual(findPdfPostAnchor([item("5", 60, 400), item("30.332.", 20, 400)], "30.332.5"), { x: 20, y: 400 });
+});
+
+test("does not invent a PDF post position for scans or unrelated references", () => {
+  assert.equal(findPdfPostAnchor([], "33.1.1"), null);
+  assert.equal(findPdfPostAnchor([{ str: "33.1.1" }, { str: "Se 33.1.1", transform: [1, 0, 0, 1, 20, 300] }], "33.1.1"), null);
+  assert.equal(findPdfPostAnchor([{ str: "33.1.10", transform: [1, 0, 0, 1, 20, 300] }], "33.1.1"), null);
 });

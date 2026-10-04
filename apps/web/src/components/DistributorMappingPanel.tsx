@@ -4,6 +4,7 @@
 
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload, X } from "lucide-react";
+import { ProjectSourcePdf, ProjectSourcePdfProvider } from "@/components/ProjectSourcePdf";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ProductPostNavigation } from "@/components/ProductPostNavigation";
 import { Button } from "@/components/Button";
@@ -18,7 +19,6 @@ import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } 
 import { isRigidPipeProduct } from "@/lib/pipe-product-family";
 import { ahlsellRequirementIntent } from "@/lib/ahlsell-requirement-intent";
 import type { AhlsellLookupProduct } from "@/lib/ahlsell-product-lookup";
-import { ns3420CodeInfo } from "@/lib/ns3420-code-catalog";
 import { buildAhlsellRequirementGuide, type AhlsellAccessorySuggestion, type AhlsellPublicCandidate, type AhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import type { AhlsellCatalogResult } from "@/lib/ahlsell-public-catalog";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
@@ -32,7 +32,7 @@ import {
   type ProductRequirementResolutionStatus
 } from "@/lib/product-requirement-resolution";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
-import { isAdditionalRequirementAttribute, projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
+import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
 import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
 import { ahlsellCatalogStatusFromPayload, type AhlsellCatalogMatchStatus } from "@/lib/ahlsell-match-groups";
@@ -222,6 +222,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
         <ProductPostNavigation groups={mainPostGroups} activeRequirementId={activeRequirement?.id}
           expanded={expandedMainPosts} handledIds={handledRequirementIds} disabled={productCardSaving}
           onToggle={toggleMainPost} onSelect={showRequirement} />
+        <ProjectSourcePdfProvider sourcePdfHref={activeRequirement ? projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup) : null}>
         <section id="product-post-detail" tabIndex={-1} aria-label="Valgt post og produktvalg" className="product-post-detail">
           {activeRequirement ? <>
             <header className="product-post-toolbar">
@@ -257,6 +258,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
             {!requirements.length && <Button type="button" variant="secondary" onClick={onGoToDocuments}>Gå til dokument</Button>}
           </div>}
         </section>
+        </ProjectSourcePdfProvider>
       </div>
       <section className="product-status-panel" aria-label="Status for produktposter">
         <h2 className="product-panel-caption">Postoversikt <span>{handledCount} av {queueRequirements.length} poster håndtert</span></h2>
@@ -330,9 +332,9 @@ function RequirementInformationCard({ projectId, requirement, sourcePdfHref, onD
     disabled={false} onDirtyChange={setDirty} onSavingChange={setSaving}>
     {({ postComments }) => <article className="product-information-card">
       <header className="product-panel-caption">Prosjektinformasjon<Button neutral variant="secondary" type="button" disabled={saving || dirty} onClick={onChooseProduct}>Velg produkt</Button></header>
-      <div className="product-information-content"><ProjectPostSpecification id={requirement.id} details={details} informationOnly
+      <div className="product-information-content"><ProjectSourcePdf sourcePdfHref={sourcePdfHref} sourcePage={details.sourcePage} postNumber={details.postNumber} sourceText={details.sourceExcerpt}><ProjectPostSpecification id={requirement.id} details={details} informationOnly
         description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
-        quantity={projectRequirementQuantity(requirement)} sourcePdfHref={sourcePdfHref} />
+        quantity={projectRequirementQuantity(requirement)} sourcePdfHref={sourcePdfHref} /></ProjectSourcePdf>
         <details className="mt-3"><summary>Kommentarer til posten</summary>{postComments}</details>
       </div>
     </article>}
@@ -1032,23 +1034,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       disabled={saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
       {({ postComments, productComments }) => <article id={`post-${requirement.id}`} className="product-mapping-card">
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
-        <div className="product-panel-caption"><span>Postopplysninger</span><span>PDF-grunnlag</span></div>
+        <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>PDF-post {details.postNumber ?? "saknas"}</h3><span>PDF-grunnlag</span></div>
         <div className="product-requirement-content">
-          <h3 id={`pdf-specification-${requirement.id}`} className="text-xl font-bold text-neutral-950">
-            {sourcePdfHref ? (
-              <a
-                href={sourcePdfHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
-                className="inline-flex items-center gap-2 underline decoration-neutral-400 underline-offset-4 hover:decoration-neutral-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600"
-              >
-                PDF-post {details.postNumber ?? "saknas"}
-                <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
-              </a>
-            ) : <>PDF-post {details.postNumber ?? "saknas"}</>}
-          </h3>
-
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
               <summary className="cursor-pointer text-sm font-bold text-neutral-800">Lagrede merknader til PDF-grunnlaget</summary>
@@ -1069,24 +1056,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           ))}
 
 
-          <div className="product-requirement-table-scroll"><table className="product-requirement-table">
-            <thead><tr><th scope="col">Postnummer</th><th scope="col">Beskrivelse</th><th scope="col">NS-kode</th><th scope="col">Mengde</th></tr></thead>
-            <tbody><tr aria-selected="true"><td>{details.postNumber ?? "—"}</td><td>{productRequirementLabel(requirement)}</td><td>{details.nsCode ?? "—"}</td><td>{formatProjectQuantity(quantity)}</td></tr></tbody>
-          </table></div>
-          <dl className="product-requirement-facts">
-            {details.attributes.filter(([key]) => !isAdditionalRequirementAttribute(key)).map(([key, value]) => <div key={key}><dt>{specificationLabel(key)}</dt><dd>{value}</dd></div>)}
-          </dl>
-          <div className="product-post-extras">
-          <details>
-            <summary>Alle tekniske krav</summary>
+          <ProjectSourcePdf sourcePdfHref={sourcePdfHref} sourcePage={details.sourcePage} postNumber={details.postNumber} sourceText={details.sourceExcerpt}>
             <ProjectPostSpecification id={"full-" + requirement.id} details={details}
               description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
               quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
-              sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />         </details>
-          {details.sourceExcerpt && <details>
-            <summary>Hele PDF-posten</summary>
-            <p className="mt-3 whitespace-pre-wrap leading-6">{details.sourceExcerpt}</p>
-          </details>}
+              sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />
+          </ProjectSourcePdf>
+          <div className="product-post-extras">
           <details>
             <summary>Kommentarer til posten</summary>
             <div id={`post-comments-${requirement.id}`} className="mt-3 scroll-mt-28">{postComments}</div>
@@ -1558,13 +1534,6 @@ ${sourceExcerpt.slice(0, 1200)}` : null,
   ].filter((line): line is string => line !== null).join("\n");
 
   return `mailto:?subject=${encodeURIComponent(`Produktspørsmål – PDF-post ${postNumber}`)}&body=${encodeURIComponent(body)}`;
-}
-
-function productRequirementLabel(requirement: Row) {
-  const codeInfo = ns3420CodeInfo(projectRequirementDetails(requirement).nsCode);
-  return codeInfo?.kind === "reference"
-    ? codeInfo.label
-    : String(requirement.value_text ?? "Teknisk produktkrav");
 }
 
 function AccessoryInput({ id, label, value, onChange, type = "text", min, max, step, required = false }: {
