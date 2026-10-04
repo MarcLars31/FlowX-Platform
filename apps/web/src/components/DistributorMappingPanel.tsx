@@ -260,24 +260,6 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
         </section>
         </ProjectSourcePdfProvider>
       </div>
-      <section className="product-status-panel" aria-label="Status for produktposter">
-        <h2 className="product-panel-caption">Postoversikt <span>{handledCount} av {queueRequirements.length} poster håndtert</span></h2>
-        <div className="product-status-scroll">
-          <table><thead><tr><th scope="col">Post</th><th scope="col">Status</th><th scope="col">NRF</th><th scope="col">Produkt / beskrivelse</th></tr></thead>
-            <tbody>{queueRequirements.map(row => {
-              const saved = approvedAssignmentByRequirementId.get(row.id);
-              const snapshot = record(saved?.product_snapshot);
-              const resolution = productRequirementResolution(row);
-              return <tr key={row.id} aria-selected={row.id === activeRequirement?.id}>
-                <td><button type="button" data-appearance="text" disabled={productCardSaving} onClick={() => showRequirement(row.id)}>{projectRequirementDetails(row).postNumber ?? "Uten postnummer"}</button></td>
-                <td>{saved ? "Lagret" : resolution ? resolution.label : "Ikke valgt"}</td>
-                <td>{String(snapshot.productNumber ?? "—")}</td>
-                <td>{String(snapshot.name ?? row.value_text ?? "—")}</td>
-              </tr>;
-            })}</tbody>
-          </table>
-        </div>
-      </section>
       <footer className="product-selection-footer"><span>{productCardSaving ? "Lagrer produktvalg…" : productCardDirty ? "Ulagrede endringer" : "Klar"}</span><span>{queueRequirements.length} poster · {mainPostGroups.length} hovedposter</span></footer>
     </section>
   );

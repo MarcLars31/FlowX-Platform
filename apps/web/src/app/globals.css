@@ -270,15 +270,6 @@ body .product-linked-table input:not([type="checkbox"]) { height: 25px; min-heig
 body .product-save-footer button { min-height: 26px; padding: 3px 8px; border-color: #6d8ca5; background: linear-gradient(#e7f4fc, #c2dcea); color: #203f54; font-size: 11px; }
 .product-save-footer button svg { width: 13px; height: 13px; }
 .product-selection-feedback { flex-shrink: 0; margin: 0; padding: 4px 8px; border-bottom: 1px solid var(--panel-border); background: #f3f7fb; font-size: 11px; }
-.product-status-panel { display: flex; flex-direction: column; height: 126px; flex-shrink: 0; margin: 0 3px 3px; border: 1px solid var(--panel-border); background: #fff; }
-.product-status-scroll { overflow: auto; flex: 1; }
-.product-status-scroll table { min-width: 570px; }
-.product-status-scroll thead { position: sticky; top: 0; z-index: 1; }
-.product-status-scroll td { white-space: nowrap; }
-.product-status-scroll th:nth-child(1) { width: 100px; }
-.product-status-scroll th:nth-child(2) { width: 140px; }
-.product-status-scroll th:nth-child(3) { width: 100px; }
-body .product-status-scroll button[data-appearance="text"] { min-height: 16px; font-size: 11px; }
 .product-selection-footer { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; min-height: 22px; padding: 2px 8px; border-top: 1px solid var(--panel-border); background: linear-gradient(#f8f9fa, #e6ebef); color: #586d7d; font-size: 10px; }
 .product-selection-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 15px; text-align: center; color: #637583; }
 .product-selection-empty h3 { font-weight: 600; color: #354859; }
@@ -297,7 +288,6 @@ body .product-status-scroll button[data-appearance="text"] { min-height: 16px; f
   .product-catalog-panel { max-height: 450px; border-left: 0; }
 
 
-  .product-status-panel { margin-top: 3px; }
 }
 @media (max-width: 767px) {
   .product-project-titlebar { flex-wrap: wrap; gap: 4px 12px; }
@@ -314,8 +304,7 @@ body .product-status-scroll button[data-appearance="text"] { min-height: 16px; f
 @media print {
   .product-selection-workspace { height: auto; }
   .product-selection-layout, .product-mapping-card { display: block; }
-  .product-requirement-content, .product-linked-content, .product-catalog-scroll, .product-status-scroll { overflow: visible; }
-  .product-status-panel { height: auto; }
+  .product-requirement-content, .product-linked-content, .product-catalog-scroll { overflow: visible; }
 }
 
 
