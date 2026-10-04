@@ -315,7 +315,8 @@ body .product-save-footer button { min-height: 26px; padding: 3px 8px; border-co
 
 
 .product-information-card { display:flex; flex-direction:column; flex:1; min-height:0; background:#fff; }
-.product-information-content { overflow:auto; padding:8px; }
+.product-information-content { flex:1; min-height:0; overflow:auto; padding:16px; }
+.product-information-content > * { width:100%; max-width:760px; }
 body .product-information-card .product-panel-caption button { min-height:25px; padding:2px 7px; font-size:11px; }
 
 /* Selected-post specification, using the source document's column structure. */
@@ -344,6 +345,14 @@ body .product-selection-workspace .post-specification-table .post-specification-
 .post-specification-source details[open] { flex-basis: 100%; }
 .post-specification-source dl { margin-top: 6px; }
 .post-specification-source dt, .post-specification-source dd { display: inline; white-space: pre-wrap; }
+/* Information posts use a readable column instead of stretching across the workspace. */
+body .product-selection-workspace .product-information-card .post-specification-table tbody :is(td, th) { padding: 4px 12px; font-size: 14px; line-height: 1.7; }
+@media (max-width: 767px) {
+  .product-information-content { padding: 8px; }
+  .product-information-content .post-specification-number { width: 64px; }
+  body .product-information-content .post-specification-table { min-width: 0; }
+  body .product-selection-workspace .product-information-card .post-specification-table tbody :is(td, th) { padding-inline: 8px; }
+}
 @media (min-width: 1101px) {
   .product-selection-workspace:has(.post-specification) { min-height: 650px; }
   .product-mapping-card:has(.post-specification) { grid-template-rows: auto minmax(320px, 2.5fr) minmax(120px, 1fr) auto; }
