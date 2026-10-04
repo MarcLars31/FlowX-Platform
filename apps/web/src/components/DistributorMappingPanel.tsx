@@ -4,7 +4,6 @@
 
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload, X } from "lucide-react";
-import { ProjectSourcePdf, ProjectSourcePdfProvider } from "@/components/ProjectSourcePdf";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ProductPostNavigation } from "@/components/ProductPostNavigation";
 import { Button } from "@/components/Button";
@@ -222,7 +221,6 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
         <ProductPostNavigation groups={mainPostGroups} activeRequirementId={activeRequirement?.id}
           expanded={expandedMainPosts} handledIds={handledRequirementIds} disabled={productCardSaving}
           onToggle={toggleMainPost} onSelect={showRequirement} />
-        <ProjectSourcePdfProvider sourcePdfHref={activeRequirement ? projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup) : null}>
         <section id="product-post-detail" tabIndex={-1} aria-label="Valgt post og produktvalg" className="product-post-detail">
           {activeRequirement ? <>
             <header className="product-post-toolbar">
@@ -258,7 +256,6 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
             {!requirements.length && <Button type="button" variant="secondary" onClick={onGoToDocuments}>Gå til dokument</Button>}
           </div>}
         </section>
-        </ProjectSourcePdfProvider>
       </div>
       <footer className="product-selection-footer"><span>{productCardSaving ? "Lagrer produktvalg…" : productCardDirty ? "Ulagrede endringer" : "Klar"}</span><span>{queueRequirements.length} poster · {mainPostGroups.length} hovedposter</span></footer>
     </section>
@@ -314,9 +311,9 @@ function RequirementInformationCard({ projectId, requirement, sourcePdfHref, onD
     disabled={false} onDirtyChange={setDirty} onSavingChange={setSaving}>
     {({ postComments }) => <article className="product-information-card">
       <header className="product-panel-caption">Prosjektinformasjon<Button neutral variant="secondary" type="button" disabled={saving || dirty} onClick={onChooseProduct}>Velg produkt</Button></header>
-      <div className="product-information-content"><ProjectSourcePdf sourcePdfHref={sourcePdfHref} sourcePage={details.sourcePage} postNumber={details.postNumber} sourceText={details.sourceExcerpt}><ProjectPostSpecification id={requirement.id} details={details} informationOnly
+      <div className="product-information-content"><ProjectPostSpecification id={requirement.id} details={details} informationOnly
         description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
-        quantity={projectRequirementQuantity(requirement)} sourcePdfHref={sourcePdfHref} /></ProjectSourcePdf>
+        quantity={projectRequirementQuantity(requirement.value_json)} sourcePdfHref={sourcePdfHref} />
         <details className="mt-3"><summary>Kommentarer til posten</summary>{postComments}</details>
       </div>
     </article>}
@@ -1037,13 +1034,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </div>
           ))}
 
-
-          <ProjectSourcePdf sourcePdfHref={sourcePdfHref} sourcePage={details.sourcePage} postNumber={details.postNumber} sourceText={details.sourceExcerpt}>
-            <ProjectPostSpecification id={"full-" + requirement.id} details={details}
+          <ProjectPostSpecification id={"full-" + requirement.id} details={details}
               description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
               quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
               sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />
-          </ProjectSourcePdf>
+
           <div className="product-post-extras">
           <details>
             <summary>Kommentarer til posten</summary>

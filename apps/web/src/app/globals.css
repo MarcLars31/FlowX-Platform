@@ -312,25 +312,36 @@ body .product-save-footer button { min-height: 26px; padding: 3px 8px; border-co
 .product-information-content { overflow:auto; padding:8px; }
 body .product-information-card .product-panel-caption button { min-height:25px; padding:2px 7px; font-size:11px; }
 
-/* Render the source page itself so PDF columns and typography stay intact. */
-.source-pdf-viewer { min-width: 0; background: #fff; }
-.source-pdf-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 5px 8px; border-block: 1px solid #d7dce1; background: #f3f5f7; font-size: 11px; }
-body .source-pdf-toolbar button { min-height: 26px; min-width: 26px; padding: 2px 5px; border: 1px solid #bcc6cf; border-radius: 2px; background: #fff; font-size: 11px; }
-.source-pdf-toolbar button:disabled { opacity: .4; }
-.source-pdf-toolbar a { margin-left: auto; text-decoration: underline; }
-.source-pdf-canvas-scroll { max-height: 42vh; min-height: 180px; overflow: auto; padding: 8px; background: #e5e8eb; }
-.source-pdf-canvas-scroll[hidden] { display: none; }
-.source-pdf-canvas-scroll canvas { display: block; max-width: none; background: #fff; box-shadow: 0 1px 5px #0002; }
-.source-pdf-message { padding: 8px; font-size: 12px; }
-.source-pdf-transcript { padding: 8px; font-size: 12px; }
-.source-pdf-transcript summary { cursor: pointer; font-weight: 600; }
-.source-pdf-text { padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; tab-size: 4; }
-@media print { .source-pdf-canvas-scroll { max-height: none; overflow: visible; } .source-pdf-toolbar { display: none; } }
+/* Selected-post specification, using the source document's column structure. */
+.post-specification { min-width: 0; background: #fff; color: #171717; }
+.post-specification-scroll { overflow-x: auto; }
+body .post-specification-table { width: 100%; min-width: 440px; table-layout: fixed; border-collapse: collapse; }
+.post-specification-number { width: 86px; }
+.post-specification-unit { width: 44px; }
+.post-specification-amount { width: 64px; }
+body .product-selection-workspace .post-specification-table thead th { padding: 6px 7px; border: 1px solid #b7c2cc; border-top: 0; background: #f7f8f9; font-size: 11px; white-space: normal; text-align: center; }
+body .product-selection-workspace .post-specification-table tbody :is(td, th) { padding: 1px 9px; border: 0; border-right: 1px solid #c9d1d8; background: #fff; font-size: 12px; line-height: 1.45; vertical-align: top; overflow-wrap: anywhere; }
+body .product-selection-workspace .post-specification-table tbody tr:first-child > :is(td, th) { padding-top: 10px; }
+body .product-selection-workspace .post-specification-table tbody tr:last-child > td { padding-bottom: 12px; }
+body .product-selection-workspace .post-specification-table .post-specification-post { padding-inline: 7px; font-weight: 700; text-align: left; }
+.post-specification-title { font-weight: 700; }
+.post-specification-title p, .post-specification-field { white-space: pre-wrap; }
+.post-specification-field > span { font-style: italic; }
+.post-specification-heading { padding-top: 5px; font-weight: 700; }
+.post-specification-text { white-space: pre-wrap; }
+.post-specification-bullet { padding-left: 12px; text-indent: -12px; }
+.post-specification-page { margin-top: 6px; padding-top: 4px; border-top: 1px solid #e1e6ea; font-size: 10px; color: #697680; }
+body .post-specification-table .post-specification-unit-value { text-align: center; }
+body .post-specification-table .post-specification-amount-value { text-align: right; font-variant-numeric: tabular-nums; }
+.post-specification-source { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; padding: 7px 9px; border-block: 1px solid #d7dce1; background: #fafbfc; font-size: 11px; color: #4b6171; }
+.post-specification-source a { display: inline-flex; align-items: center; gap: 4px; text-decoration: underline; }
+.post-specification-source svg { width: 12px; height: 12px; }
+.post-specification-source summary { cursor: pointer; }
+.post-specification-source details[open] { flex-basis: 100%; }
+.post-specification-source dl { margin-top: 6px; }
+.post-specification-source dt, .post-specification-source dd { display: inline; white-space: pre-wrap; }
 @media (min-width: 1101px) {
-  .product-selection-workspace:has(.source-pdf-viewer) { min-height: 650px; }
-  .product-mapping-card:has(.source-pdf-viewer) { grid-template-rows: auto minmax(240px, 1.4fr) minmax(120px, 1fr) auto; }
+  .product-selection-workspace:has(.post-specification) { min-height: 650px; }
+  .product-mapping-card:has(.post-specification) { grid-template-rows: auto minmax(240px, 1.4fr) minmax(120px, 1fr) auto; }
 }
-.product-requirement-content:has(.source-pdf-viewer), .product-information-content:has(.source-pdf-viewer) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.source-pdf-viewer { display: flex; flex-direction: column; flex: 1; min-height: 160px; }
-.source-pdf-toolbar, .source-pdf-transcript { flex-shrink: 0; }
-.source-pdf-canvas-scroll { flex: 1; min-height: 80px; }
+@media print { .post-specification-scroll { overflow: visible; } }
