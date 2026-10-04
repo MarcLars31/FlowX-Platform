@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { DemoBadge } from "@/components/DemoBadge";
-import { DistributorMappingPanel } from "@/components/DistributorMappingPanel";
-import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS } from "@/lib/project-requirement-views";
+import { DistributorMappingPanel, type ProductEditState } from "@/components/DistributorMappingPanel";
+import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
 import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterialListPdfExportButton";
@@ -89,6 +89,8 @@ export function ProjectWorkspace({
   const router = useRouter();
   const [data, setData] = useState(initialData);
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [requirementView, setRequirementView] = useState<ProjectRequirementView | "all">("all");
+  const [productEditState, setProductEditState] = useState<ProductEditState>({dirty: false, saving: false});
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -99,7 +101,13 @@ export function ProjectWorkspace({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function selectTab(nextTab: Tab) {
+  function canLeaveProductSelection() {
+    if (productEditState.saving) return false;
+    return !productEditState.dirty || window.confirm("Du har ulagrede endringer i produktvalget. Vil du fortsette uten å lagre?");
+  }
+
+  function selectTab(nextTab: Tab, discardConfirmed = false) {
+    if (nextTab !== tab && !discardConfirmed && !canLeaveProductSelection()) return;
     setTab(nextTab);
     if (nextTab === "documents") {
       void advanceProjectStage("documents");
@@ -143,6 +151,7 @@ export function ProjectWorkspace({
   }
 
   async function finishProject(latestData?: ProjectModuleData) {
+    if (!canLeaveProductSelection()) return;
     setFinishing(true);
     setError(null);
     setMessage(null);
@@ -150,7 +159,7 @@ export function ProjectWorkspace({
       const sourceData = latestData ?? await reload();
       if (sourceData.project.current_stage === "completed") {
         setMessage("Projektsammanfattningen visas nedan.");
-        selectTab("overview");
+        selectTab("overview", true);
         return;
       }
 
@@ -174,7 +183,7 @@ export function ProjectWorkspace({
       setMessage(
         "Projektet är avslutat. Sammanfattningen visas nedan."
       );
-      selectTab("overview");
+      selectTab("overview", true);
     } catch (finishError) {
       setError(
         finishError instanceof Error
@@ -393,9 +402,9 @@ export function ProjectWorkspace({
   );
 
   return (
-    <div className={`space-y-6 pb-12 ${tab === "products" ? "min-w-0 w-full" : "mx-auto max-w-6xl"}`}>
+    <div className={`pb-12 ${tab === "products" ? "project-product-page min-w-0 w-full" : "mx-auto max-w-6xl space-y-6"}`}>
       {data.project.demo_data_set_id && <DemoBadge />}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className={tab === "products" ? "product-project-titlebar" : "flex flex-wrap items-center justify-between gap-3"}>
         <Link prefetch={false}
           href="/projects"
           className="inline-flex min-h-11 items-center gap-2 text-base font-semibold text-ink-700 transition hover:text-flow-700"
@@ -404,6 +413,7 @@ export function ProjectWorkspace({
 
           Alla projekt
         </Link>
+        {tab === "products" && <h1><span>{data.project.project_number}</span>{data.project.name}<small>{data.project.customer_name}</small></h1>}
         {tab === "products" && canDeleteProject && !showDeleteConfirmation && (
           <Button type="button" variant="danger" className="ml-auto" onClick={() => setShowDeleteConfirmation(true)}><Trash2 className="h-5 w-5" aria-hidden="true" />Avsluta och ta bort projekt</Button>
         )}
@@ -427,12 +437,12 @@ export function ProjectWorkspace({
         </section>
       )}
 
-      <ScipxPageHeader
+      {tab !== "products" && <ScipxPageHeader
         eyebrow={data.project.project_number ?? "Scipx-projekt"}
         title={data.project.name}
         description={`${data.project.customer_name ?? "Kund saknas"} · ${statusLabels[data.project.status] ?? data.project.status}`}
         icon={<FolderKanban aria-hidden="true" />}
-      />
+      />}
 
       {tab === "overview" && (
         <div className="flex flex-wrap gap-2">
@@ -451,17 +461,7 @@ export function ProjectWorkspace({
         </div>
       )}
 
-      {tab === "products" ? (
-        <nav aria-label="Posttyper" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
-          {PROJECT_REQUIREMENT_VIEWS.map(view => (
-            <span key={view.id} className="self-center px-2 text-sm font-semibold">{view.label} ({requirementGroups[view.id].length})</span>
-          ))}
-          <Button type="button" className="ml-auto" disabled={finishing} onClick={() => void finishProject()}>
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            {finishing ? "Slutför projektet…" : "Nästa: visa resultat"}
-          </Button>
-        </nav>
-      ) : (
+      {tab !== "products" && (
         <nav aria-label="Projektvyer" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
           <ProjectTab label="Dokument" active={tab === "documents"} onClick={() => selectTab("documents")} />
           <ProjectTab label="Produkter" active={false} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
@@ -667,6 +667,9 @@ export function ProjectWorkspace({
       {tab === "products" && (
         <div className="space-y-5">
           <DistributorMappingPanel
+            key={requirementView}
+            view={requirementView}
+            onEditStateChange={setProductEditState}
             projectId={data.project.id}
             currency={data.project.currency ?? "NOK"}
             requirements={data.requirements}
@@ -676,6 +679,14 @@ export function ProjectWorkspace({
             onReload={reload}
             onRequirementSaved={reloadRequirement}
             onGoToDocuments={() => selectTab("documents")}
+            workspaceNavigation={<nav aria-label="Prosjektverktøy">
+              <Button type="button" variant="secondary" aria-pressed={requirementView === "all"} onClick={() => { if (requirementView !== "all" && canLeaveProductSelection()) setRequirementView("all"); }}><FolderKanban aria-hidden="true" />Alle poster<span>{data.requirements.length}</span></Button>
+              <Button type="button" variant="secondary" onClick={() => selectTab("documents")}><FileText aria-hidden="true" />Dokument<span>{counts.documents}</span></Button>
+              {PROJECT_REQUIREMENT_VIEWS.map(view => <Button key={view.id} type="button" variant="secondary" aria-pressed={requirementView === view.id} aria-controls="project-requirement-table"
+                onClick={() => { if (view.id !== requirementView && canLeaveProductSelection()) setRequirementView(view.id); }}><FolderKanban aria-hidden="true" />{view.label}<span>{requirementGroups[view.id].length}</span></Button>)}
+              <Button type="button" variant="secondary" onClick={() => selectTab("overview")}><CheckCircle2 aria-hidden="true" />Resultat</Button>
+              <div className="product-project-next"><Button type="button" disabled={finishing} onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button></div>
+            </nav>}
           />
         </div>
       )}

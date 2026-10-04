@@ -2,17 +2,16 @@
 
 
 
-import { Fragment, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ComponentProps, type DragEvent as ReactDragEvent } from "react";
-import { createPortal } from "react-dom";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, GripVertical, Loader2, Mail, PackagePlus, Paperclip, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload, X } from "lucide-react";
+import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
+import { ProductPostNavigation } from "@/components/ProductPostNavigation";
 import { Button } from "@/components/Button";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
-import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
-import { createProductCardHistory } from "@/lib/product-card-history";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
-import { groupProductRequirementsByPdfChapter, productChapterHeading } from "@/lib/product-post-groups";
+import { groupProductRequirementsByPdfChapter } from "@/lib/product-post-groups";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -33,16 +32,15 @@ import {
   type ProductRequirementResolutionStatus
 } from "@/lib/product-requirement-resolution";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
-import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
-import { hasProjectRequirementDataWarning, projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
-import { groupProjectRequirementViews } from "@/lib/project-requirement-views";
-import { bulkProductApprovalSelection, type BulkProductApprovalSelection } from "@/lib/bulk-product-approval";
-import { ahlsellCatalogStatusFromPayload, mergeAhlsellCatalogAssessments, type AhlsellCatalogAssessment, hasReusableProductMemory, splitAhlsellMatchGroups, type AhlsellCatalogMatchStatus, type AhlsellMatchGroup } from "@/lib/ahlsell-match-groups";
-import { isMatchingAhlsellCandidate, orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
+import { isAdditionalRequirementAttribute, projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
+import { projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
+import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
+import { ahlsellCatalogStatusFromPayload, type AhlsellCatalogMatchStatus } from "@/lib/ahlsell-match-groups";
+import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
-import { filterAhlsellCandidatesByNrf, normalizeNrfNumber } from "@/lib/product-card-candidates";
+import { normalizeNrfNumber } from "@/lib/product-card-candidates";
 import { candidateSelectionReview, productSelectionReviewNotes, readProductSelectionReview, type ProductSelectionReview } from "@/lib/product-selection-review";
 import {
   accessoriesForSelectedProduct,
@@ -53,28 +51,9 @@ import {
   type ProductAccessoryDraft
 } from "@/lib/product-card-accessories";
 import {
-  productRequirementCategory,
-  productRequirementCategoryLabel
-} from "@/lib/product-requirement-category";
-import {
   projectRequirementSourcePdfHref,
   type ProjectSourcePdfLookup
 } from "@/lib/project-source-pdf";
-import {
-  DEFAULT_PRODUCT_TABLE_LAYOUT,
-  isProductTableColumnLocked,
-  moveProductTableColumn,
-  moveProductTableColumnByOffset,
-  normalizeProductTableLayout,
-  parseProductTableLayout,
-  PRODUCT_TABLE_COLUMN_IDS,
-  PRODUCT_TABLE_LAYOUT_STORAGE_KEY,
-  productTableRowClass,
-  setProductTableColumnVisible,
-  type ProductTableColumnId,
-  type ProductTableLayout
-} from "@/lib/product-table-layout";
-
 type Row = Record<string, unknown> & { id: string };
 type ProductSelection = {
   productName: string;
@@ -106,28 +85,12 @@ type RequirementAttachment = {
   uploadedBy: string;
   downloadUrl: string;
 };
-type ProductTableSortKey = ProductTableColumnId;
-type ProductTableSort = { key: ProductTableSortKey; direction: "asc" | "desc" };
-type ProductTableColumnDefinition = {
-  label: string;
-  className: string;
-  align?: "left" | "center";
-  minimumWidth: number;
-};
+export type ProductEditState = { dirty: boolean; saving: boolean };
 
-const PRODUCT_TABLE_COLUMNS: Record<ProductTableColumnId, ProductTableColumnDefinition> = {
-  control: { label: "Kontroll", className: "w-16 text-center", align: "center", minimumWidth: 72 },
-  post: { label: "PDF-post", className: "w-28", minimumWidth: 120 },
-  nsCode: { label: "NS-kod", className: "min-w-40", minimumWidth: 160 },
-  requirement: { label: "Beskrivning", className: "min-w-64", minimumWidth: 320 },
-  category: { label: "Produktgrupp", className: "w-36", minimumWidth: 160 },
-  quantity: { label: "Mängd", className: "w-24", minimumWidth: 104 },
-  product: { label: "Vald produkt", className: "w-48", minimumWidth: 208 }
-};
-
-const productTableCollator = new Intl.Collator("sv-SE", { numeric: true, sensitivity: "base" });
-
-export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onRequirementSaved, onGoToDocuments }: {
+export function DistributorMappingPanel({ view = "all", projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onEditStateChange, workspaceNavigation, onRequirementSaved }: {
+  workspaceNavigation?: ReactNode;
+  view?: ProjectRequirementView | "all";
+  onRequirementSaved?: (id: string) => Promise<void>;
   projectId: string;
   currency?: string;
   requirements: Row[];
@@ -135,14 +98,14 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   memories: Row[];
   sourcePdfLookup: ProjectSourcePdfLookup;
   onReload: () => Promise<unknown>;
-  onRequirementSaved?: (requirementId: string) => Promise<void>;
   onGoToDocuments: () => void;
+  onEditStateChange?: (state: ProductEditState) => void;
 }) {
   const memories = useMemo(() => allMemories.filter(memory =>
     ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes)), [allMemories]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { products: productRequirements, removal: removalRequirements, work: workRequirements, rs: rsRequirements } = useMemo(
+  const { products: productRequirements, removal: removalRequirements, rs: rsRequirements } = useMemo(
     () => groupProjectRequirementViews(requirements),
     [requirements]
   );
@@ -166,331 +129,81 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     [approvedAssignments]
   );
   const resolvedRequirementIds = useMemo(
-    () => new Set(productRequirements
+    () => new Set(requirements
       .filter(isProductRequirementResolvedWithoutProduct)
       .map((requirement) => requirement.id)),
-    [productRequirements]
+    [requirements]
   );
   const handledRequirementIds = useMemo(
     () => new Set([...approvedRequirementIds, ...resolvedRequirementIds]),
     [approvedRequirementIds, resolvedRequirementIds]
   );
-  const memoryFingerprints = useMemo(() => new Set(
-    memories.flatMap((memory) => typeof memory.requirement_fingerprint === "string"
-      ? [memory.requirement_fingerprint]
-      : [])
-  ), [memories]);
-  const preferredMemoryByFingerprint = useMemo(() => {
-    const preferred = new Map<string, Row>();
-    for (const memory of memories) {
-      const fingerprint = typeof memory.requirement_fingerprint === "string"
-        ? memory.requirement_fingerprint
-        : null;
-      if (fingerprint && !preferred.has(fingerprint)) preferred.set(fingerprint, memory);
-    }
-    return preferred;
-  }, [memories]);
-  const memoriesByFingerprint = useMemo(() => {
-    const grouped = new Map<string, Row[]>();
-    for (const memory of memories) {
-      const fingerprint = typeof memory.requirement_fingerprint === "string"
-        ? memory.requirement_fingerprint
-        : null;
-      if (!fingerprint) continue;
-      const matching = grouped.get(fingerprint) ?? [];
-      matching.push(memory);
-      grouped.set(fingerprint, matching);
-    }
-    return grouped;
-  }, [memories]);
-  const staticallySafeRequirementIds = useMemo(() => new Set(productRequirements.flatMap((requirement) => {
-    if (requirement.overview) return handledRequirementIds.has(requirement.id) ? [requirement.id] : [];
-    const fingerprint = typeof requirement.mapping_fingerprint === "string" ? requirement.mapping_fingerprint : null;
-    const safe = handledRequirementIds.has(requirement.id)
-      || (!hasProjectRequirementDataWarning(requirement) && (
-        Boolean(fingerprint && hasReusableProductMemory(requirement, memoryFingerprints))
-        || buildAhlsellRequirementGuide(requirement).directCandidates.some(isMatchingAhlsellCandidate)
-      ));
-    return safe ? [requirement.id] : [];
-  })), [handledRequirementIds, memoryFingerprints, productRequirements]);
-  const catalogRevisions = useMemo(() => Object.fromEntries(requirements.map(requirement => [
-    requirement.id, requirement.overview ? `${projectId}:${requirement.updated_at}` : JSON.stringify([projectId, requirement.category, requirement.value_text, requirement.value_json, requirement.source_excerpt])
-  ])), [requirements, projectId]);
-  const [catalogAssessments, setCatalogAssessments] = useState<Record<string, AhlsellCatalogAssessment>>({});
-  const catalogStatuses = useMemo(() => Object.fromEntries(Object.entries(catalogAssessments)
-    .filter(([id, result]) => result.revision === catalogRevisions[id])
-    .map(([id, result]) => [id, result.status])), [catalogAssessments, catalogRevisions]);
-  const recordFullCatalogResult = useCallback((requirementId: string, status: AhlsellCatalogMatchStatus) => {
-    setCatalogAssessments(current => mergeAhlsellCatalogAssessments(current, {
-      [requirementId]: { revision: catalogRevisions[requirementId], status, fullSearch: true }
-    }));
-  }, [catalogRevisions]);
-
-  const { greenRequirements, yellowRequirements, redRequirements } = useMemo(
-    () => splitAhlsellMatchGroups(productRequirements, {
-      approvedRequirementIds: handledRequirementIds,
-      memoryFingerprints,
-      catalogStatuses,
-      staticallySafeRequirementIds,
-      manualReviewGroups: Object.fromEntries(approvedAssignments.flatMap(assignment => {
-        const review = readProductSelectionReview(record(assignment.product_snapshot).notes);
-        return review ? [[String(assignment.requirement_id), review.status === "mismatch" ? "red" as const : "yellow" as const]] : [];
-      }))
-    }),
-    [approvedAssignments, catalogStatuses, handledRequirementIds, memoryFingerprints, productRequirements, staticallySafeRequirementIds]
-  );
-  const groupByRequirementId = useMemo(() => new Map<string, AhlsellMatchGroup>([
-    ...greenRequirements.map((requirement) => [requirement.id, "green"] as const),
-    ...yellowRequirements.map((requirement) => [requirement.id, "yellow"] as const),
-    ...redRequirements.map((requirement) => [requirement.id, "red"] as const)
-  ]), [greenRequirements, redRequirements, yellowRequirements]);
-  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(() => new Set());
-  const [productTableSort, setProductTableSort] = useState<ProductTableSort | null>(null);
-  const [productTableLayout, setProductTableLayout] = useState<ProductTableLayout>(() => normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
-  const [productTableLayoutLoaded, setProductTableLayoutLoaded] = useState(false);
-  const [productTableLayoutEditorOpen, setProductTableLayoutEditorOpen] = useState(false);
-  const [draggedProductTableColumn, setDraggedProductTableColumn] = useState<ProductTableColumnId | null>(null);
-  const [productTableLayoutAnnouncement, setProductTableLayoutAnnouncement] = useState("");
-  const [productLabelsByRequirementId, setProductLabelsByRequirementId] = useState<Record<string, AhlsellProductLabel>>({});
-  const totalPosts = productRequirements.length + workRequirements.length + removalRequirements.length + rsRequirements.length;
-  const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
+  // Search only the opened post. Overview rows intentionally omit detailed specifications.
+  const recordFullCatalogResult = useCallback(() => {}, []);
+  const viewRequirements = useMemo(() => view === "all" ? [...productRequirements, ...rsRequirements, ...removalRequirements]
+    : view === "products" ? productRequirements : view === "removal" ? removalRequirements : rsRequirements, [view, productRequirements, rsRequirements, removalRequirements]);
+  const mainPostGroups = useMemo(() => groupProductRequirementsByPdfChapter(viewRequirements, { allRequirements: requirements }), [viewRequirements, requirements]);
+  const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
+  const [expandedMainPosts, setExpandedMainPosts] = useState<Set<string>>(() => new Set(mainPostGroups.slice(0, 1).map(group => group.key)));
+  const [activeRequirementId, setActiveRequirementId] = useState<string | null>(() => queueRequirements[0]?.id ?? null);
   const [productCardSaving, setProductCardSaving] = useState(false);
   const [productCardDirty, setProductCardDirty] = useState(false);
-  const productDialogRef = useRef<HTMLDialogElement>(null);
-  const productCardHistory = useRef<ReturnType<typeof createProductCardHistory> | null>(null);
-  const [productCardHeaderActions, setProductCardHeaderActions] = useState<HTMLDivElement | null>(null);
-  const visibleProductTableColumns = productTableLayout.order.filter(
-    (columnId) => !productTableLayout.hidden.includes(columnId)
-  );
-  const productTableMinimumWidth = Math.max(
-    640,
-    68 + visibleProductTableColumns.reduce(
-      (total, columnId) => total + PRODUCT_TABLE_COLUMNS[columnId].minimumWidth,
-      0
-    )
-  );
+  const requestedIndex = queueRequirements.findIndex(requirement => requirement.id === activeRequirementId);
+  const activeIndex = requestedIndex >= 0 ? requestedIndex : 0;
+  const activeRequirement = queueRequirements[activeIndex];
+  const activeAssignment = activeRequirement ? approvedAssignmentByRequirementId.get(activeRequirement.id) : undefined;
+  const handledCount = queueRequirements.filter(requirement => handledRequirementIds.has(requirement.id)).length;
+  useEffect(() => {
+    onEditStateChange?.({ dirty: productCardDirty, saving: productCardSaving });
+    return () => onEditStateChange?.({ dirty: false, saving: false });
+  }, [onEditStateChange, productCardDirty, productCardSaving]);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      try {
-        setProductTableLayout(parseProductTableLayout(window.localStorage.getItem(PRODUCT_TABLE_LAYOUT_STORAGE_KEY)));
-      } catch {
-        setProductTableLayout(normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
-      } finally {
-        setProductTableLayoutLoaded(true);
-      }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    if (!productTableLayoutLoaded) return;
-    try {
-      window.localStorage.setItem(PRODUCT_TABLE_LAYOUT_STORAGE_KEY, JSON.stringify(productTableLayout));
-    } catch {
-      // The customized table still works for this session when browser storage is unavailable.
-    }
-  }, [productTableLayout, productTableLayoutLoaded]);
-  const allChapterGroups = useMemo(
-    () => groupProductRequirementsByPdfChapter([...productRequirements, ...rsRequirements, ...removalRequirements]),
-    [productRequirements, rsRequirements, removalRequirements]
-  );
-  const allQueueRequirements = useMemo(() => allChapterGroups.flatMap(group => group.requirements), [allChapterGroups]);
-  const completedPostsByChapter = useMemo(() => new Map(allChapterGroups.map(group => [group.key,
-    group.requirements.filter(requirement => approvedRequirementIds.has(requirement.id)
-      || isProductRequirementResolvedWithoutProduct(requirement)).length
-  ])), [allChapterGroups, approvedRequirementIds]);
-  const bulkApprovalSelectionByRequirementId = useMemo(() => {
-    const selections = new Map<string, BulkProductApprovalSelection>();
-    for (const requirement of productRequirements) {
-      if (requirement.overview) continue;
-      if (groupByRequirementId.get(requirement.id) !== "green") continue;
-      const fingerprint = typeof requirement.mapping_fingerprint === "string"
-        ? requirement.mapping_fingerprint
-        : null;
-      const selection = bulkProductApprovalSelection({
-        requirement,
-        memories: fingerprint ? memoriesByFingerprint.get(fingerprint) : undefined,
-        handled: handledRequirementIds.has(requirement.id)
-      });
-      if (selection) selections.set(requirement.id, selection);
-    }
-    return selections;
-  }, [groupByRequirementId, handledRequirementIds, memoriesByFingerprint, productRequirements]);
-  const sortedQueueRequirements = useMemo(() => {
-    if (!productTableSort) return allQueueRequirements;
-
-    const direction = productTableSort.direction === "asc" ? 1 : -1;
-    return allQueueRequirements
-      .map((requirement, originalIndex) => ({
-        requirement,
-        originalIndex,
-        value: productTableSortValue(
-          requirement,
-          productTableSort.key,
-          approvedRequirementIds.has(requirement.id),
-          groupByRequirementId.get(requirement.id) ?? "yellow",
-          approvedAssignmentByRequirementId.get(requirement.id),
-          typeof requirement.mapping_fingerprint === "string"
-            ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint)
-            : undefined,
-          bulkApprovalSelectionByRequirementId.get(requirement.id),
-          productLabelsByRequirementId[requirement.id]
-        )
-      }))
-      .sort((left, right) => {
-        if (left.value === null || right.value === null) {
-          if (left.value === right.value) return left.originalIndex - right.originalIndex;
-          return left.value === null ? 1 : -1;
-        }
-        const compared = typeof left.value === "number" && typeof right.value === "number"
-          ? left.value - right.value
-          : productTableCollator.compare(String(left.value), String(right.value));
-        return compared === 0 ? left.originalIndex - right.originalIndex : compared * direction;
-      })
-      .map(({ requirement }) => requirement);
-  }, [allQueueRequirements, approvedAssignmentByRequirementId, approvedRequirementIds, bulkApprovalSelectionByRequirementId, groupByRequirementId, preferredMemoryByFingerprint, productLabelsByRequirementId, productTableSort]);
-  const chapterGroups = useMemo(() => groupProductRequirementsByPdfChapter(sortedQueueRequirements, {
-    allRequirements: allQueueRequirements, preserveRowOrder: Boolean(productTableSort)
-  }), [sortedQueueRequirements, allQueueRequirements, productTableSort]);
-  const queueRequirements = useMemo(() => chapterGroups.flatMap(group => group.requirements), [chapterGroups]);
-  const queuePositionById = useMemo(
-    () => new Map(allQueueRequirements.map((requirement, index) => [requirement.id, index + 1])),
-    [allQueueRequirements]
-  );
-  // Product-page lookups belong to the open card, never to the chapter overview.
-  const productLabelItems = useMemo(() => queueRequirements.filter(requirement => requirement.id === activeRequirementId).flatMap((requirement) => {
-    const assignmentSnapshot = record(approvedAssignmentByRequirementId.get(requirement.id)?.product_snapshot);
-    if (typeof assignmentSnapshot.subtitle === "string" && assignmentSnapshot.subtitle.trim()) return [];
-    const productNumber = String(
-      assignmentSnapshot.productNumber
-      ?? bulkApprovalSelectionByRequirementId.get(requirement.id)?.productNumber
-      ?? ""
-    ).trim();
-    const loadedLabel = productLabelsByRequirementId[requirement.id];
-    if (
-      productNumber
-      && loadedLabel?.subtitle
-      && normalizeNrfNumber(loadedLabel.articleNumber) === normalizeNrfNumber(productNumber)
-    ) return [];
-    return productNumber
-      ? [{ requirementId: requirement.id, articleNumber: productNumber } satisfies AhlsellProductLabelItem]
-      : [];
-  }), [activeRequirementId, approvedAssignmentByRequirementId, bulkApprovalSelectionByRequirementId, productLabelsByRequirementId, queueRequirements]);
-  const productLabelRequestKey = JSON.stringify(productLabelItems);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const requestedItems = JSON.parse(productLabelRequestKey) as AhlsellProductLabelItem[];
-    if (requestedItems.length === 0) return () => controller.abort();
-    void fetchAhlsellProductLabels(projectId, requestedItems, controller.signal)
-      .then((labels) => {
-        if (!controller.signal.aborted) {
-          setProductLabelsByRequirementId((current) => ({ ...current, ...labels }));
-        }
-      })
-      .catch(() => {
-        // The saved product and NRF remain visible if Ahlsell is temporarily unavailable.
-      });
-    return () => controller.abort();
-  }, [projectId, productLabelRequestKey]);
-
-  const cardRequirements = queueRequirements;
-  const requestedActiveIndex = cardRequirements.findIndex((requirement) => requirement.id === activeRequirementId);
-  const activeIndex = requestedActiveIndex;
-  const activeRequirement = activeIndex >= 0 ? cardRequirements[activeIndex] : undefined;
-  const productCardOpen = Boolean(activeRequirement);
-
-  function confirmDiscardProductChanges() {
-    if (!productCardDirty) return true;
-    return window.confirm("Du har osparade ändringar i produktkortet. Tryck Avbryt för att fortsätta och spara, eller OK för att stänga utan att spara.");
-  }
-
-  const canLeaveCardFromHistory = useEffectEvent(() => !productCardSaving && confirmDiscardProductChanges());
-  const navigateCardFromHistory = useEffectEvent((requirementId: string | null) => {
-    if (!requirementId && productDialogRef.current?.open) productDialogRef.current.close();
-    setActiveRequirementId(requirementId);
-    setProductCardDirty(false);
-    setMessage(null);
-    setError(null);
-  });
-  useEffect(() => {
-    const navigation = createProductCardHistory(window, `${projectId}:chapters`, {
-      canLeave: canLeaveCardFromHistory,
-      onNavigate: navigateCardFromHistory
-    });
-    productCardHistory.current = navigation;
-    const initialCard = navigation.current();
-    const frame = initialCard ? window.requestAnimationFrame(() => navigateCardFromHistory(initialCard)) : null;
-    return () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      navigation.dispose();
-      productCardHistory.current = null;
-    };
-  }, [projectId]);
-
-  useEffect(() => {
-    const dialog = productDialogRef.current;
-    if (!dialog || !productCardOpen || dialog.open) return;
-    dialog.showModal();
-  }, [productCardOpen]);
-
-  useEffect(() => {
-    if (!productCardOpen) return;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousRootOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousRootOverflow;
-    };
-  }, [productCardOpen]);
-
-  useEffect(() => {
-    if (!productCardOpen || !productCardDirty) return;
+    if (!productCardDirty && !productCardSaving) return;
     const protectUnsavedProduct = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
+    // The main navigation remains usable while the product is open. Protect
+    // drafts when Next.js handles a link without a browser page unload.
+    const protectNavigation = (event: MouseEvent) => {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (!["http:", "https:"].includes(destination.protocol)) return;
+      if (destination.origin === window.location.origin && destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+      if (productCardSaving || !window.confirm("Du har ulagrede endringer i produktvalget. Vil du forlate siden uten å lagre?")) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
     window.addEventListener("beforeunload", protectUnsavedProduct);
-    return () => window.removeEventListener("beforeunload", protectUnsavedProduct);
-  }, [productCardDirty, productCardOpen]);
-
-  const visibleQueueRemainingCount = productRequirements.filter(
-    (requirement) => !handledRequirementIds.has(requirement.id)
-  ).length;
-  const visibleHandledCount = productRequirements.length - visibleQueueRemainingCount;
-  const progressPercent = productRequirements.length > 0
-    ? Math.round((visibleHandledCount / productRequirements.length) * 100)
-    : 100;
+    document.addEventListener("click", protectNavigation, true);
+    return () => {
+      window.removeEventListener("beforeunload", protectUnsavedProduct);
+      document.removeEventListener("click", protectNavigation, true);
+    };
+  }, [productCardDirty, productCardSaving]);
 
   function showRequirement(requirementId: string) {
-    if (productCardSaving) return;
-    if (activeRequirementId && activeRequirementId !== requirementId && !confirmDiscardProductChanges()) return;
-    if (!productCardHistory.current?.open(requirementId)) return;
+    if (productCardSaving || requirementId === activeRequirement?.id) return;
+    if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du bytte post uten å lagre?")) return;
     setProductCardDirty(false);
     setActiveRequirementId(requirementId);
-    const chapter = chapterGroups.find(group => group.requirements.some(item => item.id === requirementId));
-    if (chapter) setExpandedChapters(current => new Set(current).add(chapter.key));
+    const group = mainPostGroups.find(item => item.requirements.some(requirement => requirement.id === requirementId));
+    if (group) setExpandedMainPosts(current => new Set(current).add(group.key));
     setMessage(null);
     setError(null);
-    window.requestAnimationFrame(() => document.getElementById("product-card-scroll")?.scrollTo({ top: 0, behavior: "smooth" }));
+    window.requestAnimationFrame(() => {
+      const detail = document.getElementById("product-post-detail");
+      if (window.matchMedia("(max-width: 900px)").matches) detail?.scrollIntoView({ block: "start", behavior: "instant" });
+      detail?.focus({ preventScroll: true });
+    });
   }
 
-  function closeRequirement() {
-    if (productCardSaving) return;
-    if (!confirmDiscardProductChanges()) return;
-    productCardHistory.current?.close();
-    if (productDialogRef.current?.open) productDialogRef.current.close();
-    setProductCardDirty(false);
-    setActiveRequirementId(null);
-    setMessage(null);
-    setError(null);
-  }
-
-  function toggleChapter(key: string) {
-    setExpandedChapters(current => {
+  function toggleMainPost(key: string) {
+    setExpandedMainPosts(current => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -498,366 +211,72 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     });
   }
 
-  function toggleProductTableSort(key: ProductTableSortKey) {
-    setProductTableSort((current) => current?.key === key
-      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
-      : { key, direction: "asc" }
-    );
-  }
-
-  function announceProductTableColumnPosition(columnId: ProductTableColumnId, layout: ProductTableLayout) {
-    const position = layout.order.indexOf(columnId) + 1;
-    setProductTableLayoutAnnouncement(
-      `${PRODUCT_TABLE_COLUMNS[columnId].label} flyttad till plats ${position} av ${layout.order.length}.`
-    );
-  }
-
-  function moveProductTableColumnTo(columnId: ProductTableColumnId, targetColumnId: ProductTableColumnId, placement: "before" | "after") {
-    const nextLayout = moveProductTableColumn(productTableLayout, columnId, targetColumnId, placement);
-    setProductTableLayout(nextLayout);
-    announceProductTableColumnPosition(columnId, nextLayout);
-  }
-
-  function moveProductTableColumnOneStep(columnId: ProductTableColumnId, offset: -1 | 1) {
-    const nextLayout = moveProductTableColumnByOffset(productTableLayout, columnId, offset);
-    setProductTableLayout(nextLayout);
-    announceProductTableColumnPosition(columnId, nextLayout);
-  }
-
-  function setProductTableColumnVisibility(columnId: ProductTableColumnId, visible: boolean) {
-    const nextLayout = setProductTableColumnVisible(productTableLayout, columnId, visible);
-    setProductTableLayout(nextLayout);
-    if (!visible && productTableSort?.key === columnId) setProductTableSort(null);
-    setProductTableLayoutAnnouncement(
-      `${PRODUCT_TABLE_COLUMNS[columnId].label} ${visible ? "visas" : "är dold"}.`
-    );
-  }
-
-  function resetProductTableLayout() {
-    setProductTableLayout(normalizeProductTableLayout(DEFAULT_PRODUCT_TABLE_LAYOUT));
-    setProductTableSort(null);
-    setProductTableLayoutAnnouncement("Standardvyn är återställd.");
-  }
-
-  function startProductTableColumnDrag(event: ReactDragEvent, columnId: ProductTableColumnId) {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", columnId);
-    setDraggedProductTableColumn(columnId);
-  }
-
-  function dropProductTableColumn(event: ReactDragEvent, targetColumnId: ProductTableColumnId) {
-    event.preventDefault();
-    const transferredColumnId = event.dataTransfer.getData("text/plain");
-    const sourceColumnId = PRODUCT_TABLE_COLUMN_IDS.find(
-      (columnId) => columnId === (draggedProductTableColumn ?? transferredColumnId)
-    );
-    const targetBounds = event.currentTarget.getBoundingClientRect();
-    const placement = event.clientX >= targetBounds.left + targetBounds.width / 2 ? "after" : "before";
-    if (sourceColumnId) moveProductTableColumnTo(sourceColumnId, targetColumnId, placement);
-    setDraggedProductTableColumn(null);
-  }
-
   return (
-    <section id="project-requirement-table" aria-label="Alla poster efter PDF-kapitel" className="space-y-6">
-        <section id="product-table" aria-labelledby="product-table-heading" className="scroll-mt-28 overflow-hidden border border-ink-200 bg-white">
-          <div className="flex flex-col gap-2 border-b border-ink-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 id="product-table-heading" className="text-xl font-black text-ink-950">Poster efter PDF-kapitel ({queueRequirements.length})</h2>
-              <p className="mt-0.5 text-xs font-semibold text-ink-600">
-                Produktförslag hämtas från Ahlsell när du öppnar ett produktkort.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                aria-expanded={productTableLayoutEditorOpen}
-                aria-controls="product-table-layout-editor"
-                className="min-h-9 px-3 py-1.5 text-sm"
-                disabled={!productTableLayoutLoaded}
-                onClick={() => setProductTableLayoutEditorOpen((open) => !open)}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-
-                Anpassa tabell
-              </Button>
-            </div>
-          </div>
-
-          {productTableLayoutLoaded && productTableLayoutEditorOpen && (
-            <section id="product-table-layout-editor" aria-labelledby="product-table-layout-heading" className="border-b border-ink-200 bg-white px-4 py-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h4 id="product-table-layout-heading" className="text-sm font-black text-ink-950">Anpassa tabellvyn</h4>
-                  <p className="mt-1 text-xs leading-5 text-ink-600">Dra i handtaget eller använd pilarna för att flytta kolumner. Dina val sparas i den här webbläsaren.</p>
-                </div>
-                <Button type="button" variant="secondary" className="min-h-9 shrink-0 px-3 py-1.5 text-sm" onClick={resetProductTableLayout}>
-                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-
-                  Återställ standardvy
-                </Button>
+    <section id="project-requirement-table" aria-label={view === "all" ? "Alle poster" : PROJECT_REQUIREMENT_VIEWS.find(item => item.id === view)?.label} className="product-selection-workspace">
+      <div className="product-selection-heading">
+        <h2>Produktvalg</h2>
+        <p>{queueRequirements.length} poster · {handledCount} håndtert</p>
+      </div>
+      <div className={`product-selection-layout${workspaceNavigation ? " has-project-navigation" : ""}`}>
+        {workspaceNavigation && <aside className="product-project-navigation" aria-label="Prosjektvisninger"><h2 className="product-panel-caption">Prosjekt</h2>{workspaceNavigation}</aside>}
+        <ProductPostNavigation groups={mainPostGroups} activeRequirementId={activeRequirement?.id}
+          expanded={expandedMainPosts} handledIds={handledRequirementIds} disabled={productCardSaving}
+          onToggle={toggleMainPost} onSelect={showRequirement} />
+        <section id="product-post-detail" tabIndex={-1} aria-label="Valgt post og produktvalg" className="product-post-detail">
+          {activeRequirement ? <>
+            <header className="product-post-toolbar">
+              <p aria-live="polite">Post {projectRequirementDetails(activeRequirement).postNumber ?? activeIndex + 1}<span> · {activeIndex + 1} av {queueRequirements.length}</span></p>
+              <div>
+                <Button type="button" variant="secondary" disabled={productCardSaving || activeIndex === 0}
+                  onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Forrige post</Button>
+                <Button type="button" variant="secondary" disabled={productCardSaving || activeIndex === queueRequirements.length - 1}
+                  onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Neste post<ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
               </div>
-              <ol className="mt-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
-                {productTableLayout.order.map((columnId, index) => {
-                  const column = PRODUCT_TABLE_COLUMNS[columnId];
-                  const locked = isProductTableColumnLocked(columnId);
-                  const visible = !productTableLayout.hidden.includes(columnId);
-                  return (
-                    <li
-                      key={columnId}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = "move";
-                      }}
-                      onDrop={(event) => dropProductTableColumn(event, columnId)}
-                      className={draggedProductTableColumn === columnId
-                        ? "flex min-h-12 items-center gap-2 rounded-lg border-2 border-flow-500 bg-flow-50 px-2 py-1.5 opacity-70"
-                        : "flex min-h-12 items-center gap-2 rounded-lg border border-ink-200 bg-ink-50 px-2 py-1.5"}
-                    >
-                      <span
-                        draggable
-                        aria-hidden="true"
-                        title={`Dra för att flytta ${column.label}`}
-                        onDragStart={(event) => startProductTableColumnDrag(event, columnId)}
-                        onDragEnd={() => setDraggedProductTableColumn(null)}
-                        className="inline-flex h-9 w-8 shrink-0 cursor-grab items-center justify-center rounded-md text-ink-500 active:cursor-grabbing"
-                      >
-                        <GripVertical className="h-5 w-5" />
-                      </span>
-                      <label className="flex min-w-0 flex-1 items-center gap-2 text-sm font-bold text-ink-900">
-                        <input
-                          type="checkbox"
-                          checked={visible}
-                          disabled={locked}
-                          onChange={(event) => setProductTableColumnVisibility(columnId, event.target.checked)}
-                          className="h-4 w-4 rounded border-ink-300 text-flow-700 focus:ring-flow-500 disabled:opacity-50"
-                        />
-                        <span className="truncate">{column.label}</span>
-                        {locked && <span className="sr-only">Alltid synlig</span>}
-                      </label>
-                      <button type="button" disabled={index === 0} onClick={() => moveProductTableColumnOneStep(columnId, -1)} aria-label={`Flytta ${column.label} åt vänster`} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-700 transition hover:bg-white hover:text-flow-800 disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>
-                      <button type="button" disabled={index === productTableLayout.order.length - 1} onClick={() => moveProductTableColumnOneStep(columnId, 1)} aria-label={`Flytta ${column.label} åt höger`} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-700 transition hover:bg-white hover:text-flow-800 disabled:cursor-not-allowed disabled:opacity-30"><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
-                    </li>
-                  );
-                })}
-              </ol>
-              <p role="status" aria-live="polite" className="sr-only">{productTableLayoutAnnouncement}</p>
-            </section>
-          )}
-
-          {queueRequirements.length > 0 ? (
-            productTableLayoutLoaded ? (
-            <div className="overflow-x-auto">
-              <table className="chapter-overview w-full min-w-[720px] table-fixed text-left" aria-label="Kapitelöversikt">
-                <colgroup>
-                  <col className="w-52" />
-                  <col />
-                  <col className="w-24" />
-                  <col className="w-36" />
-                  <col className="w-12" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">Kapitel</th>
-                    <th scope="col">Beskrivning</th>
-                    <th scope="col" className="text-center">Poster</th>
-                    <th scope="col" className="text-center" title="Poster med godkänd produkt eller markerade som Inte i sortiment">Färdiga poster</th>
-                    <th scope="col"><span className="sr-only">Visa poster</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-              {chapterGroups.map((chapter, index) => {
-                const expanded = expandedChapters.has(chapter.key);
-                const completedPosts = completedPostsByChapter.get(chapter.key) ?? 0;
-                const chapterApproved = completedPosts === chapter.requirements.length;
-                const heading = productChapterHeading(chapter.title);
-                const label = chapter.title;
-                const regionId = `pdf-chapter-${index}-products`;
-                const headingId = `pdf-chapter-${index}-heading`;
-                return <Fragment key={chapter.key}>
-                  <tr className="chapter-overview-row cursor-pointer" data-expanded={expanded} onClick={() => toggleChapter(chapter.key)}>
-                    <td>
-                    <button id={headingId} type="button" data-appearance="text" aria-expanded={expanded} aria-controls={expanded ? regionId : undefined}
-                      aria-label={`${label} (${chapter.requirements.length})`}
-                      onClick={event => { event.stopPropagation(); toggleChapter(chapter.key); }}
-                      className="text-left text-sm font-semibold">
-                      {heading.chapter}
-                    </button>
-                    </td>
-                    <td className="font-medium">{heading.description}</td>
-                    <td className="text-center tabular-nums">{chapter.requirements.length}</td>
-                    <td className="text-center tabular-nums">
-                      <span className="inline-flex items-center gap-2 font-semibold">
-                        {chapterApproved && <CheckCircle2 className="h-4 w-4" aria-label="Alla poster färdiga" />}
-                        {completedPosts}
-                      </span>
-                    </td>
-                    <td className="text-center">
-                      <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
-                    </td>
-                  </tr>
-                  {expanded && <tr className="chapter-overview-detail"><td colSpan={5}>
-                  <div id={regionId} role="region" aria-labelledby={headingId} className="overflow-x-auto border-b border-ink-300" tabIndex={0}>
-              <table className="w-full border-collapse whitespace-nowrap text-left" style={{ minWidth: `${productTableMinimumWidth}px` }}>
-                <thead className="bg-ink-50 text-[11px] font-black uppercase tracking-[0.04em] text-ink-600">
-                  <tr>
-                    {visibleProductTableColumns.map((columnId) => {
-                      const column = PRODUCT_TABLE_COLUMNS[columnId];
-                      return (
-                        <ProductSortHeader
-                          key={columnId}
-                          className={column.className}
-                          align={column.align}
-                          label={column.label}
-                          sortKey={columnId}
-                          sort={productTableSort}
-                          dragging={draggedProductTableColumn === columnId}
-                          onSort={toggleProductTableSort}
-                          onDragStart={startProductTableColumnDrag}
-                          onDragEnd={() => setDraggedProductTableColumn(null)}
-                          onDragOver={(event) => {
-                            event.preventDefault();
-                            event.dataTransfer.dropEffect = "move";
-                          }}
-                          onDrop={(event) => dropProductTableColumn(event, columnId)}
-                        />
-                      );
-                    })}
-                    <th className="w-14 border-b border-ink-200 px-2 py-2 text-center">Öppna</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {chapter.requirements.map((requirement) => (
-                    <RequirementQueueRow
-                      key={requirement.id}
-                      requirement={requirement}
-                      postType={record(requirement.value_json).chapterInformation === true ? "Kapitelinformation" : rsRequirements.some(row => row.id === requirement.id) ? "Rund Sum" : removalRequirements.some(row => row.id === requirement.id) ? "Prosjekt information" : "Produktpost"}
-                      position={queuePositionById.get(requirement.id) ?? 1}
-                      approved={approvedRequirementIds.has(requirement.id)}
-                      assignment={approvedAssignmentByRequirementId.get(requirement.id)}
-                      memory={typeof requirement.mapping_fingerprint === "string" ? preferredMemoryByFingerprint.get(requirement.mapping_fingerprint) : undefined}
-                      bulkSelection={bulkApprovalSelectionByRequirementId.get(requirement.id)}
-                      productLabel={productLabelsByRequirementId[requirement.id]}
-                      sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
-                      columns={visibleProductTableColumns}
-                      onOpen={() => showRequirement(requirement.id)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-                  </div></td></tr>}
-                </Fragment>;
-              })}
-                </tbody>
-              </table>
-            </div>
-            ) : (
-              <div className="flex min-h-28 items-center justify-center gap-2 p-5 text-sm font-bold text-ink-700" role="status">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-
-                Laddar din tabellvy…
-              </div>
-            )
-          ) : (
-            <p className="p-5 text-center text-ink-600">Inga poster att visa.</p>
-          )}
+            </header>
+            {(message || error) && <p role={error ? "alert" : "status"} aria-live="polite" className="product-selection-feedback">{error ?? message}</p>}
+            <LazyRequirementProductMappingCard
+              key={`${activeRequirement.id}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
+              projectId={projectId} currency={currency} requirement={activeRequirement} assignment={activeAssignment}
+              sourcePdfHref={projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup)}
+              position={activeIndex + 1}
+              memories={memories.filter(memory => memory.requirement_fingerprint === activeRequirement.mapping_fingerprint)}
+              onCatalogResult={recordFullCatalogResult} onSavingChange={setProductCardSaving} onDirtyChange={setProductCardDirty}
+              onSaved={async successMessage => {
+                setProductCardDirty(false);
+                setError(null);
+                if (onRequirementSaved) await onRequirementSaved(activeRequirement.id);
+                else await onReload();
+                setMessage(successMessage);
+              }}
+              onError={errorMessage => { setMessage(null); setError(errorMessage || null); }}
+            />
+          </> : <div className="product-selection-empty">
+            <FileText className="h-6 w-6" aria-hidden="true" />
+            <h3>Ingen poster å vise</h3>
+            <p>{requirements.length ? "Ingen poster finnes i denne visningen." : "Last opp en teknisk beskrivelse for å velge produkter."}</p>
+            {!requirements.length && <Button type="button" variant="secondary" onClick={onGoToDocuments}>Gå til dokument</Button>}
+          </div>}
         </section>
-
-      {(message || error) && (
-        <div role="status" aria-live="polite" className={error ? "rounded-xl border-2 border-rose-300 bg-rose-50 p-5 text-base font-semibold text-rose-900" : "rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 text-base font-semibold text-emerald-900"}>
-          {error ?? message}
+      </div>
+      <section className="product-status-panel" aria-label="Status for produktposter">
+        <h2 className="product-panel-caption">Postoversikt <span>{handledCount} av {queueRequirements.length} poster håndtert</span></h2>
+        <div className="product-status-scroll">
+          <table><thead><tr><th scope="col">Post</th><th scope="col">Status</th><th scope="col">NRF</th><th scope="col">Produkt / beskrivelse</th></tr></thead>
+            <tbody>{queueRequirements.map(row => {
+              const saved = approvedAssignmentByRequirementId.get(row.id);
+              const snapshot = record(saved?.product_snapshot);
+              const resolution = productRequirementResolution(row);
+              return <tr key={row.id} aria-selected={row.id === activeRequirement?.id}>
+                <td><button type="button" data-appearance="text" disabled={productCardSaving} onClick={() => showRequirement(row.id)}>{projectRequirementDetails(row).postNumber ?? "Uten postnummer"}</button></td>
+                <td>{saved ? "Lagret" : resolution ? resolution.label : "Ikke valgt"}</td>
+                <td>{String(snapshot.productNumber ?? "—")}</td>
+                <td>{String(snapshot.name ?? row.value_text ?? "—")}</td>
+              </tr>;
+            })}</tbody>
+          </table>
         </div>
-      )}
-
-      {totalPosts === 0 ? (
-        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-6 text-center">
-          <p className="text-lg font-bold text-amber-950">Inga produktrader hittades</p>
-          <p className="mx-auto mt-2 max-w-2xl text-base leading-7 text-amber-900">Ladda upp en ny eller tydligare teknisk beskrivning och försök igen.</p>
-          <Button className="mt-5 min-h-12 text-base" variant="secondary" onClick={onGoToDocuments}>Gå tillbaka och ladda upp PDF</Button>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {activeRequirement && (() => {
-            const requirement = activeRequirement;
-            const assignment = approvedAssignmentByRequirementId.get(requirement.id);
-            const matchingMemories = memories.filter((memory) => memory.requirement_fingerprint === requirement.mapping_fingerprint);
-            return (
-              <dialog
-                ref={productDialogRef}
-                aria-label={`Produktval för PDF-post ${projectRequirementDetails(requirement).postNumber ?? activeIndex + 1}`}
-                className="fixed inset-0 m-0 h-[100dvh] max-h-none w-screen max-w-none overflow-hidden border-0 bg-white p-0 text-neutral-900 shadow-none backdrop:bg-neutral-950/65 backdrop:backdrop-blur-sm"
-                onCancel={(event) => {
-                  event.preventDefault();
-                  closeRequirement();
-                }}
-              >
-                <div id="product-work-queue" className="flex h-full w-full flex-col overflow-hidden">
-                  <nav aria-label="Navigera mellan produktposter" className="shrink-0 border-b border-neutral-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
-                    <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-                      <div className="min-w-0 text-center lg:col-start-2">
-                        <p className="text-sm font-bold text-neutral-950 sm:text-base">{groupProjectRequirementViews([requirement]).removal.length && !assignment ? "Postinformation" : "Produktvalg"}</p>
-                        <p className="mt-0.5 text-sm font-bold text-neutral-950 sm:text-base">Post {activeIndex + 1} av {cardRequirements.length}</p>
-                        {(!groupProjectRequirementViews([requirement]).removal.length || assignment) && <p className="mt-1 text-sm font-semibold text-neutral-900">Produktgrupp: {productRequirementCategoryLabel(productRequirementCategory(requirement))}</p>}
-                      </div>
-                      <div ref={setProductCardHeaderActions} className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:col-start-3" />
-                    </div>
-                    <div
-                      role="progressbar"
-                      aria-label="Hanterade produktposter"
-                      aria-valuenow={progressPercent}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      className="mt-2 h-1 overflow-hidden rounded-full bg-neutral-100"
-                    >
-                      <div className="h-full rounded-full bg-neutral-500 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
-                    </div>
-                    {(message || error) && (
-                      <div role="status" aria-live="polite" className={error ? "mt-3 rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-900" : "mt-3 rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-900"}>
-                        {error ?? message}
-                      </div>
-                    )}
-                  </nav>
-                  <div id="product-card-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-0 lg:overflow-hidden">
-                    <LazyRequirementProductMappingCard
-                      key={`${requirement.id}:${String(assignment?.updated_at ?? "new")}`}
-                      projectId={projectId}
-                      currency={currency}
-                      requirement={requirement}
-                      assignment={assignment}
-                      sourcePdfHref={projectRequirementSourcePdfHref(projectId, requirement, sourcePdfLookup)}
-                      position={activeIndex + 1}
-                      memories={matchingMemories}
-                      onCatalogResult={recordFullCatalogResult}
-                      headerActions={productCardHeaderActions}
-                      onClose={closeRequirement}
-                      onSavingChange={setProductCardSaving}
-                      onDirtyChange={setProductCardDirty}
-                      onSaved={async (successMessage) => {
-                        setProductCardDirty(false);
-                        setError(null);
-                        setMessage(successMessage);
-                        try {
-                          if (onRequirementSaved) await onRequirementSaved(requirement.id);
-                          else await onReload();
-                        } catch (refreshError) {
-                          setError(refreshError instanceof Error ? refreshError.message : "Valet är sparat men översikten kunde inte uppdateras. Ladda om sidan.");
-                        }
-                        productCardHistory.current?.close();
-                        if (productDialogRef.current?.open) productDialogRef.current.close();
-                        setActiveRequirementId(null);
-                      }}
-                      onError={(errorMessage) => { setMessage(null); setError(errorMessage || null); }}
-                    />
-                  </div>
-                </div>
-              </dialog>
-            );
-          })()}
-
-
-
-        </div>
-      )}
+      </section>
+      <footer className="product-selection-footer"><span>{productCardSaving ? "Lagrer produktvalg…" : productCardDirty ? "Ulagrede endringer" : "Klar"}</span><span>{queueRequirements.length} poster · {mainPostGroups.length} hovedposter</span></footer>
     </section>
   );
 }
@@ -890,7 +309,6 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
     <p role={loadError ? "alert" : "status"}>{loadError ?? "Laddar produktpostens krav och produktval…"}</p>
     <div className="flex gap-3">
       {loadError && <Button variant="secondary" onClick={() => { setLoadError(null); setAttempt(value => value + 1); }}>Försök igen</Button>}
-      <Button variant="secondary" onClick={props.onClose}>Stäng kortet</Button>
     </div>
   </div>;
 }
@@ -902,28 +320,26 @@ function ResolvedRequirementCard(props: ComponentProps<typeof RequirementProduct
   return <RequirementInformationCard {...props} onChooseProduct={() => setChooseProduct(true)} />;
 }
 
-function RequirementInformationCard({ projectId, requirement, sourcePdfHref, headerActions, onClose, onDirtyChange, onSavingChange, onChooseProduct }: ComponentProps<typeof RequirementProductMappingCard> & { onChooseProduct: () => void }) {
+function RequirementInformationCard({ projectId, requirement, sourcePdfHref, onDirtyChange, onSavingChange, onChooseProduct }: ComponentProps<typeof RequirementProductMappingCard> & { onChooseProduct: () => void }) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const details = projectRequirementDetails(requirement);
-  useEffect(() => { onSavingChange(saving); }, [saving, onSavingChange]);
-  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => { onSavingChange(saving); return () => onSavingChange(false); }, [saving, onSavingChange]);
+  useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
   return <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber="" productName=""
     disabled={false} onDirtyChange={setDirty} onSavingChange={setSaving}>
-    {({ postComments }) => <article id={`post-${requirement.id}`} className="h-full w-full overflow-y-auto bg-white px-4 py-4 sm:px-6 sm:py-5">
-      {headerActions && createPortal(<>
-        <Button neutral variant="secondary" type="button" disabled={saving || dirty} onClick={onChooseProduct}>Välj produkt</Button>
-        <Button neutral autoFocus variant="secondary" type="button" disabled={saving} onClick={onClose}><X className="h-4 w-4" aria-hidden="true" />Stäng kortet</Button>
-      </>, headerActions)}
-      <ProjectPostSpecification id={requirement.id} details={details} informationOnly
+    {({ postComments }) => <article className="product-information-card">
+      <header className="product-panel-caption">Prosjektinformasjon<Button neutral variant="secondary" type="button" disabled={saving || dirty} onClick={onChooseProduct}>Velg produkt</Button></header>
+      <div className="product-information-content"><ProjectPostSpecification id={requirement.id} details={details} informationOnly
         description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
         quantity={projectRequirementQuantity(requirement)} sourcePdfHref={sourcePdfHref} />
-      <div className="mt-4">{postComments}</div>
+        <details className="mt-3"><summary>Kommentarer til posten</summary>{postComments}</details>
+      </div>
     </article>}
   </ProductPostComments>;
 }
 
-function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, memories, headerActions, onClose, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, memories, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   currency: string;
   requirement: Row;
@@ -931,8 +347,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   sourcePdfHref: string | null;
   position: number;
   memories: Row[];
-  headerActions: HTMLDivElement | null;
-  onClose: () => void;
   onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onSavingChange: (saving: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -1115,15 +529,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   function focusSelectedProduct() {
     window.requestAnimationFrame(() => {
       const selectedCard = document.getElementById(`selected-pipe-${requirement.id}`);
-      const panel = selectedCard?.closest("fieldset");
-      const scrollContainer = panel && window.getComputedStyle(panel).overflowY === "auto" ? panel : document.getElementById("product-card-scroll");
-      const header = document.getElementById(`product-selection-header-${requirement.id}`);
-      if (selectedCard && scrollContainer) {
-        scrollContainer.scrollTo({
-          top: scrollContainer.scrollTop + selectedCard.getBoundingClientRect().top - scrollContainer.getBoundingClientRect().top - (header?.offsetHeight ?? 0) - 16,
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"
-        });
-      }
+      selectedCard?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
       selectedCard?.focus({ preventScroll: true });
     });
   }
@@ -1625,22 +1031,24 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   return (
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
       disabled={saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
-      {({ postComments, productComments }) => <article id={`post-${requirement.id}`} className="min-h-0 bg-white lg:grid lg:h-full lg:grid-cols-[minmax(340px,0.9fr)_minmax(520px,1.15fr)]">
-      {headerActions && createPortal(
-        <Button neutral autoFocus variant="secondary" type="button" className="min-h-10 justify-center px-3 py-2"
-          title={productNumber.trim() ? manualProductRequired || manualProductDraftDirty ? "Lägg till produkten från kortet först" : hasAttachmentDraft ? "Spara vedlegget först" : accessoryStepOpen ? "Gör klart tillbehören först" : accessoryError ?? "Godkänn och stäng kort" : "Stäng kortet"}
-          disabled={saving || attachmentSaving || commentsSaving || Boolean(productNumber.trim() && (commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || accessoryError))}
-          onClick={productNumber.trim() ? () => void save() : onClose}>
-          {saving || attachmentSaving || commentsSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : productNumber.trim() ? <ShieldCheck className="h-4 w-4" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}
-          {saving || attachmentSaving || commentsSaving ? "Sparar…" : productNumber.trim() ? "Godkänn och stäng kort" : "Stäng kortet"}
-        </Button>, headerActions
-      )}
-      <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="border-b border-neutral-200 bg-neutral-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-        <div className="px-4 py-4 sm:px-6 sm:py-5">
-          <ProjectPostSpecification id={requirement.id} details={details}
-            description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
-            quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
-            sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />
+      {({ postComments, productComments }) => <article id={`post-${requirement.id}`} className="product-mapping-card">
+      <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
+        <div className="product-panel-caption"><span>Postopplysninger</span><span>PDF-grunnlag</span></div>
+        <div className="product-requirement-content">
+          <h3 id={`pdf-specification-${requirement.id}`} className="text-xl font-bold text-neutral-950">
+            {sourcePdfHref ? (
+              <a
+                href={sourcePdfHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
+                className="inline-flex items-center gap-2 underline decoration-neutral-400 underline-offset-4 hover:decoration-neutral-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600"
+              >
+                PDF-post {details.postNumber ?? "saknas"}
+                <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </a>
+            ) : <>PDF-post {details.postNumber ?? "saknas"}</>}
+          </h3>
 
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
@@ -1662,27 +1070,45 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           ))}
 
 
-          {details.sourceExcerpt && <details className="mt-3 border border-neutral-200 bg-white p-3 text-sm">
-            <summary className="cursor-pointer font-semibold">Hela PDF-posten</summary>
+          <div className="product-requirement-table-scroll"><table className="product-requirement-table">
+            <thead><tr><th scope="col">Postnummer</th><th scope="col">Beskrivelse</th><th scope="col">NS-kode</th><th scope="col">Mengde</th></tr></thead>
+            <tbody><tr aria-selected="true"><td>{details.postNumber ?? "—"}</td><td>{productRequirementLabel(requirement)}</td><td>{details.nsCode ?? "—"}</td><td>{formatProjectQuantity(quantity)}</td></tr></tbody>
+          </table></div>
+          <dl className="product-requirement-facts">
+            {details.attributes.filter(([key]) => !isAdditionalRequirementAttribute(key)).map(([key, value]) => <div key={key}><dt>{specificationLabel(key)}</dt><dd>{value}</dd></div>)}
+          </dl>
+          <div className="product-post-extras">
+          <details>
+            <summary>Alle tekniske krav</summary>
+            <ProjectPostSpecification id={"full-" + requirement.id} details={details}
+              description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
+              quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
+              sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />         </details>
+          {details.sourceExcerpt && <details>
+            <summary>Hele PDF-posten</summary>
             <p className="mt-3 whitespace-pre-wrap leading-6">{details.sourceExcerpt}</p>
           </details>}
-          <div id={`post-comments-${requirement.id}`} className="mt-4 scroll-mt-4">{postComments}</div>
+          <details>
+            <summary>Kommentarer til posten</summary>
+            <div id={`post-comments-${requirement.id}`} className="mt-3 scroll-mt-28">{postComments}</div>
+          </details>
+          </div>
         </div>
       </section>
 
-      <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="m-0 min-w-0 border-0 p-0 lg:min-h-0 lg:overflow-y-auto">
-        <div id={`product-selection-header-${requirement.id}`} className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
-          <nav id={`product-post-actions-${requirement.id}`} aria-label="Åtgärder för produktposten" className="flex flex-wrap gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+      <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="product-mapping-fields">
+        <div id={`product-selection-header-${requirement.id}`} className="product-action-bar">
+          <nav id={`product-post-actions-${requirement.id}`} aria-label="Handlinger for produktposten" className="product-post-actions">
             {!productNumber.trim() && <Button neutral id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
-              <Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt
+              <Plus className="h-4 w-4" aria-hidden="true" />Legg til produkt
             </Button>}
             {!resolution && (
               <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
-                <Tag className="h-4 w-4" aria-hidden="true" />Inte i sortiment
+                <Tag className="h-4 w-4" aria-hidden="true" />Ikke i sortiment
               </Button>
             )}
             <a href={productPostMailHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
-              <Mail className="h-4 w-4" aria-hidden="true" />Maila post
+              <Mail className="h-4 w-4" aria-hidden="true" />Send e-post om post
             </a>
             <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
               <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
@@ -1691,47 +1117,38 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
                 <FileText className="h-4 w-4" aria-hidden="true" />
 
-                Öppna PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
+                Åpne PDF{details.sourcePage ? ` · sida ${details.sourcePage}` : ""}
               </a>
             )}
             <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells hemsida
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells nettside
             </a>
           </nav>
         </div>
 
-        <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
+        <section className="product-linked-panel" aria-label="Koblede produkter">
+          <h3 className="product-panel-caption">Koblede produkter <span>{isApproved ? "Lagret" : productNumber.trim() ? "Ikke lagret" : "Ingen valgt"}</span></h3>
+          <div className="product-linked-content">
+          {!productNumber.trim() && !manualProductOpen && <p className="product-linked-empty">Velg et produkt fra listen over tilgjengelige produkter.</p>}
           <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
           {productNumber.trim() && !manualProductOpen && (
-            <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className={`scroll-mt-80 overflow-hidden rounded-lg border-2 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 lg:scroll-mt-60 border-neutral-400 bg-white`}>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-100 px-4 py-3">
-                <p className="flex items-center gap-2 text-lg font-bold text-neutral-950"><CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />{isApproved ? "Godkjent hovedprodukt" : "Produkt valgt"}</p>
-                <ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} />
-              </div>
-              <div className="space-y-4 p-4">
-                <div className="space-y-3">
-                  <div className="min-w-0">
-                    <h5 className="break-words text-xl font-bold leading-snug text-neutral-950">
-                      {productName || "Produkt"}{" "}
-                      <a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer"
-                        className="whitespace-nowrap text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{productNumber}</a>
-                    </h5>
-                    {productSubtitle && productSubtitle.trim() !== productName.trim() && <p className="mt-1 text-sm text-neutral-700">{productSubtitle}</p>}
-                  </div>
-                  <div className="shrink-0">
-                    <ProductQuantityFields compact id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
-                      onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
-                      onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} />
-                  </div>
-                </div>
-                {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && (
-                  <dl className="grid overflow-hidden rounded-md border border-neutral-200 bg-white sm:grid-cols-3">
-                    {manufacturerArticleNumber && <CompactProductDetail label="Artikelnummer" value={manufacturerArticleNumber} />}
-                    {deliveryTimeDays && <CompactProductDetail label="Leveranstid" value={`${deliveryTimeDays} dagar`} />}
-                    {unitPrice && <CompactProductDetail label="Pris" value={formatUnitPrice(unitPrice, priceCurrency)} />}
-                  </dl>
-                )}
-              </div>
+            <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className="product-selected-item">
+              <div className="product-linked-table-scroll"><table className="product-linked-table">
+                <thead><tr><th scope="col">NRF</th><th scope="col">Produkt</th><th scope="col">Mengde / enhet</th><th scope="col">Valg</th></tr></thead>
+                <tbody><tr aria-selected="true">
+                  <td><a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer" className="underline">{productNumber}</a></td>
+                  <td><strong>{productName || "Produkt"}</strong>{productSubtitle && productSubtitle.trim() !== productName.trim() && <p>{productSubtitle}</p>}</td>
+                  <td><ProductQuantityFields compact id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
+                    onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
+                    onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} /></td>
+                  <td><ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} /></td>
+                </tr></tbody>
+              </table></div>
+              {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && <dl className="product-requirement-facts">
+                {manufacturerArticleNumber && <div><dt>Artikkelnummer</dt><dd>{manufacturerArticleNumber}</dd></div>}
+                {deliveryTimeDays && <div><dt>Leveringstid</dt><dd>{deliveryTimeDays} dager</dd></div>}
+                {unitPrice && <div><dt>Pris</dt><dd>{formatUnitPrice(unitPrice, priceCurrency)}</dd></div>}
+              </dl>}
               {accessorySection}
             </section>
           )}
@@ -1749,11 +1166,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <section id={`manual-product-card-${requirement.id}`} aria-labelledby={`manual-product-title-${requirement.id}`} className="scroll-mt-24 overflow-hidden rounded-md border-2 border-neutral-300 bg-white shadow-sm">
               <div className="flex items-start justify-between gap-4 border-b border-neutral-200 bg-neutral-50 px-4 py-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">Produktval från Ahlsell</p>
-                  <h5 id={`manual-product-title-${requirement.id}`} className="mt-0.5 text-base font-bold text-neutral-950">Lägg till produkt</h5>
-                  <p className="mt-1 text-xs leading-5 text-neutral-600">Sök på Ahlsells webbplats eller klistra in produktens länk. Produkten sparas när du godkänner valet.</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-700">Produktvalg fra Ahlsell</p>
+                  <h5 id={`manual-product-title-${requirement.id}`} className="mt-0.5 text-base font-bold text-neutral-950">Legg til produkt</h5>
+                  <p className="mt-1 text-xs leading-5 text-neutral-600">Søk på Ahlsells nettsted eller lime inn produktets lenke. Produktet lagres når du godkjenner valget.</p>
                 </div>
-                <button type="button" aria-label="Stäng Lägg till produkt" title="Stäng" onClick={closeManualProductCard} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
+                <button type="button" aria-label="Lukk Legg til produkt" title="Lukk" onClick={closeManualProductCard} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
@@ -1765,13 +1182,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                   onDeselect={clearSelectedProduct} onQuantityChange={(_candidate, amount) => updateOrderQuantity(amount)} />
               </div>
               <details className="border-t border-neutral-200">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-neutral-800">Registrera produkt manuellt</summary>
+                <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-neutral-800">Registrer produkt manuelt</summary>
                 <form className="space-y-4 p-4" onSubmit={(event) => { event.preventDefault(); applyManualProduct(); }}>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ProductFormInput id={`manual-product-nrf-${requirement.id}`} label="NRF-nummer" value={manualProductDraft.productNumber} onChange={(value) => updateManualProductDraft("productNumber", value)} required />
                   <ProductFormInput id={`manual-product-article-${requirement.id}`} label="Artikelnummer" value={manualProductDraft.manufacturerArticleNumber} onChange={(value) => updateManualProductDraft("manufacturerArticleNumber", value)} required />
-                  <ProductFormInput id={`manual-product-manufacturer-${requirement.id}`} label="Tillverkare" value={manualProductDraft.manufacturerName} onChange={(value) => updateManualProductDraft("manufacturerName", value)} required />
-                  <ProductFormInput id={`manual-product-delivery-${requirement.id}`} label="Leveranstid (dagar)" type="number" min="0" max="3650" step="1" inputMode="numeric" value={manualProductDraft.deliveryTimeDays} onChange={(value) => updateManualProductDraft("deliveryTimeDays", value)} required />
+                  <ProductFormInput id={`manual-product-manufacturer-${requirement.id}`} label="Produsent" value={manualProductDraft.manufacturerName} onChange={(value) => updateManualProductDraft("manufacturerName", value)} required />
+                  <ProductFormInput id={`manual-product-delivery-${requirement.id}`} label="Leveringstid (dager)" type="number" min="0" max="3650" step="1" inputMode="numeric" value={manualProductDraft.deliveryTimeDays} onChange={(value) => updateManualProductDraft("deliveryTimeDays", value)} required />
                   <ProductFormInput id={`manual-product-price-${requirement.id}`} label={`Pris per enhet (${normalizeCurrencyCode(manualProductDraft.currency) || defaultCurrency})`} inputMode="decimal" placeholder="0,00" value={manualProductDraft.unitPrice} onChange={(value) => updateManualProductDraft("unitPrice", value)} required />
                 </div>
                 <ProductQuantityFields id={`manual-product-${requirement.id}`} quantity={manualProductDraft.quantity} unit={manualProductDraft.unit} disabled={saving}
@@ -1779,14 +1196,25 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                 {manualProductError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-900">{manualProductError}</p>}
                 <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end">
                   <Button neutral type="button" variant="secondary" className="justify-center" onClick={closeManualProductCard}>Avbryt</Button>
-                  <Button neutral type="submit" className="justify-center"><Plus className="h-4 w-4" aria-hidden="true" />Lägg till produkt</Button>
+                  <Button neutral type="submit" className="justify-center"><Plus className="h-4 w-4" aria-hidden="true" />Legg til produkt</Button>
                 </div>
               </form>
               </details>
             </section>
           )}
 
-          <div id={`ahlsell-products-${requirement.id}`} hidden={Boolean(productNumber.trim()) || manualProductOpen} className="scroll-mt-24 overflow-hidden rounded-md border border-neutral-200 bg-white">
+          {productNumber.trim() && commentDraftDirty && <p className="text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold">Produktkommentarer</summary>
+            <div id={`product-comments-${requirement.id}`} className="mt-3 scroll-mt-28">{productComments}</div>
+          </details>
+
+          </div>
+        </section>
+
+          <div id={`ahlsell-products-${requirement.id}`} className="product-catalog-panel">
+            <h3 className="product-panel-caption">Tilgjengelige produkter <span>Ahlsell</span></h3>
+            <div className="product-catalog-scroll">
             <AhlsellPublicMatchPanel
               projectId={projectId}
               requirementId={requirement.id}
@@ -1808,20 +1236,22 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                 element?.focus({ preventScroll: true });
               }}
             />
+            </div>
           </div>
 
-          {productNumber.trim() && commentDraftDirty && <p className="text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
-          <div id={`product-comments-${requirement.id}`} className="scroll-mt-52">
-            {productComments}
-          </div>
-
+        <div className="product-save-footer">
+          <span className="text-sm text-neutral-600">{isApproved ? "Produktvalget er lagret" : productNumber.trim() ? "Produkt valgt · ikke lagret" : "Velg et produkt for å lagre posten"}</span>
+          <Button type="button" onClick={() => void save()}
+            disabled={!productNumber.trim() || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductRequired || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+            {saving ? "Lagrer…" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
+          </Button>
         </div>
-
         {attachmentExpanded && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <button
               type="button"
-              aria-label="Stäng vedlegg"
+              aria-label="Lukk vedlegg"
               className="absolute inset-0 bg-neutral-950/65 backdrop-blur-sm"
               onClick={closeAttachmentPanel}
               disabled={attachmentSaving}
@@ -1838,12 +1268,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                     <Paperclip className="h-4 w-4 text-neutral-700" aria-hidden="true" />
                     Legg til vedlegg
                   </h5>
-                  <p className="mt-0.5 text-xs leading-5 text-neutral-600">Lägg en kommentar och fil till PDF-post {details.postNumber ?? position}.</p>
+                  <p className="mt-0.5 text-xs leading-5 text-neutral-600">Legg en kommentar og fil til PDF-post {details.postNumber ?? position}.</p>
                 </div>
                 <button
                   type="button"
-                  aria-label="Stäng"
-                  title="Stäng"
+                  aria-label="Lukk"
+                  title="Lukk"
                   onClick={closeAttachmentPanel}
                   disabled={attachmentSaving}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 disabled:cursor-wait disabled:opacity-50"
@@ -1855,7 +1285,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               <div className="space-y-5 p-4 sm:p-5">
                 <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void saveAttachment(); }}>
                   <label className="block" htmlFor={`attachment-comment-${requirement.id}`}>
-                    <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-neutral-600"><span>Kommentar <span className="font-normal text-neutral-500">(valfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
+                    <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-neutral-600"><span>Kommentar <span className="font-normal text-neutral-500">(valgfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
                     <textarea id={`attachment-comment-${requirement.id}`} rows={3} maxLength={2000} value={attachmentComment} onChange={(event) => { setAttachmentComment(event.target.value); setAttachmentError(null); setAttachmentMessage(null); }} className="block w-full resize-y rounded-sm border-neutral-300 bg-white text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500" />
                   </label>
                   <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
@@ -1866,25 +1296,25 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                     <div className="flex flex-wrap gap-2">
                       <Button neutral type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
 
-                        Rensa
+                        Tøm
                       </Button>
                       <Button neutral type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
                         {attachmentSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
-                        {attachmentSaving ? "Sparar…" : "Spara vedlegg"}
+                        {attachmentSaving ? "Sparar…" : "Lagre vedlegg"}
                       </Button>
                     </div>
                   </div>
-                  <p className="text-xs text-neutral-500">Max 4 MB. Tillåtna format: PDF, PNG, JPG, WebP, TXT och CSV.</p>
+                  <p className="text-xs text-neutral-500">Max 4 MB. Tillatte format: PDF, PNG, JPG, WebP, TXT og CSV.</p>
                   {attachmentError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{attachmentError}</p>}
                   {attachmentMessage && <p role="status" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{attachmentMessage}</p>}
                 </form>
 
                 <div className="border-t border-neutral-200 pt-4">
-                  <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-600">Sparade vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</h5>
+                  <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-600">Lagrede vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</h5>
                   {attachmentsLoading ? (
-                    <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-neutral-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Hämtar vedlegg…</p>
+                    <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-neutral-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Henter vedlegg…</p>
                   ) : attachments.length === 0 ? (
-                    <p className="mt-2 text-xs text-neutral-600">Inga vedlegg har sparats för posten.</p>
+                    <p className="mt-2 text-xs text-neutral-600">Ingen vedlegg har lagret for posten.</p>
                   ) : (
                     <div className="mt-2 divide-y divide-neutral-200 overflow-hidden rounded-md border border-neutral-200 bg-white">
                       {attachments.map((attachment) => (
@@ -1895,7 +1325,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                             <p className="mt-0.5 text-xs text-neutral-500">{formatAttachmentSize(attachment.sizeBytes)} · {formatAttachmentDate(attachment.uploadedAt)}</p>
                             {attachment.comment && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-700">{attachment.comment}</p>}
                           </div>
-                          <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400 hover:bg-neutral-50" aria-label={`Hämta ${attachment.fileName}`} title="Hämta vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
+                          <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400 hover:bg-neutral-50" aria-label={`Hent ${attachment.fileName}`} title="Hent vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
                         </article>
                       ))}
                     </div>
@@ -1940,8 +1370,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
     })
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as (AhlsellCatalogResult & { error?: string }) | null;
-        if (!response.ok) throw new Error(payload?.error ?? "Ahlsell-sökningen misslyckades.");
-        if (!payload) throw new Error("Ahlsell-sökningen gav inget läsbart svar.");
+        if (!response.ok) throw new Error(payload?.error ?? "Ahlsell-søket mislyktes.");
+        if (!payload) throw new Error("Ahlsell-søket gav ingen lesbart svar.");
         if (controller.signal.aborted) return;
         setCatalogResult(payload);
         const status = ahlsellCatalogStatusFromPayload(payload);
@@ -1949,7 +1379,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       })
       .catch((error) => {
         if (error instanceof Error && error.name === "AbortError") return;
-        setCatalogError(error instanceof Error ? error.message : "Ahlsell-sökningen misslyckades.");
+        setCatalogError(error instanceof Error ? error.message : "Ahlsell-søket mislyktes.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoadingCatalog(false);
@@ -1981,17 +1411,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
   ]));
   const candidates = orderAhlsellCandidatesForDisplay(mergedCandidates)
     .filter((candidate) => !memoryArticleNumbers.has(normalizeNrfNumber(candidate.articleNumber)));
-  // Selecting a listed article must keep the other matches available.
-  const hasNrfFilter = Boolean(normalizeNrfNumber(selectedArticleNumber))
-    && !candidatesByArticle.has(normalizeNrfNumber(selectedArticleNumber))
-    && !memoryArticleNumbers.has(normalizeNrfNumber(selectedArticleNumber));
-  const filteredCandidates = filterAhlsellCandidatesByNrf(candidates, hasNrfFilter ? selectedArticleNumber : "");
-  const filteredMemories = usableMemories.filter((memory) => {
-    const filter = hasNrfFilter ? normalizeNrfNumber(selectedArticleNumber) : "";
-    return !filter || normalizeNrfNumber(String(memory.product_number)) === filter;
-  });
-  const totalResultCount = usableMemories.length + candidates.length;
-  const filteredResultCount = filteredMemories.length + filteredCandidates.length;
+  const filteredCandidates = candidates;
+  const filteredMemories = usableMemories;
   function selectCandidate(candidate: AhlsellPublicCandidate) {
     if (normalizeNrfNumber(candidate.articleNumber) === normalizeNrfNumber(selectedArticleNumber)) {
       onClearSelection();
@@ -2003,65 +1424,44 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
     );
   }
 
-  function clearSelection() {
-    onClearSelection();
-  }
-
   return (
     <section aria-label="Ahlsellprodukter">
-      {hasNrfFilter && (
-        <div className="flex justify-end px-3 py-3 sm:px-4">
-          <button type="button" className="font-bold text-neutral-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600" onClick={clearSelection}>
-            Rensa NRF
-          </button>
-        </div>
-      )}
-
       {loadingCatalog && (
         <div className="flex min-h-16 items-center justify-center gap-2 border-t border-neutral-200 bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-800" role="status">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Söker automatiskt på Ahlsells webbplats…
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Søker automatisk på Ahlsells nettsted…
         </div>
       )}
 
       {catalogError && (
         <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-3 text-xs leading-5 text-neutral-950 sm:px-4" role="alert">
-          <p className="font-bold">Produktlistan kunde inte hämtas.</p>
-          <p>{catalogError}  Du kan söka manuellt via ”Lägg till produkt”.</p>
+          <p className="font-bold">Produktlisten kunne ikke hentes.</p>
+          <p>{catalogError}  Du kan søke manuelt via ”Legg til produkt”.</p>
         </div>
       )}
 
       {!loadingCatalog && catalogResult?.publicSearchStatus && catalogResult.publicSearchStatus !== "available" && (
         <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-xs leading-5 text-neutral-950 sm:px-4" role="status">
           {catalogResult.publicSearchStatus === "unavailable"
-            ? "Ahlsells webbplats kunde inte nås. Produktförslagen från MLDL finns kvar."
-            : "En del av Ahlsell-sökningen kunde inte slutföras. MLDL och de hämtade webbträffarna visas."}
+            ? "Ahlsells nettsted kunne ikke nås. Produktforslagene fra MLDL finnes igjen."
+            : "En del av Ahlsell-søket kunne ikke fullføres. MLDL og de hentede nettreffene vises."}
         </div>
       )}
 
       {!loadingCatalog && !catalogError && catalogResult?.truncated && (
         <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold leading-5 text-neutral-950 sm:px-4">
 
-          Fler träffar finns hos Ahlsell. Listan innehåller alla matchande produkter från den avgränsade sökningen.
-        </div>
-      )}
-
-      {!loadingCatalog && hasNrfFilter && filteredResultCount === 0 && totalResultCount > 0 && (
-        <div className="flex flex-col gap-3 border-t border-neutral-300 bg-neutral-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4" role="status">
-          <p className="text-sm font-semibold text-neutral-950">Inga hämtade produkter har NRF-nummer {selectedArticleNumber.trim()}.</p>
-          <Button neutral type="button" variant="secondary" className="min-h-9 shrink-0 justify-center px-3 py-1.5 text-xs" onClick={clearSelection}>
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />Visa alla produkter
-          </Button>
+          Flere treff finnes hos Ahlsell. Listen inneholder alle samsvarende produkter fra den avgrensede søket.
         </div>
       )}
 
       {filteredMemories.length > 0 && (
-        <div className="border-t border-neutral-300" role="group" aria-label="Tidigare bekräftade produkter">
+        <div className="border-t border-neutral-300" role="group" aria-label="Tidligere bekreftede produkter">
           <div className={memoriesAreExact ? "bg-neutral-100/80 px-3 py-2 sm:px-4" : "bg-neutral-50 px-3 py-2 sm:px-4"}>
             <p className={memoriesAreExact ? "flex items-center gap-1.5 text-xs font-bold text-neutral-900" : "flex items-center gap-1.5 text-xs font-bold text-neutral-900"}>
               {memoriesAreExact ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
-              {memoriesAreExact ? "Exakt match från tidigare bekräftade val" : "Tidigare val finns, men PDF-uppgifterna måste kontrolleras"}
+              {memoriesAreExact ? "Eksakt treff fra tidligere bekreftede valg" : "Tidligere valg finnes, men PDF-opplysningene må kontrolleres"}
             </p>
-            <p className="mt-0.5 text-xs text-neutral-600">Valet måste godkännas på nytt i detta projekt.</p>
+            <p className="mt-0.5 text-xs text-neutral-600">Valget må godkjennes på nytt i dette prosjekt.</p>
           </div>
           <div className="divide-y divide-neutral-200">
             {filteredMemories.map((memory) => {
@@ -2082,7 +1482,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                       <p className="mt-0.5 text-xs font-bold text-neutral-800">NRF-nummer {articleNumber}</p>
                       <p className={memoriesAreExact ? "mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-800" : "mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900"}>
                         {memoriesAreExact ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
-                        {memoriesAreExact ? "Exakt match · tidigare bekräftad" : "Tidigare bekräftad · kontroll krävs"}
+                        {memoriesAreExact ? "Eksakt treff · tidligere bekreftet" : "Tidligere bekreftet · kontroll kreves"}
                       </p>
                     </div>
                     <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-neutral-800">
@@ -2096,10 +1496,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
                           productName: candidate?.productName || productName,
                           productSubtitle: resolvedSubtitle
                         })}
-                        aria-label={`${isSelected ? "Ta bort valet av" : "Välj"} tidigare bekräftad produkt ${productName}, NRF-nummer ${articleNumber}`}
+                        aria-label={`${isSelected ? "Fjern valget av" : "Velg"} tidligere bekreftet produkt ${productName}, NRF-nummer ${articleNumber}`}
                         className="h-5 w-5 shrink-0 cursor-pointer rounded border-neutral-300 text-neutral-700 focus:ring-neutral-600 disabled:cursor-not-allowed"
                       />
-                      <span aria-hidden="true">{isSelected ? "Ta bort val" : "Välj"}</span>
+                      <span aria-hidden="true">{isSelected ? "Fjern valg" : "Velg"}</span>
                     </label>
                   </div>
                 </article>
@@ -2110,13 +1510,15 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, guide, disabled, se
       )}
 
       <AhlsellCandidateList
+        compact
+        expandedMatches
         candidates={filteredCandidates}
         requirementId={requirementId}
         selectedArticleNumber={selectedArticleNumber}
         disabled={disabled}
         allowMatches={memoriesAreExact}
         accessoryRequirements={guide.accessoryRequirements}
-        showNoMatch={!loadingCatalog && !catalogError && !hasNrfFilter && filteredMemories.length === 0}
+        showNoMatch={!loadingCatalog && !catalogError && filteredMemories.length === 0}
         onSearch={onSearch}
         onCheckRequirement={onCheckRequirement}
         onSelect={selectCandidate}
@@ -2142,261 +1544,28 @@ function buildProductPostMailHref({ postNumber, productRequirement, quantity, ns
   const body = [
     "Hej,",
     "",
-    "Vi behöver hjälp med följande produktpost:",
+    "Vi trenger hjelp med følgende produktpost:",
     `PDF-post: ${postNumber}`,
-    nsCode ? `NS-kod: ${nsCode}` : null,
+    nsCode ? `NS-kode: ${nsCode}` : null,
     system ? `System: ${system}` : null,
     `Produktkrav: ${productRequirement}`,
-    `Antal: ${quantity}`,
+    `Antall: ${quantity}`,
     technicalDetails || null,
-    sourceExcerpt ? `\nOriginaltext från PDF:\n${sourceExcerpt.slice(0, 1200)}` : null,
+    sourceExcerpt ? `
+Originaltext fra PDF:
+${sourceExcerpt.slice(0, 1200)}` : null,
     "",
-    "Vänligen återkom med lämplig produkt och NRF-nummer."
+    "Vennligst kom tilbake med egnet produkt og NRF-nummer."
   ].filter((line): line is string => line !== null).join("\n");
 
-  return `mailto:?subject=${encodeURIComponent(`Produktfråga – PDF-post ${postNumber}`)}&body=${encodeURIComponent(body)}`;
+  return `mailto:?subject=${encodeURIComponent(`Produktspørsmål – PDF-post ${postNumber}`)}&body=${encodeURIComponent(body)}`;
 }
 
-function MissingProductIndicator({ detail }: { detail?: string }) {
-  const label = detail ? `Ingen produkt vald · ${detail}` : "Ingen produkt vald";
-  return (
-    <span role="img" aria-label={label} title={label} className="inline-flex shrink-0 text-neutral-700">
-      <AlertTriangle className="h-5 w-5" aria-hidden="true" />
-    </span>
-  );
-}
-
-function RequirementQueueRow({ requirement, postType, assignment, memory, bulkSelection, productLabel, sourcePdfHref, columns, position, approved, onOpen }: {
-  requirement: Row;
-  postType: string;
-  assignment?: Row;
-  memory?: Row;
-  bulkSelection?: BulkProductApprovalSelection;
-  productLabel?: AhlsellProductLabel;
-  sourcePdfHref: string | null;
-  columns: ProductTableColumnId[];
-  position: number;
-  approved: boolean;
-  onOpen: () => void;
-}) {
-  const details = projectRequirementDetails(requirement);
-  const dataWarnings = projectRequirementDataWarnings(requirement);
-  const quantity = projectRequirementQuantity(requirement.value_json);
-  const productSnapshot = record(assignment?.product_snapshot);
-  const resolution = productRequirementResolution(requirement);
-  const productName = String(productSnapshot.name ?? "").trim();
-  const productSubtitle = String(productSnapshot.subtitle ?? "").trim();
-  const productNumber = String(productSnapshot.productNumber ?? "").trim();
-  const memoryProductName = String(memory?.product_name ?? "").trim();
-  const memoryProductNumber = String(memory?.product_number ?? "").trim();
-  const memoryProductSubtitle = String(memory?.product_subtitle ?? "").trim();
-  const hasReusableMemory = !approved && Boolean(memoryProductName && memoryProductNumber);
-  const displayProductNumber = productNumber || bulkSelection?.productNumber || memoryProductNumber;
-  const matchingProductLabel = productLabel
-    && normalizeNrfNumber(productLabel.articleNumber) === normalizeNrfNumber(displayProductNumber)
-      ? productLabel
-      : undefined;
-  const selectedProductDisplayName = productSubtitle || matchingProductLabel?.subtitle || productName;
-  const suggestedProductDisplayName = matchingProductLabel?.subtitle
-    || memoryProductSubtitle
-    || bulkSelection?.productName
-    || memoryProductName;
-  const categoryLabel = productRequirementCategoryLabel(productRequirementCategory(requirement));
-  const rowClass = productTableRowClass({ approved, selected: false });
-
-  function renderProductTableCell(columnId: ProductTableColumnId) {
-    if (columnId === "control") {
-      return (
-        <td key={columnId} className="px-2 py-2.5 text-center align-middle">
-          {approved && (productName || productNumber) ? (
-            <span title="Godkänd" className="inline-flex text-emerald-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /><span className="sr-only">Godkänd</span></span>
-          ) : (
-            <MissingProductIndicator detail={resolution?.label} />
-          )}
-        </td>
-      );
-    }
-    if (columnId === "post") {
-      return (
-        <td key={columnId} className="px-3 py-2.5 align-middle">
-          <div className="flex items-center gap-2">
-            <button
-              type="button" data-appearance="text"
-              aria-haspopup="dialog"
-              aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`}
-              onClick={onOpen}
-              className="text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-flow-600"
-            >
-              {details.postNumber ?? `Sida ${details.sourcePage ?? requirement.source_page ?? position}`}
-            </button>
-          {sourcePdfHref && (
-            <a
-              href={sourcePdfHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Öppna PDF-post ${details.postNumber ?? position}${details.sourcePage ? ` på sida ${details.sourcePage}` : ""}`}
-              title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
-              className="inline-flex items-center gap-1 text-sm font-black text-flow-800 hover:text-flow-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600"
-            >
-              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
-            </a>
-          )}
-          </div>
-        </td>
-      );
-    }
-    if (columnId === "nsCode") {
-      return (
-        <td key={columnId} className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">
-          <button type="button" data-appearance="text" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för ${details.nsCode ?? "posten"}`} className="text-left hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600">
-            <span className="whitespace-nowrap font-semibold">{details.nsCode || "—"}</span>
-          </button>
-        </td>
-      );
-    }
-    if (columnId === "requirement") {
-      return (
-        <td key={columnId} className="px-3 py-2.5 align-middle">
-          <button type="button" data-appearance="text" aria-haspopup="dialog" onClick={onOpen} className="text-left text-xs font-semibold leading-5 text-ink-950 hover:text-flow-800">{productTableRequirementLabel(requirement)}</button>
-          <span className="block text-[10px] font-normal text-ink-600">{postType}</span>
-          {!approved && dataWarnings.map((warning) => (
-            <span key={warning.code} title={warning.message} className="mt-0.5 flex items-center gap-1 text-[10px] font-bold leading-4 text-amber-800">
-              <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
-              {warning.label}
-            </span>
-          ))}
-        </td>
-      );
-    }
-    if (columnId === "category") return <td key={columnId} className="px-3 py-2.5 align-middle text-xs font-semibold text-ink-800">{categoryLabel}</td>;
-    if (columnId === "quantity") return <td key={columnId} className="whitespace-nowrap px-3 py-2.5 align-middle text-xs font-bold text-ink-900">{formatProjectQuantity(quantity)}</td>;
-    return (
-      <td key={columnId} className="px-3 py-2.5 align-middle text-xs">
-        {productName || productNumber ? (
-          <><span className="block font-bold leading-4 text-ink-950" title={productName || selectedProductDisplayName}>{selectedProductDisplayName || `NRF ${productNumber}`}</span>{productNumber && <span className="block text-[10px] text-ink-600">NRF-nummer {productNumber}</span>}</>
-        ) : bulkSelection ? (
-          <><span className="block font-bold leading-4 text-sky-950" title={bulkSelection.productName}>{suggestedProductDisplayName}</span><span className="block text-[10px] text-sky-700">{bulkSelection.source === "memory" ? "Tidigare val" : "Direktträff"} · NRF-nummer {bulkSelection.productNumber}</span></>
-        ) : hasReusableMemory ? (
-          <><span className="block font-bold leading-4 text-sky-900">{memoryProductSubtitle || memoryProductName}</span><span className="block text-[10px] text-sky-700">Tidigare · NRF-nummer {memoryProductNumber}</span></>
-        ) : (
-          <span className="italic text-ink-500">Ingen produkt vald</span>
-        )}
-      </td>
-    );
-  }
-
-  return (
-    <tr className={`border-b border-ink-100 transition last:border-b-0 ${rowClass}`}>
-      {columns.map(renderProductTableCell)}
-      <td className="px-2 py-2 text-center align-middle">
-        <button type="button" data-appearance="text" aria-haspopup="dialog" onClick={onOpen} aria-label={`Öppna produktkort för PDF-post ${details.postNumber ?? position}`} title="Öppna produktkort" className="text-sm font-semibold">
-          Öppna
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-function productTableRequirementLabel(requirement: Row) {
+function productRequirementLabel(requirement: Row) {
   const codeInfo = ns3420CodeInfo(projectRequirementDetails(requirement).nsCode);
   return codeInfo?.kind === "reference"
     ? codeInfo.label
-    : String(requirement.value_text ?? "Tekniskt produktkrav");
-}
-
-function productTableSortValue(
-  requirement: Row,
-  key: ProductTableSortKey,
-  approved: boolean,
-  group: AhlsellMatchGroup,
-  assignment?: Row,
-  memory?: Row,
-  bulkSelection?: BulkProductApprovalSelection,
-  productLabel?: AhlsellProductLabel
-): string | number | null {
-  if (key === "control") {
-    if (productRequirementResolution(requirement)) return 4;
-    if (approved) return 3;
-    if (group === "green") return 2;
-    return group === "red" ? 0 : 1;
-  }
-  if (key === "post") return projectRequirementDetails(requirement).postNumber;
-  if (key === "nsCode") return projectRequirementDetails(requirement).nsCode;
-  if (key === "requirement") return productTableRequirementLabel(requirement);
-  if (key === "category") return productRequirementCategoryLabel(productRequirementCategory(requirement));
-  if (key === "quantity") return projectRequirementQuantity(requirement.value_json).quantity;
-
-  const productSnapshot = record(assignment?.product_snapshot);
-  const productSubtitle = String(productSnapshot.subtitle ?? "").trim();
-  const productName = String(productSnapshot.name ?? "").trim();
-  const productNumber = String(productSnapshot.productNumber ?? "").trim();
-  const displayProductNumber = productNumber || bulkSelection?.productNumber || String(memory?.product_number ?? "").trim();
-  const resolvedLabel = productLabel
-    && normalizeNrfNumber(productLabel.articleNumber) === normalizeNrfNumber(displayProductNumber)
-      ? productLabel.subtitle
-      : "";
-  if (productSubtitle || resolvedLabel || productName) return productSubtitle || resolvedLabel || productName;
-  if (bulkSelection) return bulkSelection.productName;
-  const memoryProductSubtitle = String(memory?.product_subtitle ?? "").trim();
-  const memoryProductName = String(memory?.product_name ?? "").trim();
-  const memoryProductNumber = String(memory?.product_number ?? "").trim();
-  return !approved && memoryProductName && memoryProductNumber
-    ? memoryProductSubtitle || memoryProductName
-    : null;
-}
-
-function ProductSortHeader({ label, sortKey, sort, dragging, onSort, onDragStart, onDragEnd, onDragOver, onDrop, align = "left", className = "" }: {
-  label: string;
-  sortKey: ProductTableSortKey;
-  sort: ProductTableSort | null;
-  dragging: boolean;
-  onSort: (key: ProductTableSortKey) => void;
-  onDragStart: (event: ReactDragEvent, columnId: ProductTableColumnId) => void;
-  onDragEnd: () => void;
-  onDragOver: (event: ReactDragEvent) => void;
-  onDrop: (event: ReactDragEvent) => void;
-  align?: "left" | "center";
-  className?: string;
-}) {
-  const active = sort?.key === sortKey;
-  const nextDirectionLabel = active && sort.direction === "asc" ? "fallande" : "stigande";
-  const ariaSort = active ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
-
-  return (
-    <th scope="col" aria-sort={ariaSort} onDragOver={onDragOver} onDrop={onDrop} className={`border-b border-ink-200 px-1 py-2 ${dragging ? "bg-flow-50 opacity-60" : ""} ${className}`}>
-      <div className={`flex items-center gap-0.5 ${align === "center" ? "justify-center" : "justify-start"}`}>
-        <span
-          draggable
-          aria-hidden="true"
-          title={`Dra för att flytta ${label}`}
-          onDragStart={(event) => onDragStart(event, sortKey)}
-          onDragEnd={onDragEnd}
-          className="inline-flex h-7 w-6 shrink-0 cursor-grab items-center justify-center rounded text-ink-400 transition hover:bg-white hover:text-flow-700 active:cursor-grabbing"
-        >
-          <GripVertical className="h-4 w-4" />
-        </span>
-        <button
-          type="button"
-          onClick={() => onSort(sortKey)}
-          aria-label={`Sortera ${label} ${nextDirectionLabel}`}
-          className={`inline-flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 transition hover:text-flow-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flow-600 ${align === "center" ? "justify-center" : "justify-start"}`}
-        >
-          <span>{label}</span>
-          {active && sort.direction === "asc" ? (
-            <ArrowUp className="h-3.5 w-3.5 shrink-0 text-flow-700" aria-hidden="true" />
-          ) : active ? (
-            <ArrowDown className="h-3.5 w-3.5 shrink-0 text-flow-700" aria-hidden="true" />
-          ) : (
-            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />
-          )}
-        </button>
-      </div>
-    </th>
-  );
-}
-
-function CompactProductDetail({ label, value }: { label: string; value: string }) {
-  return <div className="border-b border-neutral-100 px-3 py-2.5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"><dt className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-0.5 break-words text-xs font-bold leading-5 text-neutral-900">{value}</dd></div>;
+    : String(requirement.value_text ?? "Teknisk produktkrav");
 }
 
 function AccessoryInput({ id, label, value, onChange, type = "text", min, max, step, required = false }: {
@@ -2436,7 +1605,7 @@ function ProductFormInput({ id, label, value, onChange, required = false, option
   return (
     <label className="block" htmlFor={id}>
       <span className="mb-1 block text-xs font-semibold text-neutral-600">
-        {label}{required && <span className="ml-1 font-black text-neutral-600">*</span>}{optional && <span className="ml-1 font-normal text-neutral-500">(valfritt)</span>}
+        {label}{required && <span className="ml-1 font-black text-neutral-600">*</span>}{optional && <span className="ml-1 font-normal text-neutral-500">(valgfritt)</span>}
       </span>
       <input id={id} type={type} min={min} max={max} step={step} inputMode={inputMode} placeholder={placeholder} required={required} readOnly={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="block h-10 w-full rounded-sm border-neutral-300 bg-neutral-50 text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500 read-only:cursor-default read-only:bg-neutral-100" />
     </label>
@@ -2453,7 +1622,7 @@ function formatUnitPrice(value: string, currency: string) {
   const currencyCode = normalizeCurrencyCode(currency) || "NOK";
   if (!Number.isFinite(amount)) return `${value} ${currencyCode}`.trim();
   try {
-    return new Intl.NumberFormat("sv-SE", {
+    return new Intl.NumberFormat("nb-NO", {
       style: "currency",
       currency: currencyCode,
       minimumFractionDigits: 2,
@@ -2483,7 +1652,7 @@ async function fetchAhlsellProductLabels(
       error?: string;
     } | null;
     if (!response.ok) {
-      throw new Error(payload?.error ?? "Ahlsells produkttexter kunde inte hämtas.");
+      throw new Error(payload?.error ?? "Ahlsells produkttekster kunne ikke hentes.");
     }
     Object.assign(labels, payload?.labels ?? {});
   }
@@ -2491,16 +1660,16 @@ async function fetchAhlsellProductLabels(
 }
 
 function formatAttachmentSize(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return "Okänd storlek";
+  if (!Number.isFinite(value) || value <= 0) return "Ukjent størrelse";
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} kB`;
-  return `${(value / (1024 * 1024)).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
+  return `${(value / (1024 * 1024)).toLocaleString("nb-NO", { maximumFractionDigits: 1 })} MB`;
 }
 
 function formatAttachmentDate(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Okänt datum";
-  return new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short" }).format(date);
+  if (Number.isNaN(date.getTime())) return "Ukjent dato";
+  return new Intl.DateTimeFormat("nb-NO", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
 function record(value: unknown): Record<string, unknown> {

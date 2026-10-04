@@ -9,7 +9,7 @@ import { technicalConflictWarnings } from "@/lib/ahlsell-technical-conflicts";
 import { groupAhlsellCandidatesForDisplay, normalizeNrfNumber } from "@/lib/product-card-candidates";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 
-export function AhlsellCandidateList({ candidates, requirementId, selectedArticleNumber, selectedArticleNumbers, accessory = false, selectionLimitReached = false, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, onSearch, onCheckRequirement, onSelect }: {
+export function AhlsellCandidateList({ candidates, requirementId, selectedArticleNumber, selectedArticleNumbers, accessory = false, selectionLimitReached = false, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, expandedMatches = false, compact = false, onSearch, onCheckRequirement, onSelect }: {
   candidates: AhlsellPublicCandidate[];
   requirementId: string;
   selectedArticleNumber: string;
@@ -20,6 +20,8 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
   allowMatches: boolean;
   accessoryRequirements?: string[];
   showNoMatch?: boolean;
+  expandedMatches?: boolean;
+  compact?: boolean;
   onSearch?: () => void;
   onCheckRequirement?: () => void;
   onSelect: (candidate: AhlsellPublicCandidate) => void;
@@ -33,6 +35,20 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
     const assessedState = ahlsellCandidateMatchState(candidate);
     const state = !allowMatches && assessedState !== "mismatch" ? "review" : assessedState;
     const matched = state === "exact" || state === "matched";
+    if (compact) return (
+      <tr key={candidate.articleNumber} aria-selected={selected}>
+        <td><input type="checkbox" checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
+          aria-label={`${selected ? "Fjern valget av" : "Velg"} ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
+          onChange={() => onSelect(candidate)} /></td>
+        <td><a href={candidate.productUrl} target="_blank" rel="noreferrer" className="underline" aria-label={`Åpne Ahlsell artikkel ${candidate.articleNumber}`}>{candidate.articleNumber}</a></td>
+        <td>
+          <p>{candidate.productName}</p>
+          {candidate.description && candidate.description !== candidate.productName && <p className="product-candidate-description">{candidate.description}</p>}
+          <span className="product-candidate-assessment">{matched ? "Samsvarer med kravene" : state === "mismatch" ? "Avvik mot kravene" : "Må kontrolleres"}</span>
+          <AhlsellCandidateWarnings candidate={candidate} />
+        </td>
+      </tr>
+    );
     const background = selected ? "bg-neutral-100" : "bg-white";
     return (
       <article key={candidate.articleNumber} className={`${background} rounded-sm border ${selected ? "border-neutral-700 ring-1 ring-inset ring-neutral-700" : "border-neutral-300"} px-3 py-3 sm:px-4`}>
@@ -74,8 +90,15 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
     );
   }
 
+  function productRows(rows: AhlsellPublicCandidate[]) {
+    return compact ? <div className="product-candidate-table-scroll"><table className="product-candidate-table">
+      <thead><tr><th scope="col"><span className="sr-only">Velg</span></th><th scope="col">NRF</th><th scope="col">Produkt</th></tr></thead>
+      <tbody>{rows.map(productRow)}</tbody>
+    </table></div> : rows.map(productRow);
+  }
+
   return (
-    <div>
+    <div className={compact ? "product-candidate-list" : undefined}>
       {showNoMatch && matching.length === 0 && (
         <div role="status" className={`border-t px-3 py-4 sm:px-4 ${review.length ? "border-neutral-300 bg-neutral-50 text-neutral-950" : "border-neutral-200 bg-neutral-50 text-neutral-950"}`}>
           <p className="flex items-center gap-2 text-sm font-bold">{review.length ? <AlertTriangle className="h-5 w-5" aria-hidden="true" /> : <CircleX className="h-5 w-5" aria-hidden="true" />}{review.length ? "Ingen verifierad match ännu" : "Ingen match bland kontrollerade produkter"}</p>
@@ -94,7 +117,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
         </div>
       )}
       {matching.length > 0 && (
-        <details className="group border-t border-neutral-300">
+        <details open={expandedMatches} className="group border-t border-neutral-300">
           <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 bg-neutral-50 px-3 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600 sm:px-4">
             <CheckCircle2 className="h-5 w-5 shrink-0 text-neutral-700" aria-hidden="true" />
             <div className="flex-1">
@@ -107,14 +130,14 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             <ChevronDown className="h-5 w-5 text-neutral-800 transition group-open:rotate-180" aria-hidden="true" />
           </summary>
           <div className="space-y-3 border-t border-neutral-200 p-3 sm:p-4" role="group" aria-label="Matchade produkter">
-            {matching.map(productRow)}
+            {productRows(matching)}
           </div>
         </details>
       )}
       {review.length > 0 && (
         <details open={matching.length === 0} className="border-t border-neutral-200">
           <summary className="cursor-pointer bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-950 sm:px-4">Produktförslag</summary>
-          <div className="space-y-3 p-3 sm:p-4" role="group" aria-label="Produktförslag">{review.map(productRow)}</div>
+          <div className="space-y-3 p-3 sm:p-4" role="group" aria-label="Produktförslag">{productRows(review)}</div>
         </details>
       )}
     </div>
