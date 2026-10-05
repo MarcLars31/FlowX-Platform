@@ -3,7 +3,7 @@ import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { DemoBadge } from "@/components/DemoBadge";
+import { createProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { ProjectDeliveryControl } from "@/components/ProjectDeliveryControl";
 import { DistributorMappingPanel, type ProductEditState } from "@/components/DistributorMappingPanel";
 import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
@@ -86,6 +87,8 @@ export function ProjectWorkspace({
 }) {
   const router = useRouter();
   const [data, setData] = useState(initialData);
+  const deliveryResource = useMemo(() => createProjectDeliveryResource(data.project.id), [data.project.id]);
+  useEffect(() => () => deliveryResource.cancelPending(), [deliveryResource]);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [requirementView, setRequirementView] = useState<ProjectRequirementView | "all">("all");
   const [productEditState, setProductEditState] = useState<ProductEditState>({dirty: false, saving: false});
@@ -307,6 +310,7 @@ export function ProjectWorkspace({
       let refreshedData: ProjectModuleData;
       try {
         refreshedData = await reload();
+        void deliveryResource.refresh(true);
         await advanceProjectStage("product_matching");
       } catch {
         setMessage("Underlaget är sparat. Visningen kunde inte uppdateras — ladda om sidan eller öppna Importstatus.");
@@ -460,7 +464,7 @@ export function ProjectWorkspace({
       )}
 
       {tab === "management" && <div className="space-y-5">
-        <ProjectDeliveryControl projectId={data.project.id} mode="assignments" onChanged={reload} />
+        <ProjectDeliveryControl projectId={data.project.id} mode="assignments" onChanged={reload} resource={deliveryResource} />
         {accessManagement}
       </div>}
 
@@ -603,7 +607,7 @@ export function ProjectWorkspace({
 
       {tab === "documents" && (
         <div className="space-y-5">
-          <ProjectDeliveryControl key={counts.documents} projectId={data.project.id} mode="documents" onChanged={reload} />
+          <ProjectDeliveryControl key={counts.documents} projectId={data.project.id} mode="documents" onChanged={reload} resource={deliveryResource} />
           <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900">
             <h2 className="text-lg font-bold">Ladda upp projektunderlag</h2>
             <p className="mt-2 text-sm">Läs in en specifikation, offert, mängd-PDF eller referens. Ytterligare dokument väntar på granskning i dokumentlistan innan deras poster aktiveras.</p>

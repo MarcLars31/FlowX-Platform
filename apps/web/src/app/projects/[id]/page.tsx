@@ -94,6 +94,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   return (
     <div className="space-y-6">
       <ProjectWorkspace
+        key={`${context.membership.user_id}:${organizationId}:${project.id}`}
         initialData={data}
         initialTab={initialTab}
         canExportMaterialList={context.permissions.includes("material_list.export")}

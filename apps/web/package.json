@@ -30,7 +30,7 @@
     "test:normalizer": "node --import tsx --test src/lib/pkms-product-normalizer.test.ts",
     "test:requirement-review": "node --import tsx --test src/lib/product-requirement-review.test.ts src/lib/product-assembly-plan.test.ts src/lib/pipe-assembly-matching.test.ts src/lib/sprinkler-assembly-plan.test.ts",
     "test:product-pdf": "node --import tsx --test src/lib/product-document-pages.test.ts src/lib/product-pdf-processing.test.ts src/lib/product-pdf-staging.test.ts",
-    "test:project-governance": "node --import tsx --test src/lib/project-governance.test.ts src/lib/guided-project-workflow.test.ts src/lib/product-card-history.test.ts",
+    "test:project-governance": "node --import tsx --test src/lib/project-governance.test.ts src/lib/project-delivery-resource.test.ts src/lib/guided-project-workflow.test.ts src/lib/product-card-history.test.ts",
     "test:material-list-export": "node --import tsx --test src/lib/project-material-list-export.test.ts src/lib/project-material-list-pdf.test.ts src/lib/project-partial-result.test.ts",
     "test:test-accounts": "node --import tsx --test scripts/test-account-fixtures.test.ts scripts/demo-account-fixture.test.ts src/lib/test-account-e2e-readiness.test.ts",
     "test:e2e:test-accounts": "node --import tsx --env-file-if-exists=.env.test.local --test scripts/test-account-http-e2e.test.ts",

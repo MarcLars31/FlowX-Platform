@@ -1,18 +1,17 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
-import type { DeliveryReview, RevisionDifference } from '@/lib/project-delivery';
-type Package={id:string;scope_type:'chapter'|'group';scope_value:string;assigned_to:string;due_date:string|null;note:string;revision:number};
-type Doc={id:string;file_name:string;state:string;role:string;revision_label:string;revision:number;fileId?:string};
-type Data={manager:boolean;enforced:boolean;userId:string;packages:Package[];members:{user_id:string;label:string}[];documents:Doc[];reviews:{requirement_id:string;product_revision:number;review:DeliveryReview}[];requirements:{id:string;category:string;edit_revision:number;value_json:unknown;actionable?:boolean}[]};
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from 'react';
+import type { RevisionDifference } from '@/lib/project-delivery';
+import type { ProjectDeliveryData as Data, ProjectWorkPackage as Package, ProjectDeliveryResource } from '@/lib/project-delivery-resource';
 const input='w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900';
 const button='rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-50';
-export function ProjectDeliveryControl({projectId,mode,onChanged}:{projectId:string;mode:'assignments'|'documents';onChanged:()=>Promise<unknown>}) {
-  const [data,setData]=useState<Data|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0);
+export function ProjectDeliveryControl({projectId,mode,onChanged,resource}:{projectId:string;mode:'assignments'|'documents';onChanged:()=>Promise<unknown>;resource:ProjectDeliveryResource}) {
+  const {data,error:loadError,refreshing}=useSyncExternalStore(resource.subscribe,resource.getSnapshot,resource.getSnapshot);
+  const [error,setError]=useState(''),[busy,setBusy]=useState(false);
   const [editing,setEditing]=useState<Package|null>(null),[documentId,setDocumentId]=useState(''),[replaces,setReplaces]=useState(''),[role,setRole]=useState('specification'),[label,setLabel]=useState('');
   const [comparison,setComparison]=useState<RevisionDifference[]|null>(null),[notice,setNotice]=useState('');
   const [history,setHistory]=useState<{id:string;postNumber:string;status:string;product_snapshot:{name?:string;productNumber?:string}}[]|null>(null);
-  useEffect(()=>{const controller=new AbortController();fetch(`/api/projects/${projectId}/delivery`,{cache:'no-store',signal:controller.signal}).then(async r=>{const p=await r.json();if(!r.ok)throw Error(p.error);setData(p);}).catch(e=>{if(!controller.signal.aborted)setError(e.message);});return()=>controller.abort();},[projectId,revision]);
-  async function mutate(body:Record<string,unknown>){setBusy(true);setError('');setNotice('');try{const r=await fetch(`/api/projects/${projectId}/delivery`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const p=await r.json();if(!r.ok)throw Error(p.error);setRevision(v=>v+1);await onChanged();setNotice('Ändringen är sparad.');return true;}catch(e){setError(e instanceof Error?e.message:'Kunde inte spara.');return false;}finally{setBusy(false);}}
+  useEffect(()=>{void resource.refresh();},[resource]);
+  async function mutate(body:Record<string,unknown>){setBusy(true);setError('');setNotice('');try{const r=await fetch(`/api/projects/${projectId}/delivery`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const p=await r.json();if(!r.ok)throw Error(p.error);await Promise.all([resource.refresh(true),onChanged()]);setNotice('Ändringen är sparad.');return true;}catch(e){setError(e instanceof Error?e.message:'Kunde inte spara.');return false;}finally{setBusy(false);}}
   async function saveAssignment(event:FormEvent<HTMLFormElement>){event.preventDefault();const form=new FormData(event.currentTarget);const ok=await mutate({action:'assignment',revision:editing?.revision,payload:{id:editing?.id,scope_type:editing?.scope_type??form.get('scope_type'),scope_value:editing?.scope_value??form.get('scope_value'),assigned_to:form.get('assigned_to'),due_date:form.get('due_date'),note:form.get('note')}});if(ok)setEditing(null);}
   async function compare(){setBusy(true);setError('');try{const r=await fetch(`/api/projects/${projectId}/delivery?before=${replaces}&after=${documentId}`,{cache:'no-store'});const p=await r.json();if(!r.ok)throw Error(p.error);setComparison(p.differences);}catch(e){setError(e instanceof Error?e.message:'Jämförelsen misslyckades.');}finally{setBusy(false);}}
   async function showHistory(id:string){setBusy(true);setError('');try{const r=await fetch(`/api/projects/${projectId}/delivery?history=${id}`,{cache:'no-store'});const p=await r.json();if(!r.ok)throw Error(p.error);setHistory(p.history);}catch(e){setError(e instanceof Error?e.message:'Historiken kunde inte läsas.');}finally{setBusy(false);}}
@@ -22,8 +21,9 @@ export function ProjectDeliveryControl({projectId,mode,onChanged}:{projectId:str
   const unassigned=data?.requirements.filter(r=>!assignedPackage(r)).length??0;
   return <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
     <h2 className="text-lg font-bold">{mode==='assignments'?'Ansvar och leveransstatus':'Dokumentroller och revisioner'}</h2>
-    {error&&<p role="alert" className="text-red-800">{error} <button type="button" className="underline" onClick={()=>{setError('');setRevision(v=>v+1);}}>Försök igen</button></p>}
-    {!data&&!error&&<p>Laddar projektstyrning…</p>}
+    {(error||loadError)&&<p role="alert" className="text-red-800">{error||loadError} {data&&loadError&&'Visar senast hämtade uppgifter.'} <button type="button" className="underline" disabled={refreshing} onClick={()=>{setError('');void resource.refresh();}}>Försök igen</button></p>}
+    {!data&&!loadError&&<p role="status">{mode==='assignments'?'Laddar projektstyrning…':'Laddar dokumentuppgifter…'}</p>}
+    {data&&refreshing&&<p role="status" className="text-xs text-slate-500">Uppdaterar uppgifter i bakgrunden…</p>}
     {data&&mode==='assignments'&&<>
       <p className="text-sm text-slate-600">Alla projektmedlemmar kan läsa hela projektet. När tilldelning används kan varje person ändra sin tilldelade del. Projektansvarig kan hantera alla delar. En mer specifik posttilldelning gäller före en produktgrupp.</p>
       <div className="grid gap-3 sm:grid-cols-3">{[[data.requirements.length,'Aktiva poster'],[unassigned,'Utan tilldelning'],[data.reviews.filter(w=>w.review.state==='ready'&&data.requirements.some(r=>r.id===w.requirement_id&&r.edit_revision===w.product_revision)).length,'Kontrollerade leveranser']].map(([count,title])=><div className="rounded-lg bg-slate-100 p-4" key={title}><strong className="block text-2xl">{count}</strong><span className="text-sm">{title}</span></div>)}</div>
