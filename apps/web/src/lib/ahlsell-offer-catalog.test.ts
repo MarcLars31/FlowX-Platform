@@ -4,6 +4,7 @@ import {findAhlsellOfferCandidates, withAhlsellOfferCandidates, parseAhlsellOffe
 import {readAhlsellOfferCatalog} from './ahlsell-offer-storage';
 import {ahlsellCandidateMatchState} from './ahlsell-candidate-ranking';
 import {findAhlsellHybridCandidates} from './ahlsell-hybrid-matching';
+import {classifyAhlsellOfferProduct, offerProductGroupsCompatible} from './ahlsell-offer-classification';
 const org='11111111-1111-4111-8111-111111111111';
 const catalog: AhlsellOfferCatalog={schemaVersion:1,organizationId:org,version:'sha256:'+'a'.repeat(64),products:[
  {articleNumber:'9999991',productName:'Rustfritt stålrør 316 DN100 PN16 sveist',discipline:'vvs',reviewFlags:['historical_offer']},
@@ -66,4 +67,48 @@ test('production filtering retains the explicitly required electrical function',
  const result=await findAhlsellHybridCandidates(req,async()=>{throw Error('offline');},undefined,input);
  assert.equal(result.candidates[0]?.articleNumber,'1701457');
  assert.equal(ahlsellCandidateMatchState(result.candidates[0]),'review');
+});
+
+test('offer groups follow the sold item, including accessories and Norwegian abbreviations',()=>{
+ const examples: Record<string,string>={
+  '75 mm MA avløpsrør lgd=3 mtr m/muffe':'pipe',
+  '1/2" kuleventil PN32 AVI 1326':'ball_valve',
+  'DN100 tilbakesl.ventil PN16':'check_valve',
+  '1/2" V2762 Pendent Sprinkler hode K80':'sprinkler_head',
+  'Nøkkel f/sprinklerhode FM 27':'sprinkler_accessory',
+  'Rørklammer for stålrør':'support',
+  'Kabel IFSI 4X25/16':'cable',
+  'Avmantlingsverktøy TP Kabel':'tools',
+  'Ramme 1-hull One RH':'electrical_accessory',
+  'Dobbel stikk IP44 m/j':'socket',
+  '13X022-A Armaflex Ultima slange':'insulation',
+  'Roth INNV-550 mm fordelerskap':'plumbing_distribution',
+  '31_Stengeventil, ratt m/gir ø50 mm - Hovedinntak':'shutoff_valve',
+  '31_Magnetventil, motorisert DN15 - Lekkasjesikring':'control_valve',
+  '31_Sluk 200x200, Vertikal 110 mm utløp - inkl varmekabel':'drain',
+  'A-Collection A3 servant 56x44 konsoll og bolt':'basin',
+  'Universal vannlås for vaskekar':'drain',
+  'RelAir R2M Pro WMBUS/MBUS':'control',
+  'Ukjent modell QZ-984':'unknown'
+ };
+ for(const [name,group] of Object.entries(examples))assert.equal(classifyAhlsellOfferProduct(name),group,name);
+ assert.equal(offerProductGroupsCompatible('cable','tools'),false);
+ assert.equal(offerProductGroupsCompatible('ball_valve','unknown'),true);
+});
+test('classification is validated and inferred for older catalogs without exposing sources',()=>{
+ const parsed=parseAhlsellOfferCatalog(catalog,org)!;
+ assert.equal(parsed.products[0].productGroup,'pipe');
+ assert.equal(parseAhlsellOfferCatalog({...catalog,products:[{...catalog.products[0],productGroup:'invented'}]},org),null);
+ const suffixes={...catalog,products:['1017680N4','1017680N5','N1017680'].map(articleNumber=>({articleNumber,articleKind:'supplier' as const,productName:'Varmekabel The Cable 1500W',discipline:'electrical' as const,reviewFlags:['historical_offer']}))};
+ assert.equal(parseAhlsellOfferCatalog(suffixes,org)?.products.length,3);
+});
+test('a cable requirement excludes tools even when the incidental cable word matches',()=>{
+ const req={id:'cable',value_text:'Kabel IFSI 4x25',value_json:{quantity:5,unit:'m',nsCode:'WJ2.2'}};
+ const input={...catalog,products:[
+  {articleNumber:'9999991',productName:'Kabel IFSI 4x25',discipline:'electrical' as const,reviewFlags:['historical_offer']},
+  {articleNumber:'9999992',productName:'Avmantlingsverktøy for Kabel IFSI 4x25',discipline:'electrical' as const,reviewFlags:['historical_offer']}
+ ]};
+ const found=findAhlsellOfferCandidates(req,parseAhlsellOfferCatalog(input,org));
+ assert.deepEqual(found.map(c=>c.articleNumber),['9999991']);
+ assert.ok(found[0].matchReasons?.some(reason=>reason.includes('Kablar och ledare')));
 });

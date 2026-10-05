@@ -6,6 +6,7 @@ import { technicalConflictWarnings } from './ahlsell-technical-conflicts';
 import type { AhlsellPublicCandidate } from './ahlsell-public-match';
 import { mainProductText, productRequirementAttributes } from './ahlsell-requirement-context';
 import { supplierArticleIdentity, electricalOfferCompatible, type SupplierArticleKind } from './supplier-article-identity';
+import { classifyAhlsellOfferProduct, isOfferProductGroup, offerProductGroupsCompatible, OFFER_PRODUCT_GROUPS, type OfferProductGroup } from './ahlsell-offer-classification';
 
 /** Historical offer identities are discovery evidence, never confirmed choices.
  * Source posts and quantities deliberately do not participate in retrieval. */
@@ -15,6 +16,7 @@ export type AhlsellOfferProduct = {
   discipline: 'vvs' | 'electrical' | 'mixed';
   reviewFlags: string[];
   articleKind?: SupplierArticleKind;
+  productGroup?: OfferProductGroup;
 };
 export type AhlsellOfferCatalog = {
   schemaVersion: 1;
@@ -39,13 +41,14 @@ export function parseAhlsellOfferCatalog(value: unknown, organizationId: string)
   for (const product of catalog.products) {
     if (!product || typeof product !== 'object' || typeof product.articleNumber !== 'string'
       || (product.articleKind != null && !['ahlsell','nrf','el','supplier'].includes(product.articleKind))
+      || (product.productGroup != null && !isOfferProductGroup(product.productGroup))
       || !supplierArticleIdentity(product.articleNumber,product.articleKind) || seen.has(product.articleNumber.toLowerCase())
       || typeof product.productName !== 'string' || product.productName.length < 5 || product.productName.length > 500
       || !['vvs', 'electrical', 'mixed'].includes(product.discipline) || !Array.isArray(product.reviewFlags)
       || !product.reviewFlags.every(flag => ['historical_offer', 'source_exception', 'multiple_descriptions'].includes(flag))) return null;
     seen.add(product.articleNumber.toLowerCase());
     // Do not pass private source filenames/posts, raw rows or commercial fields to the client.
-    products.push({articleNumber: product.articleNumber, productName: product.productName, discipline: product.discipline, reviewFlags: product.reviewFlags, ...(product.articleKind ? {articleKind:product.articleKind} : {})});
+    products.push({articleNumber: product.articleNumber, productName: product.productName, discipline: product.discipline, reviewFlags: product.reviewFlags, ...(product.articleKind ? {articleKind:product.articleKind} : {}), productGroup: product.productGroup ?? classifyAhlsellOfferProduct(product.productName)});
   }
   return {schemaVersion: 1, organizationId, version: catalog.version, products};
 }
@@ -56,7 +59,7 @@ function tokens(value: string) {
     .split(/[^a-z0-9]+/).filter(word => /^[a-z]{3,}/.test(word) && !stop.has(word))
     .map(word => word.length > 5 ? word.replace(/(?:ene|er|ar)$/, '') : word))];
 }
-const indexes = new WeakMap<AhlsellOfferCatalog, {product: AhlsellOfferProduct; words: string[]}[]>();
+const indexes = new WeakMap<AhlsellOfferCatalog, {product: AhlsellOfferProduct; words: string[]; group: OfferProductGroup}[]>();
 export function findAhlsellOfferCandidates(requirement: Record<string, unknown>, catalog?: AhlsellOfferCatalog | null, limit = 30) {
   if (!catalog || distributorRequirementKind({...requirement, id: String(requirement.id ?? '')}) !== 'product') return [];
   requirement = offerRequirementIdentity(requirement);
@@ -64,14 +67,18 @@ export function findAhlsellOfferCandidates(requirement: Record<string, unknown>,
   const intent = ahlsellRequirementIntent(requirement);
   const ownText = [requirementHeading(requirement), JSON.stringify(productRequirementAttributes(requirement))].join(' ');
   const wanted = tokens(ownText);
+  const wantedGroup = classifyAhlsellOfferProduct(requirementHeading(requirement));
+  const articleTokens = new Set((ownText.toUpperCase().match(/[A-Z0-9]+(?:[._/-][A-Z0-9]+)*/g) ?? []));
   let index = indexes.get(catalog);
-  if (!index) { index = catalog.products.map(product => ({product, words: tokens(product.productName)})); indexes.set(catalog, index); }
-  const pool = index.filter(({product}) => !(discipline === 'electrical' && product.discipline === 'vvs')
+  if (!index) { index = catalog.products.map(product => ({product, words: tokens(product.productName), group: product.productGroup ?? classifyAhlsellOfferProduct(product.productName)})); indexes.set(catalog, index); }
+  const pool = index.filter(({product, group}) => !(discipline === 'electrical' && product.discipline === 'vvs')
     && !(['plumbing', 'ventilation'].includes(discipline) && product.discipline === 'electrical')
+    && offerProductGroupsCompatible(wantedGroup, group)
     && !hasAhlsellProductFamilyMismatch(intent, product.productName) && offerVariantCompatible(requirement, product.productName))
-    .map(({product, words}) => ({product, score: words.filter(word => wanted.some(w => word === w || (w.length >= 5 && word.startsWith(w)))).length,
-      exact: ownText.toUpperCase().split(/\s+/).includes(product.articleNumber.toUpperCase())}))
-    .filter(item => item.exact || item.score > 0).sort((a,b) => Number(b.exact)-Number(a.exact) || b.score-a.score).slice(0,100);
+    .map(({product, words, group}) => ({product, score: words.filter(word => wanted.some(w => word === w || (w.length >= 5 && word.startsWith(w)))).length,
+      groupMatch: wantedGroup !== 'unknown' && wantedGroup === group,
+      exact: articleTokens.has(product.articleNumber.toUpperCase())}))
+    .filter(item => item.exact || item.score > 0).sort((a,b) => Number(b.exact)-Number(a.exact) || Number(b.groupMatch)-Number(a.groupMatch) || b.score-a.score).slice(0,100);
   const candidates: AhlsellPublicCandidate[] = pool.map(({product}) => ({
     articleNumber: product.articleNumber, productName: product.productName, manufacturer: '',
     productUrl: `https://www.ahlsell.no/search/?q=${encodeURIComponent(product.articleNumber)}`,
@@ -83,6 +90,10 @@ export function findAhlsellOfferCandidates(requirement: Record<string, unknown>,
   return rankAhlsellCandidates(requirement, candidates)
     .filter(candidate => candidate.recommendation !== 'unlikely' && technicalConflictWarnings(candidate).length === 0 && (candidate.matchScore ?? 0) >= 35)
     .map(candidate => ({...candidate, source: 'offer_catalog' as const, exactMatch: false, recommendation: 'possible' as const,
+      matchReasons: [...(candidate.matchReasons ?? []), ...(() => {
+        const group = pool.find(item => item.product.articleNumber === candidate.articleNumber)?.product.productGroup;
+        return group && group !== 'unknown' ? [`Produktgrupp från offertbenämningen: ${OFFER_PRODUCT_GROUPS[group]}.`] : [];
+      })()],
       matchWarnings: [...new Set([...(candidate.matchWarnings ?? []), OFFER_REVIEW_WARNING])]})).slice(0,limit);
 }
 
