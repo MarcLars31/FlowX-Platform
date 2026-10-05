@@ -36,18 +36,21 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
     const state = !allowMatches && assessedState !== "mismatch" ? "review" : assessedState;
     const matched = state === "exact" || state === "matched";
     if (compact) return (
-      <tr key={candidate.articleNumber} aria-selected={selected}>
-        <td><input type="checkbox" checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
-          aria-label={`${selected ? "Fjern valget av" : "Velg"} ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
-          onChange={() => onSelect(candidate)} /></td>
-        <td><a href={candidate.productUrl} target="_blank" rel="noreferrer" className="underline" aria-label={`Åpne Ahlsell artikkel ${candidate.articleNumber}`}>{candidate.articleNumber}</a></td>
-        <td>
-          <p className="product-candidate-name">{candidate.productName}</p>
-          {candidate.description && candidate.description !== candidate.productName && <p className="product-candidate-description">{candidate.description}</p>}
-          <span className="product-candidate-assessment">{matched ? "Samsvarer med kravene" : state === "mismatch" ? "Avvik mot kravene" : "Må kontrolleres"}</span>
-          <AhlsellCandidateWarnings candidate={candidate} />
-        </td>
-      </tr>
+      <article key={candidate.articleNumber} className="product-candidate-card" data-selected={selected}>
+        <div className="product-candidate-card-heading">
+          <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Åpne Ahlsell artikkel ${candidate.articleNumber}`}>Art. {candidate.articleNumber}</a>
+          <label className="product-candidate-choice"><input type="checkbox" checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
+            aria-label={`${selected ? "Fjern valget av" : "Velg"} ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
+            onChange={() => onSelect(candidate)} /><span>{selected ? "Valgt" : "Velg"}</span></label>
+        </div>
+        <h4 className="product-candidate-name">{candidate.productName}</h4>
+        {candidate.description && candidate.description !== candidate.productName && <p className="product-candidate-description">{candidate.description}</p>}
+        <p className="product-candidate-assessment" data-state={matched ? "matched" : state}>
+          {matched ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+          {matched ? "Samsvarer med kravene" : state === "mismatch" ? "Avvik mot kravene" : "Må kontrolleres"}
+        </p>
+        <AhlsellCandidateWarnings candidate={candidate} />
+      </article>
     );
     const background = selected ? "bg-neutral-100" : "bg-white";
     return (
@@ -91,10 +94,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
   }
 
   function productRows(rows: AhlsellPublicCandidate[]) {
-    return compact ? <div className="product-candidate-table-scroll"><table className="product-candidate-table">
-      <thead><tr><th scope="col"><span className="sr-only">Velg</span></th><th scope="col">NRF</th><th scope="col">Produkt</th></tr></thead>
-      <tbody>{rows.map(productRow)}</tbody>
-    </table></div> : rows.map(productRow);
+    return rows.map(productRow);
   }
 
   return (

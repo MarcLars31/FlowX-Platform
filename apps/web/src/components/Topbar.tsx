@@ -22,6 +22,7 @@ export function Topbar({
         <Link prefetch={false} href={navigation?.[0]?.href ?? "/admin"} className="portal-brand" aria-label="Scipx startsida">
           <strong>scipx</strong><span>Ahlsell</span>
         </Link>
+        <PrimaryNavigation navigation={navigation} />
         <div className="portal-account">
           <span className="portal-account-label">{organizationName}</span>
           <span className="portal-account-label" title={roleLabel}>{userName}</span>
@@ -29,7 +30,6 @@ export function Topbar({
             activeOrganizationId={activeOrganizationId} organizationOptions={organizationOptions} />
         </div>
       </div>
-      <PrimaryNavigation navigation={navigation} />
     </header>
   );
 }

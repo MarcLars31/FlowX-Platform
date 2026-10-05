@@ -205,6 +205,8 @@ test("allows project completion when an unavailable product is tagged as not in 
 test("recognizes only supported workspace tabs", () => {
   assert.equal(isGuidedProjectTab("requirements"), false);
   assert.equal(isGuidedProjectTab("products"), true);
+  assert.equal(isGuidedProjectTab("management"), true);
+  assert.equal(isGuidedProjectTab(["management"]), false);
   assert.equal(isGuidedProjectTab("decisions"), false);
 });
 

@@ -884,7 +884,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       </div>}
       <div id={`accessory-summary-${requirement.id}`} tabIndex={-1} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600">
           {selectedProductAccessories.length > 0 && (
-            <section id={`product-accessories-${requirement.id}`} aria-label="Valda tillbehör" className="scroll-mt-24 overflow-hidden rounded-md border border-neutral-300 bg-white">
+            <section id={`product-accessories-${requirement.id}`} aria-label="Valda tillbehör" className="product-accessories-summary scroll-mt-24 overflow-hidden">
               {accessoryStepOpen && <div className="flex flex-col gap-3 border-b border-neutral-200 bg-neutral-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h5 id={`product-accessories-title-${requirement.id}`} className="flex items-center gap-2 text-sm font-bold text-neutral-950"><PackagePlus className="h-4 w-4 text-neutral-800" aria-hidden="true" />Valgte tilbehør ({selectedProductAccessories.length})</h5>
@@ -896,7 +896,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               </div>}
               <div className="space-y-3 p-3">
                 {selectedProductAccessories.map((accessory, index) => (
-                  <div key={index} className="space-y-3 rounded-md border-2 border-neutral-300 bg-neutral-50/40 p-3">
+                  <div key={index} className="product-accessory-item space-y-3 p-3">
                     {accessoryStepOpen ? <>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs font-bold text-neutral-800">Tilbehør {index + 1}</p>
@@ -941,11 +941,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   return (
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
       disabled={requirement.can_edit === false || saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
-      {({ postComments, productComments }) => <article id={`post-${requirement.id}`} className="product-mapping-card">
-      {requirement.can_edit === false && <p className="m-3 rounded bg-amber-50 p-3 text-sm text-amber-900">Läsläge: posten är tilldelad en annan person. Projektansvarig kan ändra tilldelningen.</p>}
+      {({ postComments, productComments }) => <>
+      {requirement.can_edit === false && <p className="product-readonly-notice">Läsläge: posten är tilldelad en annan person. Projektansvarig kan ändra tilldelningen.</p>}
+      <article id={`post-${requirement.id}`} className="product-mapping-card">
       <fieldset disabled={requirement.can_edit === false} className="contents">
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
-        <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>PDF-post {details.postNumber ?? "saknas"}</h3><span>PDF-grunnlag</span></div>
+        <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{details.sourcePage ? `Side ${details.sourcePage}` : "PDF-grunnlag"}</span></div>
         <div className="product-requirement-content">
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
@@ -1017,17 +1018,14 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
           {productNumber.trim() && (
             <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className="product-selected-item">
-              <div className="product-linked-table-scroll"><table className="product-linked-table">
-                <thead><tr><th scope="col">Artikel</th><th scope="col">Produkt</th><th scope="col">Mengde / enhet</th><th scope="col">Valg</th></tr></thead>
-                <tbody><tr aria-selected="true">
-                  <td><a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer" className="underline">{productNumber}</a></td>
-                  <td><strong>{productName || "Produkt"}</strong>{productSubtitle && productSubtitle.trim() !== productName.trim() && <p>{productSubtitle}</p>}</td>
-                  <td><ProductQuantityFields compact id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
+              <div className="product-selected-summary">
+                <div className="product-selected-description"><a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer" className="underline">Art. {productNumber}</a>
+                  <h4>{productName || "Produkt"}</h4>{productSubtitle && productSubtitle.trim() !== productName.trim() && <p>{productSubtitle}</p>}</div>
+                  <div className="product-selected-quantity"><ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
                     onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
-                    onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} /></td>
-                  <td><ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} /></td>
-                </tr></tbody>
-              </table></div>
+                    onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} /></div>
+                  <div className="product-selected-choice"><ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} /></div>
+              </div>
               {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && <dl className="product-requirement-facts">
                 {manufacturerArticleNumber && <div><dt>Artikkelnummer</dt><dd>{manufacturerArticleNumber}</dd></div>}
                 {deliveryTimeDays && <div><dt>Leveringstid</dt><dd>{deliveryTimeDays} dager</dd></div>}
@@ -1062,7 +1060,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         </section>
 
           <div id={`ahlsell-products-${requirement.id}`} className="product-catalog-panel">
-            <h3 className="product-panel-caption">Tilgjengelige produkter <span>Ahlsell</span></h3>
+            <h3 className="product-panel-caption">Produktforslag <span>Ahlsell</span></h3>
             <div className="product-catalog-scroll">
             <AhlsellPublicMatchPanel
               projectId={projectId}
@@ -1185,7 +1183,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
         )}
       </fieldset>
-    </fieldset></article>}
+    </fieldset></article></>}
     </ProductPostComments>
   );
 }

@@ -1,18 +1,14 @@
 "use client";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 
-
-
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
   ChevronRight,
   FilePlus2,
-  FileText,
-  FolderKanban,
   Save,
   Trash2,
   Upload
@@ -26,7 +22,6 @@ import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterialListPdfExportButton";
 import { PdfDropzone } from "@/components/PdfDropzone";
-import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
@@ -58,7 +53,7 @@ export type ProjectModuleData = {
 };
 
 type ProjectRow = Record<string, unknown> & { id: string };
-type Tab = "overview" | "documents" | "products";
+type Tab = GuidedProjectTab;
 
 const statusLabels: Record<string, string> = {
   draft: "Utkast",
@@ -79,13 +74,15 @@ export function ProjectWorkspace({
   initialTab = "overview",
   canExportMaterialList = false,
   canCreateProject = false,
-  canDeleteProject = false
+  canDeleteProject = false,
+  accessManagement
 }: {
   initialData: ProjectModuleData;
   initialTab?: GuidedProjectTab;
   canExportMaterialList?: boolean;
   canCreateProject?: boolean;
   canDeleteProject?: boolean;
+  accessManagement?: ReactNode;
 }) {
   const router = useRouter();
   const [data, setData] = useState(initialData);
@@ -403,22 +400,23 @@ export function ProjectWorkspace({
   );
 
   return (
-    <div className={`pb-12 ${tab === "products" ? "project-product-page min-w-0 w-full" : "mx-auto max-w-6xl space-y-6"}`}>
+    <div className={`project-workspace-page ${tab === "products" ? "project-product-page" : "project-standard-page"}`}>
       {data.project.demo_data_set_id && <DemoBadge />}
-      <div className={tab === "products" ? "product-project-titlebar" : "flex flex-wrap items-center justify-between gap-3"}>
-        <Link prefetch={false}
-          href="/projects"
-          className="inline-flex min-h-11 items-center gap-2 text-base font-semibold text-ink-700 transition hover:text-flow-700"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-
-          Alla projekt
-        </Link>
-        {tab === "products" && <h1><span>{data.project.project_number}</span>{data.project.name}<small>{data.project.customer_name}</small></h1>}
-        {tab === "products" && canDeleteProject && !showDeleteConfirmation && (
-          <Button type="button" variant="danger" className="ml-auto" onClick={() => setShowDeleteConfirmation(true)}><Trash2 className="h-5 w-5" aria-hidden="true" />Avsluta och ta bort projekt</Button>
-        )}
-      </div>
+      <header className="project-heading">
+        <Link prefetch={false} href="/projects" className="project-breadcrumb"><ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />Alle prosjekter{data.project.project_number && <span> / {data.project.project_number}</span>}</Link>
+        <div className="project-heading-row">
+          <div><h1>{data.project.name}</h1>{data.project.customer_name && <p>{data.project.customer_name}</p>}</div>
+          <div className="project-heading-actions"><span className="project-status">{statusLabels[data.project.status] ?? data.project.status}</span>
+            {tab === "products" && canDeleteProject && !showDeleteConfirmation && <Button type="button" variant="ghost" onClick={() => setShowDeleteConfirmation(true)}><Trash2 className="h-4 w-4" aria-hidden="true" />Avsluta och ta bort projekt</Button>}
+          </div>
+        </div>
+      </header>
+      <nav aria-label="Projektvyer" className="project-tabs">
+        <ProjectTab label="Produktvalg" active={tab === "products"} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
+        <ProjectTab label="Dokument" active={tab === "documents"} onClick={() => selectTab("documents")} />
+        <ProjectTab label="Prosjektstyring" active={tab === "management"} onClick={() => selectTab("management")} />
+        <ProjectTab label="Resultat" active={tab === "overview"} onClick={() => selectTab("overview")} />
+      </nav>
 
       {tab === "products" && canDeleteProject && showDeleteConfirmation && (
         <section role="dialog" aria-labelledby="delete-project-title" className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 shadow-sm sm:p-6">
@@ -438,13 +436,6 @@ export function ProjectWorkspace({
         </section>
       )}
 
-      {tab !== "products" && <ScipxPageHeader
-        eyebrow={data.project.project_number ?? "Scipx-projekt"}
-        title={data.project.name}
-        description={`${data.project.customer_name ?? "Kund saknas"} · ${statusLabels[data.project.status] ?? data.project.status}`}
-        icon={<FolderKanban aria-hidden="true" />}
-      />}
-
       {tab === "overview" && (
         <div className="flex flex-wrap gap-2">
           {canExportMaterialList && (
@@ -462,23 +453,19 @@ export function ProjectWorkspace({
         </div>
       )}
 
-      {tab !== "products" && (
-        <nav aria-label="Projektvyer" className="flex flex-wrap gap-2 border-b border-ink-200 pb-3">
-          <ProjectTab label="Dokument" active={tab === "documents"} onClick={() => selectTab("documents")} />
-          <ProjectTab label="Produkter" active={false} disabled={counts.documents === 0 && data.requirements.length === 0} onClick={() => selectTab("products")} />
-          <ProjectTab label="Resultat" active={tab === "overview"} onClick={() => selectTab("overview")} />
-        </nav>
-      )}
-
       {(message || error) && (
         <div role="status" aria-live="polite" className={error ? "rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-800" : "rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800"}>
           {error ?? message}
         </div>
       )}
 
+      {tab === "management" && <div className="space-y-5">
+        <ProjectDeliveryControl projectId={data.project.id} mode="assignments" onChanged={reload} />
+        {accessManagement}
+      </div>}
+
       {tab === "overview" && (
         <div className="space-y-5">
-          <ProjectDeliveryControl projectId={data.project.id} mode="assignments" onChanged={reload} />
           {projectFinished && (
             <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50 shadow-sm">
               <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
@@ -643,7 +630,16 @@ export function ProjectWorkspace({
       )}
 
       {tab === "products" && (
-        <div className="space-y-5">
+        <div className="product-workspace-body">
+          <div className="product-workspace-tools">
+            <label htmlFor="product-post-filter">Vis poster
+              <select id="product-post-filter" value={requirementView} onChange={event => { if (canLeaveProductSelection()) setRequirementView(event.target.value as ProjectRequirementView | "all"); }}>
+                <option value="all">Alle poster ({data.requirements.length})</option>
+                {PROJECT_REQUIREMENT_VIEWS.map(view => <option key={view.id} value={view.id}>{view.label} ({requirementGroups[view.id].length})</option>)}
+              </select>
+            </label>
+            <Button type="button" variant="secondary" disabled={finishing} onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" className="h-4 w-4" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button>
+          </div>
           <DistributorMappingPanel
             key={requirementView}
             view={requirementView}
@@ -657,14 +653,6 @@ export function ProjectWorkspace({
             onReload={reload}
             onRequirementSaved={reloadRequirement}
             onGoToDocuments={() => selectTab("documents")}
-            workspaceNavigation={<nav aria-label="Prosjektverktøy">
-              <Button type="button" variant="secondary" aria-pressed={requirementView === "all"} onClick={() => { if (requirementView !== "all" && canLeaveProductSelection()) setRequirementView("all"); }}><FolderKanban aria-hidden="true" />Alle poster<span>{data.requirements.length}</span></Button>
-              <Button type="button" variant="secondary" onClick={() => selectTab("documents")}><FileText aria-hidden="true" />Dokument<span>{counts.documents}</span></Button>
-              {PROJECT_REQUIREMENT_VIEWS.map(view => <Button key={view.id} type="button" variant="secondary" aria-pressed={requirementView === view.id} aria-controls="project-requirement-table"
-                onClick={() => { if (view.id !== requirementView && canLeaveProductSelection()) setRequirementView(view.id); }}><FolderKanban aria-hidden="true" />{view.label}<span>{requirementGroups[view.id].length}</span></Button>)}
-              <Button type="button" variant="secondary" onClick={() => selectTab("overview")}><CheckCircle2 aria-hidden="true" />Resultat</Button>
-              <div className="product-project-next"><Button type="button" disabled={finishing} onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button></div>
-            </nav>}
           />
         </div>
       )}

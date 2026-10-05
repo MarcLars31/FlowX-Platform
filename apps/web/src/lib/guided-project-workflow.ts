@@ -9,7 +9,7 @@ export const GUIDED_PROJECT_STEPS = [
 ] as const;
 
 export type GuidedProjectStepId = (typeof GUIDED_PROJECT_STEPS)[number]["id"];
-export type GuidedProjectTab = (typeof GUIDED_PROJECT_STEPS)[number]["tab"];
+export type GuidedProjectTab = (typeof GUIDED_PROJECT_STEPS)[number]["tab"] | "management";
 
 type WorkflowRequirement = DistributorRequirementRow & {
   status?: unknown;
@@ -101,5 +101,5 @@ export function guidedProjectWorkflow(input: {
 }
 
 export function isGuidedProjectTab(value: unknown): value is GuidedProjectTab {
-  return GUIDED_PROJECT_STEPS.some((step) => step.tab === value);
+  return value === "management" || GUIDED_PROJECT_STEPS.some((step) => step.tab === value);
 }
