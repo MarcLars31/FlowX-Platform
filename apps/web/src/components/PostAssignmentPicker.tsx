@@ -33,6 +33,7 @@ export function PostAssignmentPicker({ projectId, target, current, inherited, da
   return <form onSubmit={save} className="post-assignment-picker" aria-label={`Tildel ansvar: ${target.label}`}>
     <strong>{target.label}</strong>
     <p>{target.type === "pdf_chapter" ? "Ansvarlig gjelder alle postene i dette kapittelet. Egen postansvarlig går foran." : "Egen ansvarlig for denne posten går foran kapittelansvaret."}</p>
+    <p>Personen får tilgang til prosjektet. Deltakere kan endre sin tildelte del; prosjektansvarlig kan endre alle poster.</p>
     <label>Ansvarlig
       <select autoFocus name="person" required disabled={busy} defaultValue={current?.assigned_to ?? inherited?.assigned_to ?? ""}>
         <option value="">Velg person</option>

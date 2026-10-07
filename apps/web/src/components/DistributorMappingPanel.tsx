@@ -241,7 +241,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
   }
 
   function showPostList() {
-    if (productCardSaving) return;
+    if (productCardSaving || historyBackApproved.current) return;
     if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du gå tilbake til postlisten uten å lagre?")) return;
     const entry = window.history.state?.scipxPost;
     if (entry?.projectId === projectId && entry.view === view && entry.id) {
