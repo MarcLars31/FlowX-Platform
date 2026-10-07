@@ -11,7 +11,7 @@ import { ManualProductCard, type ManualProductChoice } from "@/components/Manual
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
-import { productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
+import { productPostNavigationGroups } from "@/lib/product-post-tree";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -135,12 +135,12 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
     : view === "products" ? productRequirements : view === "removal" ? removalRequirements : rsRequirements, [view, productRequirements, rsRequirements, removalRequirements]);
   const mainPostGroups = useMemo(() => productPostNavigationGroups(viewRequirements, requirements), [viewRequirements, requirements]);
   const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
-  const [expandedMainPosts, setExpandedMainPosts] = useState<Set<string>>(() => new Set(mainPostGroups.slice(0, 1).map(group => group.key)));
-  const [activeRequirementId, setActiveRequirementId] = useState<string | null>(() => queueRequirements[0]?.id ?? null);
+  const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
+  const [lastViewedRequirementId, setLastViewedRequirementId] = useState<string | null>(null);
+  const listPosition = useRef({ requirementId: "", scrollY: 0 });
   const [productCardSaving, setProductCardSaving] = useState(false);
   const [productCardDirty, setProductCardDirty] = useState(false);
-  const requestedIndex = queueRequirements.findIndex(requirement => requirement.id === activeRequirementId);
-  const activeIndex = requestedIndex >= 0 ? requestedIndex : 0;
+  const activeIndex = queueRequirements.findIndex(requirement => requirement.id === activeRequirementId);
   const activeRequirement = queueRequirements[activeIndex];
   const activeAssignment = activeRequirement ? approvedAssignmentByRequirementId.get(activeRequirement.id) : undefined;
   const handledCount = queueRequirements.filter(requirement => handledRequirementIds.has(requirement.id)).length;
@@ -181,26 +181,35 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
     if (productCardSaving) return false;
     if (requirementId === activeRequirement?.id) return true;
     if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du bytte post uten å lagre?")) return false;
+    if (!activeRequirement) listPosition.current = { requirementId, scrollY: window.scrollY };
+    setLastViewedRequirementId(requirementId);
     setProductCardDirty(false);
     setActiveRequirementId(requirementId);
-    const keys = productPostExpansionKeys(mainPostGroups, requirementId);
-    setExpandedMainPosts(current => new Set([...current, ...keys]));
     setMessage(null);
     setError(null);
     window.requestAnimationFrame(() => {
       const detail = document.getElementById("product-post-detail");
-      if (window.matchMedia("(max-width: 900px)").matches) detail?.scrollIntoView({ block: "start", behavior: "instant" });
+      detail?.scrollIntoView({ block: "start", behavior: "instant" });
       detail?.focus({ preventScroll: true });
     });
     return true;
   }
 
-  function toggleMainPost(key: string) {
-    setExpandedMainPosts(current => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
+  function showPostList() {
+    if (productCardSaving) return;
+    if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du gå tilbake til postlisten uten å lagre?")) return;
+    setProductCardDirty(false);
+    setActiveRequirementId(null);
+    setMessage(null);
+    setError(null);
+    window.requestAnimationFrame(() => {
+      const row = document.getElementById(`product-post-row-${lastViewedRequirementId}`);
+      if (lastViewedRequirementId === listPosition.current.requirementId) {
+        window.scrollTo({ top: listPosition.current.scrollY, behavior: "instant" });
+      } else {
+        row?.scrollIntoView({ block: "center", behavior: "instant" });
+      }
+      row?.focus({ preventScroll: true });
     });
   }
 
@@ -212,12 +221,15 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
       </div>
       <div className={`product-selection-layout${workspaceNavigation ? " has-project-navigation" : ""}`}>
         {workspaceNavigation && <aside className="product-project-navigation" aria-label="Prosjektvisninger"><h2 className="product-panel-caption">Prosjekt</h2>{workspaceNavigation}</aside>}
-        <ProductPostNavigation groups={mainPostGroups} activeRequirementId={activeRequirement?.id}
-          expanded={expandedMainPosts} handledIds={handledRequirementIds} disabled={productCardSaving}
-          onToggle={toggleMainPost} onSelect={showRequirement} />
-        <section id="product-post-detail" tabIndex={-1} aria-label="Valgt post og produktvalg" className="product-post-detail">
+        {!activeRequirement && queueRequirements.length > 0 && <ProductPostNavigation groups={mainPostGroups}
+          activeRequirementId={lastViewedRequirementId ?? undefined} handledIds={handledRequirementIds}
+          disabled={productCardSaving} onSelect={showRequirement} />}
+        <section id="product-post-detail" hidden={!activeRequirement && queueRequirements.length > 0} tabIndex={-1} aria-label="Valgt post og produktvalg" className="product-post-detail">
           {activeRequirement ? <>
             <header className="product-post-toolbar">
+              <Button type="button" variant="secondary" disabled={productCardSaving} onClick={showPostList}>
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />Tilbake til postlisten
+              </Button>
               <p aria-live="polite">Post {projectRequirementDetails(activeRequirement).postNumber ?? activeIndex + 1}<span> · {activeIndex + 1} av {queueRequirements.length}</span></p>
               <div>
                 <Button type="button" variant="secondary" disabled={productCardSaving || activeIndex === 0}
