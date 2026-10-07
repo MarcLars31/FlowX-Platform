@@ -46,7 +46,7 @@ export function ProductPostNavigation({ groups, activeRequirementId, expanded, h
   }
 
   return (
-    <aside className="product-post-sidebar" aria-label="Hovedposter og underposter">
+    <aside className="product-post-sidebar product-post-navigation" aria-label="Hovedposter og underposter">
       <div className="product-post-sidebar-heading">
         <h2>Hovedposter</h2><span>{groups.length}</span>
       </div>
@@ -59,17 +59,23 @@ export function ProductPostNavigation({ groups, activeRequirementId, expanded, h
           const label = heading.chapter === "—" ? group.title : heading.chapter;
           return (
             <div key={group.key} className="product-post-group">
-              <button type="button" className="product-post-group-toggle" aria-expanded={open} aria-controls={regionId}
+              <button type="button" className="product-post-group-toggle" aria-expanded={open} aria-controls={regionId} disabled={disabled}
                 onClick={() => onToggle(group.key)}>
                 {open ? <SquareMinus aria-hidden="true" /> : <SquarePlus aria-hidden="true" />}
                 <span className="min-w-0"><strong>{label}</strong><small title={heading.description}>{heading.description}</small></span>
                 <span className="product-post-count" aria-label={`${handled} av ${group.requirements.length} poster håndtert`}>{handled}/{group.requirements.length}</span>
               </button>
-              <div id={regionId} hidden={!open} className="product-post-children">{group.posts.map(renderPost)}</div>
+
             </div>
           );
         })}
       </nav>
+      <div className="product-post-panels">
+        {groups.map((group, index) => <section key={group.key} id={`product-post-group-${index}`} hidden={!expanded.has(group.key)} aria-label={group.title} className="product-post-group-panel">
+          <h3>{group.title}</h3>
+          <div className="product-post-children">{group.posts.map(renderPost)}</div>
+        </section>)}
+      </div>
     </aside>
   );
 }

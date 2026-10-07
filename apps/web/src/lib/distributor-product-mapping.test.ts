@@ -8,6 +8,14 @@ import {
 } from "./distributor-product-mapping";
 import { bulkProductApprovalSelection, mapBulkProductApprovals, previousBulkProductApprovals } from "./bulk-product-approval";
 
+test("preserves the selected requirement revision and rejects malformed revisions", () => {
+  const input = { requirementId: "11111111-1111-4111-8111-111111111111", userApproved: true, entryMethod: "catalog", productNumber: "1234567" };
+  const valid = validateDistributorProductMapping({ ...input, requirementRevision: "revision-1" });
+  assert.ok("data" in valid);
+  assert.equal(valid.data.requirementRevision, "revision-1");
+  for (const requirementRevision of [42, {}, "x".repeat(81)]) assert.ok("error" in validateDistributorProductMapping({ ...input, requirementRevision }));
+});
+
 test("preserves total order quantities and accessory basis without multiplying or rounding them", () => {
   const result = validateDistributorProductMapping({
     requirementId: "11111111-1111-4111-8111-111111111111", userApproved: true,
@@ -267,7 +275,7 @@ test("never accepts a product without explicit user approval", () => {
   });
 });
 
-test("bulk approval accepts only an exact historical product for the same fingerprint", () => {
+test("bulk approval does not accept a historical product without current technical requirements", () => {
   const requirement = {
     id: "11111111-1111-4111-8111-111111111111",
     mapping_fingerprint: "fp-k80-qr",
@@ -281,7 +289,7 @@ test("bulk approval accepts only an exact historical product for the same finger
     manufacturer_name: "Victaulic"
   };
 
-  assert.equal(bulkProductApprovalSelection({ requirement, memories: [memory], handled: false })?.productNumber, "9254043");
+  assert.equal(bulkProductApprovalSelection({ requirement, memories: [memory], handled: false }), null);
   assert.equal(bulkProductApprovalSelection({
     requirement,
     memories: [{ ...memory, requirement_fingerprint: "annan" }],
@@ -300,7 +308,7 @@ test("bulk approval accepts only an exact historical product for the same finger
     requirement,
     memories: [memory, { ...memory, id: "andra-raden" }],
     handled: false
-  })?.productNumber, "9254043");
+  }), null);
 });
 
 test("approve-all includes only unambiguous previous product selections", () => {

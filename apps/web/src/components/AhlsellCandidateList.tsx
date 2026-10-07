@@ -8,6 +8,7 @@ import { ahlsellCandidateMatchState } from "@/lib/ahlsell-candidate-ranking";
 import { technicalConflictWarnings } from "@/lib/ahlsell-technical-conflicts";
 import { groupAhlsellCandidatesForDisplay, normalizeNrfNumber } from "@/lib/product-card-candidates";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import { TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
 
 export function AhlsellCandidateList({ candidates, requirementId, selectedArticleNumber, selectedArticleNumbers, accessory = false, selectionLimitReached = false, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, expandedMatches = false, compact = false, onSearch, onCheckRequirement, onSelect }: {
   candidates: AhlsellPublicCandidate[];
@@ -50,6 +51,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
           {matched ? "Samsvarer med kravene" : state === "mismatch" ? "Avvik mot kravene" : "Må kontrolleres"}
         </p>
         <AhlsellCandidateWarnings candidate={candidate} />
+        <TechnicalEvaluationDetails evaluation={candidate.technicalEvaluation} searchScore={candidate.searchScore} />
       </article>
     );
     const background = selected ? "bg-neutral-100" : "bg-white";
@@ -83,6 +85,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
               </details>
             ) : null}
             {(state !== "review" || candidate.learningEvidence) && <AhlsellCandidateWarnings candidate={candidate} />}
+            <TechnicalEvaluationDetails evaluation={candidate.technicalEvaluation} searchScore={candidate.searchScore} />
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <ProductSelectionCheckbox name={`ahlsell-${accessory ? "accessory" : "product"}-${requirementId}`} checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
@@ -140,6 +143,10 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
           <div className="space-y-3 p-3 sm:p-4" role="group" aria-label="Produktförslag">{productRows(review)}</div>
         </details>
       )}
+      {rejected.length > 0 && <details className="border-t border-neutral-200">
+        <summary className="cursor-pointer px-3 py-3 text-sm font-bold sm:px-4">FAIL · Oppfyller ikke kravene ({rejected.length})</summary>
+        <div className="space-y-3 p-3 sm:p-4" role="group" aria-label="Produkter med tekniske avvik">{productRows(rejected)}</div>
+      </details>}
     </div>
   );
 }

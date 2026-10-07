@@ -6,6 +6,7 @@ import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
 import { requirementSnapshot } from "@/lib/requirement-snapshot";
 import { compactProjectRequirement, type OverviewRow } from "@/lib/project-overview";
 
+import { loadEffectiveRequirement } from "@/lib/effective-requirements.server";
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ id: string; requirementId: string }> };
 
@@ -26,7 +27,9 @@ export async function GET(request: Request, context: RouteContext) {
       canReadProducts ? selectUserRows<OverviewRow>("project_product_suggestions", { ...filters, requirement_id: `eq.${requirementId}`, status: "eq.selected", order: "updated_at.desc" }) : [],
       !summaryOnly && canReadProducts ? loadDistributorProductMemory(auth.context.organization.id, [raw]) : { mappingMemories: [], mappingAccessories: [] }
     ]);
-    const requirement = { ...requirementSnapshot(raw), can_edit: await callUserRpc<boolean>("can_edit_project_requirement", { rid: requirementId }) };
+    const detailed = summaryOnly ? raw : await loadEffectiveRequirement(id, requirementId, auth.context.organization.id);
+    if (!detailed) return NextResponse.json({ error: "Produktposten hittades inte." }, { status: 404 });
+    const requirement = { ...requirementSnapshot(detailed), can_edit: await callUserRpc<boolean>("can_edit_project_requirement", { rid: requirementId }) };
     return NextResponse.json({ requirement: summaryOnly ? compactProjectRequirement(requirement) : requirement, overviewRequirement: compactProjectRequirement(requirement), assignments, ...memory }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const forbidden = error instanceof UserSupabaseError && (error.status === 401 || error.status === 403 || error.code === "42501");

@@ -241,7 +241,14 @@ test("searches the exact MLDL article, finds public-only articles, and ranks tec
 test("keeps all MLDL results if Ahlsell is unavailable and reports the outage", async () => {
   const result = await findAhlsellHybridCandidates(requirement, async () => { throw new Error("offline"); });
   assert.equal(result.publicSearchStatus, "unavailable");
-  assert.deepEqual(result.candidates, findMldlOnlyCandidates(requirement));
+  const retrieved = findMldlOnlyCandidates(requirement);
+  assert.deepEqual(result.candidates.map(item => item.articleNumber).sort(), retrieved.map(item => item.articleNumber).sort());
+  for (const candidate of result.candidates) {
+    const { technicalEvaluation, searchScore, ...original } = candidate;
+    assert.deepEqual(original, retrieved.find(item => item.articleNumber === candidate.articleNumber));
+    assert.equal(searchScore, original.matchScore ?? null);
+    assert.ok(technicalEvaluation?.checks.length);
+  }
 });
 
 test("a failed exact lookup does not discard successful public searches", async () => {

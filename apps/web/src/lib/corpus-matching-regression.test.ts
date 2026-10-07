@@ -30,7 +30,8 @@ test('known wrong joints and grades are rejected, missing evidence requires revi
  assert.equal(ahlsellCandidateMatchState(unknown),'review');
  assert.match(unknown.matchWarnings?.join(' ')??'',/materialkvalitet/);
  const [complete]=rankAhlsellCandidates(pipe,[candidate('Rustfritt stålrør 316 DN100 PN10 sveist')]);
- assert.ok(['exact','matched'].includes(ahlsellCandidateMatchState(complete)));
+ assert.equal(complete.matchWarnings?.length, 0);
+ assert.equal(ahlsellCandidateMatchState(complete), 'review');
 });
 
 test('supplier evidence resolves missing grade and corrosion evidence while known conflicts remain',()=>{
@@ -122,7 +123,8 @@ test('valves check connection fields and explicit alternatives without silently 
  assert.equal(ahlsellCandidateMatchState(wrong), 'mismatch');
  const alternative = {...requirement, value_json: {attributes: {'type tilkobling': 'Rille eller flens', trykk: 'PN16'}}};
  const [accepted] = rankAhlsellCandidates(alternative, [candidate('Spjeldventil DN65 PN16 flens')]);
- assert.ok(['exact', 'matched'].includes(ahlsellCandidateMatchState(accepted)), JSON.stringify(accepted.matchWarnings));
+ assert.equal(accepted.matchWarnings?.length, 0);
+ assert.equal(ahlsellCandidateMatchState(accepted), 'review');
 });
 
 test('pipe material and fitting connection dimensions are hard requirements', () => {
@@ -152,7 +154,8 @@ test('chapter equipment does not impose its dimensions or sprinkler properties o
   technicalSpecification: '332 Generelle krav\nSprinkler K115 DN20 93C.\n\nUNDERPOST\n332.2 INNENDØRS VANNLEDNING – KOMPLETT\nMateriale: Stålrør\nSkjøt: Gjenget skjøt\n\nUNDERPOST\n332.2.2 Dimensjon: DN32'
  }};
  const [good] = rankAhlsellCandidates(req, [candidate('Stålrør DN32 PN10 gjenget')]);
- assert.ok(['exact','matched'].includes(ahlsellCandidateMatchState(good)), JSON.stringify(good.matchWarnings));
+ assert.equal(good.matchWarnings?.length, 0);
+ assert.equal(ahlsellCandidateMatchState(good), 'review');
  const [wrong] = rankAhlsellCandidates(req, [candidate('Stålrør DN32 PN10 rillet')]);
  assert.equal(ahlsellCandidateMatchState(wrong), 'mismatch');
  assert.equal(ahlsellRequirementIntent(req), 'pipe');

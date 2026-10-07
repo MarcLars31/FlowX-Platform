@@ -5,6 +5,7 @@ import { readProductSelectionReview, PRODUCT_DEVIATION_LABEL, PRODUCT_REVIEW_LAB
 import { productRequirementChecks, validateRequirementReview } from "@/lib/product-requirement-review";
 import { callUserRpc, selectUserRows } from "@/lib/supabase-user-rest";
 import { productChoiceError, validEditRevision } from "@/lib/product-choice-error";
+import { loadEffectiveRequirement } from "@/lib/effective-requirements.server";
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -33,6 +34,10 @@ export async function POST(request: Request, context: RouteContext) {
       organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null", limit: "1"
     });
     if (!requirement) return NextResponse.json({ error: "Produktposten kunde inte hittas." }, { status: 404 });
+    const effective = await loadEffectiveRequirement(id, input.requirementId, authorization.context.organization.id);
+    if (!effective || body.requirementRevision !== effective.effectiveRequirements.revision) {
+      return NextResponse.json({ error: "Kravgrunnlaget er endret. Last inn produktkortet og kontroller valget på nytt." }, { status: 409 });
+    }
     // The product flow uses explicit approval after reading the specification,
     // not a mandatory per-requirement checklist. Validate legacy reviews only
     // when a client actually submits one; never invent completed decisions.

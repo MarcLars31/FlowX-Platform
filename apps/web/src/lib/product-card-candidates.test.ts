@@ -7,6 +7,7 @@ import { ahlsellCandidateMatchState } from "./ahlsell-candidate-ranking";
 import { candidateSelectionReview, productSelectionReviewNotes, readProductSelectionReview } from "./product-selection-review";
 import { technicalConflictWarnings } from "./ahlsell-technical-conflicts";
 import { bulkProductApprovalSelection } from "./bulk-product-approval";
+import { technicalEvaluationFixture } from "./__fixtures__/technical-evaluation";
 
 const candidates: AhlsellPublicCandidate[] = [
   candidate("9254042", "Sprinklerhuvud V2703"),
@@ -50,10 +51,11 @@ test("visar bara de tre högst rankade Ahlsellprodukterna", () => {
 test("den utfällbara gruppen behåller alla matchningar och skiljer dem från avvikelser och tillbehörskrav", () => {
   const matching: AhlsellPublicCandidate[] = Array.from({ length: 16 }, (_, index) => ({
     ...candidate(`925${4000 + index}`, `Matchning ${index + 1}`),
-    recommendation: "recommended", matchScore: 100, exactMatch: false, requiresProductSelection: true, matchWarnings: []
+    recommendation: "recommended", matchScore: 100, exactMatch: false, matchWarnings: [],
+    technicalEvaluation: technicalEvaluationFixture("MATCH", `925${4000 + index}`)
   }));
-  const mismatch = { ...matching[0], articleNumber: "wrong", matchWarnings: ["Fel K-faktor: PDF kräver K80, produkten anger K115."] };
-  const accessory = { ...matching[0], articleNumber: "accessory", requiresAccessoryReview: true };
+  const mismatch = { ...matching[0], articleNumber: "wrong", technicalEvaluation: technicalEvaluationFixture("FAIL", "wrong"), matchWarnings: ["Fel K-faktor: PDF kräver K80, produkten anger K115."] };
+  const accessory = { ...matching[0], articleNumber: "accessory", technicalEvaluation: technicalEvaluationFixture("VERIFY", "accessory"), requiresAccessoryReview: true };
   const group = groupAhlsellCandidatesForDisplay([...matching, mismatch, accessory]);
   assert.equal(group.matching.length, 16);
   assert.deepEqual(group.other, [mismatch, accessory]);
@@ -137,7 +139,8 @@ test("manual deviation and missing-data labels round-trip through the atomic app
   assert.equal(productSelectionReviewNotes(null, saved), "Kundens kommentar behålls.");
   const incomplete = candidateSelectionReview();
   assert.equal(readProductSelectionReview(productSelectionReviewNotes(incomplete))?.status, "review");
-  assert.equal(candidateSelectionReview({ ...candidates[0], exactMatch: true, matchWarnings: [] }), null);
+  assert.equal(candidateSelectionReview({ ...candidates[0], exactMatch: true, matchWarnings: [] })?.status, "review");
+  assert.equal(candidateSelectionReview({ ...candidates[0], technicalEvaluation: technicalEvaluationFixture("MATCH", candidates[0].articleNumber) }), null);
 });
 
 test("a saved deviating product cannot become a bulk-approved memory", () => {

@@ -8,7 +8,9 @@ import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { PRODUCT_MATCHING_ENGINE_VERSION, productLearningCandidateSnapshots } from "@/lib/product-learning-feedback";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
-import { callUserRpc, selectUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
+import { callUserRpc, UserSupabaseError } from "@/lib/supabase-user-rest";
+import { loadEffectiveRequirement } from "@/lib/effective-requirements.server";
+import { TECHNICAL_EVALUATOR_VERSION } from "@/lib/technical-evaluation-model";
 import { VICTAULIC_SPRINKLER_CATALOG_VERSION } from "@/lib/victaulic-sprinkler-catalog";
 
 export const runtime = "nodejs";
@@ -50,16 +52,7 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
 
-    const [requirement] = await selectUserRows<Record<string, unknown>>(
-      "project_requirements",
-      {
-        id: `eq.${requirementId}`,
-        project_id: `eq.${id}`,
-        organization_id: `eq.${authorization.context.organization.id}`,
-        select: "id,category,requirement_key,display_name,value_text,value_json,source_excerpt,mapping_fingerprint",
-        limit: "1"
-      }
-    );
+    const requirement = await loadEffectiveRequirement(id, requirementId, authorization.context.organization.id);
     if (!requirement) {
       return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404 });
     }
@@ -78,6 +71,8 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({
       ...result,
       ...(supplier.retryAfter ? {retryAfter:supplier.retryAfter,publicSearchStatus:"partial"} : {}),
+      effectiveRequirements: requirement.effectiveRequirements,
+      evaluatorVersion: TECHNICAL_EVALUATOR_VERSION,
       matchingEngine: {
         version: PRODUCT_MATCHING_ENGINE_VERSION, source: "mldl_and_ahlsell",
         catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
@@ -125,7 +120,7 @@ async function recordCandidateImpression({
           matchingEngineVersion: PRODUCT_MATCHING_ENGINE_VERSION,
           catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
           sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
-          rankingMode: "technical_rules_mldl_with_ahlsell_complement"
+          rankingMode: "technical_status_then_existing_search_order"
         }
       });
     } catch (error) {

@@ -1,4 +1,5 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import { TECHNICAL_EVALUATOR_VERSION } from "./technical-evaluation-model";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 import { technicalConflictWarnings, withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 import { withVerifiedWorkingPressure, verifiedVictaulicWorkingPressure } from "./victaulic-working-pressure";
@@ -117,6 +118,7 @@ export function orderAhlsellCandidatesForDisplay(candidates: AhlsellPublicCandid
 }
 
 export function isExactAhlsellCandidate(candidate: AhlsellPublicCandidate) {
+  if (!isMatchingAhlsellCandidate(candidate)) return false;
   if (candidate.requiresAccessoryReview || candidate.requiresProductSelection) return false;
   if ((candidate.source === "pdf_reference" || candidate.source === "offer_catalog") || candidate.recommendation === "unlikely") return false;
   if ((candidate.matchWarnings?.length ?? 0) > 0) return false;
@@ -124,15 +126,18 @@ export function isExactAhlsellCandidate(candidate: AhlsellPublicCandidate) {
 }
 
 /** Green describes a technically supported proposal, independently of approval. */
-export function isMatchingAhlsellCandidate(candidate: Pick<AhlsellPublicCandidate, "source" | "recommendation" | "matchScore" | "matchWarnings" | "exactMatch" | "requiresAccessoryReview">) {
-  if (candidate.requiresAccessoryReview) return false;
-  if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely" || (candidate.source === "pdf_reference" || candidate.source === "offer_catalog")) return false;
-  return candidate.exactMatch === true || (candidate.recommendation === "recommended" && (candidate.matchScore ?? 0) >= 75);
+export function isMatchingAhlsellCandidate(candidate: Pick<AhlsellPublicCandidate, "source" | "recommendation" | "matchScore" | "matchWarnings" | "exactMatch" | "requiresAccessoryReview" | "technicalEvaluation">) {
+  const evaluation = candidate.technicalEvaluation;
+  const required = evaluation?.checks.filter(check => check.mandatory) ?? [];
+  return evaluation?.version === TECHNICAL_EVALUATOR_VERSION && evaluation.status === "MATCH"
+    && required.length > 0 && required.every(check => check.status === "MATCH");
 }
 
 export type AhlsellCandidateMatchState = "exact" | "matched" | "review" | "mismatch";
 
 export function ahlsellCandidateMatchState(candidate: AhlsellPublicCandidate): AhlsellCandidateMatchState {
+  if (candidate.technicalEvaluation?.status === "FAIL") return "mismatch";
+  if (candidate.technicalEvaluation?.status === "VERIFY") return "review";
   if (isExactAhlsellCandidate(candidate)) return "exact";
   if (isMatchingAhlsellCandidate(candidate)) return "matched";
   if (technicalConflictWarnings(candidate).length > 0) return "mismatch";
@@ -151,8 +156,11 @@ export function isAhlsellSignageCandidate(candidate: Pick<AhlsellPublicCandidate
 }
 
 function confidenceTier(candidate: AhlsellPublicCandidate) {
+  if (candidate.technicalEvaluation) return { MATCH: 0, VERIFY: 3, FAIL: 5 }[candidate.technicalEvaluation.status];
   if (technicalConflictWarnings(candidate).length) return 5;
-  if (isExactAhlsellCandidate(candidate)) return 0;
+  // Preserve retrieval ordering before the separate technical evaluation.
+  if (!candidate.requiresAccessoryReview && !candidate.requiresProductSelection && candidate.source !== "pdf_reference"
+    && candidate.recommendation !== "unlikely" && !candidate.matchWarnings?.length && candidate.exactMatch === true) return 0;
   if ((candidate.matchWarnings?.length ?? 0) > 0 || candidate.recommendation === "unlikely") return 3;
   if (candidate.recommendation === "recommended") return 1;
   if (candidate.recommendation === "possible") return 2;

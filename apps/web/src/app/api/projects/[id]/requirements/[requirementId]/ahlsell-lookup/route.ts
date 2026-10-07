@@ -12,7 +12,8 @@ import { isUuid } from "@/lib/distributor-product-mapping";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { readJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
-import { selectUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
+import { UserSupabaseError } from "@/lib/supabase-user-rest";
+import { loadEffectiveRequirement } from "@/lib/effective-requirements.server";
 
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ id: string; requirementId: string }> };
@@ -29,11 +30,8 @@ export async function POST(request: Request, context: RouteContext) {
     if (!limit.allowed) return NextResponse.json({ error: "För många Ahlsell-sökningar. Vänta en kort stund och försök igen." }, { status: 429, headers: { ...headers, "Retry-After": String(limit.retryAfterSeconds) } });
     const body = await readJsonBody<{ query?: unknown; accessory?: unknown; componentKind?: unknown; componentId?: unknown; mainArticleNumber?: unknown; automatic?: unknown } | null>(request, 8_000);
     parseAhlsellLookupQuery(body?.query, "no");
-    const [requirement] = await selectUserRows<Record<string, unknown>>("project_requirements", {
-      id: `eq.${requirementId}`, project_id: `eq.${id}`, organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null",
-      select: "id,category,requirement_key,display_name,value_text,value_json,source_excerpt", limit: "1"
-    });
-    if (!requirement) return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404, headers });
+    const requirement = await loadEffectiveRequirement(id, requirementId, authorization.context.organization.id);
+    if (!requirement) return NextResponse.json({ error: "Produktraden ble ikke funnet i prosjektet." }, { status: 404, headers });
     const component = productAssemblyPlan(requirement)?.components.find(item => body?.componentId != null ? item.id === body.componentId : item.kind === body?.componentKind);
     if ((body?.componentId != null || body?.componentKind != null) && (!component || body.accessory !== true)) {
       return NextResponse.json({ error: "Tillbehörsgruppen finns inte i den här PDF-posten." }, { status: 400, headers });

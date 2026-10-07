@@ -9,6 +9,11 @@ export function candidateSelectionReview(candidate?: AhlsellPublicCandidate): Pr
   if (!candidate) return { status: "review", warnings: ["Produktens tekniska uppgifter behöver kontrolleras mot PDF-kravet."] };
   const state = ahlsellCandidateMatchState(candidate);
   if (state === "exact" || state === "matched") return null;
+  if (candidate.technicalEvaluation) {
+    const warnings = candidate.technicalEvaluation.checks.filter(check => check.mandatory && check.status !== "MATCH")
+      .map(check => `${check.label}: ${check.reason}`);
+    return { status: state, warnings: warnings.length ? warnings : ["Den tekniske vurderingen må oppdateres mot dagens krav."] };
+  }
   return { status: state, warnings: candidate.matchWarnings?.length ? candidate.matchWarnings : [
     candidate.requiresAccessoryReview ? "Tillbehörskravet återstår att hantera." : "Underlaget räcker inte för att verifiera en match."
   ] };

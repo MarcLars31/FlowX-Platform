@@ -1,6 +1,6 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "ahlsell-product-rules-2026-10-04.2";
-export const RULE_CATALOG_DATE = "4 oktober 2026";
+export const RULE_CATALOG_VERSION = "ahlsell-product-rules-2026-10-07.1";
+export const RULE_CATALOG_DATE = "7 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
@@ -21,6 +21,17 @@ const rule = (id: string, title: string, when: string, result: string, extra: Pa
 const table = (columns: string[], rows: string[][]) => ({ columns, rows });
 
 export const MATCHING_RULE_GROUPS: RuleGroup[] = [
+  {
+    id: "technical-evaluation", title: "Gemensam teknisk kontroll", appliesTo: "Alla produktkandidater efter sökningen", kind: "requirement",
+    description: "Sökningen hittar kandidater. En separat kontroll jämför varje faktiskt krav med dokumenterade produktdata.",
+    sources: ["effective-requirements.ts", "effective-requirements.server.ts", "technical-evaluation-model.ts", "technical-evaluator.ts", "ahlsell-technical-evaluator.ts"],
+    rules: [
+      rule("effective-requirements", "Samma krav i kort, sökning och kontroll", "En produktpost öppnas eller en kandidat bedöms.", "Normalisera sparade postkrav, ärvda huvudpostkrav och projektspecifika krav med källhänvisning. Egna uttryckliga fält ersätter motsvarande arv. Olösta krav, konflikter och saknat huvudpostunderlag kräver verifiering. PDF-filer tolkas inte om vid läsning."),
+      rule("technical-status", "MATCH, FAIL eller VERIFY per krav", "Krav jämförs med produktdata för den aktuella artikeln.", "MATCH kräver stöd för samtliga obligatoriska krav. Ett konstaterat obligatoriskt fel ger FAIL. Saknad, gammal, motsägelsefull eller otolkad information ger VERIFY. Ett tomt kravunderlag kan aldrig ge MATCH."),
+      rule("technical-revision", "Ändrade krav kräver ny kontroll", "Postens eller projektets krav ändras efter att kortet öppnats.", "Resultat för en annan kravversion godtas inte. Produktvalet måste kontrolleras igen före sparande. Krav- och evidensversioner följer bedömningen."),
+      rule("technical-sources", "Artikelbunden dokumentation krävs", "Produkten har katalogdata, historik eller en offertreferens.", "Kontrollera artikelidentitet, dokumentationsstatus och giltighetstid. Tidigare val, sökpoäng och offertuppgifter är inte ett tekniskt godkännande. MLDL:s granskningsflaggor och kvarstående variant- eller tillbehörskrav kräver verifiering.")
+    ]
+  },
   {
     id: "tidigare-offert", title: "Ahlsells tidigare offerter", appliesTo: "Organisationens importerade offertartiklar", kind: "review",
     description: "Sökbara historiska artikelidentiteter som alltid kräver teknisk granskning.",
@@ -97,11 +108,11 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     sources: ["ahlsell-candidate-ranking.ts", "ahlsell-technical-conflicts.ts", "ahlsell-candidate-merge.ts", "ahlsell-mldl-catalog.ts"],
     rules: [
       rule("poang", "Poäng är inte sannolikhet", "Tekniska egenskaper och katalogsignaler ger plus- eller minuspoäng.", "Begränsa poängen till 0–100. Varningar och kontrollflaggor kan hindra verifiering även vid 100 poäng."),
-      rule("rekommenderad", "Rekommenderad kräver minst 75 och inga varningar", "Kandidaten har minst 75 poäng, inga kvarstående varningar och inget olöst tillbehörskrav.", "Klassificera som rekommenderad. Detta är ett produktförslag och inte användarens godkännande.", { example: { input: "85 poäng men materialet saknas i produktunderlaget.", result: "Produkten blir inte rekommenderad utan kontroll, trots att poängen överstiger 75." } }),
+      rule("rekommenderad", "Sökpoäng beskriver relevans", "Kandidaten får minst 75 poäng utan sökningens varningar.", "Den befintliga sökningen kan kalla kandidaten rekommenderad, men endast en aktuell teknisk MATCH får visas som tekniskt godkänd. 100 poäng med saknad dokumentation ger VERIFY."),
       rule("mojlig", "35 poäng är gränsen för möjlig kandidat", "Villkoren för rekommenderad är inte uppfyllda.", "Minst 35 poäng ger möjlig kandidat. Under 35 ger osannolik. Konstaterad teknisk konflikt omfattas alltid av konfliktregeln."),
       rule("konflikt", "Teknisk konflikt ger högst 34 poäng", "En igenkänd teknisk konflikt finns, exempelvis fel DN, K, material, SDR, mätområde eller system.", "Sätt högst 34 poäng, markera osannolik och ta bort exakt match. Katalog- eller NRF-bonus får inte upphäva konflikten.", { kind: "requirement", notes: ["Saknad uppgift är kontrollbehov, inte automatiskt bevis för fel produkt.", "Konflikter identifieras för särskilda varningstyper. Inte varje varning betyder konstaterad inkompatibilitet."] }),
-      rule("exakt-match", "Exakt match kräver komplett underlag", "Alla nödvändiga tekniska värden styrks, inga varningar finns och varken tillbehör eller artikelvariant återstår att välja.", "Tillåt exakt match vid giltig exakt katalogbedömning eller fullständig slutbedömning med 100 poäng. En ren PDF-hänvisning räcker inte."),
-      rule("sortering", "Färre varningar går före högre poäng", "Flera kandidater ska visas i ordning.", "Sortera först på bedömningsnivå, därefter färre varningar, högre poäng, sortimentsprioritet, eventuella historiska stödfält och sist produktnamn.", { notes: ["Konstaterade konflikter placeras efter ofullständiga men möjliga produkter.", "Historiska likhetsfält i sorteringen innebär inte att fri självlärande matchning är aktiv."] }),
+      rule("exakt-match", "Exakt match kräver teknisk MATCH", "Den befintliga katalogbedömningen anger exakt artikel.", "Kräv dessutom en aktuell teknisk bedömning där samtliga obligatoriska kontroller är MATCH. Varningar, olösta tillbehör eller artikelvarianter hindrar exakt match. PDF-, offert- och historikreferenser räcker inte."),
+      rule("sortering", "Teknisk status går före sökpoäng", "Flera kandidater ska visas i ordning.", "Visa MATCH före VERIFY och FAIL. Inom teknisk status används befintliga relevans- och varningssignaler. Hög poäng får aldrig upphäva FAIL eller VERIFY."),
       rule("mldl-bonus", "Strukturerad kataloginformation ger bonus", "En kandidat har matchande NRF, modell eller strukturerade egenskaper i MLDL.", "Lägg på katalogbonusen och tillämpa sedan konfliktregeln igen. Behåll alla kvarstående varningar.", { table: table(["Signal", "Effekt"], [["Exakt NRF i kravunderlaget", "Sätt 100 före konfliktbegränsning"], ["Modell", "+25"], ["Produkttyp", "+15"], ["Minst 2 särskiljande ord", "+2 per ord, högst +12"], ["MLDL och offentlig katalog, inga varningar", "+8"]]) }),
       rule("eidsvoll", "LC Eidsvoll får företräde vid lika bedömning", "Kandidater är likvärdiga efter bedömningsnivå, varningar och poäng.", "Prioritera artikel i LC Eidsvolls sortiment. Ingen egen poängbonus och ingen teknisk konflikt försvinner.", { kind: "assumption" }),
       rule("grundpoang", "Rätt produktfamilj ger grundpoäng", "Kandidatens produktfamilj motsvarar kravet.", "Lägg till familjens grundpoäng, därefter tekniska jämförelser. En familjeträff ensam verifierar inte hela posten.", { table: table(["Familj", "Grundpoäng"], [["De flesta ventiler, rördelar, mätare, pumpar, skåp och sanitetsprodukter", "+65"], ["Rak rörlängd / sprinklerslang", "+65"], ["Kulventil", "+55"], ["Tryckvakt", "+75"], ["Sprinklerhuvud", "+25"], ["Skyddskorg", "+80"], ["Flänsböj", "+45"], ["Torr alarmventil", "+65 familj, +65 torrt"], ["Våt alarmventil", "+30 komplett, +25 våt, +15 alarm, +10 serie 751"]]) }),
@@ -227,7 +238,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
       rule("historik-org", "Historik hålls inom organisationen", "Tidigare val ska visas för ett krav.", "Använd samma organisation, distributören Ahlsell och identiskt kravfingeravtryck. Raderade minnen och val med granskningsreservationer används inte som vanliga exakta historiska val."),
       rule("fingeravtryck", "Identiska krav avgör historikträffen", "Två krav jämförs för återanvändning.", "Fingeravtrycket byggs av kategori, kravnyckel, produkttext, operation, system och strukturerade egenskaper.", { notes: ["Postnummer, PDF-sida och totalmängd är inte egna delar, men kan påverka om de är inbäddade i text eller egenskaper."] }),
       rule("historik-urval", "Historiska artiklar behöver finnas i MLDL", "Produktkortet visar tidigare val.", "Kräv MLDL-artikel och, för rör, en faktisk rörprodukt. Sortera efter användningsantal och senaste användning."),
-      rule("historik-betydelse", "Exakt historik är inte en ny teknisk verifiering", "Ett identiskt krav har ett tidigare godkänt val.", "Visa historikens stöd men skilj det från en ny teknisk bedömning. Denna väg kör inte om hela den aktuella kandidatrankningen. Produkten måste godkännas igen i projektet.", { kind: "review" }),
+      rule("historik-betydelse", "Historik kräver dagens tekniska kontroll", "Ett identiskt krav har ett tidigare godkänt val.", "Historiken ensam ger ingen teknisk match. Visa aktuell kandidatbedömning när den finns, annars VERIFY. Användaren måste godkänna valet igen i projektet.", { kind: "review" }),
       rule("historik-larande", "Likhetskod är inte aktiv självlärning", "Koden innehåller hjälpfunktioner för liknande historiska krav eller registrerar visningar och val.", "Det innebär inte att fri likhetsmatchning eller automatisk modellträning är inkopplad i den aktuella sökvägen.", { kind: "gap" })
     ]
   },
@@ -250,7 +261,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     description: "Tydliga begränsningar i dagens regler. Dessa är inte aktiva verifieringsregler.",
     sources: ["ahlsell-candidate-ranking.ts", "ahlsell-engineering-checks.ts", "ahlsell-public-match.ts", "sprinkler-assembly-plan.ts"],
     rules: [
-      rule("fri-kravtext", "Alla fria krav maskinkontrolleras inte", "PDF-posten innehåller fri text under exempelvis Andra krav a), b), c).", "Texten kan vara sparad och synlig utan att varje mening har en automatisk jämförelseregel. Endast igenkända fält och textmönster kontrolleras."),
+      rule("fri-kravtext", "Fri kravtext kan behöva manuell tolkning", "PDF-posten innehåller fri text under exempelvis Andra krav a), b), c).", "Igenkända strukturerade värden jämförs. Oupplösta klausuler ligger kvar som kontrollpunkter och ger VERIFY; de räknas inte automatiskt som uppfyllda."),
       rule("braided-langd", "Braided och ekvivalent slanglängd saknar slutkontroll", "Slangposten kräver braided-utförande och högst 15 m ekvivalent längd.", "Slang och fästmateriel känns igen, men det finns ingen särskild slutjämförelse som verifierar dessa två egenskaper. De behöver kontrolleras manuellt.", { example: { input: "Flexislange braided, max ekvivalent längd 15 m.", result: "En slangträff innebär inte att braided-utförande och hydraulisk ekvivalentlängd har blivit verifierade." } }),
       rule("pex-material", "PEX har inte en egen slutlig materialkategori", "Sökningen identifierar PEX.", "PEX kan styra sökfrasen men saknar egen materialkategori i den gemensamma slutliga materialjämförelsen. Stödet är därför ojämnt."),
       rule("standarder", "Alla standarder och godkännanden verifieras inte", "PDF hänvisar till NS/EN, FM/UL eller fullständig hydraulisk dimensionering.", "Ingen generell fullständig verifiering finns för alla sådana krav. Särskilda kontroller kan finnas, men ersätter inte en fullständig verifiering."),

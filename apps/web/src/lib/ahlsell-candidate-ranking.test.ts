@@ -28,6 +28,7 @@ test("applies an explicit chapter allowance for grooved pipe and a minimum press
   assert.deepEqual(pipe.matchWarnings, []);
 });
 import { ahlsellCandidateMatchState, isExactAhlsellCandidate, orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "./ahlsell-candidate-ranking";
+import { technicalEvaluationFixture } from "./__fixtures__/technical-evaluation";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 
 test("requires review for conflicting quick and standard response in the same row", () => {
@@ -526,13 +527,15 @@ test("learning evidence only breaks ties between candidates with equal technical
   );
 });
 
-test("reserves exact-match presentation for a complete 100-point match without warnings", () => {
+test("requires a technical evaluation before presenting even a 100-point result as a match", () => {
   const exact = { ...candidate("exact", "Exakt produkt", "", "/exact/"), matchScore: 100, recommendation: "recommended" as const, matchWarnings: [], exactMatch: true };
   const strong = { ...candidate("strong", "Stark produkt", "", "/strong/"), matchScore: 95, recommendation: "recommended" as const, matchWarnings: [] };
   const mismatch = { ...candidate("wrong", "Fel produkt", "", "/wrong/"), matchScore: 100, recommendation: "possible" as const, matchWarnings: ["Sprinklerns responstid stämmer inte med PDF-kravet."] };
 
-  assert.equal(ahlsellCandidateMatchState(exact), "exact");
-  assert.equal(ahlsellCandidateMatchState(strong), "matched");
+  assert.equal(ahlsellCandidateMatchState(exact), "review");
+  assert.equal(ahlsellCandidateMatchState(strong), "review");
+  assert.equal(ahlsellCandidateMatchState({ ...exact, technicalEvaluation: technicalEvaluationFixture("MATCH", "exact") }), "exact");
+  assert.equal(ahlsellCandidateMatchState({ ...strong, technicalEvaluation: technicalEvaluationFixture("MATCH", "strong") }), "matched");
   assert.equal(ahlsellCandidateMatchState(mismatch), "mismatch");
 });
 

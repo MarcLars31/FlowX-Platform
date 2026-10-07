@@ -14,8 +14,13 @@ import { technicalConflictWarnings, withTechnicalConflictAssessment } from "./ah
 import { requirementDiscipline } from "./requirement-discipline";
 import { genericProductIdentity, hasGenericProductIdentity } from "./ahlsell-generic-product-relevance";
 
+import { evaluateAhlsellCandidates } from "./ahlsell-technical-evaluator";
+import { requirementForSearch } from "./effective-requirements";
+
 /** MLDL is always available. Only product search terms/NRFs go to Ahlsell. */
 export async function findAhlsellHybridCandidates(requirement: Record<string, unknown>, fetchImpl: typeof fetch = fetch, store?: AhlsellEvidenceStore, offerCatalog?: AhlsellOfferCatalog | null): Promise<AhlsellCatalogResult> {
+  const authoritativeRequirement = requirement;
+  requirement = requirementForSearch(requirement);
   const guide = buildAhlsellRequirementGuide(requirement);
   const local = withAhlsellOfferCandidates(requirement, findMldlOnlyCandidates(requirement), offerCatalog);
   const market = ahlsellMarketFromSearchUrl(guide.searchUrl);
@@ -58,7 +63,8 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
       technicalEvidence: mergeAhlsellTechnicalEvidence(previous.technicalEvidence, candidate.technicalEvidence)
     } : candidate);
   }
-  const candidates = complementMldlCandidates(requirement, local, [...detailedByArticle.values()], aliases);
+  const candidates = evaluateAhlsellCandidates(authoritativeRequirement,
+    complementMldlCandidates(requirement, local, [...detailedByArticle.values()], aliases));
   const failedQueries = [...(result?.failedQueries ?? (search.status === "rejected" ? guide.searchQueries : [])),
     ...(exact.status === "rejected" && primaryArticle ? [primaryArticle] : [])];
   const anySearchSucceeded = search.status === "fulfilled" || (Boolean(primaryArticle) && exact.status === "fulfilled");
@@ -117,7 +123,7 @@ export function complementMldlCandidates(requirement: Record<string, unknown>, l
  * Automatic recommendations still exclude unrelated product families. */
 export function assessAhlsellLookupCandidates(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {
   const complemented = new Map(complementMldlCandidates(requirement, [], candidates).map(candidate => [articleKey(candidate.articleNumber), candidate]));
-  return candidates.map(candidate => complemented.get(articleKey(candidate.articleNumber)) ?? rankAhlsellCandidates(requirement, [candidate])[0]);
+  return evaluateAhlsellCandidates(requirement, candidates.map(candidate => complemented.get(articleKey(candidate.articleNumber)) ?? rankAhlsellCandidates(requirement, [candidate])[0]));
 }
 
 function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, candidates: AhlsellPublicCandidate[]) {

@@ -26,6 +26,7 @@ export type DistributorProductMappingInput = {
   accessories: DistributorAccessoryInput[];
   orderQuantity?: ProductOrderQuantity;
   requirementReview?: RequirementReviewDraft;
+  requirementRevision?: string;
 };
 
 export type ManualDistributorProductInput = {
@@ -75,6 +76,8 @@ export function validateDistributorProductMapping(
   const orderQuantity = value.orderQuantity == null ? null : parseProductOrderQuantity(value.orderQuantity);
   if (value.orderQuantity != null && !orderQuantity) return { error: "Ange en giltig total mängd och enhet för produkten." };
   const requirementReview = value.requirementReview == null ? null : parseRequirementReview(value.requirementReview);
+  const requirementRevision = value.requirementRevision == null ? undefined : text(value.requirementRevision, 80);
+  if (value.requirementRevision != null && (!requirementRevision || typeof value.requirementRevision !== "string" || value.requirementRevision.length > 80)) return { error: "Kravgrunnlagets versjon er ugyldig." };
   if (value.requirementReview != null && !requirementReview) return { error: "Kravgenomgången har ogiltigt format." };
   if (!isUuid(requirementId)) return { error: "Ogiltigt krav-id." };
   if (value.userApproved !== true) {
@@ -143,7 +146,8 @@ export function validateDistributorProductMapping(
       notes,
       accessories,
       ...(orderQuantity ? { orderQuantity } : {}),
-      ...(requirementReview ? { requirementReview } : {})
+      ...(requirementReview ? { requirementReview } : {}),
+      ...(requirementRevision ? { requirementRevision } : {})
     }
   };
 }

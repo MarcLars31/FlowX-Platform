@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ahlsellCatalogStatusFromPayload, classifyAhlsellCatalogCandidates, mergeAhlsellCatalogAssessments, hasReusableProductMemory, splitAhlsellMatchGroups } from "./ahlsell-match-groups";
+import { technicalEvaluationFixture } from "./__fixtures__/technical-evaluation";
+import { TECHNICAL_EVALUATOR_VERSION } from "./technical-evaluation-model";
 
 test("classification separates confirmed conflicts from missing data irrespective of score", () => {
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "unlikely", matchWarnings: ["K-faktorn saknas i produktinformationen; PDF kräver K80."] }]), "found");
@@ -16,7 +18,8 @@ test("classification separates confirmed conflicts from missing data irrespectiv
 });
 
 test("shows green for a supported warning-free proposal without approving weak or conflicting candidates", () => {
-  assert.equal(classifyAhlsellCatalogCandidates([{ source: "structured_database", matchScore: 85, recommendation: "recommended", matchWarnings: [], exactMatch: false }]), "safe");
+  assert.equal(classifyAhlsellCatalogCandidates([{ source: "structured_database", matchScore: 85, recommendation: "recommended", matchWarnings: [], exactMatch: false }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ technicalEvaluation: technicalEvaluationFixture() }]), "safe");
   assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, recommendation: "recommended", matchWarnings: ["Tryck måste kontrolleras"] }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 41, recommendation: "possible", matchWarnings: [] }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([{ source: "pdf_reference", exactMatch: true }]), "found");
@@ -112,11 +115,11 @@ test("separates Ahlsell matches from rows requiring manual work", () => {
 
   assert.deepEqual(
     result.greenRequirements.map((requirement) => requirement.id),
-    ["learned", "approved", "catalog-safe"]
+    ["approved", "catalog-safe"]
   );
   assert.deepEqual(
     result.yellowRequirements.map((requirement) => requirement.id),
-    ["pdf-article", "catalog-found"]
+    ["pdf-article", "learned", "catalog-found"]
   );
   assert.deepEqual(
     result.redRequirements.map((requirement) => requirement.id),
@@ -161,24 +164,26 @@ test("keeps implausible K-factors out of automatic safe results until handled", 
 });
 
 test("classifies safe, uncertain and empty Ahlsell responses", () => {
-  assert.equal(classifyAhlsellCatalogCandidates([{ exactMatch: true, recommendation: "recommended" }]), "safe");
-  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, matchWarnings: [], recommendation: "recommended" }]), "safe");
-  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 95, matchWarnings: [], recommendation: "recommended" }]), "safe");
+  assert.equal(classifyAhlsellCatalogCandidates([{ technicalEvaluation: technicalEvaluationFixture() }]), "safe");
+  assert.equal(classifyAhlsellCatalogCandidates([{ exactMatch: true, recommendation: "recommended" }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 100, matchWarnings: [], recommendation: "recommended" }]), "found");
+  assert.equal(classifyAhlsellCatalogCandidates([{ matchScore: 95, matchWarnings: [], recommendation: "recommended" }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "possible" }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([{ recommendation: "unlikely" }]), "found");
   assert.equal(classifyAhlsellCatalogCandidates([]), "none");
 });
 
 test("accepts compact and legacy catalog payloads during a rolling deployment", () => {
-  assert.equal(ahlsellCatalogStatusFromPayload({ classification: "safe" }), "safe");
-  assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ exactMatch: true, recommendation: "recommended" }] }), "safe");
+  assert.equal(ahlsellCatalogStatusFromPayload({ classification: "safe" }), "found");
+  assert.equal(ahlsellCatalogStatusFromPayload({ classification: "safe", evaluatorVersion: TECHNICAL_EVALUATOR_VERSION }), "safe");
+  assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ exactMatch: true, recommendation: "recommended" }] }), "found");
   assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ recommendation: "recommended" }] }), "found");
   assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [{ recommendation: "possible" }] }), "found");
   assert.equal(ahlsellCatalogStatusFromPayload({ candidates: [] }), "none");
   assert.equal(ahlsellCatalogStatusFromPayload({ error: "temporary" }), null);
 });
 
-test("reuses approved history only for the exact stored fingerprint", () => {
+test("retains history lookup but never treats a fingerprint as technical verification", () => {
   const memoryFingerprints = new Set(["fp-k80-qr"]);
   assert.equal(hasReusableProductMemory({ mapping_fingerprint: "fp-k80-qr" }, memoryFingerprints), true);
   assert.equal(hasReusableProductMemory({ mapping_fingerprint: "fp-k80-sr" }, memoryFingerprints), false);
@@ -193,8 +198,8 @@ test("reuses approved history only for the exact stored fingerprint", () => {
     catalogStatuses: { exact: "none", different: "none" }
   });
 
-  assert.deepEqual(result.greenRequirements.map((item) => item.id), ["exact"]);
-  assert.deepEqual(result.redRequirements.map((item) => item.id), ["different"]);
+  assert.deepEqual(result.greenRequirements.map((item) => item.id), []);
+  assert.deepEqual(result.redRequirements.map((item) => item.id), ["exact", "different"]);
 });
 
 test("keeps an exact historical fingerprint yellow when the requirement has a data warning", () => {

@@ -31,6 +31,7 @@ import { pipeJointTypes, pipeJointSearchTerm, requirementJointText, stainlessSte
 import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
 import { pipeRequirementDimensions, pipeRequirementLimits } from './pipe-matching-evidence';
 import type { AhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
+import type { TechnicalEvaluation } from "./technical-evaluation-model";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -46,6 +47,8 @@ export type AhlsellPublicCandidate = {
   evidenceSources?: AhlsellCandidateEvidenceSource[];
   verifiedAt?: string;
   matchScore?: number;
+  searchScore?: number | null;
+  technicalEvaluation?: TechnicalEvaluation;
   matchReasons?: string[];
   matchWarnings?: string[];
   recommendation?: "recommended" | "possible" | "unlikely";

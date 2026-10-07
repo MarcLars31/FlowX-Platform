@@ -1,7 +1,8 @@
 import { isExactAhlsellCandidate } from "@/lib/ahlsell-candidate-ranking";
 import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
-import { ahlsellMldlProduct } from "./ahlsell-mldl-catalog";
+import { ahlsellMldlProduct, ahlsellMldlCandidate } from "./ahlsell-mldl-catalog";
+import { evaluateAhlsellCandidates } from "./ahlsell-technical-evaluator";
 import { readProductSelectionReview } from "./product-selection-review";
 import { requiresProductRequirementReview } from "./product-requirement-review";
 
@@ -85,6 +86,8 @@ export function bulkProductApprovalSelection({
   if (exactMemoryProducts.size === 1) {
     const [memory] = exactMemoryProducts.values();
     if (!memory) return null;
+    const product = ahlsellMldlCandidate(text(memory.product_number));
+    if (!product || evaluateAhlsellCandidates(requirement, [product])[0].technicalEvaluation.status !== "MATCH") return null;
     return {
       requirementId: requirement.id,
       productName: text(memory.product_name),
@@ -96,7 +99,7 @@ export function bulkProductApprovalSelection({
   }
 
   const exactCandidates = new Map(
-    buildAhlsellRequirementGuide(requirement).directCandidates
+    evaluateAhlsellCandidates(requirement, buildAhlsellRequirementGuide(requirement).directCandidates)
       .filter(isExactAhlsellCandidate)
       .map((candidate) => [normalizeProductNumber(candidate.articleNumber), candidate])
   );

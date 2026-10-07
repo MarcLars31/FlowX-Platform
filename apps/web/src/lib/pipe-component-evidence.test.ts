@@ -19,20 +19,26 @@ const cap = candidate('Endelokk med innvendige gjenger rillet, Vic 60', [
   'Nominell diameter tilkobling 2: DN25', 'Utvendig rørdiameter tilkobling 2: 33.7 mm', 'Tilkobling 2: Innvendig gjenge gass konisk (BSPT)'
 ]);
 const state = (requirement: Record<string, unknown>, product: AhlsellPublicCandidate) => ahlsellCandidateMatchState(rankAhlsellCandidates(requirement, [product])[0]);
+const assertRetrievalSupported = (requirement: Record<string, unknown>, product: AhlsellPublicCandidate) => {
+  const [ranked] = rankAhlsellCandidates(requirement, [product]);
+  assert.equal(ranked.matchWarnings?.length ?? 0, 0, JSON.stringify(ranked.matchWarnings));
+  // Retrieval evidence still agrees, but the separate evaluator must approve all effective requirements.
+  assert.equal(ahlsellCandidateMatchState(ranked), 'review');
+};
 
 test('pipe searches and validation use Ø160, keeping ending flange DN100 separate', () => {
   const guide = buildAhlsellRequirementGuide(pipe);
   assert.match(guide.searchQueries.join(' '), /160mm/);
   assert.match(guide.searchQueries.join(' '), /SDR17/);
   assert.doesNotMatch(guide.searchQueries.join(' '), /DN100|114[.,]3|PN12/);
-  assert.ok(['exact', 'matched'].includes(state(pipe, pe)));
+  assertRetrievalSupported(pipe, pe);
   assert.equal(state(pipe, { ...pe, productName: 'PE100 rør Ø110 SDR17 med flens DN100' }), 'mismatch');
 });
 
 test('an OD in description also takes precedence over an ending flange', () => {
   const requirement = { ...pipe, value_text: 'PE100 rør Ø160. Avsluttes med flens DN100', value_json: { ...pipe.value_json, attributes: { materiale: 'PE100' } } };
   assert.doesNotMatch(buildAhlsellRequirementGuide(requirement).searchQueries.join(' '), /DN100/);
-  assert.ok(['exact', 'matched'].includes(state(requirement, pe)));
+  assertRetrievalSupported(requirement, pe);
 });
 
 for (const name of ['Baio Pakning for PVC/PE rør', 'Baio Strekkfast sikring f/ PE rør', 'Flensemuffe, strekkfast for PE-rør, AVK']) {
@@ -56,12 +62,12 @@ test('missing OD, SDR or PMA stays review and wrong SDR or pressure is a conflic
   assert.equal(state(pipe, { ...pe, productName: 'PE100 rør Ø160 SDR11' }), 'mismatch');
   assert.equal(state(pipe, { ...pe, specifications: ['Materiale: PE100', 'PMA: 10 bar'] }), 'mismatch');
   assert.equal(state(pipe, { ...pe, specifications: ['Materiale: PE100', 'Maksimalt driftstrykk ved 20 °C: 10 bar'] }), 'mismatch');
-  assert.ok(['exact', 'matched'].includes(state(pipe, { ...pe, specifications: ['Materiale: PE100', 'Maks driftstrykk: 16 bar'] })));
+  assertRetrievalSupported(pipe, { ...pe, specifications: ['Materiale: PE100', 'Maks driftstrykk: 16 bar'] });
 });
 
 test('SDR decimal values are preserved', () => {
   const requirement = { ...pipe, value_json: { ...pipe.value_json, attributes: { ...pipe.value_json.attributes, 'sdr-verdi': '13,6' } } };
-  assert.ok(['exact', 'matched'].includes(state(requirement, { ...pe, productName: 'PE100 rør Ø160 SDR13.6' })));
+  assertRetrievalSupported(requirement, { ...pe, productName: 'PE100 rør Ø160 SDR13.6' });
   assert.equal(state(requirement, pe), 'mismatch');
 });
 
@@ -69,7 +75,7 @@ test('threaded plug queries do not force grooved end caps', () => {
   const queries = buildAhlsellRequirementGuide(plug).searchQueries.join(' ');
   assert.match(queries, /Plugg gjenget DN25/);
   assert.doesNotMatch(queries, /rillet/);
-  assert.ok(['exact', 'matched'].includes(state(plug, candidate('Plugg DN25 gjenget'))));
+  assertRetrievalSupported(plug, candidate('Plugg DN25 gjenget'));
 });
 
 test('a matching secondary port cannot validate a wrong primary size or joint', () => {
@@ -83,9 +89,9 @@ test('a matching secondary port cannot validate a wrong primary size or joint', 
 
 test('a correctly sized grooved end cap remains eligible; absent primary evidence is review', () => {
   const requirement = { ...plug, value_text: 'Endelokk DN50 rillet', value_json: { ...plug.value_json, attributes: { dimensjon: 'DN50' } } };
-  assert.ok(['exact', 'matched'].includes(state(requirement, cap)));
+  assertRetrievalSupported(requirement, cap);
   assert.equal(state(plug, { ...cap, specifications: cap.specifications.filter(spec => / 2:/.test(spec)) }), 'review');
-  assert.ok(['exact', 'matched'].includes(state(requirement, candidate('Endelokk rillet', ['Utvendig rørdiameter tilkobling 1: 60.3 mm']))));
+  assertRetrievalSupported(requirement, candidate('Endelokk rillet', ['Utvendig rørdiameter tilkobling 1: 60.3 mm']));
   assert.equal(state(plug, candidate('Endelokk DN50 med gjenget uttak DN25 rillet')), 'review');
 });
 
@@ -93,7 +99,8 @@ test('enrichment can resolve missing pipe evidence without clearing actual confl
   const local = rankAhlsellCandidates(pipe, [{ ...pe, productName: 'PE100 rør Ø160', specifications: ['Materiale: PE100'] }]);
   const complete = { ...pe, specifications: [...pe.specifications, 'SDR: 17'] };
   const merged = complementMldlCandidates(pipe, local, [complete]);
-  assert.ok(merged.some(product => ['exact', 'matched'].includes(ahlsellCandidateMatchState(product))), JSON.stringify(merged));
+  assert.ok(merged.some(product => !product.matchWarnings?.length), JSON.stringify(merged));
+  assert.ok(merged.every(product => ahlsellCandidateMatchState(product) === 'review'));
   const wrong = rankAhlsellCandidates(plug, [cap]);
   assert.ok(complementMldlCandidates(plug, wrong, [candidate('Plugg DN25 gjenget')]).every(product => !['exact', 'matched'].includes(ahlsellCandidateMatchState(product))));
 });

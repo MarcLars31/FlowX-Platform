@@ -87,9 +87,10 @@ test("offers all verified matching variants without a mismatch or automatic sele
   assert.ok(candidates.length > 1);
   assert.ok(candidates.every((candidate) => candidate.exactMatch === false));
   const matches = candidates.filter(isMatchingAhlsellCandidate);
-  assert.ok(matches.length > 1);
-  assert.ok(matches.every(candidate => candidate.requiresProductSelection && !isExactAhlsellCandidate(candidate)));
-  assert.ok(matches.every(candidate => candidate.matchWarnings?.length === 0));
+  assert.equal(matches.length, 0);
+  const selectable = candidates.filter(candidate => candidate.requiresProductSelection && !candidate.matchWarnings?.length);
+  assert.ok(selectable.length > 1);
+  assert.ok(candidates.every(candidate => !isExactAhlsellCandidate(candidate)));
 });
 
 test("excludes concealed heads when the specification explicitly requires visible mounting", () => {

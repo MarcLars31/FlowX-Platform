@@ -36,18 +36,19 @@ test("three overlapping accessory warnings become one conditional notice while t
   assert.ok(wrong.matchWarnings?.some(warning => /Fel temperatur/.test(warning)));
 });
 
-test("Sprinkler2 keeps the verified head green while an alternative still lacks pressure evidence", () => {
+test("Sprinkler2 retains the supported head but requires the separate technical evaluation", () => {
   const requirement = { category: "sprinkler_head", value_text: "SPRINKLER", value_json: { attributes: {
     ...standardAttributes, plassering: "Hengende synlig i tak og over systemhimling",
     "dekkskive/pyntering (ved innfelling)": "|.R.", beskyttelse: "Nei"
   } } };
   assert.deepEqual(buildAhlsellRequirementGuide(requirement).accessoryRequirements, []);
   const candidates = rankAhlsellCandidates(requirement, findMldlOnlyCandidates(requirement));
-  const matches = candidates.filter(isMatchingAhlsellCandidate);
+  const matches = candidates.filter(candidate => !candidate.matchWarnings?.length && !candidate.requiresAccessoryReview);
   assert.deepEqual(matches.map(candidate => candidate.articleNumber), ["9257392"]);
   assert.ok(candidates.find(candidate => candidate.articleNumber === "9254064")?.matchWarnings?.some(warning => /arbetstryck/.test(warning)));
   assert.ok(matches.every(candidate => !isExactAhlsellCandidate(candidate)));
-  assert.equal(classifyAhlsellCatalogCandidates(candidates), "safe");
+  assert.equal(candidates.filter(isMatchingAhlsellCandidate).length, 0);
+  assert.equal(classifyAhlsellCatalogCandidates(candidates), "found");
 });
 
 // Regression from the customer's annotated screenshot. These are source fields,

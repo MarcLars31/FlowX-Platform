@@ -190,21 +190,28 @@ body .project-tabs button[data-variant]:disabled { background: transparent; colo
 .product-selection-heading { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .product-selection-heading h2 { font-size: 14px; font-weight: 600; }
 .product-selection-heading p { font-size: 12px; color: var(--portal-muted); }
-.product-selection-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); align-items: start; gap: 20px; min-width: 0; }
-.product-selection-layout.has-project-navigation { grid-template-columns: 160px 210px minmax(0, 1fr); }
+.product-selection-layout { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "posts" "detail"; align-items: start; gap: 20px; min-width: 0; }
+.product-selection-layout.has-project-navigation { grid-template-columns: 160px minmax(0, 1fr); grid-template-areas: "project posts" "project detail"; }
+.product-project-navigation { grid-area: project; }
 .product-project-navigation nav { display: grid; gap: 6px; }
-.product-post-sidebar { position: sticky; top: 86px; min-width: 0; display: flex; flex-direction: column; max-height: calc(100dvh - 108px); }
+.product-post-sidebar { grid-area: posts; min-width: 0; display: flex; flex-direction: column; border-bottom: 1px solid #dfe7e2; padding-bottom: 12px; }
 .product-post-sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 8px 14px; color: #64756b; }
 .product-post-sidebar-heading h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
 .product-post-sidebar-heading > span { font-size: 12px; }
-.product-post-groups { min-height: 0; overflow: auto; padding-right: 3px; scrollbar-width: thin; }
-.product-post-group + .product-post-group { margin-top: 10px; }
+.product-post-groups { display: flex; gap: 8px; min-width: 0; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: thin; }
+.product-post-group { flex: 0 0 220px; min-width: 0; }
+.product-post-panels { max-height: 290px; overflow: auto; scrollbar-width: thin; }
+.product-post-group-panel > h3 { padding: 10px 8px 4px; font-size: 12px; color: #64756b; font-weight: 600; }
+.product-post-node { flex: 0 0 220px; min-width: 0; }
 body button.product-post-group-toggle { display: grid; grid-template-columns: 15px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; min-height: 40px; padding: 7px; border: 0; background: transparent; text-align: left; }
 .product-post-group-toggle > svg { width: 14px; height: 14px; color: #64756b; }
 .product-post-group-toggle strong { font-weight: 650; }
 .product-post-group-toggle small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #64756b; font-size: 12px; }
 .product-post-count { font-size: 11px; color: #64756b; font-variant-numeric: tabular-nums; }
-.product-post-children { margin-left: 12px; padding: 2px 0 4px 7px; border-left: 1px solid #d8e2db; }
+.product-post-children { display: flex; align-items: flex-start; gap: 8px; min-width: 0; overflow-x: auto; padding: 4px 2px 8px; scrollbar-width: thin; }
+.product-post-children[hidden] { display: none; }
+.product-post-node > .product-post-children { border-top: 1px solid #d8e2db; margin-top: 4px; }
+body button.product-post-group-toggle[aria-expanded="true"] { background: #e3f0e8; border-radius: 8px; color: #176446; }
 body button.product-post-link { display: grid; grid-template-columns: 12px minmax(0, 1fr) 12px; align-items: center; gap: 4px; width: 100%; min-height: 48px; margin-block: 2px; padding: 8px 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; }
 .product-post-link > svg { width: 12px; height: 12px; color: #64756b; }
 .product-post-link strong { display: block; font-size: 13px; font-weight: 500; }
@@ -213,7 +220,7 @@ body button.product-post-link { display: grid; grid-template-columns: 12px minma
 body button.product-post-group-toggle:hover, body button.product-post-link:hover { background: #ebf0ed; }
 body button.product-post-link[aria-current="true"] { background: #e3f0e8; border-color: #c6dece; color: #176446; }
 .product-post-check svg { width: 13px; height: 13px; color: #176446; }
-.product-post-detail { min-width: 0; }
+.product-post-detail { grid-area: detail; min-width: 0; }
 .product-post-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 0 0 12px; }
 .product-post-toolbar p { font-size: 13px; font-weight: 600; }
 .product-post-toolbar p span { margin-left: 7px; font-weight: 400; color: #64756b; font-size: 12px; }
@@ -286,8 +293,8 @@ body .product-save-footer button { min-height: 40px; padding: 9px 18px; }
 .product-information-content { padding: 24px; }
 .product-information-content > * { width: 100%; max-width: 760px; }
 @media (max-width: 1150px) {
-  .product-selection-layout, .product-selection-layout.has-project-navigation { grid-template-columns: 190px minmax(0, 1fr); gap: 16px; }
-  .product-project-navigation { grid-column: 1 / -1; }
+  .product-selection-layout, .product-selection-layout.has-project-navigation { grid-template-columns: minmax(0, 1fr); grid-template-areas: "posts" "detail"; gap: 16px; }
+  .product-selection-layout.has-project-navigation { grid-template-areas: "project" "posts" "detail"; }
   .product-mapping-card { grid-template-columns: minmax(0, 1fr); }
   .product-action-bar, .product-requirement-summary, .product-linked-panel, .product-catalog-panel, .product-save-footer { grid-column: 1; grid-row: auto; }
   .product-catalog-panel { position: static; max-height: none; }
@@ -300,7 +307,8 @@ body .product-save-footer button { min-height: 40px; padding: 9px 18px; }
   .project-heading-actions { flex-wrap: wrap; gap: 8px; }
   .project-tabs { gap: 20px; }
   .product-selection-layout, .product-selection-layout.has-project-navigation { grid-template-columns: minmax(0, 1fr); }
-  .product-post-sidebar { position: static; max-height: 240px; border-bottom: 1px solid #dfe7e2; padding-bottom: 12px; }
+  .product-post-group, .product-post-node { flex-basis: 200px; }
+  .product-post-panels { max-height: 230px; }
   .product-panel-caption { padding: 14px 16px; }
   .product-requirement-content { padding: 12px 12px 0; }
   .product-selected-summary { padding: 16px; gap: 14px; }

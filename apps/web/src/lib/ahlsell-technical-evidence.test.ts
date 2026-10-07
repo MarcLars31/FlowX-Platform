@@ -7,6 +7,7 @@ import { ahlsellCandidateMatchState, rankAhlsellCandidates } from "./ahlsell-can
 import { complementMldlCandidates } from "./ahlsell-hybrid-matching";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
+import { evaluateAhlsellCandidates } from "./ahlsell-technical-evaluator";
 
 const article = "9991234";
 const url = `https://www.ahlsell.no/products/test/${article}`;
@@ -72,7 +73,7 @@ test("page and variant disagreements cannot become a green product after merging
 
 test("documented article fields supply the match while different-article evidence never does", () => {
   const requirement = {category:"pipe",value_text:"Rør DN65 PN16"};
-  const [ranked] = rankAhlsellCandidates(requirement,[product()]);
+  const [ranked] = evaluateAhlsellCandidates(requirement, rankAhlsellCandidates(requirement,[product()]));
   assert.ok(["exact","matched"].includes(ahlsellCandidateMatchState(ranked)), JSON.stringify(ranked.matchWarnings));
   const wrong = product({...product().technicalEvidence!, articleNumber:"9999999"});
   const [blocked] = rankAhlsellCandidates(requirement,[wrong]);
@@ -165,7 +166,8 @@ test("a page-verified N5 alias remains valid when MLDL evidence is reassessed", 
   const alias=`${article}N5`;
   const canonical=product();
   const local={...canonical,articleNumber:alias,technicalEvidence:undefined,source:"structured_database" as const};
-  const result=complementMldlCandidates({category:"pipe",value_text:"Rør DN65 PN16"},[local],[canonical],new Map([[article,alias]]));
+  const requirement = {category:"pipe",value_text:"Rør DN65 PN16"};
+  const result=evaluateAhlsellCandidates(requirement, complementMldlCandidates(requirement,[local],[canonical],new Map([[article,alias]])));
   assert.equal(result.length,1);
   assert.equal(result[0].articleNumber,article);
   assert.ok(["exact","matched"].includes(ahlsellCandidateMatchState(result[0])),JSON.stringify(result[0].matchWarnings));

@@ -2,6 +2,8 @@ import { buildAhlsellRequirementGuide } from "@/lib/ahlsell-public-match";
 import { isMatchingAhlsellCandidate } from "@/lib/ahlsell-candidate-ranking";
 import { technicalConflictWarnings } from "./ahlsell-technical-conflicts";
 import { hasProjectRequirementDataWarning } from "@/lib/project-requirement-data-warnings";
+import type { TechnicalEvaluation } from "./technical-evaluation-model";
+import { TECHNICAL_EVALUATOR_VERSION } from "./technical-evaluation-model";
 
 export type AhlsellMatchGroup = "green" | "yellow" | "red";
 export type AhlsellCatalogMatchStatus = "safe" | "found" | "none" | "incomplete";
@@ -34,6 +36,7 @@ export function classifyAhlsellCatalogCandidates(
     matchWarnings?: string[];
     exactMatch?: boolean;
     requiresAccessoryReview?: boolean;
+    technicalEvaluation?: TechnicalEvaluation;
   }>
 ): AhlsellCatalogMatchStatus {
   if (candidates.some((candidate) => isMatchingAhlsellCandidate({
@@ -41,7 +44,7 @@ export function classifyAhlsellCatalogCandidates(
     source: candidate.source ?? "catalog_search"
   }))) return "safe";
   return candidates.some((candidate) =>
-    !technicalConflictWarnings(candidate).length
+    candidate.technicalEvaluation ? candidate.technicalEvaluation.status !== "FAIL" : !technicalConflictWarnings(candidate).length
   ) ? "found" : "none";
 }
 
@@ -50,6 +53,7 @@ export function ahlsellCatalogStatusFromPayload(value: unknown): AhlsellCatalogM
   const payload = value as Record<string, unknown>;
   const incomplete = payload.publicSearchStatus === "unavailable" || payload.publicSearchStatus === "partial" || payload.truncated === true;
   if (isAhlsellCatalogMatchStatus(payload.classification)) {
+    if (payload.classification === "safe" && payload.evaluatorVersion !== TECHNICAL_EVALUATOR_VERSION) return "found";
     return payload.classification === "none" && incomplete ? "incomplete" : payload.classification;
   }
   if (!Array.isArray(payload.candidates)) return null;
@@ -83,7 +87,6 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
   requirements: readonly Row[],
   {
     approvedRequirementIds,
-    memoryFingerprints,
     catalogStatuses = {},
     staticallySafeRequirementIds,
     manualReviewGroups = {}
@@ -104,8 +107,6 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
     const requiresDataReview = !handledByUser && hasProjectRequirementDataWarning(requirement);
     const precomputedSafe = staticallySafeRequirementIds?.has(requirement.id) ?? false;
     const hasApprovedProduct = !staticallySafeRequirementIds && approvedRequirementIds.has(requirement.id);
-    const hasLearnedProduct = !staticallySafeRequirementIds
-      && hasReusableProductMemory(requirement, memoryFingerprints);
     const hasDirectAhlsellMatch = !staticallySafeRequirementIds
       && buildAhlsellRequirementGuide(requirement).directCandidates.some(isMatchingAhlsellCandidate);
     const catalogStatus = catalogStatuses[requirement.id];
@@ -114,7 +115,7 @@ export function splitAhlsellMatchGroups<Row extends RequirementRow>(
       redRequirements.push(requirement);
     } else if (manualReviewGroups[requirement.id] === "yellow" || requiresDataReview) {
       yellowRequirements.push(requirement);
-    } else if (precomputedSafe || hasApprovedProduct || hasLearnedProduct || hasDirectAhlsellMatch || catalogStatus === "safe") {
+    } else if (precomputedSafe || hasApprovedProduct || hasDirectAhlsellMatch || catalogStatus === "safe") {
       greenRequirements.push(requirement);
     } else if (catalogStatus === "none") {
       redRequirements.push(requirement);

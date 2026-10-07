@@ -1,6 +1,7 @@
 import { normalizeTechnicalText } from "./ahlsell-requirement-context";
 import { pipeJointTypes, stainlessSteelGrade } from "./pipe-technical-terms";
 import { resolvedSprinklerOrientation } from "./sprinkler-orientation-lexicon";
+import { canonicalProperty, normalizeRequirementValue } from "./technical-evaluation-model";
 
 export const AHLSELL_EVIDENCE_VERSION = 1;
 export const AHLSELL_EVIDENCE_TTL_MS = 12 * 60 * 60_000;
@@ -17,6 +18,7 @@ export type AhlsellTechnicalEvidence = {
   version: typeof AHLSELL_EVIDENCE_VERSION;
   articleNumber: string;
   fields: Partial<Record<TechnicalField, { status: "documented" | "conflict"; observations: TechnicalObservation[] }>>;
+  normalizedProperties?: Array<TechnicalObservation & { property: string; unit?: string }>;
 };
 export type AhlsellEvidenceSnapshot = {
   version: typeof AHLSELL_EVIDENCE_VERSION;
@@ -45,6 +47,7 @@ export function buildAhlsellTechnicalEvidence(input: Omit<AhlsellEvidenceSnapsho
   sourceKind?: TechnicalObservation["sourceKind"];
 }): AhlsellTechnicalEvidence {
   const fields: AhlsellTechnicalEvidence["fields"] = {};
+  const normalizedProperties: NonNullable<AhlsellTechnicalEvidence["normalizedProperties"]> = [];
   function add(field: TechnicalField, value: string | number | null, raw: string) {
     if (value === null) return;
     const entry = fields[field] ?? { status: "documented", observations: [] };
@@ -60,6 +63,12 @@ export function buildAhlsellTechnicalEvidence(input: Omit<AhlsellEvidenceSnapsho
     const label = normalizeTechnicalText(raw.slice(0, separator));
     const value = raw.slice(separator + 1).trim();
     const normalized = normalizeTechnicalText(value);
+    const property = canonicalProperty(raw.slice(0, separator));
+    const genericValue = property && !(property in TECHNICAL_FIELD_LABELS) ? normalizeRequirementValue(property, value) : null;
+    if (property && genericValue && typeof genericValue.value !== "boolean") normalizedProperties.push({
+      property, ...genericValue, value: genericValue.value, raw, sourceUrl: input.sourceUrl,
+      sourceKind: input.sourceKind ?? "product_page", retrievedAt: input.retrievedAt
+    });
     if (/^(?:dn|nominell diameter(?: dn)?|nominell storrelse|tilkobling dn|dimensjon dn|gjengedimensjon dn)$/.test(label)) add("dn", numeric(value, /^(?:DN\s*)?(\d+(?:[.,]\d+)?)$/i), raw);
     if (/^(?:ytre diameter|utvendig diameter|ytterdiameter|outside diameter)(?: mm)?$/.test(label)) add("outsideDiameterMm", numeric(value, /^(\d+(?:[.,]\d+)?)\s*(?:mm)?$/i), raw);
     if (/^(?:dimensjon|dimension)$/.test(label)) add("dn", numeric(value, /^DN\s*(\d+(?:[.,]\d+)?)$/i), raw);
@@ -95,7 +104,8 @@ export function buildAhlsellTechnicalEvidence(input: Omit<AhlsellEvidenceSnapsho
   for (const match of (input.description ?? "").matchAll(/(?:maks(?:imum)?\s+)?(?:arbeidstrykk|arbetstryck|working pressure)\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(bar|kpa|mpa|psi)\b/gi)) {
     add("workingPressureBar", pressure(`${match[1]} ${match[2]}`), match[0]);
   }
-  return { version: AHLSELL_EVIDENCE_VERSION, articleNumber: input.articleNumber, fields };
+  return { version: AHLSELL_EVIDENCE_VERSION, articleNumber: input.articleNumber, fields,
+    ...(normalizedProperties.length ? { normalizedProperties } : {}) };
 }
 
 export function mergeAhlsellTechnicalEvidence(...items: (AhlsellTechnicalEvidence | undefined)[]) {
@@ -108,7 +118,9 @@ export function mergeAhlsellTechnicalEvidence(...items: (AhlsellTechnicalEvidenc
     const unique = [...new Map(observations.map(o => [JSON.stringify(o), o])).values()];
     fields[key] = { status: new Set(unique.map(o => o.value)).size > 1 ? "conflict" : "documented", observations: unique };
   }
-  return { version: AHLSELL_EVIDENCE_VERSION, articleNumber, fields } satisfies AhlsellTechnicalEvidence;
+  const normalizedProperties = valid.filter(item => item.articleNumber === articleNumber).flatMap(item => item.normalizedProperties ?? []);
+  return { version: AHLSELL_EVIDENCE_VERSION, articleNumber, fields,
+    ...(normalizedProperties.length ? { normalizedProperties: [...new Map(normalizedProperties.map(item => [JSON.stringify(item), item])).values()] } : {}) } satisfies AhlsellTechnicalEvidence;
 }
 
 /** Canonical labels let the existing matcher use explicitly labelled fields

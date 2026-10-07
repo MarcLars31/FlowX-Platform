@@ -19,6 +19,7 @@
     "test:ns-codes": "node --import tsx --test src/lib/ns3420-code-catalog.test.ts",
     "test:ahlsell-lookup": "node --import tsx --test src/lib/ahlsell-product-lookup.test.ts src/lib/ahlsell-technical-evidence.test.ts src/lib/ahlsell-public-catalog.test.ts src/lib/ahlsell-product-subtitle.test.ts src/lib/product-card-accessories.test.ts",
     "test:ahlsell-hybrid": "node --import tsx --test src/lib/ahlsell-hybrid-matching.test.ts",
+    "test:technical-evaluator": "node --import ./scripts/register-server-only-test.mjs --import tsx --test src/lib/technical-evaluator.test.ts src/lib/effective-requirements.server.test.ts",
     "test:authz": "node --import tsx --test src/lib/platform-role.test.ts src/lib/administration-access.test.ts src/lib/backend-route-guards.test.ts src/lib/supabase-auth-config.test.ts src/lib/supabase-headers.test.ts",
     "test:security": "node --import tsx --test src/lib/request-rate-limit.test.ts src/lib/pdf-security.test.ts src/lib/request-body.test.ts src/lib/demo-data.test.ts",
     "test:technical-upload": "node --import ./scripts/register-server-only-test.mjs --import tsx --test src/lib/technical-description-upload.test.ts src/lib/technical-description-storage.test.ts src/lib/technical-description-persistence.test.ts",
@@ -58,7 +59,8 @@
     },
     "nanoid": "3.3.18",
     "postcss": "8.5.25",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
+    "source-map-js": "1.2.2",
     "baseline-browser-mapping": "2.11.26"
   },
   "devDependencies": {

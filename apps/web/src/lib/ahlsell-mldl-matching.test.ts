@@ -52,7 +52,8 @@ test("table labels stay local and the retired background queue cannot search the
   }
   const panel = await fs.readFile(new URL("../components/DistributorMappingPanel.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(panel, /\/ahlsell-subtitles/);
-  assert.match(panel, /catalogResult\?\.candidates \?\? guide.directCandidates/);
+  assert.match(panel, /candidate\.technicalEvaluation\?\.requirementRevision === requirementRevision/);
+  assert.match(panel, /currentCandidates \?\? guide.directCandidates/);
   const candidateRoute = await fs.readFile(new URL("../app/api/projects/[id]/requirements/[requirementId]/ahlsell-candidates/route.ts", import.meta.url), "utf8");
   assert.doesNotMatch(candidateRoute, /findMldlOnlyCandidates/);
   const searchCall = candidateRoute.indexOf("await findAhlsellHybridCandidates(requirement");
