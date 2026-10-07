@@ -645,6 +645,7 @@ export function ProjectWorkspace({
             <Button type="button" variant="secondary" disabled={finishing} onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" className="h-4 w-4" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button>
           </div>
           <DistributorMappingPanel
+            deliveryResource={deliveryResource}
             key={requirementView}
             view={requirementView}
             onEditStateChange={setProductEditState}

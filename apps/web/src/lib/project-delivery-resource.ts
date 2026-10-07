@@ -1,7 +1,7 @@
 import type { DeliveryReview } from "./project-delivery";
 
 export type ProjectWorkPackage = {
-  id: string; scope_type: "chapter" | "group"; scope_value: string;
+  id: string; scope_type: "chapter" | "group" | "pdf_chapter" | "post"; scope_value: string;
   assigned_to: string; due_date: string | null; note: string; revision: number;
 };
 export type ProjectDeliveryDocument = {
@@ -14,7 +14,7 @@ export type ProjectDeliveryData = {
   members: { user_id: string; label: string }[];
   documents: ProjectDeliveryDocument[];
   reviews: { requirement_id: string; product_revision: number; review: DeliveryReview }[];
-  requirements: { id: string; category: string; edit_revision: number; value_json: unknown; actionable?: boolean }[];
+  requirements: { id: string; category: string; edit_revision: number; value_json: unknown; actionable?: boolean; source_document_id?: string; source_technical_description_document_id?: string }[];
 };
 type Snapshot = { data: ProjectDeliveryData | null; error: string; refreshing: boolean };
 export type ProjectDeliveryResource = ReturnType<typeof createProjectDeliveryResource>;

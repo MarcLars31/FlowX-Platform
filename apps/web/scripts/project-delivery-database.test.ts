@@ -23,7 +23,7 @@ async function fixture(){
  insert into technical_description_documents(id,project_id,organization_id,status) values('${oldDoc}','${project}','${org}','extracted');
  create table project_documents(id uuid,project_id uuid,file_sha256 text,processing_status text,deleted_at timestamptz);
  insert into project_documents values('${oldDoc}','${project}','hash','completed',null);
- create table project_requirements(id uuid primary key,project_id uuid,organization_id uuid,status text,category text,value_json jsonb,edit_revision bigint default 0,deleted_at timestamptz,source_technical_description_document_id uuid);
+ create table project_requirements(id uuid primary key,project_id uuid,organization_id uuid,status text,category text,value_json jsonb,edit_revision bigint default 0,deleted_at timestamptz,source_technical_description_document_id uuid,source_document_id uuid);
  insert into project_requirements(id,project_id,organization_id,status,category,value_json,source_technical_description_document_id) values
  ('${first}','${project}','${org}','extracted_unreviewed','pipe','{"postNumber":"30.332.7.1"}','${oldDoc}'),
  ('${second}','${project}','${org}','extracted_unreviewed','pipe','{"postNumber":"30.332.8"}','${oldDoc}');
@@ -34,6 +34,7 @@ async function fixture(){
  `);
  await db.exec(readFileSync(new URL('../../../supabase/migrations/20261004120000_project_delivery_control.sql',import.meta.url),'utf8'));
  await db.exec(readFileSync(new URL('../../../supabase/migrations/20261004220000_remove_product_delivery_gate.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../../../supabase/migrations/20261007120000_post_list_assignments.sql',import.meta.url),'utf8'));
  await db.query("select set_config('test.user',$1,false)",[manager]);
  return db;
 }
@@ -52,6 +53,49 @@ test('database scopes chapter/group edits, defends legacy writes and races, and 
  assert.equal((await db.query('select * from project_work_packages')).rows.length,2);
  await db.query("select set_config('test.user',$1,false)",[bob]);
  assert.equal((await db.query<{ok:boolean}>('select can_edit_project_requirement($1) ok',[first])).rows[0].ok,false);
+ }finally{await db.close();}
+});
+
+test('PDF chapter ownership stays within its document and exact post ownership overrides it without including children',async()=>{
+ const db=await fixture();try{
+  await db.query(`update project_requirements set value_json=value_json||'{"sourceChapter":{"title":"40.411 Cable routing"}}'`);
+  await db.query(`insert into project_requirements(id,project_id,organization_id,status,category,value_json,source_document_id) values($1,$2,$3,'extracted_unreviewed','pipe',$4,$5)`,[id(20),project,org,JSON.stringify({postNumber:'30.332.7.1',sourceChapter:{title:'40.411 Cable routing'}}),newDoc]);
+  await db.query(`insert into project_requirements(id,project_id,organization_id,status,category,value_json,source_technical_description_document_id) values($1,$2,$3,'extracted_unreviewed','pipe',$4,$5)`,[id(21),project,org,JSON.stringify({postNumber:'30.332.7.1.1',sourceChapter:{title:'40.411 Cable routing'}}),oldDoc]);
+  const save=(type:string,scope:string,person=alice)=>db.query<{saved:{id:string;scope_value:string;revision:number}}>('select save_work_package($1,$2,null) saved',[project,JSON.stringify({scope_type:type,scope_value:scope,assigned_to:person})]);
+  await save('group','pipe',bob);
+  const chapter=(await save('pdf_chapter',second)).rows[0].saved;
+  assert.equal(chapter.scope_value,first,'any chapter row resolves to the same canonical anchor');
+  await assert.rejects(save('pdf_chapter',first,bob),/Assignment changed/);
+  await save('post',first,bob);
+  await db.exec('set role authenticated'); await db.query("select set_config('test.user',$1,false)",[alice]);
+  const canEdit=async(rid:string)=>(await db.query<{ok:boolean}>('select can_edit_project_requirement($1) ok',[rid])).rows[0].ok;
+  assert.equal(await canEdit(first),false,'exact assignment overrides chapter');
+  assert.equal(await canEdit(second),true);
+  assert.equal(await canEdit(id(21)),true,'child does not inherit the exact post override');
+  assert.equal(await canEdit(id(20)),false,'same chapter and number in another document are not included');
+  await assert.rejects(save('post',second,bob),/Manager access/);
+  await db.query("select set_config('test.user',$1,false)",[manager]);
+  const payload={id:chapter.id,scope_type:'pdf_chapter',scope_value:chapter.scope_value,assigned_to:bob};
+  await db.exec('reset role');
+  await db.query(`insert into project_requirements(id,project_id,organization_id,status,category,value_json,source_technical_description_document_id) values($1,$2,$3,'extracted_unreviewed','pipe',$4,$5)`,[id(0),project,org,JSON.stringify({sourceChapter:{title:'40.411 Cable routing'}}),oldDoc]);
+  await assert.rejects(save('pdf_chapter',id(0)),/Assignment changed/,'new rows cannot create a second assignment for the same chapter');
+  await db.query('select save_work_package($1,$2,0)',[project,JSON.stringify(payload)]);
+  await assert.rejects(db.query('select save_work_package($1,$2,0)',[project,JSON.stringify(payload)]),/Assignment changed/);
+  await assert.rejects(save('post',id(999)),/does not belong/);
+ }finally{await db.close();}
+});
+
+test('unnumbered posts can be assigned but foreign projects and inactive people are rejected',async()=>{
+ const db=await fixture();try{
+  await db.query("update project_requirements set value_json='{}' where id=$1",[first]);
+  const save=(scope:string,person=alice)=>db.query('select save_work_package($1,$2,null)',[project,JSON.stringify({scope_type:'post',scope_value:scope,assigned_to:person})]);
+  await save(first);
+  await db.query("select set_config('test.user','',false)");
+  await db.query("insert into project_requirements(id,project_id,organization_id,status,value_json) values($1,$2,$3,'extracted_unreviewed','{}')",[id(98),id(99),org]);
+  await db.query("select set_config('test.user',$1,false)",[manager]);
+  await assert.rejects(save(id(98)),/does not belong/);
+  await db.query("update organization_members set status='inactive' where user_id=$1",[bob]);
+  await assert.rejects(save(first,bob),/Active organization member/);
  }finally{await db.close();}
 });
 test('delivery readiness validates components and decisions, and rejects a stale product revision',async()=>{

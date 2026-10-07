@@ -2,7 +2,8 @@
 
 
 
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { createProjectDeliveryResource, type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload, X } from "lucide-react";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ProductPostNavigation } from "@/components/ProductPostNavigation";
@@ -78,7 +79,8 @@ type RequirementAttachment = {
 };
 export type ProductEditState = { dirty: boolean; saving: boolean };
 
-export function DistributorMappingPanel({ view = "all", projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onEditStateChange, workspaceNavigation, onRequirementSaved }: {
+export function DistributorMappingPanel({ view = "all", projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onEditStateChange, workspaceNavigation, onRequirementSaved, deliveryResource }: {
+  deliveryResource?: ProjectDeliveryResource;
   workspaceNavigation?: ReactNode;
   view?: ProjectRequirementView | "all";
   onRequirementSaved?: (id: string) => Promise<void>;
@@ -137,6 +139,10 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
   const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const [lastViewedRequirementId, setLastViewedRequirementId] = useState<string | null>(null);
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
+  const assignmentResource = useMemo(() => deliveryResource ?? createProjectDeliveryResource(projectId), [deliveryResource, projectId]);
+  const historyRestore = useRef(false);
+  const historyBackApproved = useRef(false);
   const listPosition = useRef({ requirementId: "", scrollY: 0 });
   const [productCardSaving, setProductCardSaving] = useState(false);
   const [productCardDirty, setProductCardDirty] = useState(false);
@@ -177,31 +183,80 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
     };
   }, [productCardDirty, productCardSaving]);
 
-  function showRequirement(requirementId: string) {
-    if (productCardSaving) return false;
-    if (requirementId === activeRequirement?.id) return true;
-    if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du bytte post uten å lagre?")) return false;
-    if (!activeRequirement) listPosition.current = { requirementId, scrollY: window.scrollY };
-    setLastViewedRequirementId(requirementId);
-    setProductCardDirty(false);
-    setActiveRequirementId(requirementId);
-    setMessage(null);
-    setError(null);
+  // One card history entry per visit: changing cards replaces it, so Back always
+  // returns to the post list rather than stepping through previously opened posts.
+  const handlePostHistory = useEffectEvent((event: PopStateEvent) => {
+    if (historyRestore.current) { historyRestore.current = false; return; }
+    const target = event.state?.scipxPost;
+    if (!target || target.projectId !== projectId || target.view !== view) return;
+    const nextId = queueRequirements.some(row => row.id === target.id) ? target.id as string : null;
+    if (nextId === activeRequirementId) return;
+    const approved = historyBackApproved.current;
+    historyBackApproved.current = false;
+    if (productCardSaving || (!approved && productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du gå tilbake til postlisten uten å lagre?"))) {
+      historyRestore.current = true;
+      window.history.forward();
+      return;
+    }
+    if (nextId) {
+      setLastViewedRequirementId(nextId);
+      setProductCardDirty(false);
+      setActiveRequirementId(nextId);
+      setMessage(null); setError(null);
+      focusPostCard();
+    } else returnToPostList();
+  });
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => handlePostHistory(event);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  function focusPostCard() {
     window.requestAnimationFrame(() => {
       const detail = document.getElementById("product-post-detail");
       detail?.scrollIntoView({ block: "start", behavior: "instant" });
       detail?.focus({ preventScroll: true });
     });
+  }
+
+  function showRequirement(requirementId: string) {
+    if (productCardSaving) return false;
+    if (requirementId === activeRequirement?.id) return true;
+    if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du bytte post uten å lagre?")) return false;
+    if (!activeRequirement) {
+      listPosition.current = { requirementId, scrollY: window.scrollY };
+      window.history.replaceState({ ...window.history.state, scipxPost: { projectId, view, id: null } }, "");
+      window.history.pushState({ ...window.history.state, scipxPost: { projectId, view, id: requirementId } }, "");
+    } else {
+      window.history.replaceState({ ...window.history.state, scipxPost: { projectId, view, id: requirementId } }, "");
+    }
+    setLastViewedRequirementId(requirementId);
+    setProductCardDirty(false);
+    setActiveRequirementId(requirementId);
+    setMessage(null);
+    setError(null);
+    focusPostCard();
     return true;
   }
 
   function showPostList() {
     if (productCardSaving) return;
     if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du gå tilbake til postlisten uten å lagre?")) return;
+    const entry = window.history.state?.scipxPost;
+    if (entry?.projectId === projectId && entry.view === view && entry.id) {
+      historyBackApproved.current = true;
+      window.history.back();
+    } else returnToPostList();
+  }
+
+  function returnToPostList() {
     setProductCardDirty(false);
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
+    const group = mainPostGroups.find(group => group.requirements.some(row => row.id === lastViewedRequirementId));
+    if (group) setExpandedKeys(current => new Set([...current, group.key]));
     window.requestAnimationFrame(() => {
       const row = document.getElementById(`product-post-row-${lastViewedRequirementId}`);
       if (lastViewedRequirementId === listPosition.current.requirementId) {
@@ -222,6 +277,8 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
       <div className={`product-selection-layout${workspaceNavigation ? " has-project-navigation" : ""}`}>
         {workspaceNavigation && <aside className="product-project-navigation" aria-label="Prosjektvisninger"><h2 className="product-panel-caption">Prosjekt</h2>{workspaceNavigation}</aside>}
         {!activeRequirement && queueRequirements.length > 0 && <ProductPostNavigation groups={mainPostGroups}
+          requirements={requirements} projectId={projectId} resource={assignmentResource}
+          expandedKeys={expandedKeys} onToggle={key => setExpandedKeys(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; })}
           activeRequirementId={lastViewedRequirementId ?? undefined} handledIds={handledRequirementIds}
           disabled={productCardSaving} onSelect={showRequirement} />}
         <section id="product-post-detail" hidden={!activeRequirement && queueRequirements.length > 0} tabIndex={-1} aria-label="Valgt post og produktvalg" className="product-post-detail">
