@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/Button";
@@ -106,6 +107,12 @@ export function LoginForm() {
               </Button>
             </form>
           </div>
+          <p className="mt-5 text-center text-sm text-ink-500">
+            Leter du etter Sprsok?{" "}
+            <Link href="/sprsok" className="underline underline-offset-4">
+              Åpne sprinklerkatalogen uten innlogging
+            </Link>
+          </p>
         </section>
       </div>
     </main>
