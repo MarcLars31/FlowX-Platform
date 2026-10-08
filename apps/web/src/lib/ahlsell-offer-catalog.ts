@@ -24,7 +24,7 @@ export type AhlsellOfferCatalog = {
   version: string;
   products: AhlsellOfferProduct[];
 };
-export const OFFER_REVIEW_WARNING = 'Artikel från tidigare Ahlsell-offert. Tekniska krav, tillbehör och aktuell tillgänglighet behöver kontrolleras.';
+export const OFFER_REVIEW_WARNING = 'Artikel från tidigare offert. Tekniska krav, tillbehör och aktuell tillgänglighet behöver kontrolleras.';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function offerCatalogObjectPath(organizationId: string) {
   if (!uuid.test(organizationId)) throw new Error('Invalid organization id');

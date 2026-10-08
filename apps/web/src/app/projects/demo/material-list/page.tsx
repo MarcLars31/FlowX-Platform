@@ -84,7 +84,7 @@ export default function MaterialListPage() {
       <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <MaterialListDemoTable lines={demoMaterialLines} />
         <AiAssistantPanel
-          prompt="Can I use Victaulic instead of Ahlsell?"
+          prompt="Can I choose an equivalent product from another supplier?"
           response={assistantResponse}
           description="Customer-facing answer based on compatible alternatives."
           badge="Demo"

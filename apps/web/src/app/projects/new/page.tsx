@@ -104,8 +104,7 @@ export default function CreateProjectPage() {
               <p className="mt-1 text-sm text-slate-300">En PDF per projekt, högst 30 MB</p>
             </div>
           </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/ahlsell-logo.svg" alt="Ahlsell" className="h-9 w-auto" />
+<span className="text-xl font-semibold tracking-tight">ScipX</span>
         </div>
 
         <div className="p-5 sm:p-6">

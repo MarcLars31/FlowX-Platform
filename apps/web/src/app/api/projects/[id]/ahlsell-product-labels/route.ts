@@ -34,7 +34,7 @@ export async function POST(request: Request, context: RouteContext) {
     );
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: "För många Ahlsell-förfrågningar. Vänta en kort stund och försök igen." },
+        { error: "För många produktförfrågningar. Vänta en kort stund och försök igen." },
         { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
       );
     }
@@ -91,7 +91,7 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
     return NextResponse.json(
-      { error: "Ahlsells produkttexter kunde inte hämtas." },
+      { error: "Leverantörens produkttexter kunde inte hämtas." },
       { status: 500, headers: { "Cache-Control": "private, no-store" } }
     );
   }

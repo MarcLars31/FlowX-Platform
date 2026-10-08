@@ -267,7 +267,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
           requested_access_level: "own",
           requested_team_id: null,
           requested_details: {
-            procurement_strategy: "Ahlsell specialist selection",
+            procurement_strategy: "Specialist selection",
             preferred_distributor: "Ahlsell",
             source_file_name: file.name.slice(0, 255),
             automatically_created: true

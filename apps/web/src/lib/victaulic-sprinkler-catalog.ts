@@ -107,7 +107,7 @@ function evaluateCatalogProduct(
 
   let score = 65;
   const reasons = [
-    `Verifierad Victaulic-modell ${product.model} med Ahlsell-artikel ${product.articleNumber}.`,
+    `Verifierad Victaulic-modell ${product.model} med artikel ${product.articleNumber}.`,
     `K-faktor och anslutning motsvarar K${formatNumber(query.kFactor)} / DN${query.dn}.`
   ];
   const warnings: string[] = [];

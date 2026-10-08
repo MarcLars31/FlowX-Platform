@@ -13,7 +13,7 @@ export function assessAssemblyComponents(requirement: Record<string, unknown>, c
     && (component.kind !== "flange" || !main || pipeDn(main) === null || pipeDn(product) === null || pipeDn(main) === pipeDn(product))
   ).map(product => ({ ...product, exactMatch: false, recommendation: "possible",
     matchWarnings: [...(product.matchWarnings ?? []), "Kontrollera tillverkarens kompatibilitet med exakt vald huvudprodukt och om tillbehöret redan ingår i leveransen.",
-      ...(!main ? ["Huvudproduktens tekniska uppgifter kunde inte verifieras hos Ahlsell. Kontrollera dess datablad före tillbehörsval."] : [])]
+      ...(!main ? ["Huvudproduktens tekniska uppgifter kunde inte verifieras hos leverantören. Kontrollera dess datablad före tillbehörsval."] : [])]
   }));
   const value = requirement.value_json as { attributes?: Record<string, unknown> } | undefined;
   const pressure = Object.entries(value?.attributes ?? {}).find(([key]) => /^(?:trykk|tryck)$/i.test(key))?.[1];
@@ -39,7 +39,7 @@ export function assessAssemblyComponents(requirement: Record<string, unknown>, c
     subtitle: products.find(item => item.articleNumber === product.articleNumber)?.subtitle,
     exactMatch: false,
     matchWarnings: [...(product.matchWarnings ?? []), "Kontrollera att delen passar det valda rörets anslutning och att utförande och mängd stämmer med ritningen.",
-      ...(!main ? ["Huvudproduktens tekniska uppgifter kunde inte verifieras hos Ahlsell. Kontrollera dess datablad före tillbehörsval."] : []),
+      ...(!main ? ["Huvudproduktens tekniska uppgifter kunde inte verifieras hos leverantören. Kontrollera dess datablad före tillbehörsval."] : []),
       ...(main && /\b(?:rustfri\w*|rostfri\w*|stainless)\b/.test(normalizeTechnicalText(productText(main)))
         ? ["Rostfritt rörsystem: kontrollera tillåtna materialkombinationer och kopplingssystem enligt rörtillverkaren."] : [])]
   }));

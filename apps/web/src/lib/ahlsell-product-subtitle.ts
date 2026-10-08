@@ -64,7 +64,7 @@ export function validateAhlsellProductSubtitleItems(value: unknown):
       return { error: "Ett NRF-nummer har ogiltigt format." };
     }
     const productUrl = safeAhlsellProductUrl(rawItem.productUrl, articleNumber);
-    if (!productUrl) return { error: "En produktlänk går inte till Ahlsell." };
+    if (!productUrl) return { error: "Produktlänken stöds inte." };
 
     const articleKey = articleNumber.toLocaleLowerCase("sv-SE");
     if (seenArticleNumbers.has(articleKey)) continue;
@@ -356,12 +356,12 @@ export async function fetchAhlsellProductPage({
       }
 
       if (!response.ok) {
-        if (reportFailures && response.status !== 404 && response.status !== 410) throw new Error(`Ahlsell svarade med HTTP ${response.status}.`);
+        if (reportFailures && response.status !== 404 && response.status !== 410) throw new Error(`Leverantören svarade med HTTP ${response.status}.`);
         return null;
       }
       const contentType = response.headers.get("content-type")?.toLocaleLowerCase("en-US") ?? "";
       if (contentType && !contentType.includes("text/html")) {
-        if (reportFailures) throw new Error("Ahlsell returnerade inte en produktsida.");
+        if (reportFailures) throw new Error("Leverantören returnerade inte en produktsida.");
         return null;
       }
       const html = await readResponseTextWithinLimit(response, MAX_RESPONSE_BYTES);

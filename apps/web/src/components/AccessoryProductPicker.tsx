@@ -80,7 +80,7 @@ export function AccessoryProductPicker({ projectId, requirementId, mainArticleNu
       </Button>
     </div>
     {searchOpen && <form id={`${id}-search`} className="mb-3 space-y-2" onSubmit={event => { event.preventDefault(); if (!disabled && query.trim()) void search(query); }}>
-      <label htmlFor={id} className="block text-sm font-bold text-neutral-900">Produktnamn, Artikelnummer eller Ahlsell-länk</label>
+      <label htmlFor={id} className="block text-sm font-bold text-neutral-900">Produktnamn, Artikelnummer eller produktlänk</label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input id={id} type="search" value={query} disabled={disabled} maxLength={2000} className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-600 focus:ring-neutral-600" onChange={event => {
           request.current?.abort(); if (timer.current) clearTimeout(timer.current);
@@ -91,7 +91,7 @@ export function AccessoryProductPicker({ projectId, requirementId, mainArticleNu
     </form>}
     {children && <div className="mb-4">{children}</div>}
     <div aria-live="polite" aria-busy={loading}>
-      {loading && <p className="flex items-center gap-2 py-2 text-sm text-neutral-800"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Söker i MLDL och hos Ahlsell…</p>}
+      {loading && <p className="flex items-center gap-2 py-2 text-sm text-neutral-800"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Söker i produktkatalogen…</p>}
       {error && <p role="alert" className="mb-3 text-sm text-neutral-900">{error} <button type="button" disabled={disabled || loading} className="font-bold underline" onClick={() => void search(query)}>Försök igen</button></p>}
       {result?.message && <p className="mb-3 text-sm text-neutral-700">{result.message}</p>}
     </div>

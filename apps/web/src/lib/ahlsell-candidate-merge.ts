@@ -52,7 +52,7 @@ function mergeCandidate(
     : baseScore;
   const reasons = hasVerifiedAssessment ? verified.matchReasons : live.matchReasons;
   const matchReasons = databaseAndPublic
-    ? uniqueText([...(reasons ?? []), "Artikeln finns i både Ahlsells MLDL-databas och den aktuella offentliga katalogen."])
+    ? uniqueText([...(reasons ?? []), "Artikeln finns i både MLDL-databasen och den aktuella offentliga katalogen."])
     : reasons;
   const recommendation = !requiresAccessoryReview && boostedScore !== undefined && boostedScore >= 75 && (warnings?.length ?? 0) === 0
     ? "recommended" as const

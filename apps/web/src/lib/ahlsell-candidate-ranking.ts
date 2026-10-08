@@ -361,7 +361,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     if (/\bfjaerbelastet\b/.test(requirement.text)) {
       if (/\buten fjaer\b/.test(candidateText)) {
         score -= 60;
-        warnings.push("PDF-kravet anger fjäderbelastad backventil, men Ahlsell-träffen är utan fjäder.");
+        warnings.push("PDF-kravet anger fjäderbelastad backventil, men produktträffen är utan fjäder.");
       } else if (/\b(?:med fjaer|fjaerbelastet)\b/.test(candidateText)) {
         score += 10;
         reasons.push("Fjäderbelastat utförande stämmer med PDF-kravet.");
@@ -419,7 +419,7 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     }
     if (requirement.expectsSteel && /\b(duktil|stopejern|gjutjarn)\b/.test(candidateText)) {
       score -= 35;
-      warnings.push("PDF-kravet anger stål, men Ahlsell-träffen är av duktilt gjutjärn.");
+      warnings.push("PDF-kravet anger stål, men produktträffen är av duktilt gjutjärn.");
     }
   } else if (requirement.intent === "bend") {
     score += scoreNamedProductFamily(candidateName, PRODUCT_FAMILY_PATTERNS.bend!, "Produkttypen är en rörböj.", reasons);
@@ -806,7 +806,7 @@ function scoreSprinklerAttributes(candidateText: string, candidateName: string, 
   }
   if (requirement.dn === 15 && (requirement.kFactor ?? 0) >= 115) {
     score -= 25;
-    warnings.push(`K${formatNumber(requirement.kFactor ?? 0)} tillsammans med DN15 måste verifieras; Ahlsells motsvarande familjer använder normalt större anslutning.`);
+    warnings.push(`K${formatNumber(requirement.kFactor ?? 0)} tillsammans med DN15 måste verifieras; leverantörens motsvarande familjer använder normalt större anslutning.`);
   }
   if (requirement.finish) {
     const candidateFinish = extractFinish(candidateText);
@@ -928,7 +928,7 @@ function scoreDimension(candidateText: string, requirement: TechnicalProfile, re
   }
   if (candidateDn !== null) {
     if (isLikelyConventionalK80DnCorrection(requirement, candidateDn)) {
-      warnings.push("PDF-kravet anger DN25 för en konventionell K80-sprinkler. Ahlsell-familjen använder DN15; träffen visas som korrigeringsförslag och måste bekräftas.");
+      warnings.push("PDF-kravet anger DN25 för en konventionell K80-sprinkler. produktfamiljen använder DN15; träffen visas som korrigeringsförslag och måste bekräftas.");
       return -20;
     }
     warnings.push(`Fel dimension: PDF kräver DN${requirement.dn}, träffen anger DN${candidateDn}.`);

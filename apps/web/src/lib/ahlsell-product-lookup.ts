@@ -9,11 +9,11 @@ export type AhlsellLookupResult = { products: AhlsellLookupProduct[]; searchUrl:
 export class AhlsellLookupInputError extends Error {}
 
 export function parseAhlsellLookupQuery(value: unknown, market: AhlsellMarket) {
-  if (typeof value !== "string" || value.length > 2000) throw new AhlsellLookupInputError("Ange ett NRF-nummer, produktnamn eller en Ahlsell-produktlänk.");
+  if (typeof value !== "string" || value.length > 2000) throw new AhlsellLookupInputError("Ange ett NRF-nummer, produktnamn eller en produktlänk.");
   const query = value.trim();
   if (/^(?:https?:|www\.|ahlsell\.)/i.test(query) || query.includes("://")) {
     const url = safeAhlsellProductUrl(/^https?:/i.test(query) ? query : `https://${query}`);
-    if (!url) throw new AhlsellLookupInputError("Klistra in en produktlänk från ahlsell.no eller ahlsell.se.");
+    if (!url) throw new AhlsellLookupInputError("Produktlänken stöds inte. Sök på artikelnumret eller produktnamnet.");
     return { query: url, url, market: new URL(url).hostname.endsWith(".se") ? "se" as const : "no" as const, articleNumber: null };
   }
   const articleNumber = ahlsellLookupArticleNumber(query);
@@ -50,13 +50,13 @@ export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, s
     if (page && product) {
       // An old article URL may redirect to its replacement. Do not silently import it.
       if (requestedNumber && product.articleNumber !== requestedNumber) {
-        return { products: [], searchUrl: page.url, message: `Sökningen avser artikel ${requestedNumber}, men Ahlsell visar artikel ${product.articleNumber}. Kontrollera vilken artikel du vill välja.` };
+        return { products: [], searchUrl: page.url, message: `Sökningen avser artikel ${requestedNumber}, men leverantören visar artikel ${product.articleNumber}. Kontrollera vilken artikel du vill välja.` };
       }
       const detail = parseAhlsellProductDetails(page.html, product.articleNumber, page.url);
       if (store && detail?.snapshot) await store.write(input.market, product.articleNumber, detail.snapshot).catch(() => undefined);
       return { products: [applyAhlsellProductDetails(product, detail)], searchUrl: page.url };
     }
-    if (!requestedNumber) throw new AhlsellCatalogError("Produktens uppgifter kunde inte hämtas från Ahlsell. Sök på artikelnumret eller försök igen.");
+    if (!requestedNumber) throw new AhlsellCatalogError("Produktens uppgifter kunde inte hämtas från leverantören. Sök på artikelnumret eller försök igen.");
   }
 
   const result = await searchAhlsellPublicCatalog({ market: input.market, query: requestedNumber ?? input.query, maxCandidates: 12, fetchImpl });
@@ -71,7 +71,7 @@ export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, s
     products = variantResults.flatMap(result => result.status === "fulfilled" ? result.value : []).filter(product => product.articleNumber === requestedNumber);
     if (!products.length && exact) products = [exact];
     if (!products.length && (pageUnavailable || variantResults.some(result => result.status === "rejected"))) {
-      throw new AhlsellCatalogError("Alla produktuppgifter kunde inte hämtas från Ahlsell. Försök igen om en stund.");
+      throw new AhlsellCatalogError("Alla produktuppgifter kunde inte hämtas från leverantören. Försök igen om en stund.");
     }
   }
   products = [...new Map(products.map((product) => [product.articleNumber, product])).values()];
@@ -82,8 +82,8 @@ export async function lookupAhlsellProduct({ query, market, fetchImpl = fetch, s
     products,
     searchUrl: result.searchUrl,
     message: products.length ? undefined : requestedNumber
-      ? `Ingen exakt träff för artikel ${requestedNumber} hos Ahlsell. Kontrollera numret eller klistra in produktens Ahlsell-länk.`
-      : "Inga produkter hittades hos Ahlsell. Prova andra sökord eller klistra in en produktlänk."
+      ? `Ingen exakt träff för artikel ${requestedNumber} hos leverantören. Kontrollera numret eller klistra in produktens länk.`
+      : "Inga produkter hittades hos leverantören. Prova andra sökord eller klistra in en produktlänk."
   };
 }
 

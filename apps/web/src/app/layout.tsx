@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Scipx för Ahlsell – Produktvalsflöde",
+  title: "ScipX – Produktvalsflöde",
   description:
     "Konceptflöde där tekniska beskrivningar kopplas till distributörsvalda produkter och tillbehör."
 };

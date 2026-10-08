@@ -47,7 +47,7 @@ export async function GET(request: Request, context: RouteContext) {
     );
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: "För många Ahlsell-sökningar. Vänta en kort stund och försök igen." },
+        { error: "För många produktsökningar. Vänta en kort stund och försök igen." },
         { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
       );
     }
@@ -60,7 +60,7 @@ export async function GET(request: Request, context: RouteContext) {
     const offers = await organizationAhlsellOfferCatalog(authorization.context.organization.id);
     const result = await findAhlsellHybridCandidates(requirement, supplier.fetch, ahlsellEvidenceStore(), offers.catalog);
     const { candidates } = result;
-    if (!candidates.length && supplier.retryAfter) return NextResponse.json({error:"Ahlsell-sökningen är tillfälligt upptagen. Försök igen om en stund."},{status:429,headers:{"Retry-After":String(supplier.retryAfter),"Cache-Control":"private, no-store"}});
+    if (!candidates.length && supplier.retryAfter) return NextResponse.json({error:"Produktsökningen är tillfälligt upptagen. Försök igen om en stund."},{status:429,headers:{"Retry-After":String(supplier.retryAfter),"Cache-Control":"private, no-store"}});
     await recordCandidateImpression({
       projectId: id, requirementId, candidates,
       metadata: { candidateSource: "mldl_and_ahlsell", publicSearchStatus: result.publicSearchStatus,

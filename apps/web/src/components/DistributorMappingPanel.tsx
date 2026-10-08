@@ -677,7 +677,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       ...newProductAccessoryDraft(), name: candidate.subtitle || candidate.productName,
       productNumber: candidate.articleNumber,
       ...amount,
-      notes: `${accessoryComponent ? `Kravdel: ${accessoryComponent.label}. ` : ""}Valt från Ahlsell: ${candidate.productUrl}`
+      notes: `${accessoryComponent ? `Kravdel: ${accessoryComponent.label}. ` : ""}Valt från leverantören: ${candidate.productUrl}`
     }]);
     setAccessoryOwnerProductNumber(productNumber);
     setAccessoryStepOpen(true);
@@ -1080,7 +1080,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               </a>
             )}
             <a href="https://www.ahlsell.no/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />Ahlsells nettside
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />Leverandørens nettside
             </a>
           </nav>
         </div>
@@ -1134,7 +1134,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         </section>
 
           <div id={`ahlsell-products-${requirement.id}`} className="product-catalog-panel">
-            <h3 className="product-panel-caption">Produktforslag <span>Ahlsell</span></h3>
+            <h3 className="product-panel-caption">Produktforslag <span>Produktkatalog</span></h3>
             <div className="product-catalog-scroll">
             <AhlsellPublicMatchPanel
               projectId={projectId}
@@ -1293,8 +1293,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
     })
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as (AhlsellCatalogResult & { error?: string; effectiveRequirements?: { revision: string } }) | null;
-        if (!response.ok) throw new Error(payload?.error ?? "Ahlsell-søket mislyktes.");
-        if (!payload) throw new Error("Ahlsell-søket gav ingen lesbart svar.");
+        if (!response.ok) throw new Error(payload?.error ?? "Produktsøket mislyktes.");
+        if (!payload) throw new Error("Produktsøket gav ingen lesbart svar.");
         if (payload.effectiveRequirements?.revision !== requirementRevision) throw new Error("Kravgrunnlaget er endret. Last inn prosjektet på nytt.");
         if (controller.signal.aborted) return;
         setCatalogResult(payload);
@@ -1303,7 +1303,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
       })
       .catch((error) => {
         if (error instanceof Error && error.name === "AbortError") return;
-        setCatalogError(error instanceof Error ? error.message : "Ahlsell-søket mislyktes.");
+        setCatalogError(error instanceof Error ? error.message : "Produktsøket mislyktes.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoadingCatalog(false);
@@ -1350,10 +1350,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
   }
 
   return (
-    <section aria-label="Ahlsellprodukter">
+    <section aria-label="Produkter">
       {loadingCatalog && (
         <div className="flex min-h-16 items-center justify-center gap-2 border-t border-neutral-200 bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-800" role="status">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Søker automatisk på Ahlsells nettsted…
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Søker automatisk på leverandørens nettsted…
         </div>
       )}
 
@@ -1367,15 +1367,15 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
       {!loadingCatalog && catalogResult?.publicSearchStatus && catalogResult.publicSearchStatus !== "available" && (
         <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-xs leading-5 text-neutral-950 sm:px-4" role="status">
           {catalogResult.publicSearchStatus === "unavailable"
-            ? "Ahlsells nettsted kunne ikke nås. Produktforslagene fra MLDL finnes igjen."
-            : "En del av Ahlsell-søket kunne ikke fullføres. MLDL og de hentede nettreffene vises."}
+            ? "Leverandørens nettsted kunne ikke nås. Produktforslagene fra MLDL finnes igjen."
+            : "En del av Produktsøket kunne ikke fullføres. MLDL og de hentede nettreffene vises."}
         </div>
       )}
 
       {!loadingCatalog && !catalogError && catalogResult?.truncated && (
         <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold leading-5 text-neutral-950 sm:px-4">
 
-          Flere treff finnes hos Ahlsell. Listen inneholder alle samsvarende produkter fra den avgrensede søket.
+          Flere treff finnes hos leverandøren. Listen inneholder alle samsvarende produkter fra den avgrensede søket.
         </div>
       )}
 
@@ -1547,7 +1547,7 @@ async function fetchAhlsellProductLabels(
       error?: string;
     } | null;
     if (!response.ok) {
-      throw new Error(payload?.error ?? "Ahlsells produkttekster kunne ikke hentes.");
+      throw new Error(payload?.error ?? "Produkttekstene kunne ikke hentes.");
     }
     Object.assign(labels, payload?.labels ?? {});
   }

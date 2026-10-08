@@ -17,7 +17,7 @@ export async function POST() {
   return NextResponse.json(
     {
       error: "Automatisk produktmatchning är avstängd.",
-      next: "Registrera Ahlsells granskade produktval i projektets produktvalsflik."
+      next: "Registrera leverantörens granskade produktval i projektets produktvalsflik."
     },
     { status: 410 }
   );

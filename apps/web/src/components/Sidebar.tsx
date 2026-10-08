@@ -77,14 +77,13 @@ export function Sidebar({
     <aside className="flex h-full w-full flex-col bg-[#020e20] text-white [background-image:linear-gradient(rgba(66,173,217,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(66,173,217,0.045)_1px,transparent_1px)] [background-size:28px_28px]">
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
         <div className="flex h-10 w-[92px] items-center justify-center rounded-lg bg-white px-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/ahlsell-logo.svg" alt="Ahlsell" className="w-full" />
+<span className="text-lg font-bold tracking-tight text-ink-950">ScipX</span>
         </div>
         <div>
           <p className="max-w-40 truncate text-base font-semibold leading-5">
             Scipx
           </p>
-          <p className="text-xs text-ink-400">Koncept för Ahlsell</p>
+          <p className="text-xs text-ink-400">Produktplattform</p>
         </div>
       </div>
 

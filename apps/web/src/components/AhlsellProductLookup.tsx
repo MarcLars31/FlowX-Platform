@@ -75,18 +75,18 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
 
   return <div className="space-y-3">
     <form onSubmit={(event) => { event.preventDefault(); if (!disabled && query.trim()) void search(query); }} className="space-y-2">
-      <label htmlFor={id} className="block text-sm font-bold text-neutral-900">Artikkelnummer / NRF, produktnavn eller Ahlsell-lenke</label>
+      <label htmlFor={id} className="block text-sm font-bold text-neutral-900">Artikkelnummer / NRF, produktnavn eller produktlenke</label>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <input id={id} type="search" value={query} maxLength={2000} disabled={disabled} placeholder="Artikkelnummer eller Ahlsell-produktlenke" className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:ring-neutral-500"
+        <input id={id} type="search" value={query} maxLength={2000} disabled={disabled} placeholder="Artikkelnummer eller produktlenke" className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:ring-neutral-500"
           onChange={(event) => { request.current?.abort(); setLoading(false); setResult(null); setError(""); setQuery(event.target.value); }} />
         <Button neutral type="submit" variant="secondary" disabled={disabled || loading || !query.trim()} className="justify-center">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />}Sök hos Ahlsell
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />}Sök produkter
         </Button>
       </div>
       <p className="text-xs leading-5 text-neutral-600">{automaticQuery ? "Programmet söker automatiskt utifrån kravdelen och den valda huvudprodukten. Du kan ändra sökningen vid behov." : "Artikkelnummer og produktlenker søkes automatisk. Produktnavn søker du med knappen eller Enter."}</p>
     </form>
     <div aria-live="polite" aria-busy={loading}>
-      {loading && <p className="text-sm text-neutral-800">Söker på Ahlsells webbplats…</p>}
+      {loading && <p className="text-sm text-neutral-800">Söker på leverantörens webbplats…</p>}
       {error && <p role="alert" className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-900">{error}</p>}
       {result && <div className="space-y-3">
         {result.message && <p className="text-sm text-neutral-700">{result.message}</p>}
@@ -95,7 +95,7 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
           accessory={accessory} componentKind={componentKind} disabled={disabled} selectionLimitReached={selectionLimitReached}
           selection={selections.find(item => normalizeNrfNumber(item.productNumber) === normalizeNrfNumber(product.articleNumber))}
           defaultQuantity={defaultQuantity} defaultUnit={defaultUnit} onSelect={onSelect} onDeselect={onDeselect} onQuantityChange={onQuantityChange} />)}
-        <a href={result.searchUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-neutral-800 underline">Öppna sökningen hos Ahlsell<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
+        <a href={result.searchUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-neutral-800 underline">Öppna sökningen hos leverantören<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
       </div>}
     </div>
   </div>;
@@ -131,7 +131,7 @@ function LookupProductCard({ id, product, accessory, componentKind, disabled, se
           {product.subtitle && <p className="mt-1 text-xs text-neutral-700">{product.subtitle}</p>}
           {product.manufacturer && <p className="mt-1 text-sm font-semibold text-neutral-800">{product.manufacturer}</p>}
           {product.specifications.length > 0 && <p className="mt-1 text-xs leading-5 text-neutral-600">{product.specifications.join(" · ")}</p>}
-          <a href={product.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${product.articleNumber}`}
+          <a href={product.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna artikel ${product.articleNumber}`}
             className="mt-1 inline-flex min-h-6 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{product.articleNumber}</a>
           {(!accessory || componentKind) && <AhlsellCandidateWarnings candidate={product} />}
           <div className="mt-3 border-t border-neutral-200 pt-3">

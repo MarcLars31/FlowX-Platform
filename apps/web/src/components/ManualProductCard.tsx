@@ -102,7 +102,7 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
     <div className="manual-product-dialog-body">
       <section aria-labelledby={`${prefix}-main-title`} className="manual-product-card-section">
         <h3 id={`${prefix}-main-title`}>Hovedprodukt</h3>
-        <details className="manual-product-search"><summary>Søk hos Ahlsell eller lim inn produktlenke</summary>
+        <details className="manual-product-search"><summary>Søk etter produkt eller lim inn produktlenke</summary>
           <AhlsellProductLookup projectId={projectId} requirementId={requirementId} id={`${prefix}-lookup`}
             defaultQuantity={draft.quantity.quantity} defaultUnit={draft.quantity.unit}
             selections={draft.product.productNumber ? [{ productNumber: draft.product.productNumber, ...draft.quantity }] : []}
@@ -140,10 +140,10 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
               <Field id={`${prefix}-accessory-${index}-unit`} label="Enhet" value={accessory.unit} required maxLength={30} onChange={value => updateAccessory(index, { unit: value })} />
             </div>}
         </div>)}
-        <details className="manual-product-search"><summary>Søk etter tilbehør hos Ahlsell</summary>
+        <details className="manual-product-search"><summary>Søk etter tilbehør</summary>
           {draft.product.productNumber.trim() ? <AhlsellProductLookup projectId={projectId} requirementId={requirementId} id={`${prefix}-accessory-lookup`} accessory mainArticleNumber={draft.product.productNumber}
             selectionLimitReached={draft.accessories.length >= 20} selections={draft.accessories.filter(row => row.productNumber).map(row => ({ productNumber: row.productNumber, quantity: row.quantity, unit: row.unit }))}
-            onSelect={(candidate, amount) => { if (draft.accessories.length < 20 && !draft.accessories.some(row => normalizeNrfNumber(row.productNumber) === normalizeNrfNumber(candidate.articleNumber))) change({ accessories: [...draft.accessories, { ...newProductAccessoryDraft(), ...amount, name: candidate.subtitle || candidate.productName, productNumber: candidate.articleNumber, notes: `Valgt fra Ahlsell: ${candidate.productUrl}` }] }); }}
+            onSelect={(candidate, amount) => { if (draft.accessories.length < 20 && !draft.accessories.some(row => normalizeNrfNumber(row.productNumber) === normalizeNrfNumber(candidate.articleNumber))) change({ accessories: [...draft.accessories, { ...newProductAccessoryDraft(), ...amount, name: candidate.subtitle || candidate.productName, productNumber: candidate.articleNumber, notes: `Valgt fra leverandøren: ${candidate.productUrl}` }] }); }}
             onDeselect={candidate => change({ accessories: draft.accessories.filter(row => normalizeNrfNumber(row.productNumber) !== normalizeNrfNumber(candidate.articleNumber)) })}
             onQuantityChange={(candidate, amount) => change({ accessories: draft.accessories.map(row => normalizeNrfNumber(row.productNumber) === normalizeNrfNumber(candidate.articleNumber) ? { ...row, ...amount, quantityBasis: "total" } : row) })} />
             : <p>Fyll inn hovedproduktets Artikelnummer først.</p>}

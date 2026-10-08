@@ -74,7 +74,7 @@ export const sharedAhlsellFetch: typeof fetch = async (input, init = {}) => {
 };
 
 function busyResponse(seconds: number) {
-  return new Response("Ahlsell-sökningen är tillfälligt upptagen. Försök igen.", { status: 429, headers: { "Retry-After": String(seconds) } });
+  return new Response("Produktsökningen är tillfälligt upptagen. Försök igen.", { status: 429, headers: { "Retry-After": String(seconds) } });
 }
 function retrySeconds(value: string | null, fallback: number) {
   if (!value) return fallback;

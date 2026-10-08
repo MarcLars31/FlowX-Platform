@@ -158,11 +158,11 @@ function boostStructuredCatalogEvidence(
 
   if (articleMatch) {
     score = 100;
-    reasons.unshift("NRF-/artikelnumret finns i hela Ahlsell MLDL-databasen.");
+    reasons.unshift("NRF-/artikelnumret finns i hela MLDL-databasen.");
   } else {
     if (modelMatch) {
       score += 25;
-      reasons.push("Modellbeteckningen stämmer med Ahlsell MLDL-databasen.");
+      reasons.push("Modellbeteckningen stämmer med MLDL-databasen.");
     }
     if (typeMatch) {
       score += 15;

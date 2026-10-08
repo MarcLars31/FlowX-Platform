@@ -204,7 +204,7 @@ function reviewRow(row: AhlsellMldlRow) {
     flags.push("Check dimension: conventional K80 is normally DN15, not DN25");
   }
   if (row.sprinklerHeadType === "dry" && row.kFactor === 80 && !row.dnValues.includes(25)) {
-    flags.push("Check dimension: Ahlsell dry K80 family is expected as DN25");
+    flags.push("Check dimension: dry K80 product family is expected as DN25");
   }
   return flags;
 }

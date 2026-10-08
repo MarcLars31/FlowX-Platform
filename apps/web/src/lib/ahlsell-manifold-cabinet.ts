@@ -36,7 +36,7 @@ export function manifoldCabinetRequirementGuide(
       return value ? [`${label}: ${value}`] : [];
     })],
     warnings: [MANIFOLD_CABINET_REVIEW_WARNING, ...dataWarnings],
-    recognitionNotes: ["Scipx söker automatiskt efter fördelarskåp på Ahlsells webbplats. Ventiler och andra ingående delar hanteras som delar av den kompletta leveransen."],
+    recognitionNotes: ["Scipx söker automatiskt efter fördelarskåp på leverantörens webbplats. Ventiler och andra ingående delar hanteras som delar av den kompletta leveransen."],
     directCandidates: []
   };
 }

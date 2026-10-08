@@ -52,7 +52,7 @@ test("accepts only a small batch of public Ahlsell product pages", () => {
   const external = validateAhlsellProductSubtitleItems({ items: [
     { articleNumber: "9257423", productUrl: "https://example.com/products/9257423" }
   ] });
-  assert.deepEqual(external, { error: "En produktlänk går inte till Ahlsell." });
+  assert.deepEqual(external, { error: "Produktlänken stöds inte." });
 
   const tooMany = validateAhlsellProductSubtitleItems({
     items: Array.from({ length: 7 }, (_, index) => ({
@@ -67,12 +67,12 @@ test("rejects nonstandard ports and product URLs that do not contain the NRF num
   const nonstandardPort = validateAhlsellProductSubtitleItems({ items: [
     { articleNumber: "9257423", productUrl: "https://www.ahlsell.no:8443/products/sprinkler/9257423" }
   ] });
-  assert.deepEqual(nonstandardPort, { error: "En produktlänk går inte till Ahlsell." });
+  assert.deepEqual(nonstandardPort, { error: "Produktlänken stöds inte." });
 
   const mismatchedArticle = validateAhlsellProductSubtitleItems({ items: [
     { articleNumber: "9257423", productUrl: "https://www.ahlsell.no/products/sprinkler/9257999---sprinklerhode/" }
   ] });
-  assert.deepEqual(mismatchedArticle, { error: "En produktlänk går inte till Ahlsell." });
+  assert.deepEqual(mismatchedArticle, { error: "Produktlänken stöds inte." });
 });
 
 test("does not follow Ahlsell redirects to external or internal hosts", async () => {

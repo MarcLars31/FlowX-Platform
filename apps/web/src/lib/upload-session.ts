@@ -341,7 +341,7 @@ function buildCompatibleProducts(item: DemoMaterialLine) {
   const dimension = item.dimension ? ` ${item.dimension}` : "";
 
   return [
-    `Ahlsell equivalent${dimension}`,
+    `Equivalent product${dimension}`,
     `Victaulic compatible${dimension}`
   ];
 }

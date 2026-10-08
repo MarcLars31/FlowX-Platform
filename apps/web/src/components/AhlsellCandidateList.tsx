@@ -39,7 +39,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
     if (compact) return (
       <article key={candidate.articleNumber} className="product-candidate-card" data-selected={selected}>
         <div className="product-candidate-card-heading">
-          <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Åpne Ahlsell artikkel ${candidate.articleNumber}`}>Art. {candidate.articleNumber}</a>
+          <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Åpne artikkel ${candidate.articleNumber}`}>Art. {candidate.articleNumber}</a>
           <label className="product-candidate-choice"><input type="checkbox" checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
             aria-label={`${selected ? "Fjern valget av" : "Velg"} ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
             onChange={() => onSelect(candidate)} /><span>{selected ? "Valgt" : "Velg"}</span></label>
@@ -64,7 +64,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
             {candidate.description && candidate.description !== candidate.productName && (
               <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-neutral-700" title={candidate.description}>{candidate.description}</p>
             )}
-            <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna Ahlsell artikel ${candidate.articleNumber}`}
+            <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna artikel ${candidate.articleNumber}`}
               className="mt-1 inline-flex min-h-6 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">
               {candidate.articleNumber}
             </a>

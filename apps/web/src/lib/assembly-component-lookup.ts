@@ -44,7 +44,7 @@ export async function lookupAssemblyComponents({ requirement, component, mainArt
   signal?.throwIfAborted();
   const products = assessAssemblyComponents(requirement, component, combined, main);
   return { ...result, products, message: webUnavailable
-    ? "Ahlsells webbsökning kunde inte slutföras. Visar träffar från MLDL; försök igen för att komplettera."
+    ? "Leverantörens webbsökning kunde inte slutföras. Visar träffar från MLDL; försök igen för att komplettera."
     : products.length ? undefined
     : "Inga passande produktförslag hittades för den här delen. Kontrollera om delen ingår i huvudprodukten eller komplettera produktunderlaget." };
 }

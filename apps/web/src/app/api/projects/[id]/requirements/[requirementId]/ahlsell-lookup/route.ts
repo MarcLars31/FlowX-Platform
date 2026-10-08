@@ -27,7 +27,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { id, requirementId } = await context.params;
     if (!isUuid(id) || !isUuid(requirementId)) return NextResponse.json({ error: "Ogiltigt projekt- eller krav-id." }, { status: 400, headers });
     const limit = consumeRateLimit(requestRateLimitKey(request, "ahlsell-lookup", authorization.user.id), 30, 60_000);
-    if (!limit.allowed) return NextResponse.json({ error: "För många Ahlsell-sökningar. Vänta en kort stund och försök igen." }, { status: 429, headers: { ...headers, "Retry-After": String(limit.retryAfterSeconds) } });
+    if (!limit.allowed) return NextResponse.json({ error: "För många produktsökningar. Vänta en kort stund och försök igen." }, { status: 429, headers: { ...headers, "Retry-After": String(limit.retryAfterSeconds) } });
     const body = await readJsonBody<{ query?: unknown; accessory?: unknown; componentKind?: unknown; componentId?: unknown; mainArticleNumber?: unknown; automatic?: unknown } | null>(request, 8_000);
     parseAhlsellLookupQuery(body?.query, "no");
     const requirement = await loadEffectiveRequirement(id, requirementId, authorization.context.organization.id);
@@ -52,13 +52,13 @@ export async function POST(request: Request, context: RouteContext) {
       .map(candidate => ({ ...candidate, subtitle: result.products.find(product => product.articleNumber === candidate.articleNumber)?.subtitle }));
     return NextResponse.json({ ...result, products }, { headers });
   } catch (error) {
-    if (supplier.retryAfter) return NextResponse.json({error:"Ahlsell-sökningen är tillfälligt upptagen. Försök igen om en stund."},{status:429,headers:{...headers,"Retry-After":String(supplier.retryAfter)}});
+    if (supplier.retryAfter) return NextResponse.json({error:"Produktsökningen är tillfälligt upptagen. Försök igen om en stund."},{status:429,headers:{...headers,"Retry-After":String(supplier.retryAfter)}});
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Sökningen är för lång." }, { status: 413, headers });
     if (error instanceof AhlsellLookupInputError || error instanceof SyntaxError) return NextResponse.json({ error: error instanceof AhlsellLookupInputError ? error.message : "Sökningen har ogiltigt format." }, { status: 400, headers });
     if (error instanceof UserSupabaseError) {
       const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
       return NextResponse.json({ error: forbidden ? "Du har inte åtkomst till projektet." : "Produktraden kunde inte läsas." }, { status: forbidden ? 403 : 500, headers });
     }
-    return NextResponse.json({ error: error instanceof AhlsellCatalogError ? error.message : "Ahlsell kunde inte nås. Försök igen om en stund." }, { status: 502, headers });
+    return NextResponse.json({ error: error instanceof AhlsellCatalogError ? error.message : "Leverantören kunde inte nås. Försök igen om en stund." }, { status: 502, headers });
   }
 }

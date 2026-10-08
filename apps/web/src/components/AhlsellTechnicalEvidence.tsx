@@ -17,7 +17,7 @@ export function AhlsellTechnicalEvidence({ candidate }: { candidate: AhlsellPubl
           <dd className="mt-1 space-y-1 break-words">
             {field.observations.map((observation, index) => <p key={index}>
               {observation.raw}{" "}
-              <a className="font-semibold text-neutral-800 underline" href={observation.sourceUrl} target="_blank" rel="noreferrer">Källa hos Ahlsell</a>
+              <a className="font-semibold text-neutral-800 underline" href={observation.sourceUrl} target="_blank" rel="noreferrer">Produktkälla</a>
               <span className="text-neutral-600"> · Hämtat {observation.retrievedAt.slice(0, 16).replace("T", " ")} UTC</span>
             </p>)}
           </dd>

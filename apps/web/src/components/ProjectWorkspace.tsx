@@ -512,7 +512,7 @@ export function ProjectWorkspace({
           <form onSubmit={saveProject} className="border-t border-ink-100">
             <div className="px-5 py-5 sm:px-6">
               <h2 className="font-semibold text-ink-950">Projektförutsättningar</h2>
-              <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys och Ahlsells produktval.</p>
+              <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys och produktval.</p>
             </div>
 
             <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
@@ -533,8 +533,8 @@ export function ProjectWorkspace({
                 <Input id="workspace-system-type" name="systemType" label="Systemtyp" defaultValue={data.project.system_type ?? ""} />
                 <Input id="workspace-standard" name="standard" label="Huvudstandard" defaultValue={data.project.standard ?? ""} />
                 <div className="rounded-lg border border-[#5f5f5f]/20 bg-[#5f5f5f]/5 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#535353]">Distributör</p>
-                  <p className="mt-1 font-semibold text-ink-950">Ahlsell</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#535353]">Produktval</p>
+                  <p className="mt-1 font-semibold text-ink-950">Produktkatalog</p>
                   <p className="mt-1 text-xs leading-5 text-ink-600">Produkt och tillbehör väljs direkt från de extraherade produktraderna.</p>
                 </div>
                 <Input id="workspace-currency" name="currency" label="Valuta" defaultValue={data.project.currency ?? "NOK"} />
@@ -621,7 +621,7 @@ export function ProjectWorkspace({
             <section className="flex flex-col gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="font-semibold text-flow-950">Underlaget är sparat</p>
-                <p className="mt-1 text-sm text-flow-800">Nästa steg är att registrera Ahlsells produkt och tillbehör för varje extraherad rad.</p>
+                <p className="mt-1 text-sm text-flow-800">Nästa steg är att registrera produkter och tillbehör för varje extraherad rad.</p>
               </div>
               <Button className="min-h-12 justify-center text-base" onClick={() => selectTab("products")}>
 

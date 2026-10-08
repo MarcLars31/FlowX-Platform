@@ -74,7 +74,7 @@ export function guidedProjectWorkflow(input: {
     return result("documents", "Ladda upp teknisk beskrivning", false);
   }
   if (!productsComplete) {
-    return result("products", "Registrera Ahlsells produktval", false);
+    return result("products", "Registrera produktval", false);
   }
   return result("products", "Produktvalet är klart", true);
 

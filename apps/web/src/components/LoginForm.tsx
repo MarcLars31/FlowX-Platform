@@ -55,13 +55,13 @@ export function LoginForm() {
       <div className="mx-auto w-full max-w-md">
         <section className="w-full">
           <div className="portal-login-window">
-            <div className="portal-window-title">Scipx · Ahlsell</div>
+            <div className="portal-window-title">ScipX</div>
             <div className="mb-8">
               <p className="text-sm font-medium uppercase tracking-[0.14em] text-flow-700">
                 Säker inloggning
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-normal">
-                Välkommen till konceptmiljön
+                Välkommen till ScipX
               </h2>
               <p className="mt-2 text-sm text-ink-500">
                 Du skickas automatiskt till rätt vy för ditt konto.
@@ -107,12 +107,10 @@ export function LoginForm() {
               </Button>
             </form>
           </div>
-          <p className="mt-5 text-center text-sm text-ink-500">
-            Leter du etter Sprsok?{" "}
-            <Link href="/sprsok" className="underline underline-offset-4">
-              Åpne sprinklerkatalogen uten innlogging
-            </Link>
-          </p>
+          <Link href="/sprsok" className="mt-5 flex min-h-14 items-center justify-between gap-4 rounded-lg border border-ink-300 bg-white p-4 text-ink-900 transition hover:bg-ink-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+            <span><strong className="block">Gå til Sprsok</strong><span className="mt-1 block text-sm text-ink-600">Søk etter sprinklere uten innlogging</span></span>
+            <ArrowRight className="h-5 w-5 shrink-0" aria-hidden="true" />
+          </Link>
         </section>
       </div>
     </main>

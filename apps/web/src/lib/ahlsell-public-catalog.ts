@@ -73,7 +73,7 @@ export async function searchAhlsellPublicCatalog({
   maxPages?: number;
 }): Promise<AhlsellCatalogResult> {
   const cleanQuery = query.replace(/\s+/g, " ").trim().slice(0, 180);
-  if (!cleanQuery) throw new AhlsellCatalogError("Ahlsell-sökningen saknar sökord.");
+  if (!cleanQuery) throw new AhlsellCatalogError("Produktsökningen saknar sökord.");
 
   const origin = MARKET_ORIGINS[market];
   const safeMaxCandidates = Math.min(Math.max(Math.floor(maxCandidates), 1), DEFAULT_MAX_CANDIDATES);
@@ -131,7 +131,7 @@ export async function searchAhlsellPublicCatalogQueries({
       .map((query) => query.replace(/\s+/g, " ").trim().slice(0, 180))
       .filter(Boolean)
   )].slice(0, MAX_SEARCH_QUERIES);
-  if (cleanQueries.length === 0) throw new AhlsellCatalogError("Ahlsell-sökningen saknar sökord.");
+  if (cleanQueries.length === 0) throw new AhlsellCatalogError("Produktsökningen saknar sökord.");
 
   const byArticleNumber = new Map<string, AhlsellPublicCandidate>();
   const results: AhlsellCatalogResult[] = [];
@@ -150,7 +150,7 @@ export async function searchAhlsellPublicCatalogQueries({
       if (!byArticleNumber.has(candidate.articleNumber)) byArticleNumber.set(candidate.articleNumber, candidate);
     }
   }
-  if (results.length === 0) throw new AhlsellCatalogError("Ahlsells produktsökning kunde inte nås.");
+  if (results.length === 0) throw new AhlsellCatalogError("Leverantörens produktsökning kunde inte nås.");
 
   const candidates = await enrichAhlsellVariants(
     [...byArticleNumber.values()],
@@ -221,21 +221,21 @@ async function fetchAhlsellPageUncached(fetchImpl: typeof fetch, origin: string,
       signal: controller.signal
     });
     if (!response.ok) {
-      throw new AhlsellCatalogError(`Ahlsell svarade med HTTP ${response.status}.`);
+      throw new AhlsellCatalogError(`Leverantören svarade med HTTP ${response.status}.`);
     }
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     if (!contentType.includes("application/json")) {
-      throw new AhlsellCatalogError("Ahlsell returnerade inte produktdata.");
+      throw new AhlsellCatalogError("Leverantören returnerade inte produktdata.");
     }
     const payload = await response.json().catch(() => null);
-    if (!isRecord(payload) || !Array.isArray(payload.productCards)) throw new AhlsellCatalogError("Ahlsells produktsvar kunde inte läsas.");
+    if (!isRecord(payload) || !Array.isArray(payload.productCards)) throw new AhlsellCatalogError("Leverantörens produktsvar kunde inte läsas.");
     return payload;
   } catch (error) {
     if (error instanceof AhlsellCatalogError) throw error;
     throw new AhlsellCatalogError(
       error instanceof Error && error.name === "AbortError"
-        ? "Ahlsells produktsökning tog för lång tid."
-        : "Ahlsells produktsökning kunde inte nås."
+        ? "Leverantörens produktsökning tog för lång tid."
+        : "Leverantörens produktsökning kunde inte nås."
     );
   } finally {
     clearTimeout(timeout);
@@ -449,10 +449,10 @@ async function fetchVariantPayloadUncached(fetchImpl: typeof fetch, origin: stri
       redirect: "error",
       signal: controller.signal
     });
-    if (!response.ok) throw new AhlsellCatalogError(`Ahlsell svarade med HTTP ${response.status} för produktvarianterna.`);
-    if (!(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) throw new AhlsellCatalogError("Ahlsell returnerade inte variantdata.");
+    if (!response.ok) throw new AhlsellCatalogError(`Leverantören svarade med HTTP ${response.status} för produktvarianterna.`);
+    if (!(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) throw new AhlsellCatalogError("Leverantören returnerade inte variantdata.");
     const payload = await response.json().catch(() => null);
-    if (!isRecord(payload) || !isRecord(payload.settings) || !Array.isArray(payload.items)) throw new AhlsellCatalogError("Ahlsells produktvarianter kunde inte läsas.");
+    if (!isRecord(payload) || !isRecord(payload.settings) || !Array.isArray(payload.items)) throw new AhlsellCatalogError("Leverantörens produktvarianter kunde inte läsas.");
     return payload as AhlsellVariantPayload;
   } finally {
     clearTimeout(timeout);

@@ -41,7 +41,7 @@ test("marks the same NRF in MLDL and the public catalogue as stronger evidence",
   );
 
   assert.deepEqual(merged.evidenceSources, ["mldl_database", "ahlsell_public"]);
-  assert.match(merged.matchReasons?.join(" ") ?? "", /både Ahlsells MLDL-databas och den aktuella offentliga katalogen/);
+  assert.match(merged.matchReasons?.join(" ") ?? "", /både MLDL-databasen och den aktuella offentliga katalogen/);
   assert.equal(merged.matchScore, 88);
   assert.equal(merged.recommendation, "recommended");
 });

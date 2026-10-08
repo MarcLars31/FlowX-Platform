@@ -27,11 +27,11 @@ export async function lookupAccessoryProducts(input: Parameters<typeof lookupAhl
   try {
     const live = await lookupAhlsellProduct(input);
     return { ...live, products: mergeAhlsellCandidates(database, live.products),
-      message: database.length && !live.products.length ? [live.message, "Visar även träffar från MLDL. Artiklarna kunde inte bekräftas i Ahlsells webbsökning."].filter(Boolean).join(" ") : live.message };
+      message: database.length && !live.products.length ? [live.message, "Visar även träffar från MLDL. Artiklarna kunde inte bekräftas i leverantörens webbsökning."].filter(Boolean).join(" ") : live.message };
   } catch (error) {
     input.signal?.throwIfAborted();
     if (!database.length) throw error;
     return { products: mergeAhlsellCandidates(database, []), searchUrl: `https://www.ahlsell.${parsed.market}/search?parameters.SearchPhrase=${encodeURIComponent(parsed.query)}`,
-      message: "Ahlsells webbsökning kunde inte slutföras. Visar träffar från MLDL; försök igen för att komplettera." };
+      message: "Leverantörens webbsökning kunde inte slutföras. Visar träffar från MLDL; försök igen för att komplettera." };
   }
 }

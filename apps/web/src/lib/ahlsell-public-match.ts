@@ -363,13 +363,13 @@ export function buildAhlsellRequirementGuide(
       ? "PDF-underlaget innehåller både standard- och quick-respons för samma post. Kontrollera originaltexten innan val."
       : null,
     intent === "sprinkler_head" && kFactor !== null && dn !== null && dn === 15 && kFactor >= 115
-      ? `K${formatNumber(kFactor)} tillsammans med DN15 avviker från de offentliga Ahlsell-familjer som hittades. Ingen artikel föreslås automatiskt.`
+      ? `K${formatNumber(kFactor)} tillsammans med DN15 avviker från de offentliga produktfamiljer som hittades. Ingen artikel föreslås automatiskt.`
       : null,
     intent === "sprinkler_head" && sprinklerHeadType === "dry" && dn !== null && dn !== 25
-      ? "Ahlsells offentliga torrsprinklerfamiljer som hittades använder DN25. Kontrollera PDF-postens DN innan val."
+      ? "Leverantörens offentliga torrsprinklerfamiljer som hittades använder DN25. Kontrollera PDF-postens DN innan val."
       : null,
     intent === "sprinkler_head" && sprinklerHeadType === "standard" && kFactor !== null && closeEnough(kFactor, 80) && dn === 25
-      ? "PDF-posten anger konventionell K80 med DN25. Ahlsells konventionella K80-familj använder DN15; Scipx behandlar därför DN15 som ett korrigeringsförslag som måste bekräftas."
+      ? "PDF-posten anger konventionell K80 med DN25. Leverantörens konventionella K80-familj använder DN15; Scipx behandlar därför DN15 som ett korrigeringsförslag som måste bekräftas."
       : null,
     intent === "sprinkler_head" && sprinklerHeadType === null && kFactor !== null && closeEnough(kFactor, 80) && dn === 25
       ? "K80 och DN25 kräver kontroll av sprinklerhuvudets konstruktion: torrsprinkler kan vara DN25, medan konventionell K80 normalt är DN15."
@@ -441,7 +441,7 @@ export function buildAhlsellRequirementGuide(
 
   const recognitionNotes = compact([
     ...(intent === "sprinkler_head" ? installation.notes : []),
-    "Scipx söker automatiskt på Ahlsells webbplats utifrån PDF-kraven, även efter produkter som saknas i MLDL. Databasen kompletterar med lagrade produktuppgifter.",
+    "Scipx söker automatiskt på leverantörens webbplats utifrån PDF-kraven, även efter produkter som saknas i MLDL. Databasen kompletterar med lagrade produktuppgifter.",
     intent === "sprinkler_head" && !isSprinklerAccessory
       ? "Scipx kontrollerar MLDL-artikelns K-faktor, DN, temperatur, respons, riktning, montage, systemvillkor och färg med lagrade tekniska uppgifter."
       : null,

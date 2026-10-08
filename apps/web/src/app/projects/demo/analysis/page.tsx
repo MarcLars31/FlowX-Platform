@@ -294,10 +294,10 @@ export default function AnalysisPage() {
                   </div>
                   {index === 0 && (
                     <select
-                      defaultValue="Ahlsell"
+                      defaultValue="Grossist"
                       className="mt-3 block h-10 w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500"
                     >
-                      <option>Ahlsell</option>
+                      <option>Grossist</option>
                       <option>Onninen</option>
                       <option>Victaulic</option>
                     </select>
