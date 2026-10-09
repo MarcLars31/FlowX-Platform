@@ -1045,6 +1045,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
               sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />
 
+          {details.sourceExcerpt && <details className="mt-3 border border-neutral-200 bg-white p-3 text-sm">
+            <summary className="cursor-pointer font-semibold">Hele PDF-posten</summary>
+            <p className="mt-3 whitespace-pre-wrap leading-6">{details.sourceExcerpt}</p>
+          </details>}
+
           <div className="product-post-extras">
           <EffectiveRequirementsPanel requirements={effectiveRequirements(requirement)} />
           <details>
@@ -1134,7 +1139,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         </section>
 
           <div id={`ahlsell-products-${requirement.id}`} className="product-catalog-panel">
-            <h3 className="product-panel-caption">Produktforslag <span>Produktkatalog</span></h3>
+            <h3 className="product-panel-caption">Produktforslag</h3>
             <div className="product-catalog-scroll">
             <AhlsellPublicMatchPanel
               projectId={projectId}
@@ -1367,8 +1372,8 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
       {!loadingCatalog && catalogResult?.publicSearchStatus && catalogResult.publicSearchStatus !== "available" && (
         <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-xs leading-5 text-neutral-950 sm:px-4" role="status">
           {catalogResult.publicSearchStatus === "unavailable"
-            ? "Leverandørens nettsted kunne ikke nås. Produktforslagene fra MLDL finnes igjen."
-            : "En del av Produktsøket kunne ikke fullføres. MLDL og de hentede nettreffene vises."}
+            ? "Søket kunne ikke fullføres. Tilgjengelige produktforslag vises."
+            : "En del av produktsøket kunne ikke fullføres. Tilgjengelige produktforslag vises."}
         </div>
       )}
 
@@ -1380,13 +1385,13 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
       )}
 
       {filteredMemories.length > 0 && (
-        <div className="border-t border-neutral-300" role="group" aria-label="Tidligere bekreftede produkter">
+        <div className="border-t border-neutral-300" role="group" aria-label="Produktforslag">
           <div className={memoriesAreExact ? "bg-neutral-100/80 px-3 py-2 sm:px-4" : "bg-neutral-50 px-3 py-2 sm:px-4"}>
             <p className={memoriesAreExact ? "flex items-center gap-1.5 text-xs font-bold text-neutral-900" : "flex items-center gap-1.5 text-xs font-bold text-neutral-900"}>
               <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-              Tidligere valg · må kontrolleres mot dagens krav
+              Må kontrolleres mot dagens krav
             </p>
-            <p className="mt-0.5 text-xs text-neutral-600">Valget må godkjennes på nytt i dette prosjekt.</p>
+            <p className="mt-0.5 text-xs text-neutral-600">Valget må godkjennes i dette prosjekt.</p>
           </div>
           <div className="divide-y divide-neutral-200">
             {filteredMemories.map((memory) => {

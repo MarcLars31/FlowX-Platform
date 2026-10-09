@@ -1,8 +1,7 @@
 import { FileText } from "lucide-react";
-import { projectRequirementSystemLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
+import { projectInformationBody, projectInformationParagraphs, projectRequirementSystemLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
 import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
-import { structuredPostBlocks, type SpecificationBlock } from "@/lib/structured-post-layout";
-import { normalizeQuantityUnit } from "@/lib/quantity-value";
+import { orderedSpecificationAttributes } from "@/lib/project-specification-layout";
 
 export function ProjectPostSpecification({ id, details, description, quantity, quantityText, sourcePdfHref, pdfArticleNumber, informationOnly = false }: {
   id: string;
@@ -14,57 +13,51 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
   pdfArticleNumber?: string | null;
   informationOnly?: boolean;
 }) {
-  const blocks = structuredPostBlocks(details, description);
-  const showQuantity = quantity.unit === "RS" || quantity.quantity !== null || !["", "?"].includes(quantity.unit);
-  if (showQuantity && !blocks.some(block => block.kind === "quantity")) {
-    blocks.unshift({ kind: "quantity", text: quantityText || (quantity.unit === "RS" ? "Rund sum" : "Mengde") });
-  }
-  const hasHeading = description && !blocks.some(block => block.kind === "field" && description.toLocaleLowerCase().startsWith(`${block.label.toLocaleLowerCase()}:`));
-  const amount = quantity.quantity === null ? "—" : new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 3 }).format(quantity.quantity);
-  const comments = details.attributes.filter(([key]) => key === "pdf-kommentar");
-  const hasMetadata = details.chapterPost || details.parentPostNumber || details.system || details.standardRefs.length || pdfArticleNumber || comments.length;
-  return <div className="post-specification">
-    <div className="post-specification-scroll" role="region" aria-label={`Strukturerte krav ${details.postNumber ?? "informasjon"}`} tabIndex={0}>
-      <table className="post-specification-table">
-        <caption className="sr-only" id={`pdf-specification-${id}`}>{informationOnly ? "Prosjektinformasjon" : "Krav fra PDF"} {details.postNumber}</caption>
-        <colgroup><col className="post-specification-number" /><col /></colgroup>
-        <thead><tr><th scope="col">Postnr.</th><th scope="col">NS 3420 kode/Spesifikasjon</th></tr></thead>
-        <tbody>
-          <tr>
-            <th scope="rowgroup" rowSpan={blocks.length + 1} className="post-specification-post">{details.postNumber ?? "—"}</th>
-            <td className="post-specification-title">{details.nsCode && <p>{details.nsCode}</p>}{hasHeading && <p>{description}</p>}</td>
-          </tr>
-          {blocks.map((block, index) => <tr key={index}>
-            <td><SpecificationBlockContent block={block} amount={amount} unit={quantity.unit} /></td>
-          </tr>)}
-        </tbody>
-      </table>
-    </div>
-    <div className="post-specification-source">
-      {sourcePdfHref ? <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer"><FileText aria-hidden="true" />Åpne original PDF{details.sourcePage ? ` · side ${details.sourcePage}` : ""}</a> : details.sourcePage ? <span>Kilde: PDF · side {details.sourcePage}</span> : null}
-      {hasMetadata ? <details><summary>Postopplysninger</summary><dl>
-        {details.chapterPost && <Metadata label="Kapittelpost" value={details.chapterPost} />}
-        {details.parentPostNumber && <Metadata label="Hovedpost" value={details.parentPostNumber} />}
-        {details.system && <Metadata label="System" value={projectRequirementSystemLabel(details.system)} />}
-        {details.standardRefs.length > 0 && <Metadata label="Standarder" value={details.standardRefs.join(", ")} />}
-        {pdfArticleNumber && <Metadata label="NRF-nummer i PDF" value={pdfArticleNumber} />}
-        {comments.map(([key, value]) => <Metadata key={key} label="PDF-kommentar" value={value} />)}
-      </dl></details> : null}
+  const fields = orderedSpecificationAttributes(details);
+  const rs = quantity.unit === "RS";
+  const amountLabel = rs ? "Rund sum" : quantityText?.match(/^(Antall|Antal|Lengde|Areal|Volum|Vekt|Tid)\b/i)?.[1] ?? "Mängd";
+  const showQuantity = rs || quantity.quantity !== null || !["", "?"].includes(quantity.unit);
+  // An unnumbered fragment often starts directly with a field, not a heading.
+  const hasHeading = description && !fields.some(field => description.toLocaleLowerCase().startsWith(`${field.label.toLocaleLowerCase()}:`));
+  const postLabel = details.postNumber ? `PDF-post ${details.postNumber}` : `PDF · sida ${details.sourcePage ?? "—"}`;
+  return <div className="border border-neutral-300 bg-white text-sm leading-6 text-neutral-950">
+    <div className="grid sm:grid-cols-[6.5rem_minmax(0,1fr)]">
+      <h3 id={`pdf-specification-${id}`} className="border-b border-neutral-300 px-3 py-3 font-bold sm:border-b-0 sm:border-r">
+        {sourcePdfHref ? <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer"
+          title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
+          className="break-words underline decoration-neutral-400 underline-offset-4 hover:decoration-neutral-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
+          {postLabel} <FileText className="inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
+        </a> : postLabel}
+      </h3>
+      <div className="min-w-0 px-3 py-3">
+        {details.nsCode && <p className="break-words font-bold">{details.nsCode}</p>}
+        {hasHeading && <p className="break-words font-bold leading-5">{description}</p>}
+        {showQuantity && <dl className="my-2 flex flex-wrap items-baseline gap-x-2">
+          <dt>{amountLabel}:</dt>
+          <dd>{!rs && <>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)} </>}{quantity.unit === "?" ? "—" : quantity.unit}</dd>
+        </dl>}
+        {informationOnly && details.sourceExcerpt ? <>
+          <div className="mt-4 space-y-3 break-words leading-6">{projectInformationParagraphs(projectInformationBody(details, description)).map((paragraph, index) =>
+            <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "heading" ? "font-bold" : paragraph.kind === "bullet" ? "pl-4 -indent-4" : undefined}>{paragraph.text}</p>
+          )}</div>
+          {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
+        </> : <dl className="mt-2 space-y-1">
+          {fields.map(field => <SpecificationField key={field.key} label={field.label} value={field.value} strong={/^materiale\b/i.test(field.label)} />)}
+          {details.additionalRequirements && <SpecificationField label="Andra krav" value={details.additionalRequirements} block={details.additionalRequirements.includes("\n")} />}
+        </dl>}
+        {(details.chapterPost || details.parentPostNumber || details.system || details.standardRefs.length > 0 || pdfArticleNumber) &&
+          <dl className="mt-4 space-y-1 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
+            {details.chapterPost && <SpecificationField label="Kapitelpost" value={details.chapterPost} />}
+            {details.parentPostNumber && <SpecificationField label="Huvudpost" value={details.parentPostNumber} />}
+            {details.system && <SpecificationField label="System" value={projectRequirementSystemLabel(details.system)} />}
+            {details.standardRefs.length > 0 && <SpecificationField label="Standarder" value={details.standardRefs.join(", ")} />}
+            {pdfArticleNumber && <SpecificationField label="NRF-nummer i PDF" value={pdfArticleNumber} />}
+          </dl>}
+      </div>
     </div>
   </div>;
 }
 
-function SpecificationBlockContent({ block, amount, unit }: { block: SpecificationBlock; amount: string; unit: string }) {
-  if (block.kind === "field") return <p className="post-specification-field"><span>{block.label}: </span>{block.text}</p>;
-  if (block.kind === "quantity") return <p className="post-specification-quantity">{block.text.match(/^(?:Antall|Antal|Lengde|Areal|Volum|Vekt|Tid|Rund sum)\b/i)?.[0] ?? "Mengde"}: <strong>{amount}{unit !== "?" && <> {sourceQuantityUnit(block.text, unit)}</>}</strong></p>;
-  return <p className={`post-specification-${block.kind}`}>{block.text}</p>;
-}
-
-function Metadata({ label, value }: { label: string; value: string }) {
-  return <div><dt>{label}: </dt><dd>{value}</dd></div>;
-}
-
-function sourceQuantityUnit(text: string, unit: string) {
-  const sourceUnit = text.replace(/^(?:Antall|Antal|Lengde|Areal|Volum|Vekt|Tid|Rund sum)\s*:?\s*/i, "").split(/\s+/)[0];
-  return sourceUnit && normalizeQuantityUnit(sourceUnit) === unit ? sourceUnit : unit === "?" ? "—" : unit;
+function SpecificationField({ label, value, strong = false, block = false }: { label: string; value: string; strong?: boolean; block?: boolean }) {
+  return <div className="break-words"><dt className={`${block ? "block" : "inline"} ${strong ? "font-bold" : "italic"}`}>{label}: </dt><dd className={`${block ? "block" : "inline"} whitespace-pre-wrap`}>{value}</dd></div>;
 }

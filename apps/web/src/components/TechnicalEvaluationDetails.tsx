@@ -27,7 +27,6 @@ export function TechnicalEvaluationDetails({ evaluation, searchScore }: { evalua
         <p>{check.reason}</p>
         {check.source && <p>Krav: {check.source.raw} · {check.source.kind === "project" ? "prosjekt" : check.source.postNumber ?? "PDF"}{check.source.page ? `, side ${check.source.page}` : ""}</p>}
         {check.actual && <p>Produkt: {check.actual}</p>}
-        {[...new Set(check.evidence.map(item => `${item.source}: ${item.raw}`))].map(source => <p key={source} className="break-words text-neutral-600">Kilde: {source}</p>)}
       </li>)}
     </ul>
   </details>;

@@ -72,19 +72,12 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
               <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-800"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Matchar kraven</p>
             ) : state === "mismatch" ? (
               <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900"><CircleX className="h-3.5 w-3.5" aria-hidden="true" />{selected ? "Manuellt vald – avvikelse" : "Uppfyller inte kraven"}</p>
-            ) : candidate.learningEvidence ? (
-              <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Tidigare bekräftad för liknande krav · kontroll krävs</p>
             ) : state === "review" ? (
-              <details className="group/review mt-1">
-                <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1.5 text-xs font-bold text-neutral-900 underline underline-offset-2">
-                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-                  Underlaget behöver kontrolleras
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/review:rotate-180" aria-hidden="true" />
-                </summary>
-                <AhlsellCandidateWarnings candidate={candidate} />
-              </details>
+              <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-neutral-900">
+                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Underlaget behöver kontrolleras
+              </p>
             ) : null}
-            {(state !== "review" || candidate.learningEvidence) && <AhlsellCandidateWarnings candidate={candidate} />}
+            {state !== "review" && <AhlsellCandidateWarnings candidate={candidate} />}
             <TechnicalEvaluationDetails evaluation={candidate.technicalEvaluation} searchScore={candidate.searchScore} />
           </div>
           <div className="flex shrink-0 items-center gap-3">
@@ -152,12 +145,12 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
 }
 
 export function AhlsellCandidateWarnings({ candidate }: { candidate: AhlsellPublicCandidate }) {
+  // Generated review commentary and retrieval provenance stay in the assessment
+  // data. Only concrete incompatibilities are listed on product cards.
   const conflicts = technicalConflictWarnings(candidate);
-  const review = (candidate.matchWarnings ?? []).filter(warning => !conflicts.includes(warning));
-  return <>{[{ warnings: conflicts, title: "Avvikelser mot PDF-kravet:", style: "border-neutral-200 bg-neutral-50 text-neutral-900" },
-    { warnings: review, title: "Behöver kontrolleras:", style: "border-neutral-200 bg-neutral-50 text-neutral-950" }].map(group => group.warnings.length > 0 && (
-    <div key={group.title} className={`product-candidate-warnings mt-1.5 rounded-sm border px-2 py-1.5 text-xs leading-4 ${group.style}`}>
-      <p className="font-bold">{group.title}</p><ul className="mt-0.5 list-disc space-y-0.5 pl-4">{[...new Set(group.warnings)].map(warning => <li key={warning}>{warning}</li>)}</ul>
-    </div>
-  ))}</>;
+  if (!conflicts.length) return null;
+  return <div className="product-candidate-warnings mt-1.5 rounded-sm border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-xs leading-4 text-neutral-900">
+    <p className="font-bold">Avvikelser mot PDF-kravet:</p>
+    <ul className="mt-0.5 list-disc space-y-0.5 pl-4">{[...new Set(conflicts)].map(warning => <li key={warning}>{warning}</li>)}</ul>
+  </div>;
 }
