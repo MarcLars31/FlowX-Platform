@@ -12,7 +12,7 @@ import { ManualProductCard, type ManualProductChoice } from "@/components/Manual
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
-import { productPostNavigationGroups } from "@/lib/product-post-tree";
+import { productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -255,8 +255,8 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
     setActiveRequirementId(null);
     setMessage(null);
     setError(null);
-    const group = mainPostGroups.find(group => group.requirements.some(row => row.id === lastViewedRequirementId));
-    if (group) setExpandedKeys(current => new Set([...current, group.key]));
+    const path = productPostExpansionKeys(mainPostGroups, lastViewedRequirementId ?? "");
+    if (path.length) setExpandedKeys(current => new Set([...current, ...path]));
     window.requestAnimationFrame(() => {
       const row = document.getElementById(`product-post-row-${lastViewedRequirementId}`);
       if (lastViewedRequirementId === listPosition.current.requirementId) {
@@ -320,7 +320,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
           </div>}
         </section>
       </div>
-      <footer className="product-selection-footer"><span>{productCardSaving ? "Lagrer produktvalg…" : productCardDirty ? "Ulagrede endringer" : "Klar"}</span><span>{queueRequirements.length} poster · {mainPostGroups.length} hovedposter</span></footer>
+      <footer className="product-selection-footer"><span>{productCardSaving ? "Lagrer produktvalg…" : productCardDirty ? "Ulagrede endringer" : "Klar"}</span><span>{queueRequirements.length} poster · {mainPostGroups.length} {mainPostGroups.length === 1 ? "kapittel" : "kapitler"}</span></footer>
     </section>
   );
 }

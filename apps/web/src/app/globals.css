@@ -198,8 +198,8 @@ body .project-tabs button[data-variant]:disabled { background: transparent; colo
 .product-post-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; }
 .product-post-list-heading h2 { font-size: 17px; font-weight: 650; }
 .product-post-list-heading p, .product-post-list-heading > span { font-size: 13px; color: #64756b; }
-.product-post-list-columns { display: grid; grid-template-columns: 155px minmax(0, 1fr) 150px 200px; gap: 16px; align-items: center; }
-body button.product-post-list-row { display: grid; grid-template-columns: 155px minmax(0, 1fr) 120px 18px; gap: 16px; align-items: center; }
+.product-post-list-columns { display: grid; grid-template-columns: 155px minmax(0, 1fr) 220px 200px; gap: 16px; align-items: center; }
+body button.product-post-list-row { display: grid; grid-template-columns: 155px minmax(0, 1fr) 120px 80px; gap: 16px; align-items: center; }
 .product-post-list-columns { padding: 10px 20px; border-top: 1px solid #e7ede9; color: #64756b; font-size: 12px; }
 .product-post-list-group-heading { display: grid; grid-template-columns: minmax(0, 1fr) 200px; align-items: center; gap: 16px; padding: 8px 20px; background: #f1f5f2; border-block: 1px solid #dfe7e2; }
 .product-post-list-group-heading h3 { min-width: 0; font-size: 13px; }
@@ -234,6 +234,29 @@ body button.product-post-list-row:focus-visible { outline: 2px solid #176446; ou
 .product-post-list-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64756b; }
 .product-post-list-status[data-handled="true"] { color: #176446; }
 .product-post-list-row svg { width: 16px; height: 16px; flex-shrink: 0; color: #64756b; }
+.product-post-list-heading > span { flex-shrink: 0; white-space: nowrap; }
+.product-post-children .product-post-list-row .product-post-list-number { padding-left: 24px; }
+.product-post-parent-row { background: #f4f8f5; }
+.product-post-parent-controls { display: grid; grid-template-columns: 155px minmax(0, 1fr) 120px 80px; align-items: center; gap: 16px; min-width: 0; padding: 14px 20px; }
+body button.product-post-parent-toggle { grid-column: 1 / 3; display: grid; grid-template-columns: 155px minmax(0, 1fr); gap: 16px; align-items: center; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #203c2e; text-align: left; }
+body button.product-post-parent-toggle:hover { background: #eaf2ec; }
+.product-post-parent-toggle .product-post-list-number { display: flex; align-items: center; gap: 8px; }
+.product-post-parent-toggle .product-post-list-number > span { min-width: 0; }
+.product-post-parent-toggle svg { width: 18px; height: 18px; flex-shrink: 0; color: #176446; }
+.product-post-parent-toggle .product-post-list-description > span { font-weight: 650; }
+.product-post-branch-label { display: block; margin-top: 4px; color: #496353; font-size: 12px; font-weight: 500; }
+body button.product-post-open-parent { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 32px; padding: 6px 8px; font-size: 12px; }
+.product-post-open-parent svg { width: 14px; height: 14px; }
+.product-post-list-row > svg { justify-self: center; }
+.product-post-list-group ol.product-post-children { margin: 0 0 0 28px; border-left: 2px solid #c6dece; }
+@media (max-width: 767px) {
+  .product-post-parent-controls { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 14px 16px; }
+  body button.product-post-parent-toggle { grid-column: 1 / -1; grid-row: 1; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .product-post-parent-controls > .product-post-list-status { grid-column: 1; grid-row: 2; }
+  .product-post-parent-controls > .product-post-open-parent { grid-column: 2; grid-row: 2; }
+  .product-post-list-group ol.product-post-children { margin-left: 16px; }
+}
+
 .product-post-detail { grid-area: content; min-width: 0; scroll-margin-top: 86px; }
 .product-post-detail[hidden] { display: none; }
 .product-post-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 0 0 12px; }
