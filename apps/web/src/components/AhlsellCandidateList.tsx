@@ -10,7 +10,7 @@ import { groupAhlsellCandidatesForDisplay, normalizeNrfNumber } from "@/lib/prod
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
 
-export function AhlsellCandidateList({ candidates, requirementId, selectedArticleNumber, selectedArticleNumbers, accessory = false, selectionLimitReached = false, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, expandedMatches = false, compact = false, onSearch, onCheckRequirement, onSelect }: {
+export function AhlsellCandidateList({ candidates, requirementId, selectedArticleNumber, selectedArticleNumbers, accessory = false, selectionLimitReached = false, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, expandedMatches = false, compact = false, onSelect }: {
   candidates: AhlsellPublicCandidate[];
   requirementId: string;
   selectedArticleNumber: string;
@@ -23,8 +23,6 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
   showNoMatch?: boolean;
   expandedMatches?: boolean;
   compact?: boolean;
-  onSearch?: () => void;
-  onCheckRequirement?: () => void;
   onSelect: (candidate: AhlsellPublicCandidate) => void;
 }) {
   const { matching, rejected, review } = groupAhlsellCandidatesForDisplay(candidates, allowMatches);
@@ -100,10 +98,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
           <p className="flex items-center gap-2 text-sm font-bold">{review.length ? <AlertTriangle className="h-5 w-5" aria-hidden="true" /> : <CircleX className="h-5 w-5" aria-hidden="true" />}{review.length ? "Ingen verifierad match ännu" : "Ingen match bland kontrollerade produkter"}</p>
           {!review.length && <p className="mt-1 text-xs leading-5">{rejected.length ? "De hittade produkterna uppfyller inte PDF-kraven." : "Sökningen gav inga produkter att matcha mot PDF-kravet."}</p>}
           {!review.length && mainReason && <p className="mt-1 text-xs leading-5"><span className="font-bold">Orsak: </span>{mainReason}</p>}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {onSearch && <button type="button" disabled={disabled} onClick={onSearch} className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-800 disabled:opacity-50">Sök eller lägg till produkt</button>}
-            {onCheckRequirement && <button type="button" disabled={disabled} onClick={onCheckRequirement} className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-800 disabled:opacity-50">Kontrollera PDF-kravet</button>}
-          </div>
+
         </div>
       )}
       {accessoryRequirements.length > 0 && (

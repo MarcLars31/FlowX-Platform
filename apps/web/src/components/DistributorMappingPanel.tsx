@@ -4,7 +4,7 @@
 
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { createProjectDeliveryResource, type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ProductPostNavigation } from "@/components/ProductPostNavigation";
 import { Button } from "@/components/Button";
@@ -614,12 +614,14 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function openManualProductCard() {
+    if (hasAttachmentDraft || attachments.length > 0) setAttachmentExpanded(true);
     setManualProductDraftDirty(false);
     setManualProductError(null);
     setManualProductOpen(true);
   }
 
   function closeManualProductCard() {
+    if (attachmentSaving) return;
     setManualProductOpen(false);
     setManualProductDraftDirty(false);
     setManualProductError(null);
@@ -729,7 +731,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   function openAttachmentPanel() {
     setAttachmentExpanded(true);
-    setAttachmentError(null);
     setAttachmentMessage(null);
     window.requestAnimationFrame(() => {
       document.getElementById(`attachment-comment-${requirement.id}`)?.focus();
@@ -771,6 +772,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       }
     }
     if (hasAttachmentDraft) {
+      setManualProductOpen(true);
       setAttachmentExpanded(true);
       setAttachmentError("Spara vedlegget eller töm fälten innan du godkänner produkten.");
       return;
@@ -1011,6 +1013,70 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     </section>
   ) : null;
 
+  const attachmentSection = (
+    <section className="manual-product-card-section" aria-labelledby={`attachment-title-${requirement.id}`}>
+      <div className="manual-product-section-heading">
+        <h3 id={`attachment-title-${requirement.id}`}><Paperclip className="h-5 w-5" aria-hidden="true" />Vedlegg <span>(valgfritt)</span></h3>
+        <Button type="button" variant="secondary" aria-expanded={attachmentExpanded} aria-controls={`attachment-panel-${requirement.id}`}
+          disabled={attachmentSaving} onClick={attachmentExpanded ? closeAttachmentPanel : openAttachmentPanel}>
+          <Paperclip className="h-4 w-4" aria-hidden="true" />{attachmentExpanded ? "Skjul vedlegg" : "Legg til vedlegg"}
+        </Button>
+      </div>
+      <p className="manual-product-empty">Legg til for eksempel et datablad eller tilbud. Vedlegg lagres på PDF-posten når du trykker «Lagre vedlegg».</p>
+      <div id={`attachment-panel-${requirement.id}`} hidden={!attachmentExpanded} className="space-y-4">
+        <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void saveAttachment(); }}>
+          <label className="block" htmlFor={`attachment-comment-${requirement.id}`}>
+            <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-neutral-600"><span>Kommentar <span className="font-normal text-neutral-500">(valgfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
+            <textarea id={`attachment-comment-${requirement.id}`} rows={3} maxLength={2000} value={attachmentComment} onChange={(event) => { setAttachmentComment(event.target.value); setAttachmentError(null); setAttachmentMessage(null); }} className="block w-full resize-y rounded-sm border-neutral-300 bg-white text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500" />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label className="block" htmlFor={`attachment-file-${requirement.id}`}>
+              <span className="mb-1 block text-xs font-semibold text-neutral-600">Fil</span>
+              <input ref={attachmentInputRef} id={`attachment-file-${requirement.id}`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" onChange={(event) => { setAttachmentFile(event.target.files?.[0] ?? null); setAttachmentError(null); setAttachmentMessage(null); }} className="block min-h-10 w-full rounded-sm border border-neutral-300 bg-white text-sm text-neutral-800 file:mr-3 file:min-h-10 file:border-0 file:border-r file:border-neutral-200 file:bg-neutral-50 file:px-3 file:text-xs file:font-bold file:text-neutral-800 hover:file:bg-neutral-50" />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button neutral type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
+
+                Tøm
+              </Button>
+              <Button neutral type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
+                {attachmentSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+                {attachmentSaving ? "Sparar…" : "Lagre vedlegg"}
+              </Button>
+            </div>
+          </div>
+          {attachmentFile && <p className="break-words text-xs text-neutral-700">Valgt fil: {attachmentFile.name}</p>}
+          <p className="text-xs text-neutral-500">Max 4 MB. Tillatte format: PDF, PNG, JPG, WebP, TXT og CSV.</p>
+          {attachmentError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{attachmentError}</p>}
+          {attachmentMessage && <p role="status" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{attachmentMessage}</p>}
+        </form>
+
+        <div className="border-t border-neutral-200 pt-4">
+          <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-600">Lagrede vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</h5>
+          {attachmentsLoading ? (
+            <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-neutral-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Henter vedlegg…</p>
+          ) : attachments.length === 0 ? (
+            <p className="mt-2 text-xs text-neutral-600">Ingen vedlegg er lagret for posten.</p>
+          ) : (
+            <div className="mt-2 divide-y divide-neutral-200 overflow-hidden rounded-md border border-neutral-200 bg-white">
+              {attachments.map((attachment) => (
+                <article key={attachment.id} className="flex items-start gap-3 p-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-neutral-50 text-neutral-800"><FileText className="h-4 w-4" aria-hidden="true" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-bold text-neutral-950">{attachment.fileName}</p>
+                    <p className="mt-0.5 text-xs text-neutral-500">{formatAttachmentSize(attachment.sizeBytes)} · {formatAttachmentDate(attachment.uploadedAt)}</p>
+                    {attachment.comment && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-700">{attachment.comment}</p>}
+                  </div>
+                  <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400 hover:bg-neutral-50" aria-label={`Hent ${attachment.fileName}`} title="Hent vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+
   return (
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
       disabled={requirement.can_edit === false || saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
@@ -1074,9 +1140,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             <a href={productPostMailHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
               <Mail className="h-4 w-4" aria-hidden="true" />Send e-post om post
             </a>
-            <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={openAttachmentPanel}>
-              <Paperclip className="h-4 w-4" aria-hidden="true" />Legg til vedlegg
-            </Button>
             {sourcePdfHref && (
               <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-800 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
                 <FileText className="h-4 w-4" aria-hidden="true" />
@@ -1127,7 +1190,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             initial={{ product: { productName, productSubtitle, productNumber, manufacturerArticleNumber, manufacturerName, deliveryTimeDays, unitPrice, currency: priceCurrency },
               quantity: orderQuantity ?? { quantity: String(quantity.quantity ?? ""), unit: quantity.unit || "st" },
               accessories: selectedProductAccessories, manual: manualProductSelected || !productNumber.trim(), review: selectionReview }}
-            initialError={manualProductError} onApply={applyManualProduct} onCancel={closeManualProductCard} onDirtyChange={setManualProductDraftDirty} />}
+            initialError={manualProductError} attachments={attachmentSection} attachmentSaving={attachmentSaving} hasAttachmentDraft={hasAttachmentDraft}
+            onApply={applyManualProduct} onCancel={closeManualProductCard} onDirtyChange={setManualProductDraftDirty} />}
 
           {productNumber.trim() && commentDraftDirty && <p className="text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
           <details>
@@ -1155,13 +1219,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               onClearSelection={clearSelectedProduct}
               onUseCandidate={applyAhlsellCandidate}
               onUseMemory={applyMemory}
-              onSearch={openManualProductCard}
-              onCheckRequirement={() => {
-                const element = document.getElementById(`pdf-requirement-${requirement.id}`);
-                element?.scrollIntoView({ behavior: "smooth", block: "start" });
-                element?.scrollTo({ top: 0, behavior: "smooth" });
-                element?.focus({ preventScroll: true });
-              }}
             />
             </div>
           </div>
@@ -1174,101 +1231,14 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             {saving ? "Lagrer…" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
           </Button>
         </div>
-        {attachmentExpanded && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
-            <button
-              type="button"
-              aria-label="Lukk vedlegg"
-              className="absolute inset-0 bg-neutral-950/65 backdrop-blur-sm"
-              onClick={closeAttachmentPanel}
-              disabled={attachmentSaving}
-            />
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby={`attachment-dialog-title-${requirement.id}`}
-              className="relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-neutral-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
-            >
-              <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-neutral-200 bg-white px-4 py-3 sm:px-5">
-                <div>
-                  <h5 id={`attachment-dialog-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-neutral-950">
-                    <Paperclip className="h-4 w-4 text-neutral-700" aria-hidden="true" />
-                    Legg til vedlegg
-                  </h5>
-                  <p className="mt-0.5 text-xs leading-5 text-neutral-600">Legg en kommentar og fil til PDF-post {details.postNumber ?? position}.</p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Lukk"
-                  title="Lukk"
-                  onClick={closeAttachmentPanel}
-                  disabled={attachmentSaving}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 disabled:cursor-wait disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </header>
 
-              <div className="space-y-5 p-4 sm:p-5">
-                <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void saveAttachment(); }}>
-                  <label className="block" htmlFor={`attachment-comment-${requirement.id}`}>
-                    <span className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-neutral-600"><span>Kommentar <span className="font-normal text-neutral-500">(valgfritt)</span></span><span>{attachmentComment.length}/2000</span></span>
-                    <textarea id={`attachment-comment-${requirement.id}`} rows={3} maxLength={2000} value={attachmentComment} onChange={(event) => { setAttachmentComment(event.target.value); setAttachmentError(null); setAttachmentMessage(null); }} className="block w-full resize-y rounded-sm border-neutral-300 bg-white text-sm text-neutral-900 shadow-none focus:border-neutral-500 focus:ring-neutral-500" />
-                  </label>
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                    <label className="block" htmlFor={`attachment-file-${requirement.id}`}>
-                      <span className="mb-1 block text-xs font-semibold text-neutral-600">Fil</span>
-                      <input ref={attachmentInputRef} id={`attachment-file-${requirement.id}`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" onChange={(event) => { setAttachmentFile(event.target.files?.[0] ?? null); setAttachmentError(null); setAttachmentMessage(null); }} className="block min-h-10 w-full rounded-sm border border-neutral-300 bg-white text-sm text-neutral-800 file:mr-3 file:min-h-10 file:border-0 file:border-r file:border-neutral-200 file:bg-neutral-50 file:px-3 file:text-xs file:font-bold file:text-neutral-800 hover:file:bg-neutral-50" />
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      <Button neutral type="button" variant="secondary" className="min-h-10 justify-center px-3 py-2 text-sm" disabled={attachmentSaving || !hasAttachmentDraft} onClick={() => { setAttachmentComment(""); setAttachmentFile(null); setAttachmentError(null); setAttachmentMessage(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }}>
-
-                        Tøm
-                      </Button>
-                      <Button neutral type="submit" className="min-h-10 justify-center px-4 py-2 text-sm" disabled={attachmentSaving || !attachmentFile}>
-                        {attachmentSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
-                        {attachmentSaving ? "Sparar…" : "Lagre vedlegg"}
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-neutral-500">Max 4 MB. Tillatte format: PDF, PNG, JPG, WebP, TXT og CSV.</p>
-                  {attachmentError && <p role="alert" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{attachmentError}</p>}
-                  {attachmentMessage && <p role="status" className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-900">{attachmentMessage}</p>}
-                </form>
-
-                <div className="border-t border-neutral-200 pt-4">
-                  <h5 className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-600">Lagrede vedlegg{attachments.length > 0 ? ` · ${attachments.length}` : ""}</h5>
-                  {attachmentsLoading ? (
-                    <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-neutral-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Henter vedlegg…</p>
-                  ) : attachments.length === 0 ? (
-                    <p className="mt-2 text-xs text-neutral-600">Ingen vedlegg har lagret for posten.</p>
-                  ) : (
-                    <div className="mt-2 divide-y divide-neutral-200 overflow-hidden rounded-md border border-neutral-200 bg-white">
-                      {attachments.map((attachment) => (
-                        <article key={attachment.id} className="flex items-start gap-3 p-3">
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-neutral-50 text-neutral-800"><FileText className="h-4 w-4" aria-hidden="true" /></span>
-                          <div className="min-w-0 flex-1">
-                            <p className="break-words text-sm font-bold text-neutral-950">{attachment.fileName}</p>
-                            <p className="mt-0.5 text-xs text-neutral-500">{formatAttachmentSize(attachment.sizeBytes)} · {formatAttachmentDate(attachment.uploadedAt)}</p>
-                            {attachment.comment && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-700">{attachment.comment}</p>}
-                          </div>
-                          <a href={attachment.downloadUrl} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400 hover:bg-neutral-50" aria-label={`Hent ${attachment.fileName}`} title="Hent vedlegg"><Download className="h-4 w-4" aria-hidden="true" /></a>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-          </div>
-        )}
       </fieldset>
     </fieldset></article></>}
     </ProductPostComments>
   );
 }
 
-function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, pipeMainProduct, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory, onSearch, onCheckRequirement }: {
+function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, pipeMainProduct, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory }: {
   projectId: string;
   requirementId: string;
   requirementRevision: string;
@@ -1282,8 +1252,6 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
   onClearSelection: () => void;
   onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
   onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string; candidate?: AhlsellPublicCandidate }) => void;
-  onSearch: () => void;
-  onCheckRequirement: () => void;
 }) {
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -1451,8 +1419,6 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
         allowMatches={memoriesAreExact}
         accessoryRequirements={guide.accessoryRequirements}
         showNoMatch={!loadingCatalog && !catalogError && filteredMemories.length === 0}
-        onSearch={onSearch}
-        onCheckRequirement={onCheckRequirement}
         onSelect={selectCandidate}
       />
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { PackagePlus, Plus, Trash2, X } from "lucide-react";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
 import { Button } from "@/components/Button";
@@ -29,12 +29,15 @@ export type ManualProductChoice = {
 };
 
 /** Changes remain a local draft until the complete product card is accepted. */
-export function ManualProductCard({ projectId, requirementId, postNumber, initial, initialError, onApply, onCancel, onDirtyChange }: {
+export function ManualProductCard({ projectId, requirementId, postNumber, initial, initialError, attachments, attachmentSaving = false, hasAttachmentDraft = false, onApply, onCancel, onDirtyChange }: {
   projectId: string;
   requirementId: string;
   postNumber: string | null;
   initial: ManualProductChoice;
   initialError?: string | null;
+  attachments?: ReactNode;
+  attachmentSaving?: boolean;
+  hasAttachmentDraft?: boolean;
   onApply: (choice: ManualProductChoice) => void;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -72,6 +75,7 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
     window.requestAnimationFrame(() => document.getElementById(`${prefix}-accessory-${index}-name`)?.focus());
   }
   function apply() {
+    if (attachmentSaving || hasAttachmentDraft) return;
     const amount = parseProductOrderQuantity(draft.quantity);
     const validation = draft.manual ? validateManualDistributorProduct(draft.product, initial.product.currency) : null;
     const accessoryError = productAccessoryDraftError(draft.accessories);
@@ -92,12 +96,12 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
   }
 
   return <dialog ref={dialog} id={`manual-product-card-${requirementId}`} className="manual-product-dialog"
-    aria-labelledby={`${prefix}-title`} aria-describedby={`${prefix}-description`}
+    aria-busy={attachmentSaving} aria-labelledby={`${prefix}-title`} aria-describedby={`${prefix}-description`}
     onCancel={event => { event.preventDefault(); onCancel(); }}>
     <header className="manual-product-dialog-header">
-      <div><p>PDF-post {postNumber ?? "uten postnummer"}</p><h2 id={`${prefix}-title`}>Produkt og tilbehør</h2>
-        <p id={`${prefix}-description`}>Fyll inn hovedproduktet og legg til tilbehør hvis du ønsker.</p></div>
-      <Button variant="secondary" aria-label="Lukk produktkort" onClick={onCancel}><X aria-hidden="true" className="h-5 w-5" /></Button>
+      <div><p>PDF-post {postNumber ?? "uten postnummer"}</p><h2 id={`${prefix}-title`}>Produkt, vedlegg og tilbehør</h2>
+        <p id={`${prefix}-description`}>Fyll inn hovedproduktet, og legg til vedlegg og tilbehør hvis du ønsker.</p></div>
+      <Button variant="secondary" aria-label="Lukk produktkort" disabled={attachmentSaving} onClick={onCancel}><X aria-hidden="true" className="h-5 w-5" /></Button>
     </header>
     <div className="manual-product-dialog-body">
       <section aria-labelledby={`${prefix}-main-title`} className="manual-product-card-section">
@@ -123,6 +127,7 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
         </div>
         <ProductQuantityFields id={prefix} {...draft.quantity} onQuantityChange={value => change({ quantity: { ...draft.quantity, quantity: value } })} onUnitChange={value => change({ quantity: { ...draft.quantity, unit: value } })} />
       </section>
+      {attachments}
       <section aria-labelledby={`${prefix}-accessories-title`} className="manual-product-card-section">
         <div className="manual-product-section-heading"><h3 id={`${prefix}-accessories-title`}><PackagePlus aria-hidden="true" className="h-5 w-5" />Tilbehør <span>(valgfritt)</span></h3>
           <Button variant="secondary" onClick={addAccessory} disabled={draft.accessories.length >= 20}><Plus className="h-4 w-4" aria-hidden="true" />Legg til tilbehør</Button></div>
@@ -152,8 +157,8 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
     </div>
     <footer className="manual-product-dialog-footer">
       {error && <p ref={errorMessage} tabIndex={-1} role="alert">{error}</p>}
-      <p>Valget lagres på posten når du trykker «Lagre produktvalg».</p>
-      <div><Button variant="secondary" onClick={onCancel}>Avbryt</Button><Button onClick={apply}>Bruk produkt{draft.accessories.length ? ` og ${draft.accessories.length} tilbehør` : ""}</Button></div>
+      <p>{hasAttachmentDraft ? "Lagre vedlegget eller tøm feltene før du bruker produktet." : "Valget lagres på posten når du trykker «Lagre produktvalg»."}</p>
+      <div><Button variant="secondary" disabled={attachmentSaving} onClick={onCancel}>Avbryt</Button><Button disabled={attachmentSaving || hasAttachmentDraft} onClick={apply}>Bruk produkt{draft.accessories.length ? ` og ${draft.accessories.length} tilbehør` : ""}</Button></div>
     </footer>
   </dialog>;
 }
