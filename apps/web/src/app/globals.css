@@ -186,6 +186,11 @@ body .project-tabs button[data-variant][aria-pressed="true"] { color: #176446; b
 body .project-tabs button[data-variant]:disabled { background: transparent; color: #89958e; }
 .product-workspace-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .product-workspace-tools label { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--portal-muted); }
+/* Keep project controls in the list and give the opened post the full workspace. */
+.project-product-page:has(.product-selection-workspace[data-post-open="true"]) :is(.project-tabs, .project-heading-actions, .product-workspace-tools) { display: none; }
+.portal-workspace main:has(.project-product-page .product-selection-workspace[data-post-open="true"]) { padding-top: 12px; }
+.project-product-page:has(.product-selection-workspace[data-post-open="true"]) .project-heading-row { margin-top: 6px; }
+.project-product-page:has(.product-selection-workspace[data-post-open="true"]) > .product-workspace-body { margin-top: 12px; }
 .product-selection-workspace { --panel-border: #dfe7e2; display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
 .product-selection-heading { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .product-selection-heading h2 { font-size: 14px; font-weight: 600; }

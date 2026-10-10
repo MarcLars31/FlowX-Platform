@@ -269,7 +269,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
   }
 
   return (
-    <section id="project-requirement-table" aria-label={view === "all" ? "Alle poster" : PROJECT_REQUIREMENT_VIEWS.find(item => item.id === view)?.label} className="product-selection-workspace">
+    <section id="project-requirement-table" aria-label={view === "all" ? "Alle poster" : PROJECT_REQUIREMENT_VIEWS.find(item => item.id === view)?.label} className="product-selection-workspace" data-post-open={Boolean(activeRequirement)}>
       <div className="product-selection-heading">
         <h2>Produktvalg</h2>
         <p>{queueRequirements.length} poster · {handledCount} håndtert</p>
@@ -287,7 +287,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
               <Button type="button" variant="secondary" disabled={productCardSaving} onClick={showPostList}>
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />Tilbake til postlisten
               </Button>
-              <p aria-live="polite">Post {projectRequirementDetails(activeRequirement).postNumber ?? activeIndex + 1}<span> · {activeIndex + 1} av {queueRequirements.length}</span></p>
+              <p aria-live="polite" className="sr-only">Post {projectRequirementDetails(activeRequirement).postNumber ?? activeIndex + 1}<span> · {activeIndex + 1} av {queueRequirements.length}</span></p>
               <div>
                 <Button type="button" variant="secondary" disabled={productCardSaving || activeIndex === 0}
                   onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Forrige post</Button>
