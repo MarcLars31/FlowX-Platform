@@ -1,9 +1,9 @@
-import { AppShell } from "@/components/AppShell";
+import { AuthenticatedAppShell } from "@/components/AuthenticatedAppShell";
 
 export default function DashboardLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  return <AuthenticatedAppShell>{children}</AuthenticatedAppShell>;
 }

@@ -1,0 +1,143 @@
+import { organizationAhlsellOfferCatalog } from "@/lib/ahlsell-offer-catalog.server";
+import { ahlsellRequestContext } from "@/lib/ahlsell-shared-fetch.server";
+import { NextResponse } from "next/server";
+import { AHLSELL_MLDL_CATALOG_VERSION, AHLSELL_MLDL_PRODUCT_COUNT } from "@/lib/ahlsell-mldl-catalog";
+import { findAhlsellHybridCandidates } from "@/lib/ahlsell-hybrid-matching";
+import { ahlsellEvidenceStore } from "@/lib/ahlsell-evidence-store.server";
+import { isUuid } from "@/lib/distributor-product-mapping";
+import { requireOrganizationApi } from "@/lib/organization-api-authorization";
+import { PRODUCT_MATCHING_ENGINE_VERSION, productLearningCandidateSnapshots } from "@/lib/product-learning-feedback";
+import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
+import { callUserRpc, UserSupabaseError } from "@/lib/supabase-user-rest";
+import { loadEffectiveRequirement } from "@/lib/effective-requirements.server";
+import { TECHNICAL_EVALUATOR_VERSION } from "@/lib/technical-evaluation-model";
+import { VICTAULIC_SPRINKLER_CATALOG_VERSION } from "@/lib/victaulic-sprinkler-catalog";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+type RouteContext = { params: Promise<{ id: string; requirementId: string }> };
+
+export async function GET(request: Request, context: RouteContext) {
+  const supplier = ahlsellRequestContext();
+  try {
+    const authorization = await requireOrganizationApi([
+      "project.product_suggestion.view"
+    ]);
+    if (authorization.error) return authorization.error;
+
+    const { id, requirementId } = await context.params;
+    if (!isUuid(id) || !isUuid(requirementId)) {
+      return NextResponse.json({ error: "Ogiltigt projekt- eller krav-id." }, { status: 400 });
+    }
+
+    // Older open overview tabs may still run the retired background queue.
+    // Reject it before database/product lookups or the open card's rate limit.
+    if (new URL(request.url).searchParams.get("classification") === "1") {
+      return NextResponse.json(
+        { error: "Bakgrundssökningen har tagits bort. Ladda om sidan och öppna ett produktkort för att söka." },
+        { status: 410, headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
+
+    const rateLimit = consumeRateLimit(
+      requestRateLimitKey(request, "ahlsell-catalog", authorization.user.id),
+      30,
+      60_000
+    );
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "För många produktsökningar. Vänta en kort stund och försök igen." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+      );
+    }
+
+    const requirement = await loadEffectiveRequirement(id, requirementId, authorization.context.organization.id);
+    if (!requirement) {
+      return NextResponse.json({ error: "Produktraden hittades inte i projektet." }, { status: 404 });
+    }
+
+    const offers = await organizationAhlsellOfferCatalog(authorization.context.organization.id);
+    const result = await findAhlsellHybridCandidates(requirement, supplier.fetch, ahlsellEvidenceStore(), offers.catalog);
+    const { candidates } = result;
+    if (!candidates.length && supplier.retryAfter) return NextResponse.json({error:"Produktsökningen är tillfälligt upptagen. Försök igen om en stund."},{status:429,headers:{"Retry-After":String(supplier.retryAfter),"Cache-Control":"private, no-store"}});
+    await recordCandidateImpression({
+      projectId: id, requirementId, candidates,
+      metadata: { candidateSource: "mldl_and_ahlsell", publicSearchStatus: result.publicSearchStatus,
+        offerCatalogVersion: offers.catalog?.version ?? null, offerCatalogStatus: offers.status,
+        offerCatalogProductCount: offers.catalog?.products.length ?? 0,
+        databaseProductCount: AHLSELL_MLDL_PRODUCT_COUNT, shownCandidateCount: Math.min(candidates.length, 3) }
+    });
+    return NextResponse.json({
+      ...result,
+      ...(supplier.retryAfter ? {retryAfter:supplier.retryAfter,publicSearchStatus:"partial"} : {}),
+      effectiveRequirements: requirement.effectiveRequirements,
+      evaluatorVersion: TECHNICAL_EVALUATOR_VERSION,
+      matchingEngine: {
+        version: PRODUCT_MATCHING_ENGINE_VERSION, source: "mldl_and_ahlsell",
+        catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
+        offerCatalogVersion: offers.catalog?.version ?? null, offerCatalogStatus: offers.status,
+        offerCatalogProductCount: offers.catalog?.products.length ?? 0,
+        sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
+        catalogProductCount: AHLSELL_MLDL_PRODUCT_COUNT, publicSearchAvailable: result.publicSearchStatus !== "unavailable"
+      }
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    if (error instanceof UserSupabaseError) {
+      const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
+      return NextResponse.json(
+        { error: forbidden ? "Du har inte åtkomst till projektets produktrader." : "Produktraden kunde inte läsas." },
+        { status: forbidden ? 403 : 500 }
+      );
+    }
+    return NextResponse.json(
+      { error: "Produktmatchningen kunde inte genomföras." },
+      { status: 500 }
+    );
+  }
+}
+
+async function recordCandidateImpression({
+  projectId,
+  requirementId,
+  candidates,
+  metadata
+}: {
+  projectId: string;
+  requirementId: string;
+  candidates: Parameters<typeof productLearningCandidateSnapshots>[0];
+  metadata: Record<string, unknown>;
+}) {
+  try {
+    const snapshots = productLearningCandidateSnapshots(candidates);
+    try {
+      await callUserRpc("record_product_candidate_impression_v2", {
+        requested_project_id: projectId,
+        requested_requirement_id: requirementId,
+        requested_candidates: snapshots,
+        requested_metadata: {
+          ...metadata,
+          matchingEngineVersion: PRODUCT_MATCHING_ENGINE_VERSION,
+          catalogVersion: AHLSELL_MLDL_CATALOG_VERSION,
+          sprinklerCatalogVersion: VICTAULIC_SPRINKLER_CATALOG_VERSION,
+          rankingMode: "technical_status_then_existing_search_order"
+        }
+      });
+    } catch (error) {
+      if (!isMissingFeedbackRpc(error)) throw error;
+      await callUserRpc("record_product_candidate_impression", {
+        requested_project_id: projectId,
+        requested_requirement_id: requirementId,
+        requested_candidates: snapshots
+      });
+    }
+  } catch {
+    // Learning telemetry must never prevent the reviewer from seeing products.
+    // This also keeps the route deployment-safe while the migration rolls out.
+  }
+}
+
+function isMissingFeedbackRpc(error: unknown) {
+  return error instanceof UserSupabaseError
+    && (error.code === "PGRST202" || error.code === "42883" || error.status === 404);
+}

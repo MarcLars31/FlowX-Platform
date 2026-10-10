@@ -1,0 +1,965 @@
+{
+  "version": "ns3420-reference-2026-09-14.1",
+  "scope": "document_heading_reference",
+  "standardEdition": null,
+  "sources": [
+    {
+      "id": "reference-01",
+      "kind": "user_provided_technical_description",
+      "extractionMethod": "text"
+    },
+    {
+      "id": "reference-02",
+      "kind": "user_provided_technical_description",
+      "extractionMethod": "ocr"
+    },
+    {
+      "id": "reference-03",
+      "kind": "user_provided_technical_description",
+      "extractionMethod": "ocr"
+    },
+    {
+      "id": "reference-04",
+      "kind": "user_provided_technical_description",
+      "extractionMethod": "ocr"
+    }
+  ],
+  "meanings": [
+    {
+      "id": "fire_pipe_complete",
+      "label": "Rörledning för brandsläckning – komplett",
+      "heading": "INNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT"
+    },
+    {
+      "id": "fire_pipe_part",
+      "label": "Rördel för brandsläckning",
+      "heading": "INNENDØRS RØRLEDNING – BRANNSLOKKING – RØRDEL"
+    },
+    {
+      "id": "fire_hose",
+      "label": "Slang för brandsläckning",
+      "heading": "INNENDØRS RØRLEDNING – BRANNSLOKKING – SLANGE"
+    },
+    {
+      "id": "shutoff_valve",
+      "label": "Avstängningsventil inomhus",
+      "heading": "INNENDØRS STENGEVENTIL"
+    },
+    {
+      "id": "check_valve",
+      "label": "Backventil inomhus",
+      "heading": "INNENDØRS TILBAKESLAGSVENTIL"
+    },
+    {
+      "id": "special_valve",
+      "label": "Specialventil inomhus",
+      "heading": "INNENDØRS SPESIALVENTIL"
+    },
+    {
+      "id": "pressure_test",
+      "label": "Tryckprovning av röranläggning",
+      "heading": "TRYKKPRØVING AV INNENDØRS RØRANLEGG – KOMPLETT"
+    },
+    {
+      "id": "object_marking",
+      "label": "Märkning direkt på objekt",
+      "heading": "MERKING DIREKTE PÅ OBJEKTET"
+    },
+    {
+      "id": "pipe_marking",
+      "label": "Märkning av rörledning",
+      "heading": "MERKING AV INNENDØRS RØRLEDNING"
+    },
+    {
+      "id": "test_valve",
+      "label": "Provningsventil för sprinkleranläggning",
+      "heading": "FJERNTLIGGENDE PRØVINGSVENTIL FOR SPRINKLERANLEGG"
+    },
+    {
+      "id": "zone_valve",
+      "label": "Zonventil för sprinkleranläggning",
+      "heading": "SONEVENTIL FOR SPRINKLERANLEGG"
+    },
+    {
+      "id": "fire_io",
+      "label": "In-/utgångsenhet för brandlarm",
+      "heading": "INN-/UTGANGSENHET (I/O-ENHET) FOR AUTOMATISK BRANNALARMSYSTEM"
+    },
+    {
+      "id": "control_central",
+      "label": "Central för kontroll och larm",
+      "heading": "SENTRAL FOR KONTROLL OG ALARM"
+    },
+    {
+      "id": "sprinkler",
+      "label": "Sprinkler",
+      "heading": "SPRINKLER"
+    },
+    {
+      "id": "automatic_air_vent",
+      "label": "Automatisk avluftare",
+      "heading": "AUTOMATISK LUFTEPOTTE"
+    },
+    {
+      "id": "fire_nozzle",
+      "label": "Munstycke för brandsläckning",
+      "heading": "BRANNSLOKKINGSANLEGG – DYSE"
+    },
+    {
+      "id": "indoor_tank",
+      "label": "Tank inomhus",
+      "heading": "INNENDØRS TANK"
+    },
+    {
+      "id": "fire_central",
+      "label": "Brandsläckningscentral",
+      "heading": "BRANNSLOKKINGSSENTRAL"
+    },
+    {
+      "id": "fire_detector",
+      "label": "Branddetektor",
+      "heading": "DETEKTOR FOR BRANN"
+    },
+    {
+      "id": "optical_signal",
+      "label": "Optisk signalapparat",
+      "heading": "OPTISK SIGNALAPPARAT"
+    },
+    {
+      "id": "acoustic_signal",
+      "label": "Akustisk signalapparat",
+      "heading": "AKUSTISK SIGNALAPPARAT"
+    },
+    {
+      "id": "manual_fire_release",
+      "label": "Manuell brandlarmssändare och utlösningsenhet",
+      "heading": "MANUELL BRANNMELDER OG UTLØSERENHET FOR AUTOMATISK BRANNALARMSYSTEM"
+    },
+    {
+      "id": "damper",
+      "label": "Spjäll",
+      "heading": "SPJELD"
+    },
+    {
+      "id": "sign_marking",
+      "label": "Märkning med skylt",
+      "heading": "MERKING MED SKILT"
+    },
+    {
+      "id": "fire_system",
+      "label": "Brandsläckningsanläggning – komplett",
+      "heading": "BRANNSLOKKEANLEGG – KOMPLETT"
+    },
+    {
+      "id": "hand_extinguisher",
+      "label": "Handbrandsläckare",
+      "heading": "HÅNDSLOKKER"
+    },
+    {
+      "id": "indoor_tapping",
+      "label": "Anborrning av vattenledning inomhus",
+      "heading": "TILKOBLING AV VANNLEDNING VED ANBORING – INNENDØRS"
+    },
+    {
+      "id": "dismantling",
+      "label": "Demontering av byggnadsdel",
+      "heading": "DEMONTERING AV BYGNINGSDEL – RUND SUM"
+    }
+  ],
+  "codes": [
+    {
+      "code": "CD3.11674A",
+      "meaningId": "dismantling",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 7
+        }
+      ]
+    },
+    {
+      "code": "UB1.31113324334",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 13
+        }
+      ]
+    },
+    {
+      "code": "UB1.31113399999A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 7
+        }
+      ]
+    },
+    {
+      "code": "UB1.31114399900",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "code": "UB1.31114421934A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 13
+        }
+      ]
+    },
+    {
+      "code": "UB1.31114423932A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 11
+        }
+      ]
+    },
+    {
+      "code": "UB1.31114499932A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 2
+        },
+        {
+          "sourceId": "reference-03",
+          "page": 8
+        }
+      ]
+    },
+    {
+      "code": "UB1.31114499934A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 2
+        }
+      ]
+    },
+    {
+      "code": "UB1.31114921934A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 9
+        }
+      ]
+    },
+    {
+      "code": "UB1.31314423324A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 39
+        }
+      ]
+    },
+    {
+      "code": "UB1.31314499932A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 38
+        }
+      ]
+    },
+    {
+      "code": "UB1.31994499934A",
+      "meaningId": "fire_pipe_complete",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 3
+        }
+      ]
+    },
+    {
+      "code": "UB1.33114699900A",
+      "meaningId": "fire_hose",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "code": "UB1.33119925232",
+      "meaningId": "fire_hose",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 15
+        }
+      ]
+    },
+    {
+      "code": "UB1.349999449923332",
+      "meaningId": "fire_pipe_part",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 4
+        }
+      ]
+    },
+    {
+      "code": "UB3.8114343",
+      "meaningId": "indoor_tapping",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "code": "UC1.3121151",
+      "meaningId": "shutoff_valve",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 6
+        }
+      ]
+    },
+    {
+      "code": "UC1.3129951A",
+      "meaningId": "shutoff_valve",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 5
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 16
+        }
+      ]
+    },
+    {
+      "code": "UC1.5119918A",
+      "meaningId": "shutoff_valve",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 10
+        }
+      ]
+    },
+    {
+      "code": "UC1.5139918",
+      "meaningId": "shutoff_valve",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 17
+        }
+      ]
+    },
+    {
+      "code": "UC1.9111118A",
+      "meaningId": "shutoff_valve",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 2
+        },
+        {
+          "sourceId": "reference-04",
+          "page": 4
+        }
+      ]
+    },
+    {
+      "code": "UC4.539918",
+      "meaningId": "check_valve",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 18
+        }
+      ]
+    },
+    {
+      "code": "UC4.591110",
+      "meaningId": "check_valve",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 2
+        }
+      ]
+    },
+    {
+      "code": "UC4.77999951",
+      "meaningId": "special_valve",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 6
+        },
+        {
+          "sourceId": "reference-03",
+          "page": 11
+        }
+      ]
+    },
+    {
+      "code": "UD1.15121A",
+      "meaningId": "indoor_tank",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 42
+        }
+      ]
+    },
+    {
+      "code": "UD2.27",
+      "meaningId": "automatic_air_vent",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 33
+        }
+      ]
+    },
+    {
+      "code": "UE2.11111112",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 4
+        }
+      ]
+    },
+    {
+      "code": "UE2.11111132",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-02",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "code": "UE2.11111232",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-02",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "code": "UE2.11111312",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 4
+        },
+        {
+          "sourceId": "reference-03",
+          "page": 5
+        }
+      ]
+    },
+    {
+      "code": "UE2.11111432",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-02",
+          "page": 2
+        }
+      ]
+    },
+    {
+      "code": "UE2.11111512",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 5
+        }
+      ]
+    },
+    {
+      "code": "UE2.11111934",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-02",
+          "page": 2
+        }
+      ]
+    },
+    {
+      "code": "UE2.11112112A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 22
+        }
+      ]
+    },
+    {
+      "code": "UE2.11112212A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 23
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 24
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 25
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 26
+        }
+      ]
+    },
+    {
+      "code": "UE2.11112215A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 27
+        }
+      ]
+    },
+    {
+      "code": "UE2.11112312",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 11
+        },
+        {
+          "sourceId": "reference-04",
+          "page": 12
+        }
+      ]
+    },
+    {
+      "code": "UE2.11112312A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 29
+        }
+      ]
+    },
+    {
+      "code": "UE2.11112512",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 11
+        }
+      ]
+    },
+    {
+      "code": "UE2.11112512A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 21
+        }
+      ]
+    },
+    {
+      "code": "UE2.11112912",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 10
+        }
+      ]
+    },
+    {
+      "code": "UE2.11115312A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 30
+        },
+        {
+          "sourceId": "reference-04",
+          "page": 13
+        }
+      ]
+    },
+    {
+      "code": "UE2.11115512A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 28
+        },
+        {
+          "sourceId": "reference-04",
+          "page": 12
+        }
+      ]
+    },
+    {
+      "code": "UE2.11121512A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 32
+        }
+      ]
+    },
+    {
+      "code": "UE2.11121532",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-02",
+          "page": 3
+        }
+      ]
+    },
+    {
+      "code": "UE2.11122219",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 13
+        }
+      ]
+    },
+    {
+      "code": "UE2.11122319",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 14
+        }
+      ]
+    },
+    {
+      "code": "UE2.11199219A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 14
+        }
+      ]
+    },
+    {
+      "code": "UE2.11199319A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 15
+        }
+      ]
+    },
+    {
+      "code": "UE2.11199512A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 12
+        }
+      ]
+    },
+    {
+      "code": "UE2.11211112",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 9
+        }
+      ]
+    },
+    {
+      "code": "UE2.11215912",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-03",
+          "page": 9
+        }
+      ]
+    },
+    {
+      "code": "UE2.11599299A",
+      "meaningId": "sprinkler",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 31
+        }
+      ]
+    },
+    {
+      "code": "UE2.31A",
+      "meaningId": "zone_valve",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 19
+        }
+      ]
+    },
+    {
+      "code": "UE2.32A",
+      "meaningId": "test_valve",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 17
+        }
+      ]
+    },
+    {
+      "code": "UE5.199A",
+      "meaningId": "fire_system",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 53
+        }
+      ]
+    },
+    {
+      "code": "UE5.3114",
+      "meaningId": "fire_central",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 43
+        }
+      ]
+    },
+    {
+      "code": "UE5.3314A",
+      "meaningId": "fire_nozzle",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 41
+        }
+      ]
+    },
+    {
+      "code": "UE6.1913",
+      "meaningId": "hand_extinguisher",
+      "references": [
+        {
+          "sourceId": "reference-02",
+          "page": 3
+        }
+      ]
+    },
+    {
+      "code": "UE8.1199",
+      "meaningId": "sign_marking",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 48
+        }
+      ]
+    },
+    {
+      "code": "UE8.1299",
+      "meaningId": "object_marking",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 6
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 34
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 48
+        }
+      ]
+    },
+    {
+      "code": "UL1.2151441A",
+      "meaningId": "pressure_test",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 47
+        }
+      ]
+    },
+    {
+      "code": "UL1.2152492",
+      "meaningId": "pressure_test",
+      "references": [
+        {
+          "sourceId": "reference-04",
+          "page": 15
+        }
+      ]
+    },
+    {
+      "code": "UL1.2152492A",
+      "meaningId": "pressure_test",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 34
+        }
+      ]
+    },
+    {
+      "code": "UL1.2199442A",
+      "meaningId": "pressure_test",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 6
+        }
+      ]
+    },
+    {
+      "code": "UL2.1999A",
+      "meaningId": "pipe_marking",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 7
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 35
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 49
+        }
+      ]
+    },
+    {
+      "code": "VE4.129342A",
+      "meaningId": "damper",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 45
+        },
+        {
+          "sourceId": "reference-01",
+          "page": 46
+        }
+      ]
+    },
+    {
+      "code": "WE4.19910",
+      "meaningId": "control_central",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 20
+        }
+      ]
+    },
+    {
+      "code": "WM1.3824",
+      "meaningId": "fire_detector",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 43
+        }
+      ]
+    },
+    {
+      "code": "WQ1.46",
+      "meaningId": "acoustic_signal",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 44
+        }
+      ]
+    },
+    {
+      "code": "WQ2.2436",
+      "meaningId": "optical_signal",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 43
+        }
+      ]
+    },
+    {
+      "code": "YB4.3123230130",
+      "meaningId": "fire_io",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 20
+        }
+      ]
+    },
+    {
+      "code": "YB4.31312211130",
+      "meaningId": "manual_fire_release",
+      "references": [
+        {
+          "sourceId": "reference-01",
+          "page": 44
+        }
+      ]
+    }
+  ]
+}
