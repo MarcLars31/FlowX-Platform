@@ -12,10 +12,10 @@ test("specification fields follow PDF order even when stored JSON keys have been
   assert.equal(fields.at(-1)?.value, "Kontroller plassering.");
 });
 
-test("inherited fields retain the child's effective value and original source label", () => {
+test("only own fields retain the child's value and original source label", () => {
   const fields = orderedSpecificationAttributes(projectRequirementDetails({ value_json: {
     attributes: { "k-faktor": "80", dimensjon: "DN25", trykk: "12 bar" },
     technicalSpecification: "Trykk: 12 bar\nDimensjon: Se under\nK-faktor: 80\nUNDERPOST\nDimensjon: DN25"
   } }));
-  assert.deepEqual(fields.map(({ label, value }) => [label, value]), [["Trykk", "12 bar"], ["Dimensjon", "DN25"], ["K-faktor", "80"]]);
+  assert.deepEqual(fields.map(({ label, value }) => [label, value]), [["Dimensjon", "DN25"]]);
 });

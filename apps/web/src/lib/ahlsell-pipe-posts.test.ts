@@ -19,7 +19,7 @@ const pipes = pipeGroups.flatMap(group => group.lengths.map((quantity, index) =>
   return { category: "fitting", value_text: description, value_json: {
     postNumber: `${group.parent}.${index + 1}`, parentPostNumber: group.parent, nsCode: group.code,
     quantity, unit: "m", attributes: { materiale: group.material, skjøt: group.joint, trykk: "PN 16", dimensjon: `DN${dn}` },
-    technicalSpecification: `${group.parent} ${group.code}\nINNENDØRS RØRLEDNING – BRANNSLOKKING – KOMPLETT\n${group.extra}`
+    technicalSpecification: `${group.parent}.${index + 1} ${group.code}\n${description}\n${group.extra}`
   } };
 }));
 const candidate = (name: string, article = "test-product"): AhlsellPublicCandidate => ({
@@ -102,11 +102,11 @@ test("alarm child searches for its own set without imposing the parent's DN65 va
   assert.equal(ahlsellCandidateMatchState(valve), "mismatch");
 });
 
-const shutoff = { category: "control", value_text: "DN 65 til kapasitetsmåler uten overvåking", value_json: {
+const shutoff = { category: "control", value_text: "Stengeventil DN 65 til kapasitetsmåler uten overvåking", value_json: {
   postNumber: "33.3.6.3", parentPostNumber: "33.3.6", nsCode: "UC1", quantity: 2, unit: "st", attributes: { dimensjon: "DN65" },
-  technicalSpecification: "33.3 Armatur\n\nUNDERPOST\n33.3.6 UC1\nInnendørs stengeventiler\nAndre krav: Nei\n\nUNDERPOST\n33.3.6.3 DN 65 til kapasitetsmåler uten overvåking\nAntall stk 2"
+  technicalSpecification: "33.3 Armatur\n\nUNDERPOST\n33.3.6 UC1\nInnendørs stengeventiler\nAndre krav: Nei\n\nUNDERPOST\n33.3.6.3 Stengeventil DN 65 til kapasitetsmåler uten overvåking\nAntall stk 2"
 } };
-test("the DN65 capacity-meter isolation valves inherit the parent product, and do not require monitoring", () => {
+test("an explicitly named DN65 isolation valve does not require monitoring", () => {
   assert.equal(ahlsellRequirementIntent(shutoff), "shutoff_valve");
   const guide = buildAhlsellRequirementGuide(shutoff);
   assert.ok(guide.criteria.includes("Utan övervakning"));
@@ -119,11 +119,11 @@ test("the DN65 capacity-meter isolation valves inherit the parent product, and d
   assert.ok(findMldlOnlyCandidates(shutoff).length > 0);
 });
 
-const meter = { category: "control", value_text: "DN65", value_json: {
+const meter = { category: "control", value_text: "KAPASITETSMÅLER DN65", value_json: {
   postNumber: "33.3.7.1", parentPostNumber: "33.3.7", quantity: 1, unit: "st", attributes: { dimensjon: "DN65", måleområde: "300 - 3000 l/min" },
-  technicalSpecification: "33.3 Armatur\n\nUNDERPOST\n33.3.7 KAPASITETSMÅLER\nStrømningsmåler for full vannmengdekontroll av typen LPCB Fire Sprinkler flowmeter DS1162 (GAP-meter) eller likeverdig.\nMåleområde: 300 - 3000 l/min\n\nUNDERPOST\n33.3.7.1 DN65 stk 1"
+  technicalSpecification: "33.3 Armatur\n\nUNDERPOST\n33.3.7 KAPASITETSMÅLER\nStrømningsmåler for full vannmengdekontroll av typen LPCB Fire Sprinkler flowmeter DS1162 (GAP-meter) eller likeverdig.\nMåleområde: 300 - 3000 l/min\n\nUNDERPOST\n33.3.7.1 KAPASITETSMÅLER DN65 stk 1\nLPCB Fire Sprinkler flowmeter DS1162 (GAP-meter)\nMåleområde: 300 - 3000 l/min"
 } };
-test("a DN-only capacity meter inherits its own heading and checks the full specified flow range", () => {
+test("an explicitly specified capacity meter checks its own full flow range", () => {
   assert.equal(ahlsellRequirementIntent(meter), "flow_meter");
   assert.ok(buildAhlsellRequirementGuide(meter).searchQueries.includes("DS1162"));
   for (const name of ["Flow Switch VSR-2 DN65", "Vannmåler DN65", "Spjeldventil DN65"]) {
@@ -136,7 +136,7 @@ test("a DN-only capacity meter inherits its own heading and checks the full spec
   const [fullRange] = rankAhlsellCandidates(meter, [candidate("Flowmeter DN65 300–3000 l/min")]);
   assert.equal(ahlsellCandidateMatchState(fullRange), "review");
   assert.match(warnings(fullRange), /sprinklergodkännande/);
-  assert.equal(ahlsellRequirementIntent({ ...meter, value_json: { ...meter.value_json, parentPostNumber: "33.3.8" } }), "generic");
+  assert.equal(ahlsellRequirementIntent({ ...meter, value_json: { ...meter.value_json, parentPostNumber: "33.3.8" } }), "flow_meter");
 });
 
 test("a water-supply pressure switch is not automatically verified as an alarm pressostat", () => {

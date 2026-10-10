@@ -253,14 +253,14 @@ test("keeps a, b and c across a PDF page break without taking text from the next
   assert.doesNotMatch(details.additionalRequirements!, /Aluminium|33\.332\.2|Sum:/);
 });
 
-test("keeps inherited and own additional requirements separate from child specifications", () => {
+test("shows only own additional requirements on a child post", () => {
   const own = "33.1.1 RØR\nDimensjon: DN25\nAndre krav:\nc) Utførelse\nFestes i tak.";
   const details = projectRequirementDetails({ value_json: {
     technicalSpecification: "33.1 RØR\nAndre krav:\na) Omfang og prisgrunnlag\nAlle deler inngår.\n\nUNDERPOST\n" + own,
     sourceText: own
   }, source_excerpt: own });
   assert.equal(details.additionalRequirements,
-    "a) Omfang og prisgrunnlag\nAlle deler inngår.\n\nc) Utførelse\nFestes i tak.");
+    "c) Utførelse\nFestes i tak.");
 });
 
 test("recovers additional requirements from legacy fields without repeating an extracted clause", () => {

@@ -157,7 +157,10 @@ test('chapter equipment does not impose its dimensions or sprinkler properties o
  assert.equal(good.matchWarnings?.length, 0);
  assert.equal(ahlsellCandidateMatchState(good), 'review');
  const [wrong] = rankAhlsellCandidates(req, [candidate('Stålrør DN32 PN10 rillet')]);
- assert.equal(ahlsellCandidateMatchState(wrong), 'mismatch');
+ assert.equal(ahlsellCandidateMatchState(wrong), 'review');
+ assert.doesNotMatch((wrong.matchWarnings ?? []).join(' '), /Fel skarv/);
+ const [wrongDn] = rankAhlsellCandidates(req, [candidate('Stålrør DN50 PN10 rillet')]);
+ assert.equal(ahlsellCandidateMatchState(wrongDn), 'mismatch');
  assert.equal(ahlsellRequirementIntent(req), 'pipe');
 });
 

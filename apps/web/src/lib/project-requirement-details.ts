@@ -1,3 +1,4 @@
+import { currentPostRequirement } from "./current-post-requirement";
 import { projectRequirementKFactorDisplayValue } from "./project-requirement-data-warnings";
 
 export type ProjectRequirementDetail = {
@@ -16,6 +17,8 @@ export type ProjectRequirementDetail = {
 export function projectRequirementDetails(
   requirement: Record<string, unknown>
 ): ProjectRequirementDetail {
+  const chapterPost = text(record(record(requirement.value_json).attributes).kapittelpost);
+  requirement = currentPostRequirement(requirement);
   const value = record(requirement.value_json);
   const sourceExcerpt =
     text(value.technicalSpecification) ?? text(requirement.source_excerpt);
@@ -26,7 +29,7 @@ export function projectRequirementDetails(
 
   return {
     postNumber: text(value.postNumber) ?? postNumberFromSource(sourceExcerpt),
-    chapterPost: text(attributes.kapittelpost),
+    chapterPost,
     parentPostNumber: text(value.parentPostNumber),
     nsCode:
       text(value.nsCode) ??

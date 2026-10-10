@@ -1,3 +1,4 @@
+import { currentPostRequirement } from "./current-post-requirement";
 import {
   parseSprinklerKFactor,
   projectRequirementDataWarnings,
@@ -154,6 +155,7 @@ const sprinklerCandidates: SprinklerCandidateDefinition[] = [
 export function buildAhlsellRequirementGuide(
   requirement: Record<string, unknown>
 ): AhlsellRequirementGuide {
+  requirement = currentPostRequirement(requirement);
   const value = record(requirement.value_json);
   const attributes = normalizedAttributeMap(productRequirementAttributes(requirement));
   const category = text(requirement.category) ?? text(requirement.requirement_key) ?? "unknown";

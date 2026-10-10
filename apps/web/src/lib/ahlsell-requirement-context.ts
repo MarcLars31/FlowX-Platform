@@ -1,3 +1,4 @@
+import { currentPostRequirement } from "./current-post-requirement";
 /** Only the immediate parent heading may supply the product of a DN-only row. */
 export function immediateParentHeading(requirement: Record<string, unknown>): string {
   const value = record(requirement.value_json);
@@ -30,29 +31,15 @@ export function mainProductText(value: string) {
   return normalizeTechnicalText(value).split(/\b(?:med|with|inkl|inkludert|inklusive|including|for|til)\b/)[0].trim();
 }
 
-/** Keep chapter prose available for review without treating every mentioned
- * component or system dimension as a property of this product. */
+/** Retrieval uses only fields belonging to this post. */
 export function productRequirementAttributes(requirement: Record<string, unknown>) {
-  const value = record(requirement.value_json);
-  const sources = record(value.attributeSources);
-  const missingParent = Array.isArray(value.reviewFlags) && value.reviewFlags.includes("missing-parent-context");
-  return Object.fromEntries(Object.entries(record(value.attributes)).filter(([key]) => {
-    const name = normalizeTechnicalText(key);
-    if (/^(?:kapittel|kapittelpost|generelle krav|pdf kommentar|lokalisering|dokumentasjon|omfang|vannforsyning)$/.test(name)) return false;
-    const origin = record(sources[key]).postNumber;
-    if (!origin || origin === value.postNumber || !missingParent && origin === value.parentPostNumber) return true;
-    if (missingParent) return false;
-    return /^(?:materiale|materialkvalitet|skjot|trykk|dimensjon(?: .*)?|gjengedimensjon(?: .*)?|k faktor|folsomhetsgrad|utlosningstemperatur|overflatebehandling|type sprinkler|sprinkleranlegg)$/.test(name);
-  }));
+  const value = record(currentPostRequirement(requirement).value_json);
+  return Object.fromEntries(Object.entries(record(value.attributes)).filter(([key]) =>
+    !/^(?:pdf kommentar|lokalisering|dokumentasjon|omfang|vannforsyning)$/.test(normalizeTechnicalText(key))));
 }
 
 export function productTechnicalSpecification(requirement: Record<string, unknown>) {
-  const value = record(requirement.value_json);
-  const text = String(value.technicalSpecification ?? value.sourceText ?? requirement.source_excerpt ?? "");
-  // Each UNDERPOST boundary represents another ancestor, not one continuous
-  // description of this product. The nearest parent supplies the shared spec.
-  const missingParent = Array.isArray(value.reviewFlags) && value.reviewFlags.includes("missing-parent-context");
-  return text.split(/\n\s*UNDERPOST\s*\n/).slice(missingParent ? -1 : -2).join("\n\nUNDERPOST\n");
+  return String(record(currentPostRequirement(requirement).value_json).technicalSpecification ?? "");
 }
 
 function record(value: unknown): Record<string, unknown> {

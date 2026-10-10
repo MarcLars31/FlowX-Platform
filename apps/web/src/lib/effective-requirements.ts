@@ -1,3 +1,4 @@
+import { currentPostRequirement } from "./current-post-requirement";
 import { productRequirementAttributes } from "./ahlsell-requirement-context";
 import { canonicalProperty, normalizeRequirementValue, technicalRevision, technicalText, type EffectiveRequirement, type EffectiveRequirementSet, type RequirementSource, type RequirementOperator } from "./technical-evaluation-model";
 
@@ -7,7 +8,8 @@ const quantityLine = /^(?:(?:antall|mengde)\s+(?:stk?|stk\.|st\.|pcs)|(?:lengde\
 const freeChoice = /^(?:valgfritt|valfritt|optional|ikke relevant|ej relevant|none|ingen|nei|nej)\.?$/i;
 
 /** Resolve only supplied evidence. No inference of chapter requirements from an NS code. */
-export function resolveEffectiveRequirements(requirement: Row, projectParameters: Row = {}): EffectiveRequirementSet {
+export function resolveEffectiveRequirements(requirement: Row): EffectiveRequirementSet {
+  requirement = currentPostRequirement(requirement);
   const value = record(requirement.value_json);
   const origins = record(value.attributeSources);
   const requirements: EffectiveRequirement[] = [];
@@ -91,19 +93,14 @@ export function resolveEffectiveRequirements(requirement: Row, projectParameters
     if (freeText.length) add("Spesifikasjonstekst", freeText.join("\n"), source);
   }
   for (const ref of Array.isArray(value.standardRefs) ? value.standardRefs : []) add("Standard", ref, ownSource(String(ref)));
-  for (const [label, raw] of Object.entries(projectParameters)) add(label, raw, { kind: "project", raw: "" });
   for (const flag of Array.isArray(value.reviewFlags) ? value.reviewFlags : []) {
-    if (/missing-parent-context|reextracted-requirement-conflict|ocr-source|inferred-parent-context/.test(String(flag))) add("Kravgrunnlag", String(flag), ownSource(String(flag)));
-  }
-  if (value.parentPostNumber && !value.parentDescription && !specification.includes("UNDERPOST")
-    && !Object.values(origins).some(origin => record(origin).postNumber === value.parentPostNumber)) {
-    add("Hovedpost", `Grunnlag for hovedpost ${value.parentPostNumber} mangler.`, ownSource(""));
+    if (/reextracted-requirement-conflict|ocr-source/.test(String(flag))) add("Kravgrunnlag", String(flag), ownSource(String(flag)));
   }
   // Preserve explicit unstructured extra clauses even when not included in the product attributes.
   for (const [label, raw] of Object.entries(record(value.attributes))) {
     if (/^(?:generelle krav|andre krav|andra krav)$/.test(technicalText(label)) && !freeChoice.test(String(raw))) add(label, raw, ownSource(String(raw)));
   }
-  return { version: 1, revision: technicalRevision(["effective-requirements-1", requirement.id, requirement.updated_at, requirements]), requirements };
+  return { version: 1, revision: technicalRevision(["effective-requirements-current-post-2", requirement.id, requirement.updated_at, requirements]), requirements };
 }
 
 export function effectiveRequirements(requirement: Row): EffectiveRequirementSet {
@@ -111,23 +108,14 @@ export function effectiveRequirements(requirement: Row): EffectiveRequirementSet
   return resolved?.version === 1 && Array.isArray(resolved.requirements) ? resolved : resolveEffectiveRequirements(requirement);
 }
 
-export function withEffectiveRequirements<T extends Row>(requirement: T, projectParameters: Row = {}) {
-  return { ...requirement, effectiveRequirements: resolveEffectiveRequirements(requirement, projectParameters) };
+export function withEffectiveRequirements<T extends Row>(requirement: T) {
+  const current = currentPostRequirement(requirement);
+  return { ...current, effectiveRequirements: resolveEffectiveRequirements(current) };
 }
 
-/** Legacy search consumes the same resolved, unambiguous scalar fields. Original PDF data stays intact. */
+/** Card, retrieval and evaluation share the same post-only source. */
 export function requirementForSearch(requirement: Row): Row {
-  const value = record(requirement.value_json);
-  const attributes = { ...record(value.attributes) };
-  const labels: Record<string, string> = { dn: "dimensjon (dn)", workingPressureBar: "trykk", pn: "trykkklasse", kFactor: "k-faktor", temperatureC: "utløsningstemperatur", material: "materiale", response: "følsomhetsgrad", orientation: "monteringsretning" };
-  const resolved = effectiveRequirements(requirement);
-  for (const item of resolved.requirements.filter(item => item.source.kind === "project" && !item.issue && !Array.isArray(item.value))) {
-    const sameProperty = resolved.requirements.filter(other => other.property === item.property && !other.issue);
-    if (sameProperty.some(other => other.value !== item.value || other.unit !== item.unit || other.operator !== item.operator)) continue;
-    const label = labels[item.property] ?? item.label;
-    if (!(label in attributes)) attributes[label] = `${item.value}${item.unit ? ` ${item.unit}` : ""}`;
-  }
-  return { ...requirement, value_json: { ...value, attributes } };
+  return currentPostRequirement(requirement);
 }
 
 function record(value: unknown): Row { return value && typeof value === "object" && !Array.isArray(value) ? value as Row : {}; }

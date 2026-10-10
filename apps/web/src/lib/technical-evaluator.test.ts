@@ -65,32 +65,32 @@ test("wrong identity, expired, future-dated, inferred and conditional evidence c
   }
 });
 
-test("resolves post, inherited and project requirements with provenance, preserving the original", () => {
+test("resolves only own post requirements with provenance, preserving the original", () => {
   const row = { id: "row", source_page: 7, value_text: "Rør", value_json: { postNumber: "1.1.1", parentPostNumber: "1.1", parentDescription: "Rør", attributes: {
     materiale: "Stål", "dimensjon (dn)": "20", finish: "Valgfritt"
   }, attributeSources: { materiale: { postNumber: "1.1", sourcePage: 5 }, "dimensjon (dn)": { postNumber: "1.1.1", sourcePage: 7 } } } };
   const before = JSON.stringify(row);
-  const resolved = withEffectiveRequirements(row, { arbeidstrykk: "minimum 1,2 MPa" });
+  const resolved = withEffectiveRequirements(row);
   assert.equal(JSON.stringify(row), before);
   const fields = resolved.effectiveRequirements.requirements;
-  assert.equal(fields.length, 3);
-  assert.equal(fields.find(item => item.property === "material")?.source.kind, "parent");
-  assert.equal(fields.find(item => item.property === "material")?.source.page, 5);
+  assert.equal(fields.length, 1);
+  assert.equal(fields.some(item => item.property === "material"), false);
   assert.equal(fields.find(item => item.property === "dn")?.source.kind, "post");
-  assert.equal(fields.find(item => item.property === "workingPressureBar")?.value, 12);
+  assert.equal(fields.some(item => item.source.kind !== "post"), false);
   const search = requirementForSearch(resolved).value_json as { attributes: Record<string, string> };
-  assert.equal(search.attributes.trykk, "12 bar");
-  assert.equal(resolveEffectiveRequirements(row, { arbeidstrykk: "13 bar" }).revision === resolved.effectiveRequirements.revision, false);
+  assert.equal(search.attributes.trykk, undefined);
+  assert.equal(search.attributes.materiale, undefined);
+  assert.equal(resolveEffectiveRequirements({ ...row, value_json: { ...row.value_json, attributes: { "dimensjon (dn)": "25" } } }).revision === resolved.effectiveRequirements.revision, false);
 });
 
-test("unparsed additions, uncertain enum values and missing parent remain visible VERIFY requirements", () => {
+test("own unparsed additions and uncertain enum values remain visible VERIFY requirements", () => {
   const resolved = resolveEffectiveRequirements({ value_text: "Rør", value_json: {
     parentPostNumber: "1.1", postNumber: "1.1.1", attributes: { materiale: "Stål eller tilsvarende" },
     technicalSpecification: "Andre krav:\nSkal leveres med spesialtilpasset støtte."
   } });
   assert.ok(resolved.requirements.some(item => item.property === "material" && item.issue));
   assert.ok(resolved.requirements.some(item => item.source.raw.includes("spesialtilpasset støtte")));
-  assert.ok(resolved.requirements.some(item => item.label === "Hovedpost"));
+  assert.ok(!resolved.requirements.some(item => item.label === "Hovedpost"));
   assert.equal(evaluateTechnicalRequirements(resolved, "A", [], now).status, "VERIFY");
 });
 
@@ -175,14 +175,14 @@ test("mounting requirements remain technical while explicit quantity lines stay 
   assert.equal(resolveEffectiveRequirements({ value_json: { attributes: { plassering: "Hengende synlig i tak" } } }).requirements[0].value, null);
 });
 
-test("retrieval's context filter cannot erase delivery or documentation obligations", () => {
+test("retrieval retains own documentation obligations without inheriting delivery scope", () => {
   const resolved = resolveEffectiveRequirements({ value_text: "Sprinkler DN15", value_json: { postNumber: "33.1",
     attributes: { omfang: "Leveres komplett med tilbehør", dokumentasjon: "FM sertifikat kreves", "pdf-kommentar": "NRF 1234567" },
     attributeSources: { omfang: { postNumber: "33", sourcePage: 2 } }
   } });
   const context = resolved.requirements.filter(item => item.label.startsWith("Kontekstkrav"));
-  assert.equal(context.length, 2);
+  assert.equal(context.length, 1);
   assert.ok(context.every(item => item.issue));
-  assert.equal(context[0].source.kind, "parent");
+  assert.equal(context[0].source.kind, "post");
   assert.equal(evaluateTechnicalRequirements(resolved, "A", [observation("dn", 15)], now).status, "VERIFY");
 });

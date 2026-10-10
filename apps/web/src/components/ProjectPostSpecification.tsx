@@ -1,5 +1,5 @@
 import { FileText } from "lucide-react";
-import { projectInformationBody, projectInformationParagraphs, projectRequirementSystemLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
+import { projectInformationBody, projectInformationParagraphs, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
 import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { orderedSpecificationAttributes } from "@/lib/project-specification-layout";
 
@@ -45,11 +45,8 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
           {fields.map(field => <SpecificationField key={field.key} label={field.label} value={field.value} strong={/^materiale\b/i.test(field.label)} />)}
           {details.additionalRequirements && <SpecificationField label="Andra krav" value={details.additionalRequirements} block={details.additionalRequirements.includes("\n")} />}
         </dl>}
-        {(details.chapterPost || details.parentPostNumber || details.system || details.standardRefs.length > 0 || pdfArticleNumber) &&
+        {(details.standardRefs.length > 0 || pdfArticleNumber) &&
           <dl className="mt-4 space-y-1 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
-            {details.chapterPost && <SpecificationField label="Kapitelpost" value={details.chapterPost} />}
-            {details.parentPostNumber && <SpecificationField label="Huvudpost" value={details.parentPostNumber} />}
-            {details.system && <SpecificationField label="System" value={projectRequirementSystemLabel(details.system)} />}
             {details.standardRefs.length > 0 && <SpecificationField label="Standarder" value={details.standardRefs.join(", ")} />}
             {pdfArticleNumber && <SpecificationField label="NRF-nummer i PDF" value={pdfArticleNumber} />}
           </dl>}

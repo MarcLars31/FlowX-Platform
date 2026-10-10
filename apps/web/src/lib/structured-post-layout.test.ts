@@ -30,12 +30,12 @@ test("keeps free product prose and quantity after a list in PDF order", () => {
   assert.equal(blocks.filter(block => block.kind === "bullet").length, 2);
 });
 
-test("retains inherited and own requirements plus page continuations", () => {
+test("retains own requirements and page continuations without inherited prose", () => {
   const details = projectRequirementDetails({ value_json: { postNumber: "33.1.1", technicalSpecification: "33.1 RØR\nDimensjon: Se under\nAndre krav:\na) Omfang\nAlle deler inngår.\n\nUNDERPOST\n33.1.1\nDimensjon: DN25\nLengde m 12\n\nFORTSETTELSE SIDE 2\nc) Utførelse\nFestes i tak." } });
   const blocks = structuredPostBlocks(details, "RØR");
-  assert.deepEqual(blocks.filter(block => block.kind === "field" && block.label === "Dimensjon").map(block => block.text), ["Se under", "DN25"]);
+  assert.deepEqual(blocks.filter(block => block.kind === "field" && block.label === "Dimensjon").map(block => block.text), ["DN25"]);
   assert.ok(blocks.some(block => block.kind === "page" && block.text === "Side 2"));
-  assert.equal(blocks.filter(block => block.kind === "field" && block.label === "Andre krav").length, 1);
+  assert.equal(blocks.filter(block => block.kind === "field" && block.label === "Andre krav").length, 0);
   assert.ok(blocks.some(block => block.text === "Festes i tak."));
 });
 
