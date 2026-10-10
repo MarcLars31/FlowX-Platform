@@ -549,10 +549,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     setManualProductError(null);
     setAccessories(nextAccessories);
     setAccessoryOwnerProductNumber(nextAccessories.length > 0 ? selection.productNumber : "");
-    setAccessoryStepOpen(Boolean(assemblyPlan?.components.length || accessorySuggestions.length || nextAccessories.length));
+    setAccessoryStepOpen(false);
     const firstComponent = assemblyPlan?.components.find(component => !component.optional);
     setAccessoryComponentId(firstComponent?.id ?? null);
-    setAccessoryLookupOpen(Boolean(firstComponent || accessorySuggestions.length));
+    setAccessoryLookupOpen(false);
     setSuggestedAccessories(accessorySuggestions);
     setHasUnapprovedChanges(true);
     setDraftNotice(notice);
@@ -945,9 +945,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     <section id={`accessory-step-${requirement.id}`} tabIndex={-1} aria-labelledby={`accessory-step-title-${requirement.id}`} className="border-t border-neutral-200 bg-white p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-600">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h5 id={`accessory-step-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-neutral-950"><PackagePlus className="h-5 w-5" aria-hidden="true" />{accessoryStepOpen ? "3. Välj tillbehör" : `Dina tillbehör (${selectedProductAccessories.length})`}</h5>
+          <h5 id={`accessory-step-title-${requirement.id}`} className="flex items-center gap-2 text-base font-bold text-neutral-950"><PackagePlus className="h-5 w-5" aria-hidden="true" />{`Tilbehør (${selectedProductAccessories.length})`}</h5>
         </div>
-        {!accessoryStepOpen && <Button neutral type="button" variant="secondary" onClick={editAccessories}>{selectedProductAccessories.length ? "Ändra tillbehör" : "Lägg till tillbehör"}</Button>}
+        {!accessoryStepOpen && <div className="flex flex-wrap gap-2">
+          <Button neutral type="button" variant="secondary" onClick={editAccessories}><Search className="h-4 w-4" aria-hidden="true" />{selectedProductAccessories.length ? "Endre tilbehør" : "Velg tilbehør"}</Button>
+          <Button neutral type="button" variant="secondary" onClick={addManualAccessory} disabled={selectedProductAccessories.length >= 20}><Plus className="h-4 w-4" aria-hidden="true" />Legg til manuelt</Button>
+        </div>}
       </div>
       {accessoryStepOpen && <div className="mb-4 space-y-4">
         {accessoryLookup ?? accessoryTypeSelector}
@@ -1153,39 +1156,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </nav>
         </div>
 
-        <section className="product-linked-panel" aria-label="Koblede produkter">
-          <h3 className="product-panel-caption">Koblede produkter <span>{isApproved ? "Lagret" : productNumber.trim() ? "Ikke lagret" : "Ingen valgt"}</span></h3>
-          <div className="product-linked-content">
-          {!productNumber.trim() && <p className="product-linked-empty">Velg et produkt fra listen over tilgjengelige produkter.</p>}
-          <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
-          {productNumber.trim() && (
-            <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className="product-selected-item">
-              <div className="product-selected-summary">
-                <div className="product-selected-description"><a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer" className="underline">Art. {productNumber}</a>
-                  <h4>{productName || "Produkt"}</h4>{productSubtitle && productSubtitle.trim() !== productName.trim() && <p>{productSubtitle}</p>}</div>
-                  <div className="product-selected-quantity"><ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
-                    onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
-                    onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} /></div>
-                  <div className="product-selected-choice"><ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} /></div>
-              </div>
-              {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && <dl className="product-requirement-facts">
-                {manufacturerArticleNumber && <div><dt>Artikkelnummer</dt><dd>{manufacturerArticleNumber}</dd></div>}
-                {deliveryTimeDays && <div><dt>Leveringstid</dt><dd>{deliveryTimeDays} dager</dd></div>}
-                {unitPrice && <div><dt>Pris</dt><dd>{formatUnitPrice(unitPrice, priceCurrency)}</dd></div>}
-              </dl>}
-              {accessorySection}
-            </section>
-          )}
-
-
-
-          {productNumber.trim() && selectionReview?.status === "mismatch" && (
-            <details className="text-sm text-neutral-700">
-              <summary className="cursor-pointer font-semibold">Avvikelser mot postens krav · NRF {productNumber}</summary>
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{selectionReview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
-            </details>
-          )}
-
           {manualProductOpen && <ManualProductCard projectId={projectId} requirementId={requirement.id} postNumber={details.postNumber}
             initial={{ product: { productName, productSubtitle, productNumber, manufacturerArticleNumber, manufacturerName, deliveryTimeDays, unitPrice, currency: priceCurrency },
               quantity: orderQuantity ?? { quantity: String(quantity.quantity ?? ""), unit: quantity.unit || "st" },
@@ -1193,17 +1163,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             initialError={manualProductError} attachments={attachmentSection} attachmentSaving={attachmentSaving} hasAttachmentDraft={hasAttachmentDraft}
             onApply={applyManualProduct} onCancel={closeManualProductCard} onDirtyChange={setManualProductDraftDirty} />}
 
-          {productNumber.trim() && commentDraftDirty && <p className="text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
-          <details>
-            <summary className="cursor-pointer text-sm font-semibold">Produktkommentarer</summary>
-            <div id={`product-comments-${requirement.id}`} className="mt-3 scroll-mt-28">{productComments}</div>
-          </details>
-
-          </div>
-        </section>
-
-          <div id={`ahlsell-products-${requirement.id}`} className="product-catalog-panel">
-            <h3 className="product-panel-caption">Produktforslag</h3>
+          <div id={`ahlsell-products-${requirement.id}`} className={`product-catalog-panel${productNumber.trim() ? " product-selected-panel" : ""}`}>
+            <h3 className="product-panel-caption">{productNumber.trim() ? "Valgt produkt" : "Produktforslag"}{productNumber.trim() && <span>{isApproved ? "Lagret" : "Ikke lagret"}</span>}</h3>
             <div className="product-catalog-scroll">
             <AhlsellPublicMatchPanel
               projectId={projectId}
@@ -1219,6 +1180,45 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               onClearSelection={clearSelectedProduct}
               onUseCandidate={applyAhlsellCandidate}
               onUseMemory={applyMemory}
+              renderSelected={candidate => (
+                <div className="product-linked-content">
+                <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
+                {productNumber.trim() && (
+                  <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className="product-selected-item">
+                    <div className="product-selected-summary">
+                      <div className="product-selected-description"><div className="product-selected-heading"><a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer" className="underline">Art. {productNumber}</a><div className="product-selected-choice"><ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} /></div></div>
+                        <h4>{productName || "Produkt"}</h4>{productSubtitle && productSubtitle.trim() !== productName.trim() && <p>{productSubtitle}</p>}</div>
+                        <div className="product-selected-quantity"><ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
+                          onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
+                          onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} /></div>
+                    </div>
+                    {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && <dl className="product-requirement-facts">
+                      {manufacturerArticleNumber && <div><dt>Artikkelnummer</dt><dd>{manufacturerArticleNumber}</dd></div>}
+                      {deliveryTimeDays && <div><dt>Leveringstid</dt><dd>{deliveryTimeDays} dager</dd></div>}
+                      {unitPrice && <div><dt>Pris</dt><dd>{formatUnitPrice(unitPrice, priceCurrency)}</dd></div>}
+                    </dl>}
+                    <div className="product-selected-assessment">
+                      <TechnicalEvaluationDetails evaluation={candidate?.technicalEvaluation} searchScore={candidate?.searchScore} />
+                    </div>
+                    {accessorySection}
+                  </section>
+                )}
+
+                {productNumber.trim() && selectionReview?.status === "mismatch" && (
+                  <details className="text-sm text-neutral-700">
+                    <summary className="cursor-pointer font-semibold">Avvikelser mot postens krav · NRF {productNumber}</summary>
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{selectionReview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
+                  </details>
+                )}
+
+                {productNumber.trim() && commentDraftDirty && <p className="text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
+                <details>
+                  <summary className="cursor-pointer text-sm font-semibold">Produktkommentarer</summary>
+                  <div id={`product-comments-${requirement.id}`} className="mt-3 scroll-mt-28">{productComments}</div>
+                </details>
+
+                </div>
+              )}
             />
             </div>
           </div>
@@ -1238,7 +1238,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   );
 }
 
-function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, pipeMainProduct, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory }: {
+function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, pipeMainProduct, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory, renderSelected }: {
   projectId: string;
   requirementId: string;
   requirementRevision: string;
@@ -1251,6 +1251,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
   onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onClearSelection: () => void;
   onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
+  renderSelected: (candidate?: AhlsellPublicCandidate) => ReactNode;
   onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string; candidate?: AhlsellPublicCandidate }) => void;
 }) {
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
@@ -1320,6 +1321,11 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
       candidate,
       candidate.description ?? ""
     );
+  }
+
+  // Keep the catalog mounted so clearing a choice restores the current results.
+  if (selectedArticleNumber.trim()) {
+    return renderSelected(candidatesByArticle.get(normalizeNrfNumber(selectedArticleNumber)));
   }
 
   return (

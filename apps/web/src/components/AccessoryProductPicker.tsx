@@ -95,7 +95,7 @@ export function AccessoryProductPicker({ projectId, requirementId, mainArticleNu
       {error && <p role="alert" className="mb-3 text-sm text-neutral-900">{error} <button type="button" disabled={disabled || loading} className="font-bold underline" onClick={() => void search(query)}>Försök igen</button></p>}
       {result?.message && <p className="mb-3 text-sm text-neutral-700">{result.message}</p>}
     </div>
-    <AhlsellCandidateList candidates={products} requirementId={requirementId} selectedArticleNumber="" selectedArticleNumbers={selections}
+    <AhlsellCandidateList compact candidates={products} requirementId={requirementId} selectedArticleNumber="" selectedArticleNumbers={selections}
       accessory selectionLimitReached={selectionLimitReached} disabled={disabled} allowMatches={false} showNoMatch={false}
       onSelect={candidate => selections.some(number => normalizeNrfNumber(number) === normalizeNrfNumber(candidate.articleNumber)) ? onDeselect(candidate) : onSelect(candidate)} />
   </div>;
