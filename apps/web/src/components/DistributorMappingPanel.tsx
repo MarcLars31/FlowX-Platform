@@ -595,6 +595,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function clearSelectedProduct() {
+    onError("");
     setSelectionReview(null);
     setAccessories([]);
     setAccessoryOwnerProductNumber("");
