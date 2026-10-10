@@ -54,7 +54,7 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
       Object.assign(row,body); changes.push(`update:${table}:${body.status ?? body.processing_status ?? ""}`);
       return structuredClone(row);
     },
-    uploadUserStorageObject: async () => undefined,
+    uploadUserStorageObject: async () => { throw new Error("Original PDF must not be copied to permanent storage"); },
     callUserRpc: async () => { throw new Error("No admin or project creation fallback allowed"); }
   } as unknown as typeof persistence;
   const pdf = await PDFDocument.create(); const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -80,6 +80,10 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
   assert.equal(new Set(rows.project_requirements.map(row=>row.id)).size,2);
   assert.equal(rows.project_documents.length,1); assert.equal(rows.extraction_runs.length,1);
   assert.equal(rows.document_pages.length,2);
+  assert.equal(rows.project_documents[0].storage_path,null);
+  assert.equal(rows.project_documents[0].storage_bucket,null);
+  assert.equal(rows.technical_description_documents[0].source_pages,undefined);
+  assert.match(rows.document_pages.map(page=>page.extracted_text).join("\n"),/Korrosjonsklasse C4/);
   const requirements = rows.project_requirements.map(requirementSnapshot);
   const card = requirements.find(row=>(row.value_json as Record<string,unknown>).postNumber === "1401.40.411.35")!;
   assert.ok(card);
@@ -115,4 +119,16 @@ test("import polling reports persisted completion and preserves retry status whe
   }]})) as typeof fetch,undefined,async()=>{});
   assert.equal(completed.status,201); assert.equal((await completed.json()).persistedRequirementCount,2);
   await assert.rejects(waitForImportJob(accepted(),(async()=>{throw new TypeError("Network lost");}) as typeof fetch,undefined,async()=>{}),/Importstatus|import/i);
+});
+
+test("unchanged import phases back off, while progress restores fast polling", async () => {
+  const delays: number[] = [], jobId=randomUUID();
+  const phases=["extracting","extracting","extracting","extracting","saving","saving","completed"];
+  let index=0;
+  const result=await waitForImportJob(Response.json({jobId},{status:202}),(async()=> {
+    const phase=phases[index++];
+    return Response.json({jobs:[{id:jobId,project_id:randomUUID(),status:phase==="completed"?"completed":"running",phase}]});
+  }) as typeof fetch,undefined,async delay=>{delays.push(delay);});
+  assert.equal(result.status,201);
+  assert.deepEqual(delays,[2000,2000,4000,8000,8000,2000,4000]);
 });

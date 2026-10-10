@@ -45,12 +45,16 @@ export function importJobPersistence(scope: { organization_id: string; project_i
     if (!response.ok) { const error = await response.json().catch(() => ({})); throw new user.UserSupabaseError("Import persistence failed", response.status, error.code); }
     return (response.status === 204 || prefer.startsWith("return=minimal")) ? [] : await response.json();
   }
+  // Only identifiers/state are used after writes. Never echo page/OCR text back.
+  const writeSelect = (table: string) => table === "project_documents"
+    ? "id,upload_status,processing_status" : table === "requirement_sets" ? "id,version,status"
+      : table === "technical_description_documents" ? "id,status" : "id";
   const select: typeof user.selectUserRows = (table, params = {}) => rest(table, filters(table, params), "GET");
   return { ...user, selectUserRows: select,
     selectAllUserRows: (table, params, options = {}) => options.pagination === "id"
       ? collectAllRowsById(({limit,afterId}) => select(table,{...params,limit:String(limit),...(afterId ? {id:`gt.${afterId}`} : {})}),options)
       : collectAllRows(({limit,offset}) => select(table,{...params,limit:String(limit),offset:String(offset)}),options),
-    insertUserRowReturning: async (table, row) => { payload(table,row); const [saved] = await rest(table,{},"POST",row); if (!saved) throw new Error("IMPORT_INSERT_EMPTY"); return saved as never; },
+    insertUserRowReturning: async (table, row) => { payload(table,row); const [saved] = await rest(table,{select:writeSelect(table)},"POST",row); if (!saved) throw new Error("IMPORT_INSERT_EMPTY"); return saved as never; },
     insertUserRows: async (table, rows, options = {}) => {
       for (const row of rows) payload(table,row);
       if (rows.length) await rest(table, options.ignoreIdConflicts ? { on_conflict: "id" } : {}, "POST", rows,
@@ -58,18 +62,11 @@ export function importJobPersistence(scope: { organization_id: string; project_i
     },
     updateUserRowsReturning: async (table, params, row) => {
       patch(row);
-      const [saved] = await rest(table,filters(table,params),"PATCH",row); if (!saved) throw new Error("IMPORT_UPDATE_EMPTY"); return saved as never;
+      const [saved] = await rest(table,{...filters(table,params),select:writeSelect(table)},"PATCH",row); if (!saved) throw new Error("IMPORT_UPDATE_EMPTY"); return saved as never;
     },
     callUserRpc: async () => { throw new Error("IMPORT_RPC_NOT_ALLOWED"); },
     deleteUserRows: async () => { throw new Error("IMPORT_DELETE_NOT_ALLOWED"); },
     deleteUserRowsReturning: async () => { throw new Error("IMPORT_DELETE_NOT_ALLOWED"); },
-    uploadUserStorageObject: async (bucket,path,body,contentType,options) => {
-      assertBudget();
-      if (bucket !== "project-files" || !path.startsWith(`${scope.organization_id}/${scope.project_id}/technical-description/`) || path.includes("..")) throw new Error("IMPORT_STORAGE_SCOPE");
-      const url = new URL(`/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`,config.url);
-      const response = await fetch(url,{method:"POST",headers:{...buildSupabaseHeaders(config.key),"Content-Type":contentType,"x-upsert":String(options?.upsert ?? false)},
-        body: Buffer.from(body instanceof ArrayBuffer ? new Uint8Array(body) : body),signal:AbortSignal.timeout(30_000)});
-      if (!response.ok) throw new Error("IMPORT_STORAGE_WRITE");
-    }
+    uploadUserStorageObject: async () => { throw new Error("IMPORT_PERMANENT_STORAGE_DISABLED"); }
   };
 }

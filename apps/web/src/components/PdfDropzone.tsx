@@ -108,6 +108,7 @@ export function PdfDropzone({
           </>
         )}
       </label>
+      <p className="mt-2 text-xs text-slate-500">Posterna sparas. Original-PDF:en tas bort när importen är klar och kan därefter inte öppnas här.</p>
       <input
         id={id}
         name="file"

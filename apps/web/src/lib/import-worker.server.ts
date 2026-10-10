@@ -11,7 +11,7 @@ export async function runImportWorker(jobId: string | null = null) {
   const job = await callSupabaseRpc<ImportJob | null>("claim_technical_description_job", { requested_job_id: jobId });
   if (!job?.id) return;
   const started = Date.now();
-  const scope = {id:`eq.${job.id}`,lease_id:`eq.${job.lease_id}`,status:"eq.running"};
+  const scope = {id:`eq.${job.id}`,lease_id:`eq.${job.lease_id}`,status:"eq.running",select:"id"};
   const update = async (body: Record<string,unknown>) => {
     const rows = await updateSupabaseRowsReturning("technical_description_jobs",scope,{...body,updated_at:new Date().toISOString()});
     if (!rows.length) throw new Error("IMPORT_LEASE_LOST");

@@ -47,12 +47,12 @@ export async function GET(request: Request) {
   if (auth.error) return auth.error;
   const id = new URL(request.url).searchParams.get("id");
   if (id && !isUuid(id)) return NextResponse.json({error:"Ogiltigt import-id."},{status:400});
-  const jobs = await selectUserRows<ImportJob>("technical_description_jobs",{
+  const jobs = await selectUserRows<ImportJob & {next_attempt_at:string}>("technical_description_jobs",{
     organization_id:`eq.${auth.context.organization.id}`,created_by:`eq.${auth.user.id}`, ...(id ? {id:`eq.${id}`} : {}),
-    select:"id,project_id,upload_id,file_name,status,phase,attempts,result,error_code,created_at,updated_at", order:"created_at.desc",limit:id ? "1" : "20"
+    select:"id,project_id,upload_id,file_name,status,phase,attempts,result,error_code,created_at,updated_at,next_attempt_at", order:"created_at.desc",limit:id ? "1" : "20"
   });
   if (id && !jobs.length) return NextResponse.json({error:"Importen hittades inte."},{status:404});
-  if (jobs.some(job=>job.status==="queued")) after(()=>runImportWorker(id));
+  if (jobs.some(job=>job.status==="queued" && Date.parse(job.next_attempt_at)<=Date.now())) after(()=>runImportWorker(id));
   return NextResponse.json({jobs},{headers:{"Cache-Control":"private, no-store"}});
   } catch {
     console.error("import_status_failed", {requestId});

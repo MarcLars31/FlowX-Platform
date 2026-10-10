@@ -2,6 +2,7 @@ type Row = Record<string, unknown> & { id: string };
 
 export type ProjectSourcePdfLookup = {
   projectDocumentIds: readonly string[];
+  unavailableDocumentIds?: readonly string[];
   byTechnicalDescriptionId: Readonly<Record<string, string | null>>;
   fallbackDocumentId: string | null;
 };
@@ -10,7 +11,7 @@ export function buildProjectSourcePdfLookup(
   projectDocuments: readonly Row[],
   technicalDescriptions: readonly Row[]
 ): ProjectSourcePdfLookup {
-  const usableDocuments = projectDocuments.filter((document) => isUuid(document.id));
+  const usableDocuments = projectDocuments.filter((document) => isUuid(document.id) && document.storage_path !== null);
   const documentsByHash = firstByKey(usableDocuments, documentHash);
   const documentsByName = uniqueByKey(usableDocuments, documentName);
   const technicalProjectDocuments = usableDocuments.filter(
@@ -36,6 +37,7 @@ export function buildProjectSourcePdfLookup(
 
   return {
     projectDocumentIds: usableDocuments.map((document) => document.id),
+    unavailableDocumentIds: projectDocuments.filter(document => document.storage_path === null).map(document => document.id),
     byTechnicalDescriptionId,
     fallbackDocumentId
   };
@@ -49,6 +51,7 @@ export function projectRequirementSourcePdfHref(
   if (!isUuid(projectId)) return null;
   const availableDocumentIds = new Set(lookup.projectDocumentIds);
   const directDocumentId = stringValue(requirement.source_document_id);
+  if (directDocumentId && lookup.unavailableDocumentIds?.includes(directDocumentId)) return null;
   const technicalDescriptionId = stringValue(
     requirement.source_technical_description_document_id
   );

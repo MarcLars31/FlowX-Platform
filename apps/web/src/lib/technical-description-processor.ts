@@ -53,7 +53,7 @@ type ExistingSourceDocumentRow = {
 
 export async function processTechnicalDescription(request: Request, authorization: ImportAuthorization, db = userPersistence,
   options: { preserveStaged?: boolean; createdProject?: boolean; onPhase?: (phase: string) => Promise<void> } = {}) {
-  const { callUserRpc, insertUserRowReturning, selectAllUserRows, selectUserRows, updateUserRowsReturning, uploadUserStorageObject } = db;
+  const { callUserRpc, insertUserRowReturning, selectAllUserRows, selectUserRows, updateUserRowsReturning } = db;
   let stagedPath: string | undefined;
   let awaitingOcr = false;
   try {
@@ -345,7 +345,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
       project_name: result.project.name ?? null,
       project_number: result.project.projectNumber ?? null,
       chapter: result.project.chapter ?? null,
-      source_pages: result.pages,
+      // Page text is stored once in document_pages; posts keep their own source excerpt.
       standards: result.standards,
       rule_hints: result.ruleHints,
       warnings: result.warnings,
@@ -382,12 +382,6 @@ export async function processTechnicalDescription(request: Request, authorizatio
     let requirementSet: RequirementSetRow | null = null;
 
     if (projectId) {
-      const safeFileName = file.name
-        .replace(/[^a-zA-Z0-9._-]/g, "_")
-        .slice(0, 120) || "technical-description.pdf";
-      const storageBucket = "project-files";
-      const storagePath = `${authorization.context.organization.id}/${projectId}/technical-description/${fileSha256}-${safeFileName}`;
-
       const existingProjectDocuments = await selectUserRows<ProjectDocumentRow>(
         "project_documents",
         {
@@ -449,8 +443,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
           {
             organization_id: authorization.context.organization.id,
             project_id: projectId,
-            storage_bucket: storageBucket,
-            storage_path: storagePath,
+            storage_bucket: null,
+            storage_path: null,
             file_name: file.name.slice(0, 255),
             original_filename: file.name.slice(0, 255),
             document_type: "technical_description",
@@ -460,7 +454,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
             file_size: file.size,
             checksum: fileSha256,
             file_sha256: fileSha256,
-            upload_status: "uploading",
+            upload_status: "uploaded",
             processing_status: "extracting",
             status: "active",
             uploaded_by: authorization.user.id
@@ -468,34 +462,15 @@ export async function processTechnicalDescription(request: Request, authorizatio
         );
       }
 
+      // The staged original remains available for OCR/retries. The worker removes
+      // it only after the extracted pages and all posts have been committed.
+      // Existing documents retain their original path for backwards compatibility.
       if (projectDocument.upload_status !== "uploaded") {
-        try {
-          await uploadUserStorageObject(
-            storageBucket,
-            storagePath,
-            buffer,
-            file.type || "application/pdf",
-            { upsert: true }
-          );
-          projectDocument = await updateUserRowsReturning<ProjectDocumentRow>(
-            "project_documents",
-            {
-              id: `eq.${projectDocument.id}`,
-              organization_id: `eq.${authorization.context.organization.id}`, project_id: `eq.${projectId}`
-            },
-            { upload_status: "uploaded", processing_status: "extracting" }
-          );
-        } catch (uploadError) {
-          await updateUserRowsReturning<ProjectDocumentRow>(
-            "project_documents",
-            {
-              id: `eq.${projectDocument.id}`,
-              organization_id: `eq.${authorization.context.organization.id}`, project_id: `eq.${projectId}`
-            },
-            { upload_status: "failed", processing_status: "failed" }
-          ).catch(() => undefined);
-          throw uploadError;
-        }
+        projectDocument = await updateUserRowsReturning<ProjectDocumentRow>(
+          "project_documents",
+          { id: `eq.${projectDocument.id}`, organization_id: `eq.${authorization.context.organization.id}`, project_id: `eq.${projectId}` },
+          { upload_status: "uploaded", processing_status: "extracting" }
+        );
       }
 
       const [existingExtractionRun] = await selectUserRows<ExtractionRunRow>(

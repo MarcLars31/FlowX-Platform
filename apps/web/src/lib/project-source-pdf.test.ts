@@ -122,3 +122,13 @@ test("does not invent a PDF post position for scans or unrelated references", ()
   assert.equal(findPdfPostAnchor([{ str: "33.1.1" }, { str: "Se 33.1.1", transform: [1, 0, 0, 1, 20, 300] }], "33.1.1"), null);
   assert.equal(findPdfPostAnchor([{ str: "33.1.10", transform: [1, 0, 0, 1, 20, 300] }], "33.1.1"), null);
 });
+
+test("metadata-only imports never link to another PDF, while retained originals still open", () => {
+  const lookup = buildProjectSourcePdfLookup([
+    {id:firstDocumentId,storage_path:null,file_sha256:"new-hash",document_type:"technical_description"},
+    {id:secondDocumentId,storage_path:"retained.pdf",file_sha256:"old-hash",document_type:"technical_description"}
+  ],[{id:technicalDescriptionId,file_sha256:"new-hash"}]);
+  assert.equal(projectRequirementSourcePdfHref(projectId,{id:"post",source_document_id:firstDocumentId},lookup),null);
+  assert.equal(projectRequirementSourcePdfHref(projectId,{id:"post",source_technical_description_document_id:technicalDescriptionId},lookup),null);
+  assert.match(projectRequirementSourcePdfHref(projectId,{id:"post",source_document_id:secondDocumentId},lookup)!,new RegExp(secondDocumentId));
+});

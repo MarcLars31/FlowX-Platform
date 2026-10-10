@@ -52,7 +52,7 @@ export async function GET(request: Request, context: Context) {
       selectUserRows<Row>('project_document_controls',{...filters,limit:'1000'}),
       selectAllUserRows<Row>('project_requirements',{...filters,status:'neq.superseded',deleted_at:'is.null',select:'id,category,edit_revision,source_document_id,source_technical_description_document_id,post_number:value_json->>postNumber,source_chapter:value_json->sourceChapter,unit:value_json->unit,quantity:value_json->quantity',order:'id.asc'}),
       selectUserRows<Row>('organization_members',{organization_id:filters.organization_id,status:'eq.active',select:'id,user_id',limit:'1000'}),
-      selectUserRows<Row>('project_documents',{...filters,select:'id,file_sha256',deleted_at:'is.null',limit:'1000'})
+      selectUserRows<Row>('project_documents',{...filters,select:'id,file_sha256',storage_path:'not.is.null',deleted_at:'is.null',limit:'1000'})
     ]);
     const profiles=members.length ? await selectUserRows<Row>('profiles',{select:'id,display_name,email',id:`in.(${members.map(m=>m.user_id).join(',')})`}) : [];
     const memberLabels=members.map(m=>({...m,label:String(profiles.find(p=>p.id===m.user_id)?.display_name ?? profiles.find(p=>p.id===m.user_id)?.email ?? m.user_id)}));
