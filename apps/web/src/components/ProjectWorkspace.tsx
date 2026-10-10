@@ -225,7 +225,7 @@ export function ProjectWorkspace({
       // Product selection only changes the resolution/status here. Keep the
       // chapter and specification metadata recovered for legacy imports.
       requirements: current.requirements.map(row => row.id === requirementId ? {
-        ...row, status: payload.requirement.status, updated_at: payload.requirement.updated_at,
+        ...row, status: payload.requirement.status, updated_at: payload.requirement.updated_at, edit_revision: payload.requirement.edit_revision,
         value_json: { ...(isRecord(row.value_json) ? row.value_json : {}), productResolution: isRecord(payload.requirement.value_json) ? payload.requirement.value_json.productResolution : undefined }
       } : row),
       suggestions: [...current.suggestions.filter(row => row.requirement_id !== requirementId), ...payload.assignments]

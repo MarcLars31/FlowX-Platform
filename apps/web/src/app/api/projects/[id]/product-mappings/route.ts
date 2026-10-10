@@ -60,3 +60,29 @@ export async function POST(request: Request, context: RouteContext) {
     });
   } catch (error) { return productChoiceError(error); }
 }
+
+/** Clear a saved choice explicitly; an incomplete approval must never erase it. */
+export async function DELETE(request: Request, context: RouteContext) {
+  try {
+    const authorization = await requireOrganizationApi(["project.product_suggestion.create"]);
+    if (authorization.error) return authorization.error;
+    const { id } = await context.params;
+    const body = await request.json().catch(() => null);
+    if (!isUuid(id) || !isUuid(body?.requirementId)) {
+      return NextResponse.json({ error: "Ogiltig produktpost." }, { status: 400 });
+    }
+    if (!validEditRevision(body?.expectedRevision)) {
+      return NextResponse.json({ error: "Ladda om produktkortet innan du sparar." }, { status: 409 });
+    }
+    const [requirement] = await selectUserRows("project_requirements", {
+      select: "id", id: `eq.${body.requirementId}`, project_id: `eq.${id}`,
+      organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null", limit: "1"
+    });
+    if (!requirement) return NextResponse.json({ error: "Produktposten kunde inte hittas." }, { status: 404 });
+    const result = await callUserRpc("clear_product_choice", {
+      requested_project_id: id, requested_requirement_id: body.requirementId,
+      requested_revision: body.expectedRevision
+    });
+    return NextResponse.json({ ...result as object, message: "Produktvalget er fjernet. Posten er åpen igjen." });
+  } catch (error) { return productChoiceError(error); }
+}

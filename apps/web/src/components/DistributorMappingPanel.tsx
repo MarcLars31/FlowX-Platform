@@ -38,7 +38,7 @@ import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRe
 import { ahlsellCatalogStatusFromPayload, type AhlsellCatalogMatchStatus } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { effectiveRequirements } from "@/lib/effective-requirements";
-import { EffectiveRequirementsPanel, TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
+import { TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
@@ -297,7 +297,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
             </header>
             {(message || error) && <p role={error ? "alert" : "status"} aria-live="polite" className="product-selection-feedback">{error ?? message}</p>}
             <LazyRequirementProductMappingCard
-              key={`${activeRequirement.id}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
+              key={`${activeRequirement.id}:${String(activeRequirement.edit_revision ?? "")}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
               projectId={projectId} currency={currency} requirement={activeRequirement} assignment={activeAssignment}
               sourcePdfHref={projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup)}
               position={activeIndex + 1}
@@ -458,6 +458,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const accessoryQuery = accessoryComponent
     ? assemblyComponentSearch(accessoryComponent, `${productName} ${productSubtitle} ${manufacturerName}`)
     : !assemblyPlan?.components.length ? suggestedAccessories[0]?.productName ?? "" : "";
+  const clearingSavedSelection = Boolean(assignment) && hasUnapprovedChanges && !productNumber.trim();
   const isApproved = Boolean(assignment) && !hasUnapprovedChanges;
   const ahlsellGuide = buildAhlsellRequirementGuide(requirement);
   const pdfArticleNumber = ahlsellGuide.directCandidates.find(
@@ -595,6 +596,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   function clearSelectedProduct() {
     setSelectionReview(null);
+    setAccessories([]);
+    setAccessoryOwnerProductNumber("");
     setAccessoryLookupOpen(false);
     setAccessoryStepOpen(false);
     setAccessoryComponentId(null);
@@ -782,11 +785,24 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       onError(accessoryError);
       return;
     }
+    if (!productNumber.trim() && !clearingSavedSelection) return;
     const sameApprovedProduct = Boolean(normalizeNrfNumber(productNumber)) && normalizeNrfNumber(productNumber) === normalizeNrfNumber(String(currentSnapshot.productNumber ?? ""));
     setSaving(true);
     onSavingChange(true);
     onError("");
     try {
+      if (clearingSavedSelection) {
+        const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requirementId: requirement.id, expectedRevision: requirement.edit_revision })
+        });
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error ?? "Produktvalget kunne ikke fjernes.");
+        await onSaved(`Produktvalget og tilbehøret for post ${details.postNumber ?? position} er fjernet. Posten er åpen igjen.`);
+        setHasUnapprovedChanges(false);
+        return;
+      }
       let resolvedProductName = productName;
       let resolvedProductSubtitle = productSubtitle;
       let resolvedManufacturerName = manufacturerName;
@@ -1114,13 +1130,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
               sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />
 
-          {details.sourceExcerpt && <details className="mt-3 border border-neutral-200 bg-white p-3 text-sm">
-            <summary className="cursor-pointer font-semibold">Hele PDF-posten</summary>
-            <p className="mt-3 whitespace-pre-wrap leading-6">{details.sourceExcerpt}</p>
-          </details>}
-
           <div className="product-post-extras">
-          <EffectiveRequirementsPanel requirements={effectiveRequirements(requirement)} />
           <details>
             <summary>Kommentarer til posten</summary>
             <div id={`post-comments-${requirement.id}`} className="mt-3 scroll-mt-28">{postComments}</div>
@@ -1224,11 +1234,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
 
         <div className="product-save-footer">
-          <span className="text-sm text-neutral-600">{isApproved ? "Produktvalget er lagret" : productNumber.trim() ? "Produkt valgt · ikke lagret" : "Velg et produkt for å lagre posten"}</span>
+          <span role="status" className="text-sm text-neutral-600">{clearingSavedSelection ? "Produkt og tilbehør fjernes når du lagrer" : isApproved ? "Produktvalget er lagret" : productNumber.trim() ? "Produkt valgt · ikke lagret" : "Velg et produkt for å lagre posten"}</span>
           <Button type="button" onClick={() => void save()}
-            disabled={!productNumber.trim() || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
+            disabled={(!productNumber.trim() && !clearingSavedSelection) || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-            {saving ? "Lagrer…" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
+            {saving ? "Lagrer…" : clearingSavedSelection ? "Lagre uten produkt" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
           </Button>
         </div>
 
