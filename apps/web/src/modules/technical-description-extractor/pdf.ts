@@ -10,6 +10,8 @@ import {
   shouldPreferPdfLayoutText
 } from "./pdf-layout";
 
+import { sitePostTableFromPdfItems } from "./pdf-post-table";
+
 const MIN_TEXT_PAGE_LENGTH = 80;
 
 export async function extractTechnicalDescriptionPages(
@@ -24,6 +26,7 @@ export async function extractTechnicalDescriptionPages(
       const content = await page.getTextContent();
       const plainText = plainTextFromPdfItems(content.items);
       const layoutText = layoutTextFromPdfItems(content.items);
+      const postTable = sitePostTableFromPdfItems(content.items);
       const text = shouldPreferPdfLayoutText(plainText, layoutText)
         ? layoutText
         : plainText;
@@ -39,6 +42,7 @@ export async function extractTechnicalDescriptionPages(
       pages.push({
         pageNumber,
         text,
+        ...(postTable ? { postTable } : {}),
         method: "text",
         confidence: readable ? 0.98 : text ? 0.55 : 0,
         status: readable ? "success" : text ? "partial" : "failed",

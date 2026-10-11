@@ -17,6 +17,16 @@ export type TechnicalDescriptionPage = {
   errorMessage?: string;
   annotations?: TechnicalDescriptionAnnotation[];
   annotationReadFailed?: boolean;
+  /** Verified digital table columns; indices refer to normalized text lines. */
+  postTable?: {
+    text: string;
+    siteTitle: string;
+    posts: Array<{
+      lineIndex: number; postNumber: string; description: string; chapter: boolean;
+      quantity?: { quantity: number; unit: string; text: string; lineIndex: number; descriptionPrefix: string };
+    }>;
+    quantities: Array<{ quantity: number; unit: string; text: string; lineIndex: number; descriptionPrefix: string }>;
+  };
 };
 
 export type TechnicalDescriptionCategory =

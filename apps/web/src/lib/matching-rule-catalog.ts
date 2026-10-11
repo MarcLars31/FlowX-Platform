@@ -1,6 +1,6 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-11.2";
-export const RULE_CATALOG_DATE = "10 oktober 2026";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-11.4";
+export const RULE_CATALOG_DATE = "11 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
@@ -51,6 +51,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     description: "Vilken text och vilka egenskaper som får styra produktvalet.",
     sources: ["current-post-requirement.ts", "pdf-post-text.ts", "requirement-snapshot.ts", "ahlsell-requirement-context.ts", "ahlsell-requirement-intent.ts"],
     rules: [
+      rule("pdf-sidsumma", "Sidsummor är inte postkrav", "PDF-sidans summeringsrad har kolon, punkt eller saknar skiljetecken.", "Fristående Sum denne side och Sum denna sida avgränsar sidans posttext vid import och läsning av äldre källtext. Riktiga fortsättningar på nästa sida behålls. Ett ogranskat OCR-fält rättas bara om källtexten visar samma fält följt av summeringsraden. Granskade fält, kommentarer och sparade produktval ändras inte. Ingen ny PDF-tolkning eller databasändring behövs."),
       rule("pdf-sidhuvud", "Sidhuvuden är inte postkrav", "Nästa sida börjar med konsultnamn och datum före tabellhuvudet.", "Konsultens sidhuvud läggs inte till föregående produktpost. Äldre sparade fortsättningar rensas från motsvarande inledande sidhuvud vid läsning; om inget annat innehåll finns tas även den tomma sidmarkeringen bort. Verklig fortsättningstext och sparade fältvärden behålls utan ny PDF-tolkning eller databasändring."),
       rule("ocr-sidfortsattning", "Avgränsa OCR-fält vid sidfortsättningar", "En ogranskad OCR-post har ett känt tolkningsfel.", "En fristående Rund sum RS-rad blir inte del av föregående fält. Bokstaven O i ett annars numeriskt DN-uttryck normaliseras till noll. Ett tidigare avklippt DN8 rättas till DN80 bara när den egna källtexten entydigt innehåller DN8O och ingen faktisk DN8. Granskade eller manuellt korrigerade poster behålls. Samma normalisering används i kort och matchning utan nya PDF- eller databasanrop."),
       rule("sparat-underlag", "Samma sparade underlag i hela flödet", "En post visas, matchas, godkänns eller exporteras.", "Använd den sparade versionen av posten. Nya importer märks med extraktionsversion 1; äldre poster märks som version 0 vid läsning. Sidöppning tolkar inte om PDF-filen och ersätter inte sparade rättelser."),
@@ -60,6 +61,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
       rule("generella-rorkrav", "Läs generella rörbestämmelser separat", "Underlaget innehåller generella krav på rör och rördelar.", "Använd sådana bestämmelser endast när de står i den aktuella posten. Importera inte generella rörkrav från kapitlet eller huvudposten."),
       rule("pdf-kommentar", "PDF-kommentar är en sökhänvisning", "PDF-kommentaren innehåller ett NRF-nummer eller kompletterande krav.", "Numret kan styra sökningen men ersätter inte tekniska kontroller. Villkor utöver en ren artikelhänvisning kan kräva manuell granskning.", { kind: "search" }),
       rule("text-normalisering", "Normalisera språk och skrivsätt", "Krav eller produkttext skrivs med olika skiftläge, nordiska tecken eller skiljetecken.", "Normalisera texten och använd kända svenska, norska och engelska synonymer. Detta innebär inte att all fritext förstås automatiskt."),
+      rule("pdf-tabellkolumner", "Läs post, enhet och mängd i separata kolumner", "En digital ISY-tabell har Sted, Postnr och Beskrivelse samt separata mängdkolumner.", "Sätt ihop radbrutna postnummer endast i postkolumnen. Behåll kapitel och underposter; hänvisningar i kravtext skapar inga nya poster. Läs m²/m³ i enhetskolumnen och mängden i mängdkolumnen. Bevara postens egna sidfortsättningar och separata kapiteltexter."),
       rule("pdf-varningar", "Behåll osäkerhet i PDF-underlaget", "Läsningen har varningar eller kravprofilen innehåller motstridiga värden.", "För vidare kontrollbehovet till produktbedömningen. Saknat eller motsägelsefullt underlag ska inte bli en säker match.", { kind: "review" })
     ]
   },

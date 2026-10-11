@@ -1,4 +1,4 @@
-import { isPdfConsultantDateHeader, normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
+import { isPdfConsultantDateHeader, isPdfPageSumFooter, normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import type {
   TechnicalDescriptionCategory,
@@ -17,6 +17,7 @@ import { isManifoldCabinetProduct } from "@/lib/ahlsell-manifold-cabinet";
 import { distributorRequirementKind } from "@/lib/distributor-requirement-lines";
 import { conflictingMaterialRequirement } from "@/lib/requirement-extraction-warnings";
 import { pdfChaptersByPage } from "./pdf-chapters";
+import { withSiteTableChapterHeadings } from "./pdf-post-table";
 
 type ExtractOptions = {
   fileName?: string;
@@ -65,6 +66,7 @@ export function extractTechnicalDescriptionFromPages(
   pages: TechnicalDescriptionPage[],
   options: ExtractOptions = {}
 ): TechnicalDescriptionExtractionResult {
+  pages = withSiteTableChapterHeadings(pages);
   const warnings: TechnicalDescriptionWarning[] = [];
   const project = extractProject(pages);
   const materialLines = extractMaterialLines(pages, warnings);
@@ -78,6 +80,9 @@ export function extractTechnicalDescriptionFromPages(
       nextChapter.sourcePage = line.sourcePage;
       chapter = nextChapter;
     }
+    const table = pages.find(page => page.pageNumber === line.sourcePage)?.postTable;
+    if (table) chapter = { title: table.siteTitle,
+      sourcePage: pages.find(page => page.postTable?.siteTitle === table.siteTitle)!.pageNumber };
     if (chapter) line.sourceChapter = chapter;
     line.sourceOrder = index + 1;
     line.chapterInformation = Boolean(chapter && line.sourcePage === chapter.sourcePage
@@ -298,7 +303,7 @@ function extractMaterialLines(
 ) {
   const structuredLines = extractNs3420TableLines(pages);
   const legacyWarnings: TechnicalDescriptionWarning[] = [];
-  const legacyLines = extractLegacyMaterialLines(pages, legacyWarnings);
+  const legacyLines = extractLegacyMaterialLines(pages.filter(page => !page.postTable), legacyWarnings);
 
   if (structuredLines.length === 0) {
     warnings.push(...legacyWarnings);
@@ -512,7 +517,11 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       previousMaterialLine = undefined;
       continue;
     }
-    const pageLines = prepared.pageLines[pageIndex];
+    if (!page.postTable && pages[pageIndex - 1]?.postTable) {
+      previousContext = undefined;
+      previousMaterialLine = undefined;
+    }
+    const pageLines = page.postTable ? normalizedPageLines(page.postTable.text) : prepared.pageLines[pageIndex];
     const nextChapterTitle = chapters.get(page.pageNumber)?.title;
     if (chapterTitle && nextChapterTitle && nextChapterTitle !== chapterTitle
       && !postBelongsToChapter(previousContext?.postNumber ?? previousMaterialLine?.postNumber, nextChapterTitle)) {
@@ -532,8 +541,9 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
     }
     const chapterPost = extractChapterPost(pageLines);
 
-    const starts: StructuredPostStart[] = [];
-    for (let index = 0; index < pageLines.length; index += 1) {
+    const starts: StructuredPostStart[] = page.postTable
+      ? page.postTable.posts.map(post => ({ ...post, consumedLineCount: 1 })) : [];
+    for (let index = 0; !page.postTable && index < pageLines.length; index += 1) {
       const start = parseStructuredPostStart(pageLines, index);
       if (!start) continue;
       starts.push(start);
@@ -593,6 +603,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
     for (let startIndex = 0; startIndex < starts.length; startIndex += 1) {
       const start = starts[startIndex];
+      if (page.postTable && !start.postNumber.includes(".")) continue;
       const blockEnd = Math.min(
         starts[startIndex + 1]?.lineIndex ?? pageLines.length,
         footerIndex(pageLines, start.lineIndex)
@@ -600,9 +611,9 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const bodyStart = start.lineIndex + start.consumedLineCount;
       const blockLines = [
         ...(start.description ? [start.description] : []),
-        ...pageLines.slice(bodyStart, blockEnd).filter(line => !isPageFurniture(line))
+        ...pageLines.slice(bodyStart, blockEnd).filter(line => page.postTable || !isPageFurniture(line))
       ];
-      const quantity = start.quantity ?? findTableQuantity(blockLines);
+      const quantity = page.postTable ? start.quantity : start.quantity ?? findTableQuantity(blockLines);
       const fullPostNumber = start.postNumber;
       const key = `${postScope}|${fullPostNumber}`;
       const existing = materialLines.find(line => line.postScope === (postScope || undefined) && line.postNumber === fullPostNumber);
@@ -613,7 +624,9 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         previousContext = context;
         continue;
       }
-      const descriptionParts = start.quantity
+      const descriptionParts = page.postTable && quantity
+        ? blockLines.slice(0, quantity.lineIndex - start.lineIndex)
+        : start.quantity
         ? blockLines
         : quantity
           ? blockLines.slice(0, quantity.lineIndex)
@@ -622,11 +635,15 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         descriptionParts.push(quantity.descriptionPrefix);
       }
       const parsedDescription = tableDescription(descriptionParts);
-      const nsCode = parsedDescription.nsCode;
-      const description = parsedDescription.description
+      const nsCode = parsedDescription.nsCode ?? (page.postTable && /^[A-Z]{3}$/.test(start.description) ? start.description : undefined);
+      const description = page.postTable && !NS3420_CODE_PATTERN.test(start.description) && !/^[A-Z]{3}$/.test(start.description)
+        ? [start.description, ...(start.description === start.description.toLocaleUpperCase()
+          ? blockLines.slice(1).filter((part, index, all) => all.slice(0, index + 1).every(line => /^[A-ZÆØÅ][A-ZÆØÅ /–—-]+$/.test(line))) : [])].join(" ")
+        : page.postTable && /^[A-Z]{3}$/.test(start.description)
+          ? blockLines[1] ?? start.description : parsedDescription.description
         || (start.description && !NS3420_CODE_PATTERN.test(start.description)
           ? start.description.trim().replace(/:$/, "") : "");
-      const sourceText = pageLines.slice(start.lineIndex, blockEnd).filter(line => !isPageFurniture(line)).join("\n");
+      const sourceText = pageLines.slice(start.lineIndex, blockEnd).filter(line => page.postTable || !isPageFurniture(line)).join("\n");
       const ownAttributes: Record<string, string> = {
         ...(chapterPost ? { kapittelpost: chapterPost } : {}),
         ...extractTableAttributes(blockLines),
@@ -699,7 +716,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       ).test(line.trim()));
       const hasUnquantifiedPostBody = fullPostNumber.split(".").length >= 3 && description.length > 5
         && (Boolean(start.description) || Object.keys(ownAttributes).some(key => key !== "kapittelpost"));
-      if ((!quantity && operation !== "remove" && !hasMissingQuantityMarker && !nsCode && !hasUnquantifiedPostBody) || (quantity && quantity.quantity < 0)) {
+      if (!start.chapter && ((!quantity && operation !== "remove" && !hasMissingQuantityMarker && !nsCode && !hasUnquantifiedPostBody) || (quantity && quantity.quantity < 0))) {
         continue;
       }
       if (!quantity && /^BYGNINGSMESSIGE ARBEIDER\b/i.test(description)) continue;
@@ -729,7 +746,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       if (prepared.inferredPostNumbers.has(fullPostNumber)) {
         reviewFlags.push("inferred-post-number");
       }
-      if (!quantity && operation !== "remove") reviewFlags.push("missing-quantity");
+      if (!quantity && operation !== "remove" && !start.chapter) reviewFlags.push("missing-quantity");
       if (
         category === "pipe"
         && quantity
@@ -794,7 +811,8 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       line.reviewFlags = line.reviewFlags.filter(flag => flag !== "missing-quantity");
     }
   }
-  return materialLines;
+  return materialLines.filter(line => !pages.find(page => page.pageNumber === line.sourcePage)?.postTable
+    || line.postNumber?.includes("."));
 }
 
 type StructuredPostStart = {
@@ -802,6 +820,7 @@ type StructuredPostStart = {
   consumedLineCount: number;
   postNumber: string;
   description: string;
+  chapter?: boolean;
   quantity?: {
     quantity: number;
     text: string;
@@ -1182,19 +1201,20 @@ function mergeLeadingPageContinuation({
   const lastPage = previousContext?.sourcePages.at(-1)
     ?? previousMaterialLine?.sourcePages?.at(-1) ?? previousMaterialLine?.sourcePage;
   if (lastPage !== page.pageNumber - 1) return;
-  const continuation = leadingPageBody(pageLines, firstStartIndex, projectHeading);
+  const continuation = page.postTable ? pageLines.slice(0, firstStartIndex ?? pageLines.length)
+    : leadingPageBody(pageLines, firstStartIndex, projectHeading);
   if (continuation.length === 0) return;
   // An unplaced NS row is a new post, never an extension of the previous one.
   // OCR recovery or manual review must establish its identity first.
   const precedingText = previousContext?.sourceText ?? previousMaterialLine?.sourceText ?? "";
   const environmentalSpecification = /NEK\s*400|ytre påvirkninger|Tabell\s+51A/i.test(`${precedingText}\n${continuation.join("\n")}`);
-  if (continuation.some(line => NS3420_CODE_PATTERN.test(line)
+  if (!page.postTable && continuation.some(line => NS3420_CODE_PATTERN.test(line)
     // Wrapped environmental classifications (for example "AE4 - Lett støv")
     // are prose within the open NEK 400 specification, not new NS 3420 rows.
     && !(environmentalSpecification && /^(?:A[A-HK-NP-S]|B[A-E]|C[AB])\d\s*[-–—]\s*\S/i.test(line)))) return;
   // Prose and captions before the next post belong to the still-open row too.
   // Never infer a continuation through an unrelated chapter/orientation page.
-  if (!pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line)) && firstStartIndex === undefined && !continuation.some(isTechnicalContinuationLine)
+  if (!page.postTable && !pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line)) && firstStartIndex === undefined && !continuation.some(isTechnicalContinuationLine)
     && (!previousContext?.nsCode || /^(?:\d+\s+|[A-ZÆØÅ -]{12,}$)/.test(continuation[0]))) return;
   appendPostContinuation(page, continuation,
     !previousContext || previousMaterialLine?.postNumber === previousContext.postNumber ? previousMaterialLine : undefined,
@@ -1227,7 +1247,7 @@ function isPageFurniture(line: string) {
 }
 
 function appendPostContinuation(page: TechnicalDescriptionPage, continuation: string[], line?: TechnicalDescriptionMaterialLine, context?: TableParentContext, leading = false) {
-  const body = continuation.filter(part => !isPageFurniture(part));
+  const body = continuation.filter(part => page.postTable || !isPageFurniture(part));
   if (!body.length) return;
   const text = body.join("\n");
   const postNumber = context?.postNumber ?? line?.postNumber;
@@ -1256,7 +1276,7 @@ function appendPostContinuation(page: TechnicalDescriptionPage, continuation: st
   if (line) {
     line.technicalSpecification = context?.sourceText ?? line.sourceText;
     if (line.quantity === undefined) {
-      const quantity = findTableQuantity(body);
+      const quantity = page.postTable ? page.postTable.quantities.find(quantity => quantity.lineIndex < (page.postTable!.posts[0]?.lineIndex ?? Infinity)) : findTableQuantity(body);
       if (quantity) {
         line.quantity = quantity.quantity; line.unit = quantity.unit; line.quantityText = quantity.text;
         line.reviewFlags = line.reviewFlags.filter(flag => flag !== "missing-quantity");
@@ -1335,7 +1355,7 @@ function reconcilePageQuantities(pages: TechnicalDescriptionPage[], lines: Techn
     const pageLines = normalizedPageLines(page.text);
     // "Rund sum" in the measurement rules repeats the RS table cell; it is
     // not a second quantity. Also count rows whose unit precedes the post.
-    const observed = pageLines.filter((text, index) => !/^Rund\s+sum\s*$/i.test(text)
+    const observed = page.postTable ? page.postTable.quantities.length : pageLines.filter((text, index) => !/^Rund\s+sum\s*$/i.test(text)
       && (parseStructuredPostStart(pageLines, index)?.quantity?.quantity ?? findTableQuantity([text])?.quantity ?? 0) > 0).length;
     const extracted = lines.filter(line => line.sourcePage === page.pageNumber);
     if (!observed && !extracted.length) return [];
@@ -1385,7 +1405,8 @@ function extractChapterPost(lines: string[]) {
 }
 
 function isTableFooter(value: string) {
-  return /^(?:Sum(?: denne side| Kapittel[^:]*)?\s*:|Akkumulert\b|Prosjekt:|Postnr:|Kopi-)/i.test(value);
+  return isPdfPageSumFooter(value)
+    || /^(?:Sum(?: denne side| Kapittel[^:]*)?\s*:|Akkumulert\b|Prosjekt:|Postnr:|Kopi-)/i.test(value);
 }
 
 function findTableQuantity(lines: string[]) {
