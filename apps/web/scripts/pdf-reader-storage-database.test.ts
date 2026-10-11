@@ -29,6 +29,7 @@ test("overview cache is scoped, rejects stale revisions and never changes approv
   const user = "40000000-0000-4000-8000-000000000001";
   try {
     await db.exec(`create role authenticated; create role anon; create role service_role bypassrls;
+      alter default privileges grant all on tables to authenticated, anon;
       create schema auth;
       create function auth.uid() returns uuid language sql stable as $$ select '${user}'::uuid $$;
       create function can_access_project(uuid) returns boolean language sql stable as $$ select $1::text = current_setting('test.project') $$;
@@ -45,6 +46,8 @@ test("overview cache is scoped, rejects stale revisions and never changes approv
       insert into project_requirements values('${requirement}','${project}','${org}','2026-10-11T12:00:00Z',7,null,'confirmed','{"quantity":60,"productResolution":{"status":"selected"}}');
       select set_config('test.project','${project}',false),set_config('test.allowed','true',false);`);
     await db.exec(migration("20261011151000_requirement_overview_cache"));
+    await db.exec(migration("20261011152000_requirement_overview_cache_grants"));
+    assert.equal((await db.query<{can_write: boolean}>("select has_table_privilege('authenticated','project_requirement_overviews','INSERT') can_write")).rows[0].can_write, false);
     const source = (await db.query("select * from project_requirements")).rows[0];
     const cache = (revision: number, pid = project) => db.query("select cache_project_requirement_overviews($1,$2,$3)", [pid, org, JSON.stringify([{ requirement_id: requirement, source_updated_at: "2026-10-11T12:00:00Z", source_revision: revision, version: 103, summary: { id: requirement, overview: { category: "sprinkler_head" } } }])]);
     await db.exec("set role service_role");
