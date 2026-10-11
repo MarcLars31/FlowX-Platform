@@ -1,3 +1,4 @@
+import { canonicalPdfFieldLabel } from "./pdf-post-text";
 import { isAdditionalRequirementAttribute, specificationLabel, type ProjectRequirementDetail } from "./project-requirement-details";
 
 /** JSON object key order is not preserved by storage; use the PDF's labels. */
@@ -8,10 +9,10 @@ export function orderedSpecificationAttributes(details: ProjectRequirementDetail
   }));
   return details.attributes.filter(([key]) => !isAdditionalRequirementAttribute(key)).map(([key, value]) => {
     const sourceLabel = labels.find(label => label.key === normalizeLabel(key));
-    return { key, value, label: sourceLabel?.label ?? specificationLabel(key), position: sourceLabel?.index ?? Infinity };
+    return { key, value, label: canonicalPdfFieldLabel(sourceLabel?.label ?? specificationLabel(key)), position: sourceLabel?.index ?? Infinity };
   }).sort((left, right) => left.position - right.position);
 }
 
 function normalizeLabel(label: string) {
-  return label.trim().toLocaleLowerCase().replace(/[_\s–—-]+/g, " ");
+  return canonicalPdfFieldLabel(label).toLocaleLowerCase().replace(/[_\s–—-]+/g, " ");
 }

@@ -229,3 +229,29 @@ test("a genuine DN8 is retained and alphanumeric product identifiers are not sho
   assert.equal(materialLines[0].attributes.dimensjon, "DN8");
   assert.equal(materialLines[1].attributes.dimensjon, undefined);
 });
+
+
+test("a consultant header before a new post is not a continuation of the previous sprinkler", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    page(1, `${header}33.500.2 | UE2.11111232\nSPRINKLER\nAntall stk 67\nUtlesningstemperatur: 68 °C\nAndre krav: Nei\nSum:`),
+    page(2, `Rambøll Norge AS 07.08.2026\nProsjekt: Test Side 33-5\n${header}33.500.3 | UE2.11111934\nSPRINKLER\nAntall stk 3\nUtlesningstemperatur: 93 °C\nAndre krav: Nei\nSum:`)
+  ]);
+  const [first, second] = result.materialLines;
+  assert.equal(result.materialLines.length, 2);
+  assert.deepEqual(first.sourcePages, [1]);
+  assert.doesNotMatch(first.technicalSpecification!, /FORTSETTELSE|Rambøll|93 °C/);
+  assert.equal(first.attributes["utløsningstemperatur"], "68 °C");
+  assert.equal(second.attributes["utløsningstemperatur"], "93 °C");
+});
+
+test("a consultant header does not erase real continuation prose before the next post", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    page(1, `${header}33.500.2 UE2.11111232\nSPRINKLER\nAntall stk 67\nAndre krav:\nAlle festemidler skal inngå.\nSum:`),
+    page(2, `Rambøll Norge AS 07.08.2026\nProsjekt: Test Side 33-5\n${header}Datablad skal godkjennes av Rambøll Norge AS.\nTrykk: PN16\n33.500.3 UE2.11111934\nSPRINKLER\nAntall stk 3\nSum:`)
+  ]);
+  const first = result.materialLines[0];
+  assert.deepEqual(first.sourcePages, [1, 2]);
+  assert.match(first.sourceText, /Datablad skal godkjennes av Rambøll Norge AS\./);
+  assert.equal(first.attributes.trykk, "PN16");
+  assert.doesNotMatch(first.sourceText, /07.08.2026|33.500.3/);
+});

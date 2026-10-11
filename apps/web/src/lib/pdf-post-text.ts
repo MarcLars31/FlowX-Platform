@@ -27,3 +27,33 @@ export function repairedOcrPostAttributes(attributes: Record<string, unknown>, s
   }
   return corrected;
 }
+
+
+/** A consultant/date row is page furniture only at a known page-header boundary. */
+export function isPdfConsultantDateHeader(line: string) {
+  return /^[\p{L}\p{N}][\p{L}\p{N} .,&()/-]{0,100}\s+(?:AS|ASA|AB|A\/S)\s+\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$/u.test(line.trim());
+}
+
+/** Older snapshots can contain a continuation consisting solely of the next
+ * page's consultant/date header. Remove that metadata, retaining real prose. */
+export function withoutPdfHeaderContinuations(source: string) {
+  const parts = source.split(/(\r?\n(?:[ \t]*\r?\n)*[ \t]*FORTSETTELSE SIDE \d+[ \t]*\r?\n)/);
+  let result = parts[0];
+  for (let index = 1; index < parts.length; index += 2) {
+    const lines = (parts[index + 1] ?? "").split(/\r?\n/);
+    const first = lines.findIndex(line => line.trim());
+    if (first >= 0 && isPdfConsultantDateHeader(lines[first])) {
+      lines.splice(first, 1);
+      const body = lines.join("\n").trim();
+      if (body) result += parts[index] + body;
+    } else result += parts[index] + (parts[index + 1] ?? "");
+  }
+  return result;
+}
+
+/** Match the extractor's known OCR spellings without changing field values. */
+export function canonicalPdfFieldLabel(label: string) {
+  return label.trim()
+    .replace(/^utl[øoeög]sningstemperatur$/i, "Utløsningstemperatur")
+    .replace(/^(?:folsomhetsgrad|felsomhetsgrad)$/i, "Følsomhetsgrad");
+}

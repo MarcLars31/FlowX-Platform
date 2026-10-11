@@ -1,4 +1,4 @@
-import { normalizeOcrDnTokens, repairedOcrPostAttributes } from "./pdf-post-text";
+import { normalizeOcrDnTokens, repairedOcrPostAttributes, withoutPdfHeaderContinuations } from "./pdf-post-text";
 
 type Row = Record<string, unknown>;
 
@@ -50,7 +50,10 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
   const repairOcr = !requirement.reviewed_at && !requirement.reviewed_by
     && (!requirement.status || /^(?:extracted|inferred)_unreviewed$/.test(String(requirement.status)))
     && Array.isArray(value.reviewFlags) && value.reviewFlags.includes("ocr-source");
-  const canonicalText = (source: string) => repairOcr ? normalizeOcrDnTokens(source) : source;
+  const canonicalText = (source: string) => {
+    const body = withoutPdfHeaderContinuations(source);
+    return repairOcr ? normalizeOcrDnTokens(body) : body;
+  };
   const canonicalAttributes = repairOcr ? repairedOcrPostAttributes(attributes, ownText) : attributes;
   const standardRefs = Array.isArray(value.standardRefs) ? value.standardRefs.filter(ref =>
     !foreign || normalized(ownText).replace(/\W/g, "").includes(normalized(ref).replace(/\W/g, ""))) : [];

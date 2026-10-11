@@ -1,3 +1,4 @@
+import { canonicalPdfFieldLabel } from "./pdf-post-text";
 import { orderedSpecificationAttributes } from "./project-specification-layout";
 import type { ProjectRequirementDetail } from "./project-requirement-details";
 
@@ -14,7 +15,10 @@ export function structuredPostBlocks(details: ProjectRequirementDetail, descript
     if (!token) continue;
     const parts = token === description ? token.trim().split(/\s+/) : [...token];
     const pattern = parts.map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s*");
+    const previous = source;
     source = source.replace(new RegExp(`^${pattern}${token === description ? ":?" : ""}(?=\\s|$)`), "").trimStart();
+    // OCR table separators between the post number and its code are not prose.
+    if (token === details.postNumber && details.nsCode && source !== previous) source = source.replace(/^\|\s*/, "");
   }
   const blocks: SpecificationBlock[] = [];
   let continued = false;
@@ -34,7 +38,7 @@ export function structuredPostBlocks(details: ProjectRequirementDetail, descript
     else if (/^[a-z]\)\s+\S/i.test(line) || line === "UNDERPOST" || (line.length < 150 && /[A-ZÆØÅ]{3}/.test(line) && line === line.toLocaleUpperCase() && !field)) {
       blocks.push({ kind: "heading", text: line });
     } else if (/^(?:[-•●▪]|\d+[.)])\s+\S/.test(line)) blocks.push({ kind: "bullet", text: line });
-    else if (field) blocks.push({ kind: "field", label: field[1], text: field[2] });
+    else if (field) blocks.push({ kind: "field", label: canonicalPdfFieldLabel(field[1]), text: field[2] });
     else {
       const saved = fieldBeforePage && savedFields.find(field => normalize(field.label) === normalize(fieldBeforePage!.label));
       if (fieldBeforePage && saved && normalize(saved.value).includes(normalize(`${fieldBeforePage.text} ${line}`))) {

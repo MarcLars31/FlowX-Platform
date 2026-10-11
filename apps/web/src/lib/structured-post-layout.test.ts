@@ -89,3 +89,38 @@ test("free clauses after an ordinary field survive even when its saved value is 
   assert.ok(blocks.some(block => block.kind === 'text' && block.text.includes('Det skal medfølge dokumentasjon.')));
   assert.ok(blocks.some(block => block.kind === 'text' && block.text.includes('Alle festedeler skal leveres.')));
 });
+
+
+test("legacy sprinkler headers and OCR label variants render once without a false next page", async () => {
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { ProjectPostSpecification } = await import("../components/ProjectPostSpecification");
+  const { projectRequirementPageLabel } = await import("./project-requirement-details");
+  const source = '33.500.2 | UE2.11111232\nSPRINKLER\nAntall stk 67\nFelsomhetsgrad: Standard-respons "A"\nUtlesningstemperatur: 68 °C\nDokumentasjon: Datablad skal følge med.\nAndre krav: Nei\n\nFORTSETTELSE SIDE 2\nRambøll Norge AS 07.08.2026';
+  const row = { status: 'user_confirmed', source_page: 1, source_excerpt: source, value_json: {
+    postNumber: '33.500.2', nsCode: 'UE2.11111232', sourceText: source, technicalSpecification: source,
+    attributes: { 'følsomhetsgrad': 'Standard-respons "A"', 'utløsningstemperatur': '68 °C' }
+  } };
+  const before = JSON.stringify(row);
+  const details = projectRequirementDetails(row);
+  const html = renderToStaticMarkup(createElement(ProjectPostSpecification, { id: 'r', details, description: 'SPRINKLER', quantity: { quantity: 67, unit: 'st' }, quantityText: 'Antall stk 67' }));
+  assert.equal(projectRequirementPageLabel(details), 'Side 1');
+  assert.equal(html.match(/UE2\.11111232/g)?.length, 1);
+  assert.equal(html.match(/SPRINKLER/g)?.length, 1);
+  assert.equal(html.match(/68 °C/g)?.length, 1);
+  assert.equal(html.match(/Følsomhetsgrad/g)?.length, 1);
+  assert.doesNotMatch(html, /Rambøll|Side 2|Utlesningstemperatur|\|/);
+  assert.match(html, /Datablad skal følge med/);
+  assert.equal(JSON.stringify(row), before);
+});
+
+test("legacy header cleanup preserves genuine page continuations and reviewed values", () => {
+  const source = '33.500.2 UE2.11111232\nSPRINKLER\nUtlesningstemperatur: 68 °C\n\nFORTSETTELSE SIDE 2\nRambøll Norge AS 07.08.2026\nDatablad godkjennes av Rambøll Norge AS.\nTrykk: PN16';
+  const row = { reviewed_at: '2026-10-01', source_page: 1, value_json: { postNumber: '33.500.2', nsCode: 'UE2.11111232', technicalSpecification: source,
+    attributes: { 'utløsningstemperatur': '79 °C', trykk: 'PN16' } } };
+  const blocks = structuredPostBlocks(projectRequirementDetails(row), 'SPRINKLER');
+  assert.deepEqual(blocks.filter(b => b.kind === 'field' && /temperatur/i.test(b.label)), [{ kind: 'field', label: 'Utløsningstemperatur', text: '79 °C' }]);
+  assert.ok(blocks.some(b => b.kind === 'page' && b.text === 'Side 2'));
+  assert.ok(blocks.some(b => b.text === 'Datablad godkjennes av Rambøll Norge AS.'));
+  assert.ok(blocks.some(b => b.kind === 'field' && b.label === 'Trykk' && b.text === 'PN16'));
+});

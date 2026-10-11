@@ -1,4 +1,4 @@
-import { normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
+import { isPdfConsultantDateHeader, normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import type {
   TechnicalDescriptionCategory,
@@ -1206,10 +1206,13 @@ function leadingPageBody(pageLines: string[], firstStartIndex?: number, projectH
   const leading = pageLines.slice(0, firstStartIndex ?? pageLines.length);
   // OCR can put the project title and page number on separate lines. Only
   // discard the known title beside a page marker, never mentions in the body.
+  const candidateHeader = leading.findIndex(line => /^Postnr(?:[.:]|\s|$)/i.test(line));
   const isHeaderLine = (line: string, index: number) => isPageFurniture(line)
+    // Restrict consultant/date removal to the prefix before a table header;
+    // the same company name inside the specification is still source text.
+    || (index < candidateHeader && isPdfConsultantDateHeader(line))
     || (projectHeading && line.toLocaleLowerCase() === projectHeading.toLocaleLowerCase()
       && /^Side\s+\d/i.test(leading[index + 1] ?? ""));
-  const candidateHeader = leading.findIndex(line => /^Postnr(?:[.:]|\s|$)/i.test(line));
   const headerIndex = candidateHeader >= 0 && leading.slice(0, candidateHeader).every(isHeaderLine) ? candidateHeader : -1;
   const bodyStart = headerIndex >= 0 ? headerIndex + 1 : 0;
   const body = leading.slice(bodyStart);

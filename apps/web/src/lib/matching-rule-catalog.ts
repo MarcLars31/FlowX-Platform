@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-11.1";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-11.2";
 export const RULE_CATALOG_DATE = "10 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -51,6 +51,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     description: "Vilken text och vilka egenskaper som får styra produktvalet.",
     sources: ["current-post-requirement.ts", "pdf-post-text.ts", "requirement-snapshot.ts", "ahlsell-requirement-context.ts", "ahlsell-requirement-intent.ts"],
     rules: [
+      rule("pdf-sidhuvud", "Sidhuvuden är inte postkrav", "Nästa sida börjar med konsultnamn och datum före tabellhuvudet.", "Konsultens sidhuvud läggs inte till föregående produktpost. Äldre sparade fortsättningar rensas från motsvarande inledande sidhuvud vid läsning; om inget annat innehåll finns tas även den tomma sidmarkeringen bort. Verklig fortsättningstext och sparade fältvärden behålls utan ny PDF-tolkning eller databasändring."),
       rule("ocr-sidfortsattning", "Avgränsa OCR-fält vid sidfortsättningar", "En ogranskad OCR-post har ett känt tolkningsfel.", "En fristående Rund sum RS-rad blir inte del av föregående fält. Bokstaven O i ett annars numeriskt DN-uttryck normaliseras till noll. Ett tidigare avklippt DN8 rättas till DN80 bara när den egna källtexten entydigt innehåller DN8O och ingen faktisk DN8. Granskade eller manuellt korrigerade poster behålls. Samma normalisering används i kort och matchning utan nya PDF- eller databasanrop."),
       rule("sparat-underlag", "Samma sparade underlag i hela flödet", "En post visas, matchas, godkänns eller exporteras.", "Använd den sparade versionen av posten. Nya importer märks med extraktionsversion 1; äldre poster märks som version 0 vid läsning. Sidöppning tolkar inte om PDF-filen och ersätter inte sparade rättelser."),
       rule("egen-produkt", "Postens egen produkt går först", "Posten har en egen produktbeskrivning eller egna tekniska egenskaper.", "Använd dessa före äldre kategorier och delar som bara nämns som ingående tillbehör.", { example: { input: "Komplett rörledning inklusive böjar och kopplingar.", result: "Sök rör som huvudprodukt. Hantera böjar och kopplingar som ingående delar." } }),
