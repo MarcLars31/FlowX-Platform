@@ -4,6 +4,30 @@ import type { TechnicalDescriptionPage } from "./types";
 type Item = { text: string; x: number; y: number; width: number; height: number };
 type Row = { y: number; items: Item[] };
 
+function headerLabel(value: string) {
+  return value.toLocaleLowerCase().replace(/[\s.:]/g, "");
+}
+
+/** A PDF can split a label into adjacent text fragments. Join only nearby
+ * fragments on the already verified header row, never words from the body. */
+function findColumnHeader(items: Item[], labels: readonly string[]): Item | undefined {
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  for (let start = 0; start < sorted.length; start += 1) {
+    const first = sorted[start];
+    let text = "";
+    for (let end = start; end < Math.min(start + 4, sorted.length); end += 1) {
+      const item = sorted[end];
+      const previous = sorted[end - 1];
+      if (end > start && item.x - (previous.x + previous.width) > Math.max(first.height, item.height) * .6) break;
+      text += item.text;
+      if (labels.includes(headerLabel(text))) {
+        return { ...first, text, width: item.x + item.width - first.x };
+      }
+    }
+  }
+  return undefined;
+}
+
 /** ISY site tables have an explicit Sted identity and a separate Postnr column.
  * Only that column establishes posts; numbers in the description remain prose.
  * Other digital layouts and OCR continue to use their existing readers.
@@ -21,11 +45,21 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
   if (!header || !site || site.y <= header.y) return undefined;
   const siteMatch = site.text.match(/^Sted:\s*(\d+)\s+(.+)$/)!;
   const headerItems = items.filter(item => Math.abs(item.y - header.y) < 3);
-  if (!headerItems.some(item => item.text === "Beskrivelse")) return undefined;
-  const unitHeader = headerItems.find(item => /^Enh\.$/.test(item.text));
-  const amountHeader = headerItems.find(item => item.text === "Mengde");
-  const priceHeader = headerItems.find(item => item.text === "Pris");
-  if (unitHeader && (!amountHeader || !priceHeader)) return undefined;
+  const descriptionHeader = headerItems.find(item => item.text === "Beskrivelse");
+  if (!descriptionHeader) return undefined;
+  const columnItems = headerItems.filter(item => item.x >= descriptionHeader.x + descriptionHeader.width);
+  const unitCandidate = findColumnHeader(columnItems, ["enh", "enhet", "enhed"]);
+  const amountCandidate = findColumnHeader(columnItems, ["mengde", "mengd", "mängd"]);
+  const priceCandidate = findColumnHeader(columnItems, ["pris", "enhetspris"]);
+  const columnsVerified = Boolean(unitCandidate && amountCandidate && priceCandidate
+    && unitCandidate.x + unitCandidate.width < amountCandidate.x
+    && amountCandidate.x + amountCandidate.width < priceCandidate.x);
+  const quantityColumnsUnrecognized = columnItems.length > 0 && !columnsVerified;
+  // Keep the post and its source text if a header is ambiguous, but do not
+  // infer amounts from prices or report an unverified table as complete.
+  const unitHeader = columnsVerified ? unitCandidate : undefined;
+  const amountHeader = columnsVerified ? amountCandidate : undefined;
+  const priceHeader = columnsVerified ? priceCandidate : undefined;
   const footer = items.filter(item => item.y < header.y && /^(?:Sum denne side|Akkumulert Sted)\s*:?/.test(item.text));
   const bottom = footer.length ? Math.max(...footer.map(item => item.y)) + 3 : -Infinity;
   const body = items.filter(item => item.y < header.y - 4 && item.y > bottom);
@@ -98,7 +132,8 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
     const end = posts[index + 1]?.lineIndex ?? lines.length;
     post.quantity = quantities.find(quantity => quantity.lineIndex >= post.lineIndex && quantity.lineIndex < end);
   }
-  return { text: lines.join("\n"), siteTitle: `${siteMatch[1]} ${siteMatch[2]}`, posts, quantities };
+  return { text: lines.join("\n"), siteTitle: `${siteMatch[1]} ${siteMatch[2]}`, posts, quantities,
+    ...(quantityColumnsUnrecognized ? { quantityColumnsUnrecognized: true } : {}) };
 }
 
 /** Some chapter introductions use a full-width short heading ("365 ...")

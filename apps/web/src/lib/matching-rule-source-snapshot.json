@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-11.4",
+  "version": "scipx-product-rules-2026-10-11.5",
   "sources": {
     "ahlsell-accessory-suggestions.ts": "a10b5f459889722e1aa0d7b125247ca7dc94d791bdad156564e06fb5d97cc238",
     "ahlsell-cable-trunking.ts": "ff672cb6ea5a2e8005f35977800772eb513bf54c66439a1e4e666a4c0b2e966c",
@@ -43,7 +43,7 @@
     "product-selection-review.ts": "7e704b14d9631953a3b50715a50bff4b059b6fdfffb9d902bf9eacceb6c8432d",
     "project-requirement-views.ts": "ef553e809a9189f9800781e3333bb0596bb795cc776fe2ae4366e15c5411e312",
     "requirement-discipline.ts": "2ccf468875fc23406b77500a39273b2a386eb3448209f760df5928c7eff8f28c",
-    "requirement-extraction-warnings.ts": "a362d42013633a14be8d7ddb51e99fd2ed86ddb783035e282e7cb94c8a71221e",
+    "requirement-extraction-warnings.ts": "f8814bd93ad6cbeca476fbf0b194b2db4bcfce98918419defab0daa374aa9f8a",
     "requirement-snapshot.ts": "e1d06e737a44af52e1070595100220f6e72e8374ccae3f40ed591d4e74cc51bd",
     "sprinkler-assembly-plan.ts": "653883d4bcf630508683c4bc7b564fa7ea7792cfd6b7758802b2752ce5b1ca91",
     "sprinkler-technical-rules.ts": "f35a53b23efa0c5c1fd0abf77ae6c0f835e86068ef1704da4d127782ea6d38b4",

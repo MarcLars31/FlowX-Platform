@@ -21,6 +21,8 @@ export type TechnicalDescriptionPage = {
   postTable?: {
     text: string;
     siteTitle: string;
+    /** Extra columns exist, but their quantity/unit boundaries are not verified. */
+    quantityColumnsUnrecognized?: boolean;
     posts: Array<{
       lineIndex: number; postNumber: string; description: string; chapter: boolean;
       quantity?: { quantity: number; unit: string; text: string; lineIndex: number; descriptionPrefix: string };

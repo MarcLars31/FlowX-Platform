@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { extractTechnicalDescriptionPages } from "./pdf";
+import { requirementExtractionWarnings } from "@/lib/requirement-extraction-warnings";
 import test from "node:test";
 import { sitePostTableFromPdfItems } from "./pdf-post-table";
 import { extractTechnicalDescriptionFromPages } from "./extractor";
@@ -142,4 +145,91 @@ test("Postnr references in the body and page continuation survive header cleanup
   assert.match(result[0].sourceText,/Postnr\. 1201\.30\.300\.1\./);
   assert.match(result[0].sourceText,/Postnr\. 1201\.30\.311\.1\./);
   assert.doesNotMatch(result[0].sourceText,/Neste rørledning/);
+});
+
+
+for (const label of ["Enh.", "Enh", "Enh:", "Enhet", "Enhet:", "ENHET", "Enhed"]) {
+  test(`reads the quantity beneath the unit header ${label}`, () => {
+    const items = header().map(cell => cell.str === "Enh." ? item(label, 362, 713) : cell);
+    const result = extractTechnicalDescriptionFromPages([page([...items, ...post("11.2.1", "Rør DN50", 650),
+      item("m", 368, 650), item("12,0", 410, 650), item("450,00", 475, 650), item("5400,00", 540, 650)])]);
+    const row = result.materialLines[0];
+    assert.equal(row.quantity, 12);
+    assert.equal(row.unit, "m");
+    assert.equal(row.description, "Rør DN50");
+    assert.deepEqual(row.reviewFlags, []);
+    assert.equal(result.pageChecks?.[0].observedQuantityRows, 1);
+    assert.equal(result.warnings.some(warning => warning.code === "PDF_QUANTITY_COLUMNS_UNRECOGNIZED"), false);
+  });
+}
+
+test("recognizes adjacent label fragments and localized quantity/price labels", () => {
+  const items = header().filter(cell => !["Enh.", "Mengde", "Pris"].includes(cell.str));
+  items.push(item("En", 362, 713, 10), item("het", 372, 713, 15), item("Mängd:", 395, 713, 35), item("Enhetspris", 457, 713, 50));
+  const result = rows([page([...items, ...post("66.1.1", "Isolasjon", 650),
+    item("m", 368, 650), item("2", 378, 652.64, 4, 7), item("201,0", 410, 650), item("55,00", 475, 650)])]);
+  assert.equal(result[0].unit, "m2");
+  assert.equal(result[0].quantity, 201);
+});
+
+for (const variant of ["unknown-unit", "missing-amount", "unknown-price", "swapped-columns", "overlapping-columns"]) {
+  test(`flags ${variant} without taking the price as a quantity`, () => {
+    const items = header().flatMap(cell => {
+      if (variant === "unknown-unit" && cell.str === "Enh.") return [item("Ukjent", 362, 713)];
+      if (variant === "missing-amount" && cell.str === "Mengde") return [];
+      if (variant === "unknown-price" && cell.str === "Pris") return [item("Beløp", 457, 713)];
+      if (variant === "swapped-columns" && cell.str === "Enh.") return [item("Enh.", 395, 713)];
+      if (variant === "swapped-columns" && cell.str === "Mengde") return [item("Mengde", 362, 713)];
+      if (variant === "overlapping-columns" && cell.str === "Mengde") return [item("Mengde", 370, 713)];
+      return [cell];
+    });
+    const result = extractTechnicalDescriptionFromPages([page([...items, ...post("11.2.1", "Rør DN50", 650),
+      item("m", 368, 650), item("12,0", 410, 650), item("450,00", 475, 650)])]);
+    const row = result.materialLines[0];
+    assert.equal(row.postNumber, "1201.30.311.2.1");
+    assert.equal(row.quantity, undefined);
+    assert.match(row.sourceText, /12,0/);
+    assert.ok(row.reviewFlags.includes("unrecognized-quantity-columns"));
+    const userWarnings = requirementExtractionWarnings({ value_json: row, value_text: row.description });
+    assert.ok(userWarnings.some(message => message.includes("kolumner för enhet och mängd")));
+    assert.equal(userWarnings.some(message => message.includes("mängd saknas")), false);
+    assert.equal(result.warnings.filter(warning => warning.code === "PDF_QUANTITY_COLUMNS_UNRECOGNIZED").length, 1);
+  });
+}
+
+test("information pages without quantity columns do not receive a column warning", () => {
+  const result = extractTechnicalDescriptionFromPages([page([...header(false), ...post("00.1", "Generelle krav", 650),
+    item("Enhet og mengde beskrives i underpostene.", 97, 620)])]);
+  assert.equal(result.warnings.some(warning => warning.code === "PDF_QUANTITY_COLUMNS_UNRECOGNIZED"), false);
+  assert.equal(result.materialLines[0].reviewFlags.includes("unrecognized-quantity-columns"), false);
+});
+
+test("an ambiguous quantity header on a continuation flags the originating post", () => {
+  const nextHeader = header().map(cell => cell.str === "Enh." ? item("Ukjent", 362, 713) : cell);
+  const result = extractTechnicalDescriptionFromPages([
+    page([...header(false), ...post("11.2.1", "Rør DN50", 650)]),
+    page([...nextHeader, item("Videre kravtekst", 97, 650), item("m", 368, 650), item("12,0", 410, 650)], 2)
+  ]);
+  assert.equal(result.materialLines[0].quantity, undefined);
+  assert.ok(result.materialLines[0].reviewFlags.includes("unrecognized-quantity-columns"));
+  assert.ok(result.warnings.some(warning => warning.code === "PDF_QUANTITY_COLUMNS_UNRECOGNIZED" && warning.sourcePage === 2));
+});
+
+
+test("reads Enhet through actual PDF text extraction with the same result as Enh.", async () => {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  for (const [index, label] of ["Enh.", "Enhet"].entries()) {
+    const sheet = pdf.addPage([595, 842]);
+    for (const cell of [...header().map(cell => cell.str === "Enh." ? item(label, 362, 713) : cell),
+      item(`1201.30.311.${index + 1}`, 44, 650), item("Ror DN50", 120, 650),
+      item("m", 368, 650), item("12,0", 410, 650), item("450,00", 475, 650), item("5400,00", 540, 650)]) {
+      sheet.drawText(cell.str, { font, size: 10, x: cell.transform[4], y: cell.transform[5] });
+    }
+  }
+  const pages = await extractTechnicalDescriptionPages(await pdf.save());
+  const result = extractTechnicalDescriptionFromPages(pages);
+  assert.ok(pages.every(page => page.postTable && !page.postTable.quantityColumnsUnrecognized));
+  assert.deepEqual(result.materialLines.map(row => [row.postNumber, row.quantity, row.unit]),
+    [["1201.30.311.1", 12, "m"], ["1201.30.311.2", 12, "m"]]);
 });

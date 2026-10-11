@@ -71,6 +71,8 @@ export function extractTechnicalDescriptionFromPages(
   const project = extractProject(pages);
   const materialLines = extractMaterialLines(pages, warnings);
   const chapters = pdfChaptersByPage(pages);
+  const unrecognizedQuantityPages = new Set(pages
+    .filter(page => page.postTable?.quantityColumnsUnrecognized).map(page => page.pageNumber));
   for (const [index, line] of materialLines.entries()) {
     let chapter = chapters.get(line.sourcePage);
     const nextChapter = chapters.get(line.sourcePage + 1);
@@ -84,6 +86,9 @@ export function extractTechnicalDescriptionFromPages(
     if (table) chapter = { title: table.siteTitle,
       sourcePage: pages.find(page => page.postTable?.siteTitle === table.siteTitle)!.pageNumber };
     if (chapter) line.sourceChapter = chapter;
+    if ((line.sourcePages ?? [line.sourcePage]).some(pageNumber => unrecognizedQuantityPages.has(pageNumber))) {
+      line.reviewFlags = unique([...line.reviewFlags, "unrecognized-quantity-columns"]);
+    }
     line.sourceOrder = index + 1;
     line.chapterInformation = Boolean(chapter && line.sourcePage === chapter.sourcePage
       && line.reviewFlags.includes("project-information") && !line.unit && line.quantity === undefined);
@@ -101,6 +106,15 @@ export function extractTechnicalDescriptionFromPages(
   const extractionMethod = getExtractionMethod(pages);
 
   for (const page of pages) {
+    if (page.postTable?.quantityColumnsUnrecognized) {
+      warnings.push({
+        id: `quantity-columns-${page.pageNumber}`,
+        code: "PDF_QUANTITY_COLUMNS_UNRECOGNIZED",
+        message: `Sida ${page.pageNumber}: kolumnerna för enhet och mängd kunde inte identifieras säkert. Kontrollera mängderna i original-PDF:n.`,
+        sourcePage: page.pageNumber,
+        severity: "warning"
+      });
+    }
     if (page.annotations?.length) {
       const comments = page.annotations.map((annotation, index) =>
         `${index + 1}. ${annotation.text}`

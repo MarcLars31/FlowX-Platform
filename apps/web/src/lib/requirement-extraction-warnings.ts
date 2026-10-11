@@ -8,7 +8,8 @@ export function requirementExtractionWarnings(requirement: Record<string, unknow
   if (flags.includes('missing-parent-context')) warnings.push('Underpostens huvudpost och gemensamma krav har inte kunnat identifieras. Kontrollera material, anslutning och övriga krav i PDF-filen.');
   if (flags.includes('unknown-category') && !isCableTrunkingProduct(String(requirement.value_text ?? requirement.display_name ?? ''))) warnings.push('PDF-postens huvudprodukt har inte kunnat identifieras säkert. Kontrollera produktgruppen före produktval.');
   if (flags.includes('reextracted-requirement-conflict')) warnings.push('Sparade krav skiljer sig från den nya PDF-läsningen. Kontrollera ändringarna innan produktvalet verifieras.');
-  if (flags.includes('missing-quantity')) warnings.push('PDF-postens mängd saknas i läsningen och behöver kontrolleras.');
+  if (flags.includes('unrecognized-quantity-columns')) warnings.push('PDF-tabellens kolumner för enhet och mängd kunde inte identifieras säkert. Kontrollera postens mängd i original-PDF:n.');
+  else if (flags.includes('missing-quantity')) warnings.push('PDF-postens mängd saknas i läsningen och behöver kontrolleras.');
   if (flags.includes('inferred-post-number')) warnings.push('Postnumret har tolkats från omgivande poster. Kontrollera det mot PDF-filen.');
   if (flags.includes('inferred-parent-context')) warnings.push('Gemensamma rörkrav har hämtats från föregående huvudpost trots avvikande numrering. Kontrollera kopplingen i PDF-filen.');
   if (flags.includes('unresolved-source-quantity')) warnings.push('Sidan innehåller mängdrader som inte kunnat kopplas till en post. Kontrollera att denna posts krav är fullständiga.');

@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-11.4";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-11.5";
 export const RULE_CATALOG_DATE = "11 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -61,7 +61,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
       rule("generella-rorkrav", "Läs generella rörbestämmelser separat", "Underlaget innehåller generella krav på rör och rördelar.", "Använd sådana bestämmelser endast när de står i den aktuella posten. Importera inte generella rörkrav från kapitlet eller huvudposten."),
       rule("pdf-kommentar", "PDF-kommentar är en sökhänvisning", "PDF-kommentaren innehåller ett NRF-nummer eller kompletterande krav.", "Numret kan styra sökningen men ersätter inte tekniska kontroller. Villkor utöver en ren artikelhänvisning kan kräva manuell granskning.", { kind: "search" }),
       rule("text-normalisering", "Normalisera språk och skrivsätt", "Krav eller produkttext skrivs med olika skiftläge, nordiska tecken eller skiljetecken.", "Normalisera texten och använd kända svenska, norska och engelska synonymer. Detta innebär inte att all fritext förstås automatiskt."),
-      rule("pdf-tabellkolumner", "Läs post, enhet och mängd i separata kolumner", "En digital ISY-tabell har Sted, Postnr och Beskrivelse samt separata mängdkolumner.", "Sätt ihop radbrutna postnummer endast i postkolumnen. Behåll kapitel och underposter; hänvisningar i kravtext skapar inga nya poster. Läs m²/m³ i enhetskolumnen och mängden i mängdkolumnen. Bevara postens egna sidfortsättningar och separata kapiteltexter."),
+      rule("pdf-tabellkolumner", "Läs post, enhet och mängd i separata kolumner", "En digital ISY-tabell har Sted, Postnr och Beskrivelse samt separata mängdkolumner.", "Sätt ihop radbrutna postnummer endast i postkolumnen. Behåll kapitel och underposter; hänvisningar i kravtext skapar inga nya poster. Känn igen Enh., Enhet och motsvarande rubrikvarianter. Läs m²/m³ i enhetskolumnen och mängden i mängdkolumnen. Otydliga kolumner kräver granskning; pris och summa får inte användas som mängd. Bevara postens egna sidfortsättningar och separata kapiteltexter."),
       rule("pdf-varningar", "Behåll osäkerhet i PDF-underlaget", "Läsningen har varningar eller kravprofilen innehåller motstridiga värden.", "För vidare kontrollbehovet till produktbedömningen. Saknat eller motsägelsefullt underlag ska inte bli en säker match.", { kind: "review" })
     ]
   },
