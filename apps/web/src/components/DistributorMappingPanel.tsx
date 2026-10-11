@@ -11,6 +11,7 @@ import { Button } from "@/components/Button";
 import { ManualProductCard, type ManualProductChoice } from "@/components/ManualProductCard";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
+import { productChoiceSnapshots } from "@/lib/product-choice-collection";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 import { productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
 import { ProductPostComments } from "@/components/ProductPostComments";
@@ -40,13 +41,11 @@ import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-rankin
 import { effectiveRequirements } from "@/lib/effective-requirements";
 import { TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
-import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
 import { normalizeNrfNumber } from "@/lib/product-card-candidates";
 import { candidateSelectionReview, productSelectionReviewNotes, readProductSelectionReview, type ProductSelectionReview } from "@/lib/product-selection-review";
 import {
-  accessoriesForSelectedProduct,
   newProductAccessoryDraft,
   productAccessoryDraftError,
   productAccessoryPayload,
@@ -68,6 +67,12 @@ type ProductSelection = {
   unitPrice: string;
   currency: string;
 };
+type PostProductChoice = ManualProductChoice & {
+  id: string;
+  notes: string;
+  suggestions: AhlsellAccessorySuggestion[];
+};
+
 type RequirementAttachment = {
   id: string;
   fileName: string;
@@ -398,37 +403,38 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   onSaved: (message: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
-  const currentSnapshot = record(assignment?.product_snapshot);
   const quantity = projectRequirementQuantity(requirement.value_json);
-  const [orderQuantity, setOrderQuantity] = useState<{ quantity: string; unit: string } | null>(() => {
-    const saved = parseProductOrderQuantity(currentSnapshot.orderQuantity);
-    return saved ? { quantity: String(saved.quantity), unit: saved.unit } : null;
-  });
-  const [selectionReview, setSelectionReview] = useState<ProductSelectionReview | null>(() => readProductSelectionReview(currentSnapshot.notes));
-  const [selectionRequirementRevision, setSelectionRequirementRevision] = useState(() => effectiveRequirements(requirement).revision);
   const defaultCurrency = normalizeCurrencyCode(currency) || "NOK";
-  const [productName, setProductName] = useState(String(currentSnapshot.name ?? ""));
-  const [productSubtitle, setProductSubtitle] = useState(String(currentSnapshot.subtitle ?? ""));
-  const [productNumber, setProductNumber] = useState(String(currentSnapshot.productNumber ?? ""));
-  const [manufacturerArticleNumber, setManufacturerArticleNumber] = useState(String(currentSnapshot.manufacturerArticleNumber ?? ""));
-  const [manufacturerName, setManufacturerName] = useState(String(currentSnapshot.manufacturer ?? ""));
-  const [deliveryTimeDays, setDeliveryTimeDays] = useState(String(currentSnapshot.deliveryTimeDays ?? ""));
-  const [unitPrice, setUnitPrice] = useState(String(currentSnapshot.unitPrice ?? ""));
-  const [priceCurrency, setPriceCurrency] = useState(normalizeCurrencyCode(String(currentSnapshot.currency ?? "")) || defaultCurrency);
-  const [manualProductSelected, setManualProductSelected] = useState(Boolean(
-    currentSnapshot.entryMethod === "manual"
-    || currentSnapshot.entryMethod == null && [currentSnapshot.manufacturerArticleNumber, currentSnapshot.deliveryTimeDays, currentSnapshot.unitPrice]
-      .some(value => value != null && String(value).trim() !== "")
-  ));
+  const emptyChoice = (): PostProductChoice => ({ id: "", product: {
+    productName: "", productSubtitle: "", productNumber: "", manufacturerArticleNumber: "",
+    manufacturerName: "", deliveryTimeDays: "", unitPrice: "", currency: defaultCurrency },
+    quantity: { quantity: String(quantity.quantity ?? ""), unit: quantity.unit || "st" },
+    accessories: [], manual: true, review: null, notes: "", suggestions: [] });
+  const [choices, setChoices] = useState<PostProductChoice[]>(() => productChoiceSnapshots(assignment?.product_snapshot).map((snapshot, index) => {
+    const savedQuantity = parseProductOrderQuantity(snapshot.orderQuantity);
+    return { ...emptyChoice(), id: String(index), product: {
+      productName: String(snapshot.name ?? ""), productSubtitle: String(snapshot.subtitle ?? ""),
+      productNumber: String(snapshot.productNumber ?? ""), manufacturerArticleNumber: String(snapshot.manufacturerArticleNumber ?? ""),
+      manufacturerName: String(snapshot.manufacturer ?? ""), deliveryTimeDays: String(snapshot.deliveryTimeDays ?? ""),
+      unitPrice: String(snapshot.unitPrice ?? ""), currency: normalizeCurrencyCode(String(snapshot.currency ?? "")) || defaultCurrency },
+      quantity: savedQuantity ? { quantity: String(savedQuantity.quantity), unit: savedQuantity.unit } : emptyChoice().quantity,
+      manual: snapshot.entryMethod === "manual" || snapshot.entryMethod == null && [snapshot.manufacturerArticleNumber, snapshot.deliveryTimeDays, snapshot.unitPrice].some(value => value != null && String(value).trim() !== ""),
+      accessories: readProductAccessoryDrafts(snapshot.accessories), review: readProductSelectionReview(snapshot.notes),
+      notes: String(snapshot.notes ?? "") };
+  }));
+  const [activeChoiceId, setActiveChoiceId] = useState(choices[0]?.id ?? "");
+  const activeChoice = choices.find(choice => choice.id === activeChoiceId) ?? choices[0] ?? emptyChoice();
+  const { productName, productSubtitle, productNumber, manufacturerName } = activeChoice.product;
+  const accessories = activeChoice.accessories;
+  const selectedProductAccessories = accessories;
+  const suggestedAccessories = activeChoice.suggestions;
+  const [manualEditingId, setManualEditingId] = useState<string | null>(null);
   const [manualProductOpen, setManualProductOpen] = useState(false);
   const [manualProductDraftDirty, setManualProductDraftDirty] = useState(false);
   const [manualProductError, setManualProductError] = useState<string | null>(null);
-  const [accessories, setAccessories] = useState<ProductAccessoryDraft[]>(() => readProductAccessoryDrafts(currentSnapshot.accessories));
-  const [accessoryOwnerProductNumber, setAccessoryOwnerProductNumber] = useState(() => accessories.length > 0 ? productNumber : "");
   const [accessoryStepOpen, setAccessoryStepOpen] = useState(false);
   const [accessoryLookupOpen, setAccessoryLookupOpen] = useState(false);
   const [accessoryComponentId, setAccessoryComponentId] = useState<string | null>(null);
-  const [suggestedAccessories, setSuggestedAccessories] = useState<AhlsellAccessorySuggestion[]>([]);
   const [commentDraftDirty, setCommentDraftDirty] = useState(false);
   const [commentsSaving, setCommentsSaving] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -448,12 +454,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
   const hasUnsavedChanges = hasUnapprovedChanges || hasAttachmentDraft || manualProductDraftDirty || commentDraftDirty;
-  const selectedProductAccessories = accessoriesForSelectedProduct({
-    currentProductNumber: accessoryOwnerProductNumber,
-    nextProductNumber: productNumber,
-    accessories
-  });
-  const accessoryError = productAccessoryDraftError(selectedProductAccessories);
+  const accessoryError = choices.map(choice => productAccessoryDraftError(choice.accessories)).find(Boolean) ?? null;
   const assemblyPlan = productAssemblyPlan(requirement);
   const accessoryComponent = assemblyPlan?.components.find(component => component.id === accessoryComponentId);
   const accessoryQuery = accessoryComponent
@@ -523,102 +524,62 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     };
   }
 
-  function showSelection(
-    selection: ProductSelection,
-    notice: string,
-    manual = false,
-    accessorySuggestions: AhlsellAccessorySuggestion[] = []
-  ) {
-    const nextAccessories = accessoriesForSelectedProduct({
-      currentProductNumber: accessoryOwnerProductNumber,
-      nextProductNumber: selection.productNumber,
-      accessories
-    });
-    setProductName(selection.productName);
-    setProductSubtitle(selection.productSubtitle);
-    setProductNumber(selection.productNumber);
-    if (normalizeNrfNumber(selection.productNumber) !== normalizeNrfNumber(productNumber)) setOrderQuantity(null);
-    setManufacturerArticleNumber(selection.manufacturerArticleNumber);
-    setManufacturerName(selection.manufacturerName);
-    setDeliveryTimeDays(selection.deliveryTimeDays);
-    setUnitPrice(selection.unitPrice);
-    setPriceCurrency(normalizeCurrencyCode(selection.currency) || defaultCurrency);
-    setManualProductSelected(manual);
-    setSelectionReview(manual ? candidateSelectionReview() : null);
-    setSelectionRequirementRevision(effectiveRequirements(requirement).revision);
-    setManualProductOpen(false);
-    setManualProductDraftDirty(false);
-    setManualProductError(null);
-    setAccessories(nextAccessories);
-    setAccessoryOwnerProductNumber(nextAccessories.length > 0 ? selection.productNumber : "");
-    setAccessoryStepOpen(false);
-    const firstComponent = assemblyPlan?.components.find(component => !component.optional);
-    setAccessoryComponentId(firstComponent?.id ?? null);
-    setAccessoryLookupOpen(false);
-    setSuggestedAccessories(accessorySuggestions);
+  function updateChoice(id: string, update: (choice: PostProductChoice) => PostProductChoice) {
+    setChoices(current => current.map(choice => choice.id === id ? update(choice) : choice));
     setHasUnapprovedChanges(true);
-    setDraftNotice(notice);
-    focusSelectedProduct();
+  }
+
+  function setAccessories(update: ProductAccessoryDraft[] | ((items: ProductAccessoryDraft[]) => ProductAccessoryDraft[])) {
+    updateChoice(activeChoice.id, choice => ({ ...choice, accessories: typeof update === "function" ? update(choice.accessories) : update }));
+  }
+
+  function activateChoice(id: string) {
+    setActiveChoiceId(id);
+    setAccessoryStepOpen(false);
+    setAccessoryLookupOpen(false);
+    setAccessoryComponentId(null);
   }
 
   function focusSelectedProduct() {
-    window.requestAnimationFrame(() => {
-      const selectedCard = document.getElementById(`selected-pipe-${requirement.id}`);
-      selectedCard?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-      selectedCard?.focus({ preventScroll: true });
-    });
+    window.requestAnimationFrame(() => document.getElementById(`selected-pipe-${requirement.id}-${activeChoice.id}`)?.focus({ preventScroll: true }));
+  }
+
+  function showSelection(selection: ProductSelection, review: ProductSelectionReview | null, suggestions: AhlsellAccessorySuggestion[] = [], amount?: { quantity: string; unit: string }) {
+    const existing = choices.find(choice => normalizeNrfNumber(choice.product.productNumber) === normalizeNrfNumber(selection.productNumber));
+    if (existing) { activateChoice(existing.id); return; }
+    if (choices.length >= 20) { onError("Du kan velge inntil 20 produkter per post."); return; }
+    const choice = { ...emptyChoice(), id: crypto.randomUUID(), product: selection, manual: false, review, suggestions,
+      quantity: amount ?? emptyChoice().quantity };
+    setChoices(current => [...current, choice]);
+    activateChoice(choice.id);
+    setHasUnapprovedChanges(true);
+    setDraftNotice("Produktet er lagt til. Lagre produktvalget for å bekrefte posten.");
+    onError("");
   }
 
   function applyMemory(memory: Row, resolved?: { productName?: string; productSubtitle?: string; candidate?: AhlsellPublicCandidate }) {
-    showSelection(
-      selectionFromMemory(memory, resolved),
-      `Tidigare godkänd produkt har valts för kontroll: ${String(memory.product_name)} · Artikelnummer ${String(memory.product_number)}.`
-    );
-    setSelectionReview(candidateSelectionReview(resolved?.candidate));
-    onError("");
+    showSelection(selectionFromMemory(memory, resolved), candidateSelectionReview(resolved?.candidate));
   }
 
-  function applyAhlsellCandidate(candidate: AhlsellPublicCandidate, resolvedSubtitle = "") {
-    showSelection({
-      productName: candidate.productName,
-      productSubtitle: resolvedSubtitle,
-      productNumber: candidate.articleNumber,
-      manufacturerArticleNumber: "",
-      manufacturerName: candidate.manufacturer,
-      deliveryTimeDays: "",
-      unitPrice: "",
-      currency: defaultCurrency
-    }, `Produkt har valts för kontroll: ${candidate.productName} · Artikelnummer ${candidate.articleNumber}.`, false, candidate.suggestedAccessories ?? []);
-    setSelectionReview(candidateSelectionReview(candidate) ?? (dataWarnings.length ? {
-      status: "review", warnings: dataWarnings.map(warning => warning.message)
-    } : null));
-    onError("");
+  function applyAhlsellCandidate(candidate: AhlsellPublicCandidate, resolvedSubtitle = "", amount?: { quantity: string; unit: string }) {
+    showSelection({ productName: candidate.productName, productSubtitle: resolvedSubtitle, productNumber: candidate.articleNumber,
+      manufacturerArticleNumber: "", manufacturerName: candidate.manufacturer, deliveryTimeDays: "", unitPrice: "", currency: defaultCurrency },
+      candidateSelectionReview(candidate) ?? (dataWarnings.length ? { status: "review", warnings: dataWarnings.map(warning => warning.message) } : null),
+      candidate.suggestedAccessories ?? [], amount);
   }
 
-  function clearSelectedProduct() {
-    onError("");
-    setSelectionReview(null);
-    setAccessories([]);
-    setAccessoryOwnerProductNumber("");
-    setAccessoryLookupOpen(false);
-    setAccessoryStepOpen(false);
-    setAccessoryComponentId(null);
-    setProductName("");
-    setProductSubtitle("");
-    setProductNumber("");
-    setOrderQuantity(null);
-    setManufacturerArticleNumber("");
-    setManufacturerName("");
-    setDeliveryTimeDays("");
-    setUnitPrice("");
-    setPriceCurrency(defaultCurrency);
-    setManualProductSelected(false);
-    setSuggestedAccessories([]);
-    setDraftNotice(null);
+  function removeProduct(id: string) {
+    const remaining = choices.filter(choice => choice.id !== id);
+    setChoices(remaining);
+    if (activeChoice.id === id) activateChoice(remaining[0]?.id ?? "");
     setHasUnapprovedChanges(true);
+    onError("");
   }
 
-  function openManualProductCard() {
+  function clearSelectedProduct() { removeProduct(activeChoice.id); }
+
+  function openManualProductCard(editId: string | null = null) {
+    setManualEditingId(editId);
     if (hasAttachmentDraft || attachments.length > 0) setAttachmentExpanded(true);
     setManualProductDraftDirty(false);
     setManualProductError(null);
@@ -634,13 +595,19 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   function applyManualProduct(choice: ManualProductChoice) {
-    showSelection(choice.product, "Produkt og tilbehør er lagt til. Lagre produktvalget for å bekrefte posten.", choice.manual);
-    setOrderQuantity(choice.quantity);
-    setAccessories(choice.accessories);
-    setAccessoryOwnerProductNumber(choice.product.productNumber);
-    setAccessoryStepOpen(false);
-    setAccessoryLookupOpen(false);
-    setSelectionReview(choice.review ?? (dataWarnings.length ? { status: "review", warnings: dataWarnings.map(warning => warning.message) } : null));
+    if (choices.some(item => item.id !== manualEditingId && normalizeNrfNumber(item.product.productNumber) === normalizeNrfNumber(choice.product.productNumber))) {
+      setManualProductError("Produktet er allerede valgt. Endre mengden på den eksisterende raden."); return;
+    }
+    if (!manualEditingId && choices.length >= 20) { setManualProductError("Du kan velge inntil 20 produkter per post."); return; }
+    const previous = choices.find(item => item.id === manualEditingId);
+    const sameProduct = previous && normalizeNrfNumber(previous.product.productNumber) === normalizeNrfNumber(choice.product.productNumber);
+    const next: PostProductChoice = { ...emptyChoice(), ...choice, id: previous?.id ?? crypto.randomUUID(),
+      notes: sameProduct ? previous.notes : "", suggestions: sameProduct ? previous.suggestions : [] };
+    setChoices(current => previous ? current.map(item => item.id === previous.id ? next : item) : [...current, next]);
+    activateChoice(next.id);
+    closeManualProductCard();
+    setHasUnapprovedChanges(true);
+    setDraftNotice("Produkt og tilbehør er lagt til. Lagre produktvalget for å bekrefte posten.");
     onError("");
   }
 
@@ -686,7 +653,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       ...amount,
       notes: `${accessoryComponent ? `Kravdel: ${accessoryComponent.label}. ` : ""}Valt från leverantören: ${candidate.productUrl}`
     }]);
-    setAccessoryOwnerProductNumber(productNumber);
     setAccessoryStepOpen(true);
     setAccessoryLookupOpen(false);
     setHasUnapprovedChanges(true);
@@ -695,17 +661,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     window.requestAnimationFrame(() => document.getElementById(`accessory-${requirement.id}-${selectedProductAccessories.length}-quantity`)?.focus());
   }
 
-  function updateOrderQuantity(amount: { quantity: string; unit: string }) {
-    setOrderQuantity(amount);
-    setHasUnapprovedChanges(true);
-  }
-
   function addManualAccessory() {
     if (!productNumber.trim() || selectedProductAccessories.length >= 20) return;
-    if (accessories.length > 0 && selectedProductAccessories.length === 0 && !window.confirm(`Tillbehören för NRF ${accessoryOwnerProductNumber} ersätts med tillbehör för NRF ${productNumber.trim()}. Vill du fortsätta?`)) return;
     const nextIndex = selectedProductAccessories.length;
     setAccessories([...selectedProductAccessories, { ...newProductAccessoryDraft(), ...(assemblyPlan?.kind === "pipe" ? { quantity: "" } : {}) }]);
-    setAccessoryOwnerProductNumber(productNumber);
     setAccessoryStepOpen(true);
     setAccessoryLookupOpen(false);
     setHasUnapprovedChanges(true);
@@ -727,9 +686,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   function removeAccessory(index: number) {
     const next = accessories.filter((_, itemIndex) => itemIndex !== index);
     setAccessories(next);
-    if (next.length === 0) {
-      setAccessoryOwnerProductNumber("");
-    }
     setHasUnapprovedChanges(true);
     onError("");
   }
@@ -747,9 +703,14 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   }
 
   async function save() {
-    if (orderQuantity && !parseProductOrderQuantity(orderQuantity)) {
-      onError("Angi en gyldig total mengde (0,001–100 000) og enhet for hovedproduktet.");
-      return;
+    for (const choice of choices) {
+      if (choice.quantity.quantity.trim() && !parseProductOrderQuantity(choice.quantity)) {
+        onError(`Angi gyldig mengde og enhet for ${choice.product.productName}.`); return;
+      }
+      if (choice.manual) {
+        const validation = validateManualDistributorProduct(choice.product, defaultCurrency);
+        if ("error" in validation) { openManualProductCard(choice.id); setManualProductError(validation.error); return; }
+      }
     }
     if (commentDraftDirty || commentsSaving) {
       onError("Spara kommentarerna eller töm kommentarsfälten före godkännandet.");
@@ -759,22 +720,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       setManualProductOpen(true);
       setManualProductError("Lägg till produkten från kortet innan du godkänner och sparar.");
       return;
-    }
-    if (manualProductSelected) {
-      const manualValidation = validateManualDistributorProduct({
-        productNumber,
-        manufacturerArticleNumber,
-        manufacturerName,
-        deliveryTimeDays,
-        unitPrice,
-        currency: priceCurrency
-      }, priceCurrency || defaultCurrency);
-      if ("error" in manualValidation) {
-        setManualProductOpen(true);
-        setManualProductError(manualValidation.error);
-        window.requestAnimationFrame(() => document.getElementById(`manual-product-${requirement.id}-nrf`)?.focus());
-        return;
-      }
     }
     if (hasAttachmentDraft) {
       setManualProductOpen(true);
@@ -788,7 +733,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       return;
     }
     if (!productNumber.trim() && !clearingSavedSelection) return;
-    const sameApprovedProduct = Boolean(normalizeNrfNumber(productNumber)) && normalizeNrfNumber(productNumber) === normalizeNrfNumber(String(currentSnapshot.productNumber ?? ""));
     setSaving(true);
     onSavingChange(true);
     onError("");
@@ -805,53 +749,16 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         setHasUnapprovedChanges(false);
         return;
       }
-      let resolvedProductName = productName;
-      let resolvedProductSubtitle = productSubtitle;
-      let resolvedManufacturerName = manufacturerName;
-      if (productNumber.trim() && !resolvedProductSubtitle.trim() && !manualProductSelected) {
-        try {
-          const labels = await fetchAhlsellProductLabels(projectId, [{
-            requirementId: requirement.id,
-            articleNumber: productNumber
-          }]);
-          const label = labels[requirement.id];
-          if (label && normalizeNrfNumber(label.articleNumber) === normalizeNrfNumber(productNumber)) {
-            resolvedProductName = label.productName || resolvedProductName;
-            resolvedProductSubtitle = label.subtitle;
-            resolvedManufacturerName = label.manufacturer || resolvedManufacturerName;
-            setProductName(resolvedProductName);
-            setProductSubtitle(resolvedProductSubtitle);
-            setManufacturerName(resolvedManufacturerName);
-          }
-        } catch {
-          // Ahlsells produkttext förbättrar visningen men får inte blockera ett uttryckligt produktval.
-        }
-      }
-      const chosen = {
-        entryMethod: manualProductSelected ? "manual" as const : "catalog" as const,
-        productName: resolveDistributorProductName({
-          productName: resolvedProductName,
-          requirementName: requirement.value_text,
-          productNumber
-        }),
-        productSubtitle: resolvedProductSubtitle,
-        productNumber,
-        manufacturerArticleNumber,
-        manufacturerName: resolvedManufacturerName,
-        deliveryTimeDays,
-        unitPrice,
-        currency: priceCurrency,
-        notes: productSelectionReviewNotes(selectionReview,
-          sameApprovedProduct && typeof currentSnapshot.notes === "string"
-            ? currentSnapshot.notes
-            : ""),
-        accessories: productAccessoryPayload(selectedProductAccessories),
-        ...(orderQuantity ? { orderQuantity } : {})
-      };
+      const products = choices.map(choice => ({
+        ...choice.product, entryMethod: choice.manual ? "manual" : "catalog", userApproved: true,
+        productName: resolveDistributorProductName({ productName: choice.product.productName, productNumber: choice.product.productNumber }),
+        notes: productSelectionReviewNotes(choice.review, choice.notes), accessories: productAccessoryPayload(choice.accessories),
+        ...(choice.quantity.quantity.trim() ? { orderQuantity: choice.quantity } : {})
+      }));
       const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirementId: requirement.id, expectedRevision: requirement.edit_revision, requirementRevision: selectionRequirementRevision, userApproved: true, ...chosen })
+        body: JSON.stringify({ requirementId: requirement.id, expectedRevision: requirement.edit_revision, requirementRevision: effectiveRequirements(requirement).revision, userApproved: true, products })
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Produktvalet kunde inte sparas.");
@@ -1144,8 +1051,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="product-mapping-fields">
         <div id={`product-selection-header-${requirement.id}`} className="product-action-bar">
           <nav id={`product-post-actions-${requirement.id}`} aria-label="Handlinger for produktposten" className="product-post-actions">
-            <Button neutral id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-haspopup="dialog" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} onClick={manualProductOpen ? closeManualProductCard : openManualProductCard}>
-              <Plus className="h-4 w-4" aria-hidden="true" />{productNumber.trim() ? "Endre produkt og tilbehør" : "Legg til produkt"}
+            <Button neutral id={`manual-product-trigger-${requirement.id}`} type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" aria-haspopup="dialog" aria-expanded={manualProductOpen} aria-controls={`manual-product-card-${requirement.id}`} disabled={choices.length >= 20} onClick={() => openManualProductCard()}>
+              <Plus className="h-4 w-4" aria-hidden="true" />Legg til produkt
             </Button>
             {!resolution && (
               <Button neutral type="button" variant="secondary" className="min-h-9 px-3 py-1.5 text-xs" onClick={markAsNotInAssortment}>
@@ -1169,26 +1076,24 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         </div>
 
           {manualProductOpen && <ManualProductCard projectId={projectId} requirementId={requirement.id} postNumber={details.postNumber}
-            initial={{ product: { productName, productSubtitle, productNumber, manufacturerArticleNumber, manufacturerName, deliveryTimeDays, unitPrice, currency: priceCurrency },
-              quantity: orderQuantity ?? { quantity: String(quantity.quantity ?? ""), unit: quantity.unit || "st" },
-              accessories: selectedProductAccessories, manual: manualProductSelected || !productNumber.trim(), review: selectionReview }}
+            initial={choices.find(choice => choice.id === manualEditingId) ?? emptyChoice()}
             initialError={manualProductError} attachments={attachmentSection} attachmentSaving={attachmentSaving} hasAttachmentDraft={hasAttachmentDraft}
             onApply={applyManualProduct} onCancel={closeManualProductCard} onDirtyChange={setManualProductDraftDirty} />}
 
           <div id={`ahlsell-products-${requirement.id}`} className={`product-catalog-panel${productNumber.trim() ? " product-selected-panel" : ""}`}>
-            <h3 className="product-panel-caption">{productNumber.trim() ? "Valgt produkt" : "Produktforslag"}{productNumber.trim() && <span>{isApproved ? "Lagret" : "Ikke lagret"}</span>}</h3>
+            <h3 className="product-panel-caption">{choices.length ? `Valgte produkter (${choices.length})` : "Produktforslag"}{productNumber.trim() && <span>{isApproved ? "Lagret" : "Ikke lagret"}</span>}</h3>
             <div className="product-catalog-scroll">
             <details open className="product-catalog-search">
               <summary>Søk etter produkt eller lim inn produktlenke</summary>
-              <AhlsellProductLookup key={productNumber || "unselected"}
+              <AhlsellProductLookup key={choices.map(choice => choice.product.productNumber).join(":")} selectionLimitReached={choices.length >= 20}
                 projectId={projectId} requirementId={requirement.id} id={`product-search-${requirement.id}`}
                 disabled={saving || attachmentSaving || commentsSaving || requirement.can_edit === false}
-                defaultQuantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")}
-                defaultUnit={orderQuantity?.unit ?? (quantity.unit || "st")}
-                selections={productNumber ? [{ productNumber, quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: orderQuantity?.unit ?? (quantity.unit || "st") }] : []}
-                onSelect={(candidate, amount) => { applyAhlsellCandidate(candidate, candidate.subtitle ?? candidate.description ?? ""); updateOrderQuantity(amount); }}
-                onDeselect={clearSelectedProduct}
-                onQuantityChange={(_candidate, amount) => updateOrderQuantity(amount)} />
+                defaultQuantity={String(quantity.quantity ?? "")}
+                defaultUnit={quantity.unit || "st"}
+                selections={choices.map(choice => ({ productNumber: choice.product.productNumber, ...choice.quantity }))}
+                onSelect={(candidate, amount) => applyAhlsellCandidate(candidate, candidate.subtitle ?? candidate.description ?? "", amount)}
+                onDeselect={candidate => { const choice = choices.find(item => normalizeNrfNumber(item.product.productNumber) === normalizeNrfNumber(candidate.articleNumber)); if (choice) removeProduct(choice.id); }}
+                onQuantityChange={(candidate, amount) => { const choice = choices.find(item => normalizeNrfNumber(item.product.productNumber) === normalizeNrfNumber(candidate.articleNumber)); if (choice) updateChoice(choice.id, item => ({ ...item, quantity: amount })); }} />
             </details>
             <AhlsellPublicMatchPanel
               projectId={projectId}
@@ -1204,41 +1109,46 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               onClearSelection={clearSelectedProduct}
               onUseCandidate={applyAhlsellCandidate}
               onUseMemory={applyMemory}
-              renderSelected={candidate => (
+              renderSelected={candidateFor => (
                 <div className="product-linked-content">
                 <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
-                {productNumber.trim() && (
-                  <section id={`selected-pipe-${requirement.id}`} tabIndex={-1} aria-label="Valgt hovedprodukt" className="product-selected-item">
-                    <div className="product-selected-summary">
-                      <div className="product-selected-description"><div className="product-selected-heading"><a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(productNumber)}`} target="_blank" rel="noreferrer" className="underline">Art. {productNumber}</a><div className="product-selected-choice"><ProductSelectionCheckbox checked approved={isApproved} disabled={saving} label={`${productName || "hovedprodukt"}, NRF ${productNumber}`} onChange={clearSelectedProduct} /></div></div>
-                        <h4>{productName || "Produkt"}</h4>{productSubtitle && productSubtitle.trim() !== productName.trim() && <p>{productSubtitle}</p>}</div>
-                        <div className="product-selected-quantity"><ProductQuantityFields id={`selected-product-${requirement.id}`} quantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")} unit={orderQuantity?.unit ?? (quantity.unit || "st")} disabled={saving}
-                          onQuantityChange={value => updateOrderQuantity({ quantity: value, unit: orderQuantity?.unit ?? (quantity.unit || "st") })}
-                          onUnitChange={value => updateOrderQuantity({ quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: value })} /></div>
+                {choices.map((choice, index) => <section key={choice.id} id={`selected-pipe-${requirement.id}-${choice.id}`} tabIndex={-1} aria-label={`Valgt produkt ${index + 1}: ${choice.product.productName}`} className="product-selected-item">
+                  <div className="product-selected-summary">
+                    <div className="product-selected-description">
+                      <div className="product-selected-heading"><a href={`https://www.ahlsell.no/productVariantProxy/${encodeURIComponent(choice.product.productNumber)}`} target="_blank" rel="noreferrer" className="underline">Art. {choice.product.productNumber}</a>
+                        <ProductSelectionCheckbox checked approved={isApproved} disabled={saving || commentDraftDirty} label={choice.product.productName} onChange={() => removeProduct(choice.id)} /></div>
+                      <h4>{choice.product.productName || "Produkt"}</h4>
+                      {choice.product.productSubtitle && choice.product.productSubtitle !== choice.product.productName && <p>{choice.product.productSubtitle}</p>}
                     </div>
-                    {(manufacturerArticleNumber || deliveryTimeDays || unitPrice) && <dl className="product-requirement-facts">
-                      {manufacturerArticleNumber && <div><dt>Artikkelnummer</dt><dd>{manufacturerArticleNumber}</dd></div>}
-                      {deliveryTimeDays && <div><dt>Leveringstid</dt><dd>{deliveryTimeDays} dager</dd></div>}
-                      {unitPrice && <div><dt>Pris</dt><dd>{formatUnitPrice(unitPrice, priceCurrency)}</dd></div>}
-                    </dl>}
-                    <div className="product-selected-assessment">
-                      <TechnicalEvaluationDetails evaluation={candidate?.technicalEvaluation} searchScore={candidate?.searchScore} />
-                    </div>
-                    {accessorySection}
-                  </section>
-                )}
-
-                {productNumber.trim() && selectionReview?.status === "mismatch" && (
-                  <details className="text-sm text-neutral-700">
-                    <summary className="cursor-pointer font-semibold">Avvikelser mot postens krav · NRF {productNumber}</summary>
-                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{selectionReview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
-                  </details>
-                )}
+                    <ProductQuantityFields id={`selected-product-${requirement.id}-${choice.id}`} quantity={choice.quantity.quantity} unit={choice.quantity.unit} disabled={saving}
+                      onQuantityChange={value => updateChoice(choice.id, item => ({ ...item, quantity: { ...item.quantity, quantity: value } }))}
+                      onUnitChange={value => updateChoice(choice.id, item => ({ ...item, quantity: { ...item.quantity, unit: value } }))} />
+                    <Button neutral type="button" variant="secondary" onClick={() => openManualProductCard(choice.id)}>Endre produkt og tilbehør</Button>
+                  </div>
+                  {(choice.product.manufacturerArticleNumber || choice.product.deliveryTimeDays || choice.product.unitPrice) && <dl className="product-requirement-facts">
+                    {choice.product.manufacturerArticleNumber && <div><dt>Artikkelnummer</dt><dd>{choice.product.manufacturerArticleNumber}</dd></div>}
+                    {choice.product.deliveryTimeDays && <div><dt>Leveringstid</dt><dd>{choice.product.deliveryTimeDays} dager</dd></div>}
+                    {choice.product.unitPrice && <div><dt>Pris</dt><dd>{formatUnitPrice(choice.product.unitPrice, choice.product.currency)}</dd></div>}
+                  </dl>}
+                  <div className="product-selected-assessment"><TechnicalEvaluationDetails evaluation={candidateFor(choice.product.productNumber)?.technicalEvaluation} searchScore={candidateFor(choice.product.productNumber)?.searchScore} /></div>
+                  {choice.review?.status === "mismatch" && <details className="p-3 text-sm"><summary>Avvikelser mot postens krav</summary><ul>{choice.review.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}
+                  {choice.id === activeChoice.id ? accessorySection : <div className="border-t border-neutral-200 bg-white p-4">
+                    <h5 className="mb-3 font-bold">Tilbehør ({choice.accessories.length})</h5>
+                    {choice.accessories.map((accessory, accessoryIndex) => <p key={accessoryIndex} className="mb-2 text-sm">{accessory.name} · {accessory.quantityBasis === "total" ? accessory.quantity : quantity.quantity === null ? "Kontroller mengde" : Number(accessory.quantity) * quantity.quantity} {accessory.unit}</p>)}
+                    <Button neutral variant="secondary" disabled={commentDraftDirty} onClick={() => { activateChoice(choice.id); setAccessoryStepOpen(true); setAccessoryLookupOpen(true); }}>Velg eller legg til tilbehør</Button>
+                  </div>}
+                </section>)}
+                <Button neutral type="button" variant="secondary" disabled={choices.length >= 20} onClick={() => openManualProductCard()}><Plus className="h-4 w-4" aria-hidden="true" />Legg til produkt</Button>
 
                 {productNumber.trim() && commentDraftDirty && <p className="text-xs font-semibold text-neutral-900">Spara kommentarerna eller töm kommentarsfälten före godkännandet.</p>}
                 <details>
-                  <summary className="cursor-pointer text-sm font-semibold">Produktkommentarer</summary>
-                  <div id={`product-comments-${requirement.id}`} className="mt-3 scroll-mt-28">{productComments}</div>
+                  <summary className="cursor-pointer text-sm font-semibold">Produktkommentarer · Art. {productNumber}</summary>
+                  <div id={`product-comments-${requirement.id}`} className="mt-3 scroll-mt-28">
+                    {choices.length > 1 && <label className="mb-3 block text-sm">Velg produkt
+                      <select className="mt-1 block w-full rounded border-neutral-300 text-sm" value={activeChoice.id} disabled={commentDraftDirty} onChange={event => activateChoice(event.target.value)}>
+                        {choices.map(choice => <option key={choice.id} value={choice.id}>{choice.product.productName} · {choice.product.productNumber}</option>)}
+                      </select>
+                    </label>}{productComments}</div>
                 </details>
 
                 </div>
@@ -1248,9 +1158,9 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           </div>
 
         <div className="product-save-footer">
-          <span role="status" className="text-sm text-neutral-600">{clearingSavedSelection ? "Produkt og tilbehør fjernes når du lagrer" : isApproved ? "Produktvalget er lagret" : productNumber.trim() ? "Produkt valgt · ikke lagret" : "Velg et produkt for å lagre posten"}</span>
+          <span role="status" className="text-sm text-neutral-600">{clearingSavedSelection ? "Produkt og tilbehør fjernes når du lagrer" : isApproved ? "Produktvalget er lagret" : productNumber.trim() ? `${choices.length} produkter valgt · ikke lagret` : "Velg et produkt for å lagre posten"}</span>
           <Button type="button" onClick={() => void save()}
-            disabled={(!productNumber.trim() && !clearingSavedSelection) || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || accessoryStepOpen || Boolean(accessoryError)}>
+            disabled={(!productNumber.trim() && !clearingSavedSelection) || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
             {saving ? "Lagrer…" : clearingSavedSelection ? "Lagre uten produkt" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
           </Button>
@@ -1275,7 +1185,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
   onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onClearSelection: () => void;
   onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
-  renderSelected: (candidate?: AhlsellPublicCandidate) => ReactNode;
+  renderSelected: (candidateFor: (number: string) => AhlsellPublicCandidate | undefined) => ReactNode;
   onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string; candidate?: AhlsellPublicCandidate }) => void;
 }) {
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
@@ -1349,7 +1259,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
 
   // Keep the catalog mounted so clearing a choice restores the current results.
   if (selectedArticleNumber.trim()) {
-    return renderSelected(candidatesByArticle.get(normalizeNrfNumber(selectedArticleNumber)));
+    return renderSelected(number => candidatesByArticle.get(normalizeNrfNumber(number)));
   }
 
   return (
@@ -1527,32 +1437,6 @@ function formatUnitPrice(value: string, currency: string) {
   } catch {
     return `${amount.toFixed(2)} ${currencyCode}`;
   }
-}
-
-async function fetchAhlsellProductLabels(
-  projectId: string,
-  items: AhlsellProductLabelItem[],
-  signal?: AbortSignal
-) {
-  const labels: Record<string, AhlsellProductLabel> = {};
-  for (let index = 0; index < items.length; index += MAX_AHLSELL_PRODUCT_LABEL_ITEMS) {
-    const batch = items.slice(index, index + MAX_AHLSELL_PRODUCT_LABEL_ITEMS);
-    const response = await fetch(`/api/projects/${projectId}/ahlsell-product-labels`, {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ items: batch }),
-      signal
-    });
-    const payload = (await response.json().catch(() => null)) as {
-      labels?: Record<string, AhlsellProductLabel>;
-      error?: string;
-    } | null;
-    if (!response.ok) {
-      throw new Error(payload?.error ?? "Produkttekstene kunne ikke hentes.");
-    }
-    Object.assign(labels, payload?.labels ?? {});
-  }
-  return labels;
 }
 
 function formatAttachmentSize(value: number) {

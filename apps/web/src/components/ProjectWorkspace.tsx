@@ -25,6 +25,7 @@ import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterial
 import { PdfDropzone } from "@/components/PdfDropzone";
 import type { OrganizationProject } from "@/types/organization";
 import { PROJECT_STAGES } from "@/lib/project-governance";
+import { productChoiceSnapshots } from "@/lib/product-choice-collection";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
 import {
   formatProjectQuantity,
@@ -750,25 +751,25 @@ function summarizeSelectedProducts(
   }>();
 
   for (const assignment of assignments.filter(isUserApprovedProductAssignment)) {
-    const snapshot = isRecord(assignment.product_snapshot)
-      ? assignment.product_snapshot
-      : {};
-    const productNumber = String(snapshot.productNumber ?? "").trim();
-    const name = String(snapshot.name ?? "Produkt").trim() || "Produkt";
-    const requirement = typeof assignment.requirement_id === "string"
-      ? requirementsById.get(assignment.requirement_id)
-      : undefined;
-    const required = parseProductOrderQuantity(snapshot.orderQuantity) ?? projectRequirementQuantity(requirement?.value_json);
-    const key = `${productNumber || assignment.id}:${required.unit}`;
-    const current = summaries.get(key);
-    summaries.set(key, {
-      key,
-      name,
-      productNumber: productNumber || "Saknas",
-      quantity: (current?.quantity ?? 0) + (required.quantity ?? 0),
-      unit: required.unit,
-      quantityMissing: Boolean(current?.quantityMissing) || required.quantity === null
-    });
+    for (const snapshot of productChoiceSnapshots(assignment.product_snapshot)) {
+      const productNumber = String(snapshot.productNumber ?? "").trim();
+      const name = String(snapshot.name ?? "Produkt").trim() || "Produkt";
+      const requirement = typeof assignment.requirement_id === "string"
+        ? requirementsById.get(assignment.requirement_id)
+        : undefined;
+      const required = parseProductOrderQuantity(snapshot.orderQuantity) ?? projectRequirementQuantity(requirement?.value_json);
+      const key = `${productNumber || assignment.id}:${required.unit}`;
+      const current = summaries.get(key);
+      summaries.set(key, {
+        key,
+        name,
+        productNumber: productNumber || "Saknas",
+        quantity: (current?.quantity ?? 0) + (required.quantity ?? 0),
+        unit: required.unit,
+        quantityMissing: Boolean(current?.quantityMissing) || required.quantity === null
+      });
+    }
+
   }
 
   return [...summaries.values()].map((summary) => ({

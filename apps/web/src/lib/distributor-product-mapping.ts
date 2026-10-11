@@ -235,3 +235,23 @@ function normalizedIdentity(value: string, removeNrfPrefix = false) {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
+
+export function validateDistributorProductChoices(value: unknown):
+  { data: { requirementId: string; products: DistributorProductMappingInput[] } } | { error: string } {
+  if (!isRecord(value) || !Array.isArray(value.products) || !value.products.length || value.products.length > 20) {
+    return { error: "Välj mellan 1 och 20 produkter för posten." };
+  }
+  const products: DistributorProductMappingInput[] = [];
+  const numbers = new Set<string>();
+  for (const item of value.products) {
+    if (!isRecord(item)) return { error: "Ett produktval har ogiltigt format." };
+    const result = validateDistributorProductMapping({ ...item, requirementId: value.requirementId,
+      userApproved: value.userApproved, requirementRevision: value.requirementRevision });
+    if ("error" in result) return result;
+    const number = normalizedIdentity(result.data.productNumber, true);
+    if (!number || numbers.has(number)) return { error: "Produkten är redan vald. Ändra mängden på den befintliga raden." };
+    numbers.add(number);
+    products.push(result.data);
+  }
+  return { data: { requirementId: products[0].requirementId, products } };
+}

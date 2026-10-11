@@ -1,3 +1,4 @@
+import { productChoiceSnapshots } from "./product-choice-collection";
 import { isUserApprovedProductAssignment } from "./approved-product-assignment";
 import type { BusinessDevelopmentRequirementRow } from "./business-development-statistics";
 import { splitDistributorRequirementLines } from "./distributor-requirement-lines";
@@ -390,27 +391,28 @@ function buildTopApprovedProducts({
   for (const [requirementId, assignment] of approvedAssignmentByRequirementId) {
     const requirement = productRequirementById.get(requirementId);
     if (!requirement) continue;
-    const snapshot = record(assignment.product_snapshot);
-    const nrfNumber = firstText(
-      snapshot.productNumber,
-      snapshot.nrfNumber,
-      snapshot.articleNumber
-    );
-    const name = firstText(snapshot.subtitle, snapshot.name)
-      ?? (nrfNumber ? `NRF ${nrfNumber}` : "Godkänd produkt");
-    const key = nrfNumber
-      ? `nrf:${normalizeProductNumber(nrfNumber)}`
-      : `name:${normalize(name)}`;
-    const current = groups.get(key) ?? {
-      key,
-      name,
-      nrfNumber,
-      approvals: 0,
-      projectIds: new Set<string>()
-    };
-    current.approvals += 1;
-    current.projectIds.add(requirement.project_id);
-    groups.set(key, current);
+    for (const snapshot of productChoiceSnapshots(assignment.product_snapshot)) {
+      const nrfNumber = firstText(
+        snapshot.productNumber,
+        snapshot.nrfNumber,
+        snapshot.articleNumber
+      );
+      const name = firstText(snapshot.subtitle, snapshot.name)
+        ?? (nrfNumber ? `NRF ${nrfNumber}` : "Godkänd produkt");
+      const key = nrfNumber
+        ? `nrf:${normalizeProductNumber(nrfNumber)}`
+        : `name:${normalize(name)}`;
+      const current = groups.get(key) ?? {
+        key,
+        name,
+        nrfNumber,
+        approvals: 0,
+        projectIds: new Set<string>()
+      };
+      current.approvals += 1;
+      current.projectIds.add(requirement.project_id);
+      groups.set(key, current);
+    }
   }
 
   return [...groups.values()]

@@ -156,7 +156,7 @@ export function ManualProductCard({ projectId, requirementId, postNumber, initia
       </section>
     </div>
     <footer className="manual-product-dialog-footer">
-      {error && <p ref={errorMessage} tabIndex={-1} role="alert">{error}</p>}
+      {(error || initialError) && <p ref={errorMessage} tabIndex={-1} role="alert">{error || initialError}</p>}
       <p>{hasAttachmentDraft ? "Lagre vedlegget eller tøm feltene før du bruker produktet." : "Valget lagres på posten når du trykker «Lagre produktvalg»."}</p>
       <div><Button variant="secondary" disabled={attachmentSaving} onClick={onCancel}>Avbryt</Button><Button disabled={attachmentSaving || hasAttachmentDraft} onClick={apply}>Bruk produkt{draft.accessories.length ? ` og ${draft.accessories.length} tilbehør` : ""}</Button></div>
     </footer>

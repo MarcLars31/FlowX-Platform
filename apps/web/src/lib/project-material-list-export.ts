@@ -1,3 +1,4 @@
+import { productChoiceSnapshots } from "./product-choice-collection";
 import ExcelJS from "exceljs";
 import { parseProductOrderQuantity, parseProductQuantity } from "./product-order-quantity";
 import { isUserApprovedProductAssignment } from "@/lib/approved-product-assignment";
@@ -83,7 +84,7 @@ export function buildProjectMaterialRows({
 
   for (const requirement of groupProductRequirementsByPdfChapter(requirements).flatMap(group => group.requirements)) {
     const assignment = assignmentsByRequirementId.get(requirement.id);
-    const snapshot = record(assignment?.product_snapshot);
+
     const details = projectRequirementDetails(requirement);
     const removal = distributorRequirementOperation(requirement) === "remove";
     const requirementFields = {
@@ -132,38 +133,40 @@ export function buildProjectMaterialRows({
       continue;
     }
 
-    const orderQuantity = parseProductOrderQuantity(snapshot.orderQuantity);
-    rows.push({
-      type: "Huvudprodukt",
-      ...requirementFields,
-      productName: text(snapshot.name),
-      productNumber: text(snapshot.productNumber),
-      manufacturer: text(snapshot.manufacturer),
-      quantity: orderQuantity?.quantity ?? mainQuantity,
-      unit: orderQuantity?.unit ?? requiredQuantity.unit,
-      notes: joinNotes(text(snapshot.notes), orderQuantity ? "" : missingQuantityNote),
-      distributor: text(snapshot.distributor) || "Ahlsell"
-    });
-
-    for (const accessoryValue of array(snapshot.accessories)) {
-      const accessory = record(accessoryValue);
-      const name = text(accessory.name);
-      if (!name) continue;
+    for (const snapshot of productChoiceSnapshots(assignment.product_snapshot)) {
+      const orderQuantity = parseProductOrderQuantity(snapshot.orderQuantity);
       rows.push({
-        type: "Tillbehör",
+        type: "Huvudprodukt",
         ...requirementFields,
-        productName: name,
-        productNumber: text(accessory.productNumber),
-        manufacturer: "",
-        quantity: accessory.quantityBasis === "total"
-          ? parseProductQuantity(accessory.quantity)
-          : mainQuantity === null
-          ? null
-          : mainQuantity * positiveNumber(accessory.quantity, 1),
-        unit: text(accessory.unit) || "st",
-        notes: joinNotes(text(accessory.notes), accessory.quantityBasis === "total" ? "" : missingQuantityNote),
+        productName: text(snapshot.name),
+        productNumber: text(snapshot.productNumber),
+        manufacturer: text(snapshot.manufacturer),
+        quantity: orderQuantity?.quantity ?? mainQuantity,
+        unit: orderQuantity?.unit ?? requiredQuantity.unit,
+        notes: joinNotes(text(snapshot.notes), orderQuantity ? "" : missingQuantityNote),
         distributor: text(snapshot.distributor) || "Ahlsell"
       });
+
+      for (const accessoryValue of array(snapshot.accessories)) {
+        const accessory = record(accessoryValue);
+        const name = text(accessory.name);
+        if (!name) continue;
+        rows.push({
+          type: "Tillbehör",
+          ...requirementFields,
+          productName: name,
+          productNumber: text(accessory.productNumber),
+          manufacturer: "",
+          quantity: accessory.quantityBasis === "total"
+            ? parseProductQuantity(accessory.quantity)
+            : mainQuantity === null
+            ? null
+            : mainQuantity * positiveNumber(accessory.quantity, 1),
+          unit: text(accessory.unit) || "st",
+          notes: joinNotes(text(accessory.notes), accessory.quantityBasis === "total" ? "" : missingQuantityNote),
+          distributor: text(snapshot.distributor) || "Ahlsell"
+        });
+      }
     }
   }
 
@@ -308,7 +311,7 @@ function addMaterialListSheet(
     row.unit,
     valueOrNull(row.notes),
     row.type === "Tillbehör" ? null : commentSummary(commentsByRequirement.get(row.requirementId ?? "") ?? [], false),
-    row.type === "Huvudprodukt" ? commentSummary(commentsByRequirement.get(row.requirementId ?? "") ?? [], true) : null
+    row.type === "Huvudprodukt" ? commentSummary((commentsByRequirement.get(row.requirementId ?? "") ?? []).filter(comment => normalizeNrfNumber(comment.product_number ?? "") === normalizeNrfNumber(row.productNumber)), true) : null
   ]);
   const headers = [
     "Rad",
@@ -375,13 +378,12 @@ function addMaterialListSheet(
 }
 
 function applicableMaterialComments(rows: ProjectMaterialRow[], comments: MaterialListComment[]): ExportComment[] {
-  const mainRows = new Map(rows.filter(row => row.type !== "Tillbehör" && row.requirementId)
-    .map(row => [row.requirementId, row]));
+  const mainRows = rows.filter(row => row.type !== "Tillbehör" && row.requirementId);
   return comments.flatMap(comment => {
-    const row = mainRows.get(comment.requirement_id);
+    const row = mainRows.find(row => row.requirementId === comment.requirement_id &&
+      (comment.product_number === null || row.type === "Huvudprodukt" &&
+        normalizeNrfNumber(comment.product_number) === normalizeNrfNumber(row.productNumber)));
     if (!row) return [];
-    if (comment.product_number !== null && (row.type !== "Huvudprodukt" ||
-      normalizeNrfNumber(comment.product_number) !== normalizeNrfNumber(row.productNumber))) return [];
     return [{ ...comment, postNumber: row.postNumber }];
   }).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
 }
