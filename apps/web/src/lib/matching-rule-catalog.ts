@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-10.1";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-11.1";
 export const RULE_CATALOG_DATE = "10 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -26,7 +26,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     description: "Sökningen hittar kandidater. En separat kontroll jämför varje faktiskt krav med dokumenterade produktdata.",
     sources: ["effective-requirements.ts", "effective-requirements.server.ts", "technical-evaluation-model.ts", "technical-evaluator.ts", "ahlsell-technical-evaluator.ts"],
     rules: [
-      rule("effective-requirements", "Samma krav i kort, sökning och kontroll", "En produktpost öppnas eller en kandidat bedöms.", "Använd bara den aktuella postens sparade fält och text i kort, sökning och teknisk kontroll. Krav från andra poster, huvudposter, kapitel och projektets standardvärden läggs inte till. Egna sidfortsättningar och sparade rättelser behålls. Olösta egna krav och konflikter kräver verifiering. PDF-filer tolkas inte om vid läsning."),
+      rule("effective-requirements", "Samma krav i kort, sökning och kontroll", "En produktpost öppnas eller en kandidat bedöms.", "Använd bara den aktuella postens sparade fält och text i kort, sökning och teknisk kontroll. Krav från andra poster, huvudposter, kapitel och projektets standardvärden läggs inte till. Egna sidfortsättningar och sparade rättelser behålls. Interna sidmarkeringar är källhänvisningar och blir inte tekniska krav. Olösta egna krav och konflikter kräver verifiering. PDF-filer tolkas inte om vid läsning."),
       rule("technical-status", "MATCH, FAIL eller VERIFY per krav", "Krav jämförs med produktdata för den aktuella artikeln.", "MATCH kräver stöd för samtliga obligatoriska krav. Ett konstaterat obligatoriskt fel ger FAIL. Saknad, gammal, motsägelsefull eller otolkad information ger VERIFY. Ett tomt kravunderlag kan aldrig ge MATCH."),
       rule("technical-revision", "Ändrade krav kräver ny kontroll", "Den aktuella postens krav ändras efter att kortet öppnats.", "Resultat för en annan kravversion godtas inte. Produktvalet måste kontrolleras igen före sparande. Krav- och evidensversioner följer bedömningen."),
       rule("technical-sources", "Artikelbunden dokumentation krävs", "Produkten har katalogdata, historik eller en offertreferens.", "Kontrollera artikelidentitet, dokumentationsstatus och giltighetstid. Tidigare val, sökpoäng och offertuppgifter är inte ett tekniskt godkännande. MLDL:s granskningsflaggor och kvarstående variant- eller tillbehörskrav kräver verifiering.")
@@ -49,8 +49,9 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
   {
     id: "underlag", title: "PDF-postens underlag", appliesTo: "Alla produktposter", kind: "requirement",
     description: "Vilken text och vilka egenskaper som får styra produktvalet.",
-    sources: ["current-post-requirement.ts", "requirement-snapshot.ts", "ahlsell-requirement-context.ts", "ahlsell-requirement-intent.ts"],
+    sources: ["current-post-requirement.ts", "pdf-post-text.ts", "requirement-snapshot.ts", "ahlsell-requirement-context.ts", "ahlsell-requirement-intent.ts"],
     rules: [
+      rule("ocr-sidfortsattning", "Avgränsa OCR-fält vid sidfortsättningar", "En ogranskad OCR-post har ett känt tolkningsfel.", "En fristående Rund sum RS-rad blir inte del av föregående fält. Bokstaven O i ett annars numeriskt DN-uttryck normaliseras till noll. Ett tidigare avklippt DN8 rättas till DN80 bara när den egna källtexten entydigt innehåller DN8O och ingen faktisk DN8. Granskade eller manuellt korrigerade poster behålls. Samma normalisering används i kort och matchning utan nya PDF- eller databasanrop."),
       rule("sparat-underlag", "Samma sparade underlag i hela flödet", "En post visas, matchas, godkänns eller exporteras.", "Använd den sparade versionen av posten. Nya importer märks med extraktionsversion 1; äldre poster märks som version 0 vid läsning. Sidöppning tolkar inte om PDF-filen och ersätter inte sparade rättelser."),
       rule("egen-produkt", "Postens egen produkt går först", "Posten har en egen produktbeskrivning eller egna tekniska egenskaper.", "Använd dessa före äldre kategorier och delar som bara nämns som ingående tillbehör.", { example: { input: "Komplett rörledning inklusive böjar och kopplingar.", result: "Sök rör som huvudprodukt. Hantera böjar och kopplingar som ingående delar." } }),
       rule("huvudnamn", "Skilj huvudprodukt från ingående delar", "Produkttexten innehåller exempelvis med, inklusive, for eller til.", "Flera kontroller använder texten före dessa ord för att identifiera det som säljs. Ett tillbehör till en ventil ska inte bli en komplett ventil."),

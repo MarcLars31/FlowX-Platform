@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import { projectInformationBody, projectInformationParagraphs, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
 import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
+import { structuredPostBlocks } from "@/lib/structured-post-layout";
 import { orderedSpecificationAttributes } from "@/lib/project-specification-layout";
 
 export function ProjectPostSpecification({ id, details, description, quantity, quantityText, sourcePdfHref, pdfArticleNumber, informationOnly = false }: {
@@ -14,6 +15,7 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
   informationOnly?: boolean;
 }) {
   const fields = orderedSpecificationAttributes(details);
+  const blocks = structuredPostBlocks(details, description).filter(block => block.kind !== "quantity");
   const rs = quantity.unit === "RS";
   const amountLabel = rs ? "Rund sum" : quantityText?.match(/^(Antall|Antal|Lengde|Areal|Volum|Vekt|Tid)\b/i)?.[1] ?? "Mängd";
   const showQuantity = rs || quantity.quantity !== null || !["", "?"].includes(quantity.unit);
@@ -41,10 +43,12 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
             <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "heading" ? "font-[700]" : paragraph.kind === "bullet" ? "pl-4 -indent-4" : undefined}><SpecificationText value={paragraph.text} /></p>
           )}</div>
           {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
-        </> : <dl className="mt-2 space-y-1">
-          {fields.map(field => <SpecificationField key={field.key} label={field.label} value={field.value} />)}
-          {details.additionalRequirements && <SpecificationField label="Andra krav" value={details.additionalRequirements} emphasizeHeadings block={details.additionalRequirements.includes("\n")} />}
-        </dl>}
+        </> : <div className="mt-2 space-y-1">
+          {blocks.map((block, index) => block.kind === "field"
+            ? <dl key={index}><SpecificationField label={block.label} value={block.text} emphasizeHeadings block={block.text.includes("\n")} /></dl>
+            : <p key={index} className={block.kind === "page" ? "!mt-3 border-t border-neutral-200 pt-2 text-xs text-neutral-600" : block.kind === "heading" ? "!mt-3 font-[700]" : block.kind === "bullet" ? "pl-4 -indent-4" : "break-words"}><SpecificationText value={block.text} /></p>)}
+          {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
+        </div>}
         {(details.standardRefs.length > 0 || pdfArticleNumber) &&
           <dl className="mt-4 space-y-1 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
             {details.standardRefs.length > 0 && <SpecificationField label="Standarder" value={details.standardRefs.join(", ")} />}

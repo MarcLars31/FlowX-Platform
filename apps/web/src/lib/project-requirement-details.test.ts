@@ -274,3 +274,12 @@ test("recovers additional requirements from legacy fields without repeating an e
   const ordinary = projectRequirementDetails({ source_excerpt: "Materiale: Messing\nMontasje: I tak" });
   assert.equal(ordinary.additionalRequirements, null);
 });
+
+
+test("page labels include own continuation pages without claiming gaps or ancestor pages", async () => {
+  const { projectRequirementPageLabel } = await import("./project-requirement-details");
+  const details = projectRequirementDetails({ source_page: 15, value_json: { postNumber: "30.332.27",
+    technicalSpecification: "30.332\nFORTSETTELSE SIDE 2\nUNDERPOST\n30.332.27 Merking\nFORTSETTELSE SIDE 16\nOmfang er skilt." } });
+  assert.equal(projectRequirementPageLabel(details), "Side 15–16");
+  assert.equal(projectRequirementPageLabel({ ...details, sourcePage: 14 }), "Side 14, 16");
+});

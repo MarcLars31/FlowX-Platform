@@ -220,3 +220,15 @@ function record(value: unknown): Record<string, unknown> {
     ? (value as Record<string, unknown>)
     : {};
 }
+
+/** Display only pages evidenced by this post, never pages belonging to ancestors. */
+export function projectRequirementPageLabel(details: ProjectRequirementDetail) {
+  const pages = [...new Set([
+    ...(details.sourcePage ? [details.sourcePage] : []),
+    ...[...(details.sourceExcerpt ?? "").matchAll(/^FORTSETTELSE SIDE (\d+)$/gm)].map(match => Number(match[1]))
+  ])].filter(page => Number.isInteger(page) && page > 0).sort((a, b) => a - b);
+  if (!pages.length) return "PDF-grunnlag";
+  if (pages.length === 1) return `Side ${pages[0]}`;
+  return pages.every((page, index) => index === 0 || page === pages[index - 1] + 1)
+    ? `Side ${pages[0]}–${pages.at(-1)}` : `Side ${pages.join(", ")}`;
+}

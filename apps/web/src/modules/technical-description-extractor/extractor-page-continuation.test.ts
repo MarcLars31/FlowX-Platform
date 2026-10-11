@@ -205,3 +205,27 @@ test("a named post beginning at the page bottom receives its RS scope from the n
   assert.match(result.materialLines[1].sourceText, /skilt for tre ventiler/);
   assert.doesNotMatch(result.materialLines[0].sourceText, /skilt for tre ventiler/);
 });
+
+
+test("a continued RS row never extends the preceding location field", () => {
+  const { materialLines } = extractTechnicalDescriptionFromPages([
+    page(9, `${header}30.332.13 OPPGRADERE KAPASITETSMÅLER\nProving-pipe DN8O skal oppgraderes.\nLokalisering: Sprinklersentral i Nybygget\nplan 1 (se tilbudstegninger).\nSum:`),
+    page(10, `${header}Rund sum RS\n30.332.14 UE2.11112912\nSPRINKLER\nAntall stk 39\nSum:`),
+    page(11, `${header}Trykk: 12 bar\nGjengedimensjon (DN): 15\nAndre krav: Nei\nSum:`)
+  ]);
+  assert.equal(materialLines[0].attributes.lokalisering, "Sprinklersentral i Nybygget plan 1 (se tilbudstegninger).");
+  assert.equal(materialLines[0].attributes.dimensjon, "DN80");
+  assert.equal(materialLines[0].unit, "RS");
+  assert.deepEqual(materialLines[0].sourcePages, [9, 10]);
+  assert.equal(materialLines[1].quantity, 39);
+  assert.equal(materialLines[1].attributes.trykk, "12 bar");
+  assert.doesNotMatch(materialLines[0].sourceText, /SPRINKLER|12 bar|Antall/);
+});
+
+test("a genuine DN8 is retained and alphanumeric product identifiers are not shortened to dimensions", () => {
+  const { materialLines } = extractTechnicalDescriptionFromPages([
+    page(1, `${header}30.332.1 RØR DN8\nAntall stk 1\n30.332.2 RØR DN80ABC\nAntall stk 1\nSum:`)
+  ]);
+  assert.equal(materialLines[0].attributes.dimensjon, "DN8");
+  assert.equal(materialLines[1].attributes.dimensjon, undefined);
+});

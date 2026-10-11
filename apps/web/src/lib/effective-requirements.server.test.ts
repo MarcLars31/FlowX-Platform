@@ -128,3 +128,28 @@ test('a foreign standalone source or missing current block never substitutes ano
     assert.deepEqual(current.value_json.standardRefs, []);
   }
 });
+
+
+test('unreviewed OCR artifacts are repaired consistently for card, search and evaluation without changing storage', () => {
+  const source = '30.332.13 OPPGRADERE KAPASITETSMÅLER\nProving-pipe DN8O skal oppgraderes.\nLokalisering: Sprinklersentral.\n\nFORTSETTELSE SIDE 10\nRund sum RS';
+  const row = { id: 'continued', status: 'extracted_unreviewed', value_text: 'Proving-pipe DN8O', source_excerpt: source,
+    value_json: { postNumber: '30.332.13', reviewFlags: ['ocr-source'], sourceText: source, technicalSpecification: source,
+      attributes: { dimensjon: 'DN8', lokalisering: 'Sprinklersentral. Rund sum RS', 'pdf-kommentar': 'Behåll DN8O som citerat.' } } };
+  const before = JSON.stringify(row);
+  const projected = withEffectiveRequirements(row);
+  assert.equal(projected.value_json.attributes.dimensjon, 'DN80');
+  assert.equal(projected.value_json.attributes.lokalisering, 'Sprinklersentral.');
+  assert.equal(projected.value_json.attributes['pdf-kommentar'], 'Behåll DN8O som citerat.');
+  assert.equal(projectRequirementDetails(projected).attributes.find(([key]) => key === 'dimensjon')?.[1], 'DN80');
+  assert.ok(projected.effectiveRequirements.requirements.some(item => item.property === 'dn' && item.value === 80));
+  assert.ok(!projected.effectiveRequirements.requirements.some(item => item.property === 'dn' && item.value === 8));
+  assert.deepEqual(currentPostRequirement(projected), projected);
+  assert.equal(JSON.stringify(row), before);
+  assert.ok(!projected.effectiveRequirements.requirements.some(item => item.source.raw.includes('Spesifikasjonstekst:') && item.source.raw.includes('FORTSETTELSE')));
+  for (const reviewed of [{ reviewed_at: '2026-10-01' }, { reviewed_by: 'reviewer' }, { status: 'confirmed' }]) {
+    assert.equal(currentPostRequirement({ ...row, ...reviewed }).value_json.attributes.dimensjon, 'DN8');
+  }
+  const genuine = currentPostRequirement({ ...row, source_excerpt: source + '\nDimensjon: DN8', value_json: {
+    ...row.value_json, sourceText: source + '\nDimensjon: DN8', technicalSpecification: source + '\nDimensjon: DN8' } });
+  assert.equal(genuine.value_json.attributes.dimensjon, 'DN8');
+});

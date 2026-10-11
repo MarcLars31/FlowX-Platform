@@ -1,3 +1,5 @@
+import { normalizeOcrDnTokens, repairedOcrPostAttributes } from "./pdf-post-text";
+
 type Row = Record<string, unknown>;
 
 const boundary = /\n\s*UNDERPOST\s*\n/i;
@@ -45,17 +47,24 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
       && (normalized(ancestors).includes(normalized(raw)) || /^(?:dimensjon|dimension)(?:\s|$)/.test(label))) return false;
     return true;
   }));
+  const repairOcr = !requirement.reviewed_at && !requirement.reviewed_by
+    && (!requirement.status || /^(?:extracted|inferred)_unreviewed$/.test(String(requirement.status)))
+    && Array.isArray(value.reviewFlags) && value.reviewFlags.includes("ocr-source");
+  const canonicalText = (source: string) => repairOcr ? normalizeOcrDnTokens(source) : source;
+  const canonicalAttributes = repairOcr ? repairedOcrPostAttributes(attributes, ownText) : attributes;
   const standardRefs = Array.isArray(value.standardRefs) ? value.standardRefs.filter(ref =>
     !foreign || normalized(ownText).replace(/\W/g, "").includes(normalized(ref).replace(/\W/g, ""))) : [];
   const inheritedCode = foreign && text(value.nsCode) && !normalized(ownText).includes(normalized(value.nsCode));
   return {
     ...requirement,
     ...(inheritedCode && requirement.requirement_key === value.nsCode ? { requirement_key: null } : {}),
-    source_excerpt: source || ownSpecification,
+    ...(repairOcr && typeof requirement.value_text === "string" ? { value_text: canonicalText(requirement.value_text) } : {}),
+    source_excerpt: canonicalText(source || ownSpecification),
     value_json: {
-      ...value, attributes,
+      ...value, attributes: canonicalAttributes,
+      ...(repairOcr && typeof value.description === "string" ? { description: canonicalText(value.description) } : {}),
       attributeSources: Object.fromEntries(Object.entries(origins).filter(([key]) => Object.hasOwn(attributes, key))),
-      sourceText: source || ownSpecification, technicalSpecification: ownSpecification,
+      sourceText: canonicalText(source || ownSpecification), technicalSpecification: canonicalText(ownSpecification),
       standardRefs,
       ...(inheritedCode ? { nsCode: null } : {}),
       // Parent identity remains available for the expandable post list only.

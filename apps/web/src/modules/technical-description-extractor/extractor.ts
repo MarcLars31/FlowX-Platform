@@ -1,3 +1,4 @@
+import { normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import type {
   TechnicalDescriptionCategory,
@@ -1359,7 +1360,7 @@ function extractPostScope(lines: string[]) {
 }
 
 function normalizeOcrArtifacts(value: string) {
-  return value
+  return normalizeOcrDnTokens(value)
     .replace(/^((?:[A-Z]\d*\.)?\d+(?:[.,]\d+){2,})(?=\s+%?[A-ZÆØÅ]{2}\d|\s*$)/i, post => post.replace(/,/g, "."))
     .replace(/^(.*?\s)?((?:UB|UC|UE|CD)\d),(\d[\w.]*)\b/i, "$1$2.$3")
     .replace(/^((?:[A-Z]\d*\.)?\d+(?:\.\d+)+)\s*\]/i, "$1 | ")
@@ -1521,14 +1522,14 @@ function extractTableAttributes(lines: string[]) {
 }
 
 function hasTableQuantity(value: string) {
-  return TABLE_QUANTITY_PATTERN.test(value)
+  return pdfLumpSumLine.test(value) || TABLE_QUANTITY_PATTERN.test(value)
     || INLINE_TABLE_QUANTITY_PATTERN.test(value);
 }
 
 function extractInlineAttributes(description: string) {
   const attributes: Record<string, string> = {};
   const dimensions = unique(
-    [...description.matchAll(/\bDN\s*\d+(?:\s*-\s*DN?\s*\d+)*/gi)].map(
+    [...description.matchAll(/\bDN\s*\d+(?:\s*-\s*DN?\s*\d+)*\b/gi)].map(
       (match) => match[0].replace(/\s+/g, "")
     )
   );
@@ -1785,7 +1786,7 @@ function normalizeAttributeKey(value: string) {
 function normalizeAttributeValue(key: string, value: string) {
   let normalized = normalizeOcrArtifacts(value.trim().replace(/^[|I]\s+/, ""));
   if (key === "dimensjon") {
-    const dimensions = normalized.match(/\bDN\s*\d+(?:\s*[-x×/]\s*(?:DN\s*)?\d+){0,2}/gi);
+    const dimensions = normalized.match(/\bDN\s*\d+(?:\s*[-x×/]\s*(?:DN\s*)?\d+){0,2}\b/gi);
     if (dimensions) normalized = dimensions.map((dimension) => dimension.replace(/DN\s+/gi, "DN")).join(", ");
   }
   if (key === "k-faktor") {

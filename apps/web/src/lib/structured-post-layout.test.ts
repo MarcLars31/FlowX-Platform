@@ -53,3 +53,39 @@ test("removes a split leading post number without removing in-text references", 
   assert.equal(blocks[0].kind, "quantity");
   assert.equal(blocks[1].text, "Se post 1401.40.411.38 for detaljer.");
 });
+
+
+test("Sprinkler2 marking scope on the next page is actually rendered in the product card", async () => {
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { ProjectPostSpecification } = await import("../components/ProjectPostSpecification");
+  const source = '30.332.27 Merking ventil (skilt):\n\nFORTSETTELSE SIDE 16\nOmfang er skilt for 3stk DN25 dreneringsventiler, hvor 2 er\nplassert over himling og 1 under nederste mellomrepos av\ntrapp.\nDrenering 33 Sprinkleranlegg\nRund sum RS';
+  const details = projectRequirementDetails({ source_page: 15, value_json: { postNumber: '30.332.27', sourceText: source, technicalSpecification: source } });
+  const html = renderToStaticMarkup(createElement(ProjectPostSpecification, { id: 'r', details, description: 'Merking ventil (skilt)', quantity: { quantity: 1, unit: 'RS' } }));
+  assert.match(html, /Omfang er skilt for 3stk DN25 dreneringsventiler/);
+  assert.match(html, /plassert over himling og 1 under nederste mellomrepos av trapp/);
+  assert.match(html, /Drenering 33 Sprinkleranlegg/);
+  assert.match(html, /Side 16/);
+  assert.doesNotMatch(html, /FORTSETTELSE|Rund sum RS/);
+  assert.equal(html.match(/Merking ventil \(skilt\)/g)?.length, 1);
+});
+
+test("continued field prose is shown once and reviewed corrections remain authoritative", () => {
+  const details = projectRequirementDetails({ value_json: { attributes: { lokalisering: 'Over himling i første etasje.', trykk: '16 bar' },
+    technicalSpecification: 'Lokalisering: Over himling i\n\nFORTSETTELSE SIDE 2\nførste etasje.\nTrykk: 12 bar\nAndre krav:\nAlle festedeler skal følge med.' } });
+  const blocks = structuredPostBlocks(details, 'RØR');
+  assert.deepEqual(blocks.filter(b => b.kind === 'field' && b.label === 'Lokalisering'), [{ kind: 'field', label: 'Lokalisering', text: 'Over himling i første etasje.' }]);
+  assert.equal(blocks.some(b => b.kind === 'text' && b.text === 'første etasje.'), false);
+  assert.ok(blocks.some(b => b.kind === 'field' && b.label === 'Trykk' && b.text === '16 bar'));
+  assert.ok(blocks.some(b => b.text.includes('Alle festedeler skal følge med.')));
+});
+
+
+test("free clauses after an ordinary field survive even when its saved value is corrected", () => {
+  const details = projectRequirementDetails({ value_json: { attributes: { materiale: 'Messing' },
+    technicalSpecification: 'Materiale: Stål\nDet skal medfølge dokumentasjon.\nAlle festedeler skal leveres.' } });
+  const blocks = structuredPostBlocks(details, 'VENTIL');
+  assert.deepEqual(blocks[0], { kind: 'field', label: 'Materiale', text: 'Messing' });
+  assert.ok(blocks.some(block => block.kind === 'text' && block.text.includes('Det skal medfølge dokumentasjon.')));
+  assert.ok(blocks.some(block => block.kind === 'text' && block.text.includes('Alle festedeler skal leveres.')));
+});

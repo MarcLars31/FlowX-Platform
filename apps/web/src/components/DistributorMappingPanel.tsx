@@ -1,4 +1,5 @@
 "use client";
+import { projectRequirementPageLabel } from "@/lib/project-requirement-details";
 
 
 
@@ -1013,7 +1014,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       <article id={`post-${requirement.id}`} className="product-mapping-card">
       <fieldset disabled={requirement.can_edit === false} className="contents">
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
-        <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{details.sourcePage ? `Side ${details.sourcePage}` : "PDF-grunnlag"}</span></div>
+        <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{projectRequirementPageLabel(details)}</span></div>
         <div className="product-requirement-content">
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">

@@ -87,6 +87,7 @@ export function resolveEffectiveRequirements(requirement: Row): EffectiveRequire
         add(label, raw, source);
       } else if (!/^\d+(?:\.\d+)+\b|^UNDERPOST$|^[A-Z]{2,5}\d[\w.]*$/i.test(line)
         && !quantityLine.test(line)
+        && !/^FORTSETTELSE SIDE \d+$/i.test(line)
         && technicalText(line) !== technicalText(String(requirement.value_text ?? ""))
         && !/^(?:andre|andra) krav\s*:?(?:\s*(?:nei|nej))?$/i.test(line)) freeText.push(line);
     }
