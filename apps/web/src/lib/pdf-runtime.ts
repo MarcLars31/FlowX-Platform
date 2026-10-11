@@ -17,8 +17,11 @@ export async function openPdfTextDocument(data: Buffer | Uint8Array) {
 }
 
 export async function closePdfTextDocument(document: unknown) {
-  const destroy = (document as { destroy?: () => Promise<void> }).destroy;
-  if (destroy) await destroy.call(document);
+  const pdf = document as { loadingTask?: { destroy?: () => Promise<void> }; destroy?: () => Promise<void> };
+  // unpdf's serverless proxy owns its worker through loadingTask. Current
+  // versions have no document.destroy(); retain compatibility with older ones.
+  if (typeof pdf.loadingTask?.destroy === "function") await pdf.loadingTask.destroy();
+  else if (typeof pdf.destroy === "function") await pdf.destroy();
 }
 
 export function plainTextFromPdfItems(items: readonly unknown[]) {

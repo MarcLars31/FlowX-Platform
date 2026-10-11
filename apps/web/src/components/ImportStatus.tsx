@@ -1,4 +1,6 @@
 "use client";
+import { ExtractionQualityNotice } from "@/components/ExtractionQualityNotice";
+import type { ExtractionQualitySummary } from "@/lib/technical-description-quality";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { ImportJobStatus } from "@/lib/import-job-client";
@@ -50,7 +52,7 @@ export function ImportStatus() {
     <p>Importer fortsätter i bakgrunden. Skannade sidor kan behöva läsas i webbläsaren.</p>
     {error&&<p role="alert">{error} <button type="button" onClick={()=>void load().then(jobs=>{setJobs(jobs);setError("");}).catch(error=>setError(error.message))}>Försök igen</button></p>}
     <table className="w-full text-left text-sm"><thead><tr><th className="p-2">PDF</th><th>Status</th><th>Åtgärd</th></tr></thead><tbody>
-      {jobs.map(job=><tr key={job.id} className="border-t border-neutral-200"><td className="p-2">{job.file_name}</td><td>{labels[job.status]??job.status}</td><td>
+      {jobs.map(job=><tr key={job.id} className="border-t border-neutral-200"><td className="p-2">{job.file_name}</td><td>{labels[job.status]??job.status}<ExtractionQualityNotice summary={job.result?.warningSummary as ExtractionQualitySummary | undefined} /></td><td>
         {job.status==="completed"?<Link prefetch={false} className="underline" href={`/projects/${job.project_id}?step=products`}>Öppna projekt</Link>:
           ["failed","awaiting_ocr"].includes(job.status)?<button type="button" disabled={busy!==null} className="border border-neutral-400 px-3 py-1" onClick={()=>void resume(job)}>{busy===job.id?"Bearbetar…":job.status==="failed"?"Försök igen":"Fortsätt textläsning"}</button>:"Du kan lämna sidan"}
       </td></tr>)}

@@ -165,7 +165,7 @@ test("finds hybrid image bodies on rotated pages", async () => {
   assert.deepEqual(pagesRequiringOcr(await extractTechnicalDescriptionPages(await pdf.save())), [1, 2, 3]);
 });
 
-test("image inspection is skipped for readable bodies and failed inspection still requires OCR", async () => {
+test("failed region inspection requires review even with a readable digital column", async () => {
   const { nonTextBodyOcrReason } = await import("./pdf-ocr-detection");
   const { openPdfTextDocument, closePdfTextDocument } = await import("@/lib/pdf-runtime");
   const pdf = await PDFDocument.create();
@@ -175,11 +175,11 @@ test("image inspection is skipped for readable bodies and failed inspection stil
     const page = await document.getPage(1);
     let calls = 0;
     page.getOperatorList = async () => { calls += 1; throw new Error("Damaged image stream"); };
-    assert.equal(await nonTextBodyOcrReason(page, [{ str: digitalPost, transform: [1, 0, 0, 1, 20, 400] }]), undefined);
-    assert.equal(calls, 0);
+    assert.equal(await nonTextBodyOcrReason(page, [{ str: digitalPost, transform: [1, 0, 0, 1, 20, 400] }]), "body-check-failed");
+    assert.equal(calls, 1);
     const reason = await nonTextBodyOcrReason(page, [{ str: digitalHeader, transform: [1, 0, 0, 1, 20, 770] }]);
     assert.equal(reason, "body-check-failed");
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
     assert.deepEqual(pagesRequiringOcr([{ ...textPage(1, digitalHeader), ocrReason: reason }]), [1]);
   } finally { await closePdfTextDocument(document); }
 });
@@ -199,4 +199,43 @@ test("detects dense outlined letters but ignores a sparse vector illustration an
   const pages = await extractTechnicalDescriptionPages(await pdf.save());
   assert.deepEqual(pagesRequiringOcr(pages), [1]);
   assert.equal(pages[0].ocrReason, "vector-body");
+});
+
+test("closes the real PDF loading task, including when reading fails", async () => {
+  const { openPdfTextDocument, closePdfTextDocument } = await import("@/lib/pdf-runtime");
+  const pdf = await PDFDocument.create();
+  pdf.addPage();
+  const bytes = await pdf.save();
+  for (const fail of [false, true]) {
+    const document = await openPdfTextDocument(bytes);
+    const task = document.loadingTask;
+    try {
+      assert.equal(task.destroyed, false);
+      if (fail) await assert.rejects(document.getPage(999));
+      else await document.getPage(1);
+    } finally { await closePdfTextDocument(document); }
+    assert.equal(task.destroyed, true);
+    await closePdfTextDocument(document);
+  }
+  let closed = false;
+  await closePdfTextDocument({ destroy: async () => { closed = true; } });
+  assert.equal(closed, true);
+});
+
+test("detects scans beside digital text and tiled scans without counting overlapping logos repeatedly", async () => {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const image = await pdf.embedPng(testImage);
+  const mixed = pdf.addPage([600, 800]);
+  mixed.drawText(digitalPost, { font, size: 8, x: 20, y: 500, lineHeight: 12 });
+  mixed.drawImage(image, { x: 300, y: 100, width: 280, height: 520 });
+  const tiled = pdf.addPage([600, 800]);
+  tiled.drawText(digitalHeader, { font, size: 8, x: 20, y: 780, lineHeight: 10 });
+  for (const y of [100, 240, 380, 520]) tiled.drawImage(image, { x: 20, y, width: 550, height: 120 });
+  const logos = pdf.addPage([600, 800]);
+  logos.drawText(digitalHeader, { font, size: 8, x: 20, y: 780, lineHeight: 10 });
+  for (let i = 0; i < 20; i++) logos.drawImage(image, { x: 20, y: 400, width: 60, height: 60 });
+  const pages = await extractTechnicalDescriptionPages(await pdf.save());
+  assert.deepEqual(pagesRequiringOcr(pages), [1, 2]);
+  assert.ok(pages.slice(0, 2).every(page => page.ocrReason === "image-body"));
 });

@@ -1,3 +1,5 @@
+import { compactRequirementText } from "./requirement-text-storage";
+import { extractionQualitySummary } from "./technical-description-quality";
 import { retainProjectPdf } from "./project-pdf-storage";
 import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
@@ -352,6 +354,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
       standards: result.standards,
       rule_hints: result.ruleHints,
       warnings: result.warnings,
+      warning_summary: extractionQualitySummary(result),
       created_by: authorization.user.id
     };
     const [existingTechnicalDocument] = await selectUserRows<DocumentRow>(
@@ -844,7 +847,7 @@ async function persistRows<T extends Record<string, unknown>>(
     });
     const plan = planTechnicalDescriptionRows(`${table}|${persistenceKey(scope)}`, payloads, existing, key);
     await persistTechnicalDescriptionBatches(plan.missing, batch =>
-      db.insertUserRows(table, batch, { ignoreIdConflicts: true }));
+      db.insertUserRows(table, batch.map(row => table === "project_requirements" ? compactRequirementText(row) : table === "requirement_candidates" ? compactRequirementText(row, true) : row), { ignoreIdConflicts: true }));
     return plan.rows;
   } catch (error) {
     console.error("Technical description persistence failed", {

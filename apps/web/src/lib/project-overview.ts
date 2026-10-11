@@ -11,8 +11,8 @@ const rowFields = "id,project_id,category,requirement_key,display_name,value_tex
 // JSON projections keep specification text and page arrays out of overview queries.
 export const REQUIREMENT_SUMMARY_SELECT = [rowFields, ...valueFields.map(key => `overview_${key}:value_json->${key}`)].join(",");
 export const HOME_REQUIREMENT_SELECT = ["id,project_id,category,requirement_key,display_name,value_text,status", ...["unit", "operation", "reviewFlags", "productResolution", "sourceText"].map(key => `overview_${key}:value_json->${key}`)].join(",");
-export const REQUIREMENT_OVERVIEW_SELECT = `${REQUIREMENT_SUMMARY_SELECT},source_excerpt,overview_attributes:value_json->attributes`;
-export const TECHNICAL_DOCUMENT_SUMMARY_SELECT = "id,project_id,file_name,file_sha256,status,page_count,created_at";
+export const REQUIREMENT_OVERVIEW_SELECT = `${rowFields},overview_cache:project_requirement_overviews(version,source_updated_at,source_revision,summary)`;
+export const TECHNICAL_DOCUMENT_SUMMARY_SELECT = "id,project_id,file_name,file_sha256,status,page_count,created_at,warning_summary";
 
 export function expandOverviewProjection(row: OverviewRow): OverviewRow {
   const output = { ...row };

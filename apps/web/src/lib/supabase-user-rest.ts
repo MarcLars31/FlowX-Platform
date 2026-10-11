@@ -1,4 +1,5 @@
 import "server-only";
+import { expandRequirementText } from "./requirement-text-storage";
 import { requirementSnapshot } from "./requirement-snapshot";
 import { getCurrentAccessToken } from "@/lib/supabase-auth";
 import { collectAllRows, collectAllRowsById } from "@/lib/paginated-rows";
@@ -49,7 +50,7 @@ export async function selectUserRows<T>(
   const rows = (await response.json()) as T[];
   const elapsedMs = Date.now() - startedAt;
   if (elapsedMs > 3000) console.warn("supabase_user_select_slow", { table, elapsedMs, rows: rows.length });
-  return table === "project_requirements" ? rows.map(row => requirementSnapshot(row as Record<string, unknown>) as T) : rows;
+  return table === "project_requirements" ? rows.map(row => requirementSnapshot(row as Record<string, unknown>) as T) : table === "requirement_candidates" ? rows.map(row => expandRequirementText(row as Record<string, unknown>, true) as T) : rows;
 }
 
 export async function selectAllUserRows<T>(
@@ -108,7 +109,7 @@ export async function insertUserRowReturning<T>(
   const rows = (await response.json()) as T[];
   const row = rows[0];
   if (!row) throw new Error(`Supabase insert into ${table} returned no row.`);
-  return row;
+  return table === "project_requirements" ? requirementSnapshot(row as Record<string, unknown>) as T : table === "requirement_candidates" ? expandRequirementText(row as Record<string, unknown>, true) as T : row;
 }
 
 export async function insertUserRows(
@@ -163,7 +164,7 @@ export async function updateUserRowsReturning<T>(
   const rows = (await response.json()) as T[];
   const row = rows[0];
   if (!row) throw new Error(`Supabase update of ${table} returned no row.`);
-  return row;
+  return table === "project_requirements" ? requirementSnapshot(row as Record<string, unknown>) as T : table === "requirement_candidates" ? expandRequirementText(row as Record<string, unknown>, true) as T : row;
 }
 
 export async function deleteUserRows(

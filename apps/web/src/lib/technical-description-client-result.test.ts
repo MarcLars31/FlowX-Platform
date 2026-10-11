@@ -59,3 +59,17 @@ test("keeps the saved extraction result compact in the HTTP response", () => {
   assert.equal(largeResult.materialLines.length, 3560);
   assert.equal(largeResult.materialLines[0].sourceText.length, 5000);
 });
+
+test("summary imports retain incomplete page warnings without copying PDF source text", () => {
+  const result = { document: { pageCount: 2000 }, project: {}, materialLines: [], standards: [], ruleHints: [], pages: [],
+    warnings: Array.from({ length: 2000 }, (_, i) => ({ id: String(i), code: "PAGE_EXTRACTION_INCOMPLETE", message: "Kontroller siden", sourcePage: i + 1, sourceText: "Private PDF text".repeat(1000), severity: "warning" })),
+    pageChecks: [{ sourcePage: 3, unresolvedQuantityRows: 1 }]
+  } as unknown as TechnicalDescriptionExtractionResult;
+  const summary = clientTechnicalDescriptionResult(result, { summaryOnly: true });
+  assert.equal(summary.warningSummary.incompletePageCount, 2000);
+  assert.equal(summary.warningSummary.incompletePages.length, 100);
+  assert.deepEqual(summary.warningSummary.quantityPages, [3]);
+  assert.equal(summary.warnings[0].sourcePage, 1);
+  assert.equal("sourceText" in summary.warnings[0], false);
+  assert.ok(Buffer.byteLength(JSON.stringify(summary)) < 10_000);
+});

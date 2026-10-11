@@ -1,4 +1,6 @@
 "use client";
+import { ExtractionQualityNotice } from "@/components/ExtractionQualityNotice";
+import type { ExtractionQualitySummary } from "@/lib/technical-description-quality";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
 
 import Link from "next/link";
@@ -408,6 +410,7 @@ export function ProjectWorkspace({
   return (
     <div className={`project-workspace-page ${tab === "products" ? "project-product-page" : "project-standard-page"}`}>
       {data.project.demo_data_set_id && <DemoBadge />}
+      {uniqueTechnicalDescriptions.map(document => <ExtractionQualityNotice key={document.id} fileName={String(document.file_name ?? "PDF")} summary={document.warning_summary as ExtractionQualitySummary | undefined} />)}
       <header className="project-heading">
         <Link prefetch={false} href="/projects" className="project-breadcrumb"><ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />Alle prosjekter{data.project.project_number && <span> / {data.project.project_number}</span>}</Link>
         <div className="project-heading-row">
