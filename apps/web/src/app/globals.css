@@ -315,6 +315,14 @@ body .product-post-actions :is(button, a) { display: inline-flex; align-items: c
 .product-selected-panel .product-selected-assessment { margin: 12px 16px 16px; }
 .product-selected-panel .product-accessory-item > .grid { grid-template-columns: minmax(0, 1fr); }
 .product-catalog-scroll { overflow: auto; min-height: 0; scrollbar-width: thin; }
+.product-catalog-search { padding: 12px; border-bottom: 1px solid #e7ede9; background: #f7fafc; }
+.product-catalog-search > summary { cursor: pointer; color: #203c2e; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.product-catalog-search[open] > div { margin-top: 10px; }
+.product-catalog-search form > label { font-size: 12px; font-weight: 500; line-height: 1.5; }
+.product-catalog-search input[type="search"] { background: #fff; font-size: 12px; }
+.product-catalog-search form > p { font-size: 11px; line-height: 1.6; }
+body .product-catalog-search form button { min-height: 36px; padding: 7px 9px; gap: 5px; font-size: 11px; white-space: nowrap; }
+.product-catalog-search form button svg { width: 13px; height: 13px; }
 .product-candidate-list > details { border: 0; }
 .product-candidate-list > details > summary { min-height: 40px; padding: 12px 16px; gap: 8px; background: #f7f9f8; font-size: 13px; }
 .product-candidate-list > details > summary p { font-size: 13px; }

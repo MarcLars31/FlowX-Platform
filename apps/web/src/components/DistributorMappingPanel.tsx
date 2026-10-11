@@ -42,6 +42,7 @@ import { TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { MAX_AHLSELL_PRODUCT_LABEL_ITEMS, type AhlsellProductLabel, type AhlsellProductLabelItem } from "@/lib/ahlsell-product-labels";
 import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
+import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
 import { normalizeNrfNumber } from "@/lib/product-card-candidates";
 import { candidateSelectionReview, productSelectionReviewNotes, readProductSelectionReview, type ProductSelectionReview } from "@/lib/product-selection-review";
 import {
@@ -1177,6 +1178,18 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           <div id={`ahlsell-products-${requirement.id}`} className={`product-catalog-panel${productNumber.trim() ? " product-selected-panel" : ""}`}>
             <h3 className="product-panel-caption">{productNumber.trim() ? "Valgt produkt" : "Produktforslag"}{productNumber.trim() && <span>{isApproved ? "Lagret" : "Ikke lagret"}</span>}</h3>
             <div className="product-catalog-scroll">
+            <details open className="product-catalog-search">
+              <summary>Søk etter produkt eller lim inn produktlenke</summary>
+              <AhlsellProductLookup key={productNumber || "unselected"}
+                projectId={projectId} requirementId={requirement.id} id={`product-search-${requirement.id}`}
+                disabled={saving || attachmentSaving || commentsSaving || requirement.can_edit === false}
+                defaultQuantity={orderQuantity?.quantity ?? String(quantity.quantity ?? "")}
+                defaultUnit={orderQuantity?.unit ?? (quantity.unit || "st")}
+                selections={productNumber ? [{ productNumber, quantity: orderQuantity?.quantity ?? String(quantity.quantity ?? ""), unit: orderQuantity?.unit ?? (quantity.unit || "st") }] : []}
+                onSelect={(candidate, amount) => { applyAhlsellCandidate(candidate, candidate.subtitle ?? candidate.description ?? ""); updateOrderQuantity(amount); }}
+                onDeselect={clearSelectedProduct}
+                onQuantityChange={(_candidate, amount) => updateOrderQuantity(amount)} />
+            </details>
             <AhlsellPublicMatchPanel
               projectId={projectId}
               requirementId={requirement.id}
