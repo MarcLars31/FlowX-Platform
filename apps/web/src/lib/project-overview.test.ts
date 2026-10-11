@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compactProjectRequirement, expandOverviewProjection, HOME_REQUIREMENT_SELECT, REQUIREMENT_OVERVIEW_SELECT, REQUIREMENT_SUMMARY_SELECT, TECHNICAL_DOCUMENT_SUMMARY_SELECT } from "./project-overview";
+import { compactProjectRequirement, expandOverviewProjection, legacyParentDescription, legacyParentHeadingSources, HOME_REQUIREMENT_SELECT, REQUIREMENT_OVERVIEW_SELECT, REQUIREMENT_SUMMARY_SELECT, TECHNICAL_DOCUMENT_SUMMARY_SELECT } from "./project-overview";
 import { sortProjectRequirementsBySource } from "./project-requirement-order";
 import { groupProjectRequirementViews } from "./project-requirement-views";
 import { groupProductRequirementsByPdfChapter } from "./product-post-groups";
@@ -74,4 +74,36 @@ test("Home preserves legacy RS evidence without loading technical specifications
   assert.ok(HOME_REQUIREMENT_SELECT.includes("overview_sourceText:value_json->sourceText"));
   assert.ok(!HOME_REQUIREMENT_SELECT.includes("sourceChapter"));
   assert.ok(!HOME_REQUIREMENT_SELECT.includes("technicalSpecification"));
+});
+
+
+test("overview keeps parent titles and recovers an explicitly stored legacy chapter", () => {
+  const original = row("child", { postNumber: "33.500.1", parentPostNumber: "33.500",
+    parentDescription: "Utstyr for brannslokking med sprinkler", sourceChapter: null,
+    attributes: { kapittelpost: "33 Brannslokking" } });
+  const compact = compactProjectRequirement(original);
+  const value = compact.value_json as Record<string, unknown>;
+  assert.equal(value.parentDescription, "Utstyr for brannslokking med sprinkler");
+  assert.equal((value.sourceChapter as { title: string }).title, "33 Brannslokking");
+  const projected = expandOverviewProjection({ id: "child", overview_parentDescription: value.parentDescription });
+  assert.equal((projected.value_json as Record<string, unknown>).parentDescription, value.parentDescription);
+  assert.ok(REQUIREMENT_SUMMARY_SELECT.includes("overview_parentDescription:value_json->parentDescription"));
+  assert.ok(!REQUIREMENT_OVERVIEW_SELECT.includes("technicalSpecification"));
+});
+
+
+test("legacy heading recovery reads only an exact ancestor and preserves product fields", () => {
+  const original = row("child", { postNumber: "33.500.1", parentPostNumber: "33.500", technicalSpecification:
+    "33.500 Utstyr for brannslokking med sprinkler\n\nUNDERPOST\n33.500.1 UE2.11111132\nSPRINKLER" });
+  const before = JSON.stringify(original);
+  assert.equal(legacyParentDescription(original), "Utstyr for brannslokking med sprinkler");
+  assert.equal(legacyParentDescription(row("own", { postNumber: "33.500.1", parentPostNumber: "33.500", technicalSpecification: "33.500.1 SPRINKLER" })), null);
+  assert.equal(legacyParentDescription(row("wrong", { postNumber: "33.500.1", parentPostNumber: "33.500", technicalSpecification: "33.5000 Other heading\nUNDERPOST\n33.500.1 SPRINKLER" })), null);
+  assert.equal(legacyParentDescription(row("code", { postNumber: "33.500.1", parentPostNumber: "33.500", technicalSpecification: "33.500 UE2.11111132\nSPRINKLER\nUNDERPOST\n33.500.1 SPRINKLER" })), null);
+  assert.equal(JSON.stringify(original), before);
+  const another = { ...original, id: "second", value_json: { ...original.value_json, postNumber: "33.500.2" } };
+  assert.equal(legacyParentHeadingSources([original, another]).size, 1);
+  assert.equal(legacyParentHeadingSources([original, row("real-parent", { postNumber: "33.500" })]).size, 0);
+  assert.equal(legacyParentHeadingSources([{ ...original, value_json: { ...original.value_json, parentDescription: "Known" } }]).size, 0);
+  assert.equal(legacyParentHeadingSources([original, { ...another, source_technical_description_document_id: "other" }]).size, 2);
 });

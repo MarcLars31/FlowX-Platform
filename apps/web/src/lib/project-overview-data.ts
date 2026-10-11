@@ -1,6 +1,6 @@
 import "server-only";
 import { selectAllUserRows, selectUserRows } from "./supabase-user-rest";
-import { compactProjectRequirement, expandOverviewProjection, REQUIREMENT_OVERVIEW_SELECT, TECHNICAL_DOCUMENT_SUMMARY_SELECT, type OverviewRow } from "./project-overview";
+import { compactProjectRequirement, expandOverviewProjection, legacyParentDescription, legacyParentHeadingSources, projectPostIdentity, record, REQUIREMENT_OVERVIEW_SELECT, TECHNICAL_DOCUMENT_SUMMARY_SELECT, type OverviewRow } from "./project-overview";
 import { sortProjectRequirementsBySource } from "./project-requirement-order";
 import type { PermissionKey } from "./organization-rbac";
 
@@ -9,7 +9,31 @@ export async function loadProjectOverviewRequirements(projectId: string, organiz
     project_id: `eq.${projectId}`, organization_id: `eq.${organizationId}`, deleted_at: "is.null",
     select: REQUIREMENT_OVERVIEW_SELECT, order: "id.asc"
   }, { pagination: "id" })).map(expandOverviewProjection);
-  const requirements = rows;
+  // Older imports stored the heading only inside the inherited specification.
+  // Fetch one small snapshot per missing heading, never PDF files or page arrays.
+  // This read-only repair does not bump product revisions or invalidate reviews.
+  const candidates = [...legacyParentHeadingSources(rows).values()];
+  const recovered = new Map<string, string>();
+  for (let offset = 0; offset < candidates.length; offset += 50) {
+    const batch = candidates.slice(offset, offset + 50);
+    const sources = await selectUserRows<OverviewRow>("project_requirements", {
+      project_id: `eq.${projectId}`, organization_id: `eq.${organizationId}`, deleted_at: "is.null",
+      id: `in.(${batch.map(row => row.id).join(",")})`,
+      select: "id,technicalSpecification:value_json->technicalSpecification"
+    });
+    for (const source of sources) {
+      const row = batch.find(row => row.id === source.id);
+      if (!row) continue;
+      const value = record(row.value_json);
+      const title = legacyParentDescription({ ...row, value_json: { ...value, technicalSpecification: source.technicalSpecification } });
+      if (title) recovered.set(projectPostIdentity(row, value.parentPostNumber), title);
+    }
+  }
+  const requirements = rows.map(row => {
+    const value = record(row.value_json);
+    const parentDescription = recovered.get(projectPostIdentity(row, value.parentPostNumber));
+    return !value.parentDescription && parentDescription ? { ...row, value_json: { ...value, parentDescription } } : row;
+  });
   // Preserve the existing created-at/id tie order for rows on the same PDF page.
   requirements.sort((left, right) => String(left.created_at ?? "").localeCompare(String(right.created_at ?? "")) || left.id.localeCompare(right.id));
   return sortProjectRequirementsBySource(requirements.map(compactProjectRequirement));

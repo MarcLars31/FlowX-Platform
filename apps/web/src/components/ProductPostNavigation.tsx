@@ -49,6 +49,32 @@ export function ProductPostNavigation({ groups, requirements, projectId, resourc
         inherited={inherited} data={data} resource={resource} onClose={() => setEditing(null)} /> : null;
   }
   function renderPost(node: ProductPostNode<Row>) {
+    if (node.heading) {
+      const { postNumber, description } = node.heading;
+      const children = flattenProductPostTree(node.children);
+      const expanded = expandedKeys.has(node.key);
+      const childrenId = `product-post-children-${encodeURIComponent(node.key)}`;
+      return <li key={node.key}>
+        <div className="product-post-assigned-row product-post-parent-row">
+          <div className="product-post-parent-controls">
+            <button type="button" className="product-post-parent-toggle" aria-expanded={expanded} aria-controls={childrenId}
+              disabled={disabled} onClick={() => onToggle(node.key)}>
+              <strong className="product-post-list-number">
+                {expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
+                <span>{postNumber}</span>
+              </strong>
+              <span className="product-post-list-description"><span>{description}</span>
+                <small className="product-post-branch-label">Underkapittel · {children.length} poster</small>
+              </span>
+            </button>
+            <span className="product-post-list-status">{children.filter(row => handledIds.has(row.id)).length}/{children.length} håndtert</span>
+          </div>
+        </div>
+        <ol id={childrenId} className="product-post-children" aria-label={`Underposter til ${postNumber}`} hidden={!expanded}>
+          {expanded && node.children.map(renderPost)}
+        </ol>
+      </li>;
+    }
     const requirement = node.requirement;
     const details = projectRequirementDetails(requirement);
     const handled = handledIds.has(requirement.id);

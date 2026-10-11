@@ -1,33 +1,60 @@
-import { groupProductRequirementsByPdfChapter, type ProductChapterGroup } from "./product-post-groups";
+import { groupProductRequirementsByPdfChapter, productChapterHeading, type ProductChapterGroup } from "./product-post-groups";
 import { comparePostNumbers, projectRequirementOrderPostNumber } from "./project-requirement-order";
 
 type Requirement = Record<string, unknown> & { id: string };
 export type ProductPostNode<T extends Requirement> = {
   key: string;
-  requirement: T;
   children: ProductPostNode<T>[];
-};
+} & ({ requirement: T; heading?: never } | {
+  requirement: null;
+  heading: { postNumber: string; description: string };
+});
 export type ProductPostNavigationGroup<T extends Requirement> = ProductChapterGroup<T> & {
   posts: ProductPostNode<T>[];
 };
 
-/** Numbered headings own their descendants, even across pages or extraction order. */
-export function buildProductPostTree<T extends Requirement>(requirements: readonly T[]): ProductPostNode<T>[] {
-  const nodes = requirements.map(requirement => ({ key: `post:${requirement.id}`, requirement, children: [] as ProductPostNode<T>[] }));
+/** PDF headings can be preserved on children without being purchasable posts. */
+export function buildProductPostTree<T extends Requirement>(requirements: readonly T[], chapterNumber?: string): ProductPostNode<T>[] {
+  const nodes: ProductPostNode<T>[] = requirements.map(requirement => ({ key: `post:${requirement.id}`, requirement, children: [] }));
   const byNumber = new Map<string, ProductPostNode<T>[]>();
+  const sources = new Map(nodes.map(node => [node, node.requirement!]));
+  const numberOf = (node: ProductPostNode<T>) => node.heading?.postNumber ?? postNumber(node.requirement!);
   for (const node of nodes) {
-    const number = postNumber(node.requirement);
+    const number = numberOf(node);
     if (!number) continue;
-    const key = identity(node.requirement, number);
+    const key = identity(sources.get(node)!, number);
     byNumber.set(key, [...(byNumber.get(key) ?? []), node]);
+  }
+  const headings = new Map<string, { number: string; source: T; names: Set<string> }>();
+  for (const requirement of requirements) {
+    const value = record(requirement.value_json);
+    const parent = normalizedNumber(value.parentPostNumber);
+    const number = postNumber(requirement);
+    // Only explicit ancestor metadata supplies a missing heading. Do not infer
+    // titles from product text or merge separate documents/numbering scopes.
+    if (!parent || parent === chapterNumber || !number?.startsWith(`${parent}.`)) continue;
+    const key = identity(requirement, parent);
+    if (byNumber.has(key)) continue;
+    const heading = headings.get(key) ?? { number: parent, source: requirement, names: new Set<string>() };
+    if (typeof value.parentDescription === "string" && value.parentDescription.trim()) heading.names.add(value.parentDescription.replace(/\s+/g, " ").trim());
+    headings.set(key, heading);
+  }
+  for (const [key, heading] of headings) {
+    const node: ProductPostNode<T> = {
+      key: `heading:${key}`, requirement: null, children: [],
+      heading: { postNumber: heading.number, description: heading.names.size === 1 ? [...heading.names][0] : "Hovedpost" }
+    };
+    nodes.push(node);
+    sources.set(node, heading.source);
+    byNumber.set(key, [node]);
   }
   const roots: ProductPostNode<T>[] = [];
   for (const node of nodes) {
-    const parts = postNumber(node.requirement)?.split(".") ?? [];
+    const parts = numberOf(node)?.split(".") ?? [];
     let parent: ProductPostNode<T> | undefined;
     while (parts.length > 1) {
       parts.pop();
-      const candidates = byNumber.get(identity(node.requirement, parts.join(".")));
+      const candidates = byNumber.get(identity(sources.get(node)!, parts.join(".")));
       // Repeated post numbers must never attach to an arbitrary heading.
       if (candidates?.length) {
         if (candidates.length === 1) parent = candidates[0];
@@ -38,9 +65,9 @@ export function buildProductPostTree<T extends Requirement>(requirements: readon
   }
   function sortSiblings(siblings: ProductPostNode<T>[]) {
     siblings.sort((a, b) => {
-      const left = postNumber(a.requirement), right = postNumber(b.requirement);
-      const intro = (node: ProductPostNode<T>, number: string | null) => !number && record(node.requirement.value_json).chapterInformation === true;
-      return Number(intro(b, right)) - Number(intro(a, left)) || comparePostNumbers(left, right);
+      const left = numberOf(a), right = numberOf(b);
+      const intro = (node: ProductPostNode<T>, number: string | null) => !number && node.requirement && record(node.requirement.value_json).chapterInformation === true;
+      return Number(Boolean(intro(b, right))) - Number(Boolean(intro(a, left))) || comparePostNumbers(left, right);
     });
     siblings.forEach(node => sortSiblings(node.children));
   }
@@ -54,24 +81,25 @@ export function productPostNavigationGroups<T extends Requirement>(requirements:
   function retain(nodes: ProductPostNode<T>[]): ProductPostNode<T>[] {
     return nodes.flatMap(node => {
       const children = retain(node.children);
-      return visible.has(node.requirement.id) || children.length ? [{ ...node, children }] : [];
+      return (node.requirement && visible.has(node.requirement.id)) || children.length ? [{ ...node, children }] : [];
     });
   }
   return groupProductRequirementsByPdfChapter(allRequirements).flatMap(group => {
-    const posts = retain(buildProductPostTree(group.requirements));
+    const posts = retain(buildProductPostTree(group.requirements, productChapterHeading(group.title).chapter));
     return posts.length ? [{ ...group, posts, requirements: flattenProductPostTree(posts) }] : [];
   });
 }
 
+/** Navigation-only headings never enter product counts, saving or next/previous. */
 export function flattenProductPostTree<T extends Requirement>(nodes: readonly ProductPostNode<T>[]): T[] {
-  return nodes.flatMap(node => [node.requirement, ...flattenProductPostTree(node.children)]);
+  return nodes.flatMap(node => [...(node.requirement ? [node.requirement] : []), ...flattenProductPostTree(node.children)]);
 }
 
 /** Reveal the selected post when next/previous navigation crosses a closed branch. */
 export function productPostExpansionKeys<T extends Requirement>(groups: readonly ProductPostNavigationGroup<T>[], id: string): string[] {
   function find(nodes: readonly ProductPostNode<T>[], path: string[]): string[] | undefined {
     for (const node of nodes) {
-      if (node.requirement.id === id) return path;
+      if (node.requirement?.id === id) return path;
       const found = find(node.children, [...path, node.key]);
       if (found) return found;
     }
@@ -84,8 +112,12 @@ export function productPostExpansionKeys<T extends Requirement>(groups: readonly
 }
 
 function postNumber(requirement: Requirement) {
-  const value = projectRequirementOrderPostNumber(requirement)?.replace(/\s/g, "").replace(/\.$/, "");
-  return value && /^\d+(?:\.\d+)*$/.test(value) ? value : null;
+  return normalizedNumber(projectRequirementOrderPostNumber(requirement));
+}
+
+function normalizedNumber(value: unknown) {
+  const number = typeof value === "string" ? value.replace(/\s/g, "").replace(/\.$/, "") : "";
+  return /^\d+(?:\.\d+)*$/.test(number) ? number : null;
 }
 
 function identity(requirement: Requirement, number: string) {

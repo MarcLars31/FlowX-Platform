@@ -100,8 +100,8 @@ test("numbered information headings stay in numeric order and own all their chil
   const children = [7, 2, 1, 6, 3, 5, 4].map(n => post(`child${n}`, `30.332.7.${n}`, n + 3));
   const rows = [parent, ...children, post("previous6", "30.332.6", 2), post("previous5", "30.332.5", 2), post("next", "30.332.8", 3)];
   const [group] = productPostNavigationGroups(rows);
-  assert.deepEqual(group.posts.map(node => node.requirement.id), ["previous5", "previous6", "parent", "next"]);
-  assert.deepEqual(group.posts[2].children.map(node => node.requirement.id), Array.from({ length: 7 }, (_, n) => `child${n + 1}`));
+  assert.deepEqual(group.posts.map(node => node.requirement?.id), ["previous5", "previous6", "parent", "next"]);
+  assert.deepEqual(group.posts[2].children.map(node => node.requirement?.id), Array.from({ length: 7 }, (_, n) => `child${n + 1}`));
   assert.deepEqual(group.requirements.map(row => row.id), ["previous5", "previous6", "parent", "child1", "child2", "child3", "child4", "child5", "child6", "child7", "next"]);
 });
 
@@ -109,9 +109,9 @@ test("post trees use nearest numbered ancestor, numeric siblings and segment bou
   const rows = [post("ten", "30.332.7.10", 1), post("deep", "30.332.7.2.1", 1), post("two", "30.332.7.2", 2),
     post("parent", "30.332.7", 3), post("separate", "30.332.70.1", 1), post("missing-middle", "30.332.7.4.1", 1)];
   const roots = buildProductPostTree(rows);
-  assert.deepEqual(roots.map(node => node.requirement.id), ["parent", "separate"]);
-  assert.deepEqual(roots[0].children.map(node => node.requirement.id), ["two", "missing-middle", "ten"]);
-  assert.equal(roots[0].children[0].children[0].requirement.id, "deep");
+  assert.deepEqual(roots.map(node => node.requirement?.id), ["parent", "separate"]);
+  assert.deepEqual(roots[0].children.map(node => node.requirement?.id), ["two", "missing-middle", "ten"]);
+  assert.equal(roots[0].children[0].children[0].requirement?.id, "deep");
 });
 
 test("filtered product views retain ancestor information and expose the active branch", () => {
@@ -135,6 +135,72 @@ test("unnumbered chapter information remains first without swallowing numbered p
   const intro = { ...post("intro", undefined, 1), value_json: { chapterInformation: true, sourceChapter: { title } } };
   const rows = [post("last", undefined, 2), post("parent", "30.332.7", 1), intro, post("child", "30.332.7.1", 1)];
   const tree = buildProductPostTree(rows);
-  assert.deepEqual(tree.map(node => node.requirement.id), ["intro", "parent", "last"]);
-  assert.equal(tree[1].children[0].requirement.id, "child");
+  assert.deepEqual(tree.map(node => node.requirement?.id), ["intro", "parent", "last"]);
+  assert.equal(tree[1].children[0].requirement?.id, "child");
+});
+
+
+test("PDF subchapter headings group six products without creating a seventh product", () => {
+  const rows = [6, 2, 1, 5, 3, 4].map(n => ({ ...post(`sprinkler${n}`, `33.500.${n}`, Math.ceil(n / 2), "33 Brannslokking"),
+    value_json: { postNumber: `33.500.${n}`, parentPostNumber: "33.500", parentDescription: "Utstyr for brannslokking med sprinkler",
+      sourceChapter: { title: "33 Brannslokking" }, quantity: n, unit: "st" } }));
+  const before = JSON.stringify(rows);
+  const [group] = productPostNavigationGroups(rows);
+  assert.equal(group.title, "33 Brannslokking");
+  assert.equal(group.posts.length, 1);
+  const parent = group.posts[0];
+  assert.equal(parent.requirement, null);
+  assert.deepEqual(parent.heading, { postNumber: "33.500", description: "Utstyr for brannslokking med sprinkler" });
+  assert.deepEqual(parent.children.map(node => node.requirement?.id), Array.from({ length: 6 }, (_, n) => `sprinkler${n + 1}`));
+  assert.equal(group.requirements.length, 6);
+  assert.deepEqual(productPostExpansionKeys([group], "sprinkler4"), [group.key, parent.key]);
+  const filtered = productPostNavigationGroups([rows[2]], rows)[0];
+  assert.equal(filtered.posts[0].key, parent.key);
+  assert.equal(filtered.requirements.length, 1);
+  assert.equal(JSON.stringify(rows), before);
+});
+
+test("navigation-only headings respect document, scope and number boundaries", () => {
+  const child = (id: string, number: string, document = "pdf", scope = "") => ({
+    ...post(id, number, 1, "33 Brannslokking", document),
+    value_json: { postNumber: number, parentPostNumber: "33.500", parentDescription: "Utstyr", postScope: scope }
+  });
+  const tree = buildProductPostTree([child("a", "33.500.1"), child("b", "33.500.1", "other"),
+    child("c", "33.500.1", "pdf", "building-b"), child("unrelated", "33.5000.1")]);
+  assert.equal(tree.length, 4);
+  assert.equal(tree.filter(node => node.heading).length, 3);
+  assert.equal(tree.find(node => node.requirement?.id === "unrelated")?.children.length, 0);
+  const existing = post("real-parent", "33.500", 1, "33 Brannslokking");
+  const realTree = buildProductPostTree([child("a", "33.500.1"), existing]);
+  assert.equal(realTree.length, 1);
+  assert.equal(realTree[0].requirement?.id, "real-parent");
+  assert.equal(realTree[0].heading, undefined);
+  const chapterChild = { ...child("a", "33.500"), value_json: { postNumber: "33.500", parentPostNumber: "33", sourceChapter: { title: "33 Brannslokking" } } };
+  assert.equal(productPostNavigationGroups([chapterChild])[0].posts[0].heading, undefined);
+});
+
+test("conflicting parent titles are not silently attributed to another post", () => {
+  const rows = ["Rør", "Ventiler"].map((name, n) => ({ ...post(String(n), `33.500.${n + 1}`, 1),
+    value_json: { postNumber: `33.500.${n + 1}`, parentPostNumber: "33.500", parentDescription: name } }));
+  assert.equal(buildProductPostTree(rows)[0].heading?.description, "Hovedpost");
+});
+
+test("Sprinkler PDF extraction preserves the subchapter even without a priced heading row", () => {
+  const result = extractTechnicalDescriptionFromPages([{ pageNumber: 1, method: "text", confidence: .99,
+    text: `Kapittel: 33 Brannslokking
+Postnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum
+33.500 Utstyr for brannslokking med sprinkler
+33.500.1 UE2.11111132
+SPRINKLER
+Antall stk 60
+Sprinkleranlegg: Våtanlegg
+33.500.2 UE2.11111232
+SPRINKLER
+Antall stk 67
+Sprinkleranlegg: Våtanlegg` }]);
+  assert.equal(result.materialLines.length, 2);
+  assert.equal(result.materialLines[0].parentPostNumber, "33.500");
+  assert.equal(result.materialLines[0].parentDescription, "Utstyr for brannslokking med sprinkler");
+  const rows = result.materialLines.map(line => ({ id: line.id, value_json: line }));
+  assert.equal(productPostNavigationGroups(rows)[0].posts[0].heading?.postNumber, "33.500");
 });
