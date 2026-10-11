@@ -1,5 +1,7 @@
 import type { TechnicalDescriptionPage } from "@/modules/technical-description-extractor/types";
 
+import { pageRequiresOcr, MIN_TEXT_PAGE_LENGTH } from "@/modules/technical-description-extractor/pdf-ocr-detection";
+
 const MAX_CLIENT_OCR_PAGES = 300;
 const MAX_CLIENT_OCR_PAGE_CHARACTERS = 300_000;
 const MAX_CLIENT_OCR_TOTAL_CHARACTERS = 5_000_000;
@@ -79,7 +81,7 @@ export function parseClientOcrPages(
 export function mergeClientOcrPages(
   serverPages: readonly TechnicalDescriptionPage[],
   clientPages: readonly ClientOcrPage[] | undefined,
-  minimumReadableLength = 80
+  minimumReadableLength = MIN_TEXT_PAGE_LENGTH
 ): TechnicalDescriptionPage[] {
   if (!clientPages?.length) return [...serverPages];
   const clientByPage = new Map(
@@ -87,14 +89,19 @@ export function mergeClientOcrPages(
   );
 
   return serverPages.map((serverPage) => {
-    if (serverPage.text.length >= minimumReadableLength) return serverPage;
+    if (!pageRequiresOcr(serverPage, minimumReadableLength)) return serverPage;
     const clientPage = clientByPage.get(serverPage.pageNumber);
-    if (!clientPage?.text) return serverPage;
+    if (!clientPage?.text.trim()) return serverPage;
+    // Reading only the same digital header has not recovered the image body.
+    if (serverPage.ocrReason && clientPage.text.replace(/\s+/g, "") === serverPage.text.replace(/\s+/g, "")) return serverPage;
     const readable = clientPage.text.length >= minimumReadableLength;
     return {
       ...serverPage,
       pageNumber: serverPage.pageNumber,
       text: clientPage.text,
+      // Digital coordinates/line indices no longer describe the replacement OCR text.
+      postTable: undefined,
+      ocrReason: readable ? undefined : serverPage.ocrReason,
       method: "ocr",
       confidence: Math.min(Math.max(clientPage.confidence, 0.45), 0.96),
       status: readable ? "success" : "partial",

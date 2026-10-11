@@ -12,7 +12,7 @@ import {
 
 import { sitePostTableFromPdfItems } from "./pdf-post-table";
 
-const MIN_TEXT_PAGE_LENGTH = 80;
+import { nonTextBodyOcrReason, pageRequiresOcr, MIN_TEXT_PAGE_LENGTH } from "./pdf-ocr-detection";
 
 export async function extractTechnicalDescriptionPages(
   data: Buffer | Uint8Array
@@ -30,7 +30,9 @@ export async function extractTechnicalDescriptionPages(
       const text = shouldPreferPdfLayoutText(plainText, layoutText)
         ? layoutText
         : plainText;
-      const readable = text.length >= MIN_TEXT_PAGE_LENGTH;
+      const ocrReason = text.length >= MIN_TEXT_PAGE_LENGTH
+        ? await nonTextBodyOcrReason(page, content.items) : undefined;
+      const readable = text.length >= MIN_TEXT_PAGE_LENGTH && !ocrReason;
       let annotations: TechnicalDescriptionPage["annotations"];
       let annotationReadFailed = false;
       try {
@@ -42,14 +44,19 @@ export async function extractTechnicalDescriptionPages(
       pages.push({
         pageNumber,
         text,
-        ...(postTable ? { postTable } : {}),
+        ...(postTable && !ocrReason ? { postTable } : {}),
+        ...(ocrReason ? { ocrReason } : {}),
         method: "text",
         confidence: readable ? 0.98 : text ? 0.55 : 0,
         status: readable ? "success" : text ? "partial" : "failed",
         errorCode: readable ? undefined : "ocr_failed",
         errorMessage: readable
           ? undefined
-          : "Sidan innehåller för lite maskinläsbar text och behöver granskas eller OCR-behandlas.",
+          : ocrReason === "body-check-failed"
+            ? "Sidans bildinnehåll kunde inte kontrolleras och behöver OCR-behandlas eller granskas."
+            : ocrReason
+            ? "Sidans bildinnehåll saknar tillräcklig maskinläsbar text och behöver OCR-behandlas."
+            : "Sidan innehåller för lite maskinläsbar text och behöver granskas eller OCR-behandlas.",
         ...(annotations?.length ? { annotations } : {}),
         ...(annotationReadFailed ? { annotationReadFailed } : {})
       });
@@ -63,6 +70,6 @@ export async function extractTechnicalDescriptionPages(
 
 export function pagesRequiringOcr(pages: readonly TechnicalDescriptionPage[]) {
   return pages
-    .filter((page) => page.text.length < MIN_TEXT_PAGE_LENGTH)
+    .filter((page) => pageRequiresOcr(page))
     .map((page) => page.pageNumber);
 }

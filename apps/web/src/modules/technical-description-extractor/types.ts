@@ -17,6 +17,8 @@ export type TechnicalDescriptionPage = {
   errorMessage?: string;
   annotations?: TechnicalDescriptionAnnotation[];
   annotationReadFailed?: boolean;
+  /** The body needs OCR despite a readable digital header/footer. */
+  ocrReason?: "image-body" | "vector-body" | "body-check-failed";
   /** Verified digital table columns; indices refer to normalized text lines. */
   postTable?: {
     text: string;

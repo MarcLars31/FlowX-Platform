@@ -78,3 +78,31 @@ test("retains PDF comments when replacing an unreadable text layer with OCR", ()
   assert.equal(page.method, "ocr");
   assert.deepEqual(page.annotations, annotations);
 });
+
+test("accepts OCR for long header-only pages, discards stale digital table indices and keeps annotations", () => {
+  const annotations = [{ id: "1R", text: "Check article", subtype: "Text" }];
+  const [page] = mergeClientOcrPages([
+    { pageNumber: 1, text: "Digital header ".repeat(12), method: "text", confidence: 0.55,
+      status: "partial", ocrReason: "image-body", annotations, annotationReadFailed: true,
+      postTable: { text: "header", siteTitle: "site", posts: [], quantities: [] } }
+  ], [{ pageNumber: 1, text: "Recovered requirement text ".repeat(12), confidence: 0.9 }]);
+  assert.equal(page.method, "ocr");
+  assert.equal(page.status, "success");
+  assert.equal(page.ocrReason, undefined);
+  assert.equal(page.postTable, undefined);
+  assert.deepEqual(page.annotations, annotations);
+  assert.equal(page.annotationReadFailed, true);
+});
+
+test("missing, empty and unchanged header OCR do not mark an unreadable image body as successful", () => {
+  const server: Parameters<typeof mergeClientOcrPages>[0] = [
+    { pageNumber: 1, text: "Digital header ".repeat(12), method: "text", confidence: 0.55, status: "partial", ocrReason: "image-body" }
+  ];
+  for (const client of [undefined, [], [{ pageNumber: 2, text: "Other page ".repeat(12), confidence: 0.9 }],
+    [{ pageNumber: 1, text: " ", confidence: 0 }], [{ pageNumber: 1, text: server[0].text, confidence: 0.9 }]]) {
+    assert.equal(mergeClientOcrPages(server, client)[0], server[0]);
+  }
+  const [short] = mergeClientOcrPages(server, [{ pageNumber: 1, text: "Unreadable", confidence: 0.3 }]);
+  assert.equal(short.status, "partial");
+  assert.equal(short.ocrReason, "image-body");
+});
