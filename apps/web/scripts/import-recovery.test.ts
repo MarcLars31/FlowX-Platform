@@ -22,6 +22,7 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
     project_modules: [{id: randomUUID(), project_id: projectId, organization_id: organizationId, module_code: "sprinkler", status: "active"}]
   };
   let interrupted = false;
+  const uploaded = new Map<string, Uint8Array>();
   const changes: string[] = [];
   const find = (table: string, filters: Record<string,string> = {}) => (rows[table] ?? []).filter(row =>
     Object.entries(filters).every(([key, value]) => {
@@ -54,7 +55,11 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
       Object.assign(row,body); changes.push(`update:${table}:${body.status ?? body.processing_status ?? ""}`);
       return structuredClone(row);
     },
-    uploadUserStorageObject: async () => { throw new Error("Original PDF must not be copied to permanent storage"); },
+    uploadUserStorageObject: async (bucket: string, path: string, bytes: Uint8Array) => {
+      assert.equal(bucket,"project-files"); assert.ok(path.startsWith(`${organizationId}/${projectId}/source-pdfs/`));
+      assert.ok(!uploaded.has(path),"an already retained PDF must not be uploaded on retry");
+      uploaded.set(path,bytes);
+    },
     callUserRpc: async () => { throw new Error("No admin or project creation fallback allowed"); }
   } as unknown as typeof persistence;
   const pdf = await PDFDocument.create(); const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -80,8 +85,10 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
   assert.equal(new Set(rows.project_requirements.map(row=>row.id)).size,2);
   assert.equal(rows.project_documents.length,1); assert.equal(rows.extraction_runs.length,1);
   assert.equal(rows.document_pages.length,2);
-  assert.equal(rows.project_documents[0].storage_path,null);
-  assert.equal(rows.project_documents[0].storage_bucket,null);
+  assert.equal(uploaded.size,1);
+  assert.equal(rows.project_documents[0].storage_path,[...uploaded.keys()][0]);
+  assert.equal(rows.project_documents[0].storage_bucket,"project-files");
+  assert.deepEqual(new Uint8Array(uploaded.values().next().value!),new Uint8Array(await file.arrayBuffer()));
   assert.equal(rows.technical_description_documents[0].source_pages,undefined);
   assert.match(rows.document_pages.map(page=>page.extracted_text).join("\n"),/Korrosjonsklasse C4/);
   const requirements = rows.project_requirements.map(requirementSnapshot);

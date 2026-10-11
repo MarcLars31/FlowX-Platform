@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { cleanupProjectSourcePdfs } from "@/lib/project-pdf-cleanup.server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { callUserRpc, UserSupabaseError } from "@/lib/supabase-user-rest";
 
@@ -28,6 +29,7 @@ export async function POST(
       requested_reason: body.reason,
       requested_confirmation: body.confirmation
     });
+    after(() => cleanupProjectSourcePdfs(id));
     return NextResponse.json({ projectId });
   } catch (error) {
     return rpcError(error);

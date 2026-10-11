@@ -180,10 +180,11 @@ export function ProjectWorkspace({
       }
       setData({
         ...sourceData,
-        project: payload.project as OrganizationProject
+        project: payload.project as OrganizationProject,
+        documents: sourceData.documents.map(doc => doc.document_type === "technical_description" ? {...doc,storage_bucket:null,storage_path:null} : doc)
       });
       setMessage(
-        "Projektet är avslutat. Sammanfattningen visas nedan."
+        "Projektet är avslutat. Original-PDF tas bort; poster och produktval finns kvar i sammanfattningen."
       );
       selectTab("overview", true);
     } catch (finishError) {
@@ -430,7 +431,7 @@ export function ProjectWorkspace({
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-700 text-white"><Trash2 className="h-6 w-6" aria-hidden="true" /></span>
               <div>
                 <h2 id="delete-project-title" className="text-xl font-bold text-rose-950">Vill du avsluta projektet?</h2>
-                <p className="mt-2 max-w-2xl text-base leading-7 text-rose-900"><strong>{data.project.name}</strong>  flyttas till papperskorgen. PDF, produktval och projektdata sparas där och kan återställas av en administratör.</p>
+                <p className="mt-2 max-w-2xl text-base leading-7 text-rose-900"><strong>{data.project.name}</strong>  flyttas till papperskorgen. Original-PDF tas bort permanent. Produktval och projektdata kan återställas av en administratör.</p>
               </div>
             </div>
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
@@ -617,7 +618,7 @@ export function ProjectWorkspace({
               <Button className="mt-4" type="submit" disabled={uploading || !selectedFile}><Upload className="h-4 w-4" aria-hidden="true" />{uploading ? analysisProgress ?? "Läser underlag…" : "Läs in dokument"}</Button>
             </form>
           </section>
-          <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-end justify-between gap-3"><div><h2 className="font-semibold text-ink-950">Projektets dokument</h2><p className="mt-1 text-sm text-ink-600">Den tekniska beskrivning som produkterna hämtas från.</p></div><span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-700">{counts.documents} {counts.documents === 1 ? "dokument" : "dokument"}</span></div><div className="mt-4 divide-y divide-ink-100">{uniqueTechnicalDescriptions.length === 0 && distinctProjectDocuments.length === 0 ? <p className="rounded-lg bg-ink-50 px-4 py-8 text-center text-sm text-ink-600">Ingen PDF är kopplad ännu.</p> : <>{uniqueTechnicalDescriptions.map((item) => <DocumentRow key={`technical-${item.id}`} item={item} source="Teknisk extraktion" />)}{distinctProjectDocuments.map((item) => <DocumentRow key={`project-${item.id}`} item={item} source="Projektfil" />)}</>}</div></section>
+          <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-end justify-between gap-3"><div><h2 className="font-semibold text-ink-950">Projektets dokument</h2><p className="mt-1 text-sm text-ink-600">Original-PDF finns kvar medan projektet pågår och tas bort när projektet avslutas. Extraherade poster och produktval sparas.</p></div><span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-700">{counts.documents} {counts.documents === 1 ? "dokument" : "dokument"}</span></div><div className="mt-4 divide-y divide-ink-100">{uniqueTechnicalDescriptions.length === 0 && distinctProjectDocuments.length === 0 ? <p className="rounded-lg bg-ink-50 px-4 py-8 text-center text-sm text-ink-600">Ingen PDF är kopplad ännu.</p> : <>{uniqueTechnicalDescriptions.map((item) => <DocumentRow key={`technical-${item.id}`} item={item} source="Teknisk extraktion" />)}{distinctProjectDocuments.map((item) => <DocumentRow key={`project-${item.id}`} item={item} source="Projektfil" />)}</>}</div></section>
           {counts.documents > 0 && (
             <section className="flex flex-col gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -643,7 +644,7 @@ export function ProjectWorkspace({
                 {PROJECT_REQUIREMENT_VIEWS.map(view => <option key={view.id} value={view.id}>{view.label} ({requirementGroups[view.id].length})</option>)}
               </select>
             </label>
-            <Button type="button" variant="secondary" disabled={finishing} onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" className="h-4 w-4" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button>
+            <Button type="button" variant="secondary" disabled={finishing} title="Original-PDF tas bort när projektet avslutas. Poster och produktval sparas." onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" className="h-4 w-4" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button>
           </div>
           <DistributorMappingPanel
             deliveryResource={deliveryResource}

@@ -299,6 +299,7 @@ async function readUserSupabaseError(response: Response) {
   const payload = (await response.json().catch(() => null)) as
     | {
         code?: string;
+        error?: string;
         message?: string;
         details?: string;
         hint?: string;
@@ -312,5 +313,5 @@ async function readUserSupabaseError(response: Response) {
     .filter(Boolean)
     .join(" ");
 
-  return new UserSupabaseError(message, response.status, payload?.code);
+  return new UserSupabaseError(message, response.status, payload?.code ?? payload?.error);
 }

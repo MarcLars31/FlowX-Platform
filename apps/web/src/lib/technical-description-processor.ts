@@ -1,3 +1,4 @@
+import { retainProjectPdf } from "./project-pdf-storage";
 import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import * as userPersistence from "@/lib/supabase-user-rest";
@@ -43,6 +44,8 @@ type ProjectDocumentRow = {
   id: string;
   upload_status: string;
   processing_status: string;
+  storage_bucket?: string | null;
+  storage_path?: string | null;
 };
 type RequirementSetRow = { id: string; version: number; status: string };
 type ExtractionRunRow = { id: string };
@@ -385,7 +388,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
       const existingProjectDocuments = await selectUserRows<ProjectDocumentRow>(
         "project_documents",
         {
-          select: "id,upload_status,processing_status",
+          select: "id,upload_status,processing_status,storage_bucket,storage_path",
           organization_id: `eq.${authorization.context.organization.id}`,
           project_id: `eq.${projectId}`,
           checksum: `eq.${fileSha256}`,
@@ -395,6 +398,10 @@ export async function processTechnicalDescription(request: Request, authorizatio
       );
 
       projectDocument = existingProjectDocuments[0] ?? null;
+      // Restore missing originals on a duplicate import without replacing its posts.
+      if (projectDocument && !projectDocument.storage_path) {
+        await retainProjectPdf(db, {organizationId:authorization.context.organization.id,projectId,documentId:projectDocument.id},buffer);
+      }
       const alreadyProcessed =
         projectDocument?.upload_status === "uploaded" &&
         ["completed", "requires_review"].includes(
@@ -462,9 +469,11 @@ export async function processTechnicalDescription(request: Request, authorizatio
         );
       }
 
-      // The staged original remains available for OCR/retries. The worker removes
-      // it only after the extracted pages and all posts have been committed.
-      // Existing documents retain their original path for backwards compatibility.
+      // Keep the original in project-scoped private Storage while the project is open.
+      // The temporary upload remains independent and can be removed after import.
+      if (!existingProjectDocuments.length) {
+        await retainProjectPdf(db, {organizationId:authorization.context.organization.id,projectId,documentId:projectDocument.id},buffer);
+      }
       if (projectDocument.upload_status !== "uploaded") {
         projectDocument = await updateUserRowsReturning<ProjectDocumentRow>(
           "project_documents",

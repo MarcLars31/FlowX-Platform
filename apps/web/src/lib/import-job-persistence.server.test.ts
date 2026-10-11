@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { importJobPersistence } from "./import-job-persistence.server";
 
-test("import writes return only needed state, keep scope checks and cannot copy the original PDF", async () => {
+test("import writes return only needed state, keep scope checks and reject arbitrary storage uploads", async () => {
   const savedFetch=globalThis.fetch;
   const savedUrl=process.env.NEXT_PUBLIC_SUPABASE_URL, savedKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
   process.env.NEXT_PUBLIC_SUPABASE_URL='https://storage.example.test';
@@ -21,7 +21,7 @@ test("import writes return only needed state, keep scope checks and cannot copy 
     assert.equal(requests[1].url.searchParams.get('organization_id'),'eq.org');
     await assert.rejects(db.insertUserRowReturning('document_pages',{organization_id:'other',project_id:'project'}),/IMPORT_ORGANIZATION_SCOPE/);
     await assert.rejects(db.updateUserRowsReturning('project_documents',{organization_id:'eq.org',project_id:'eq.other'},{}),/IMPORT_PROJECT_SCOPE/);
-    await assert.rejects(db.uploadUserStorageObject('project-files','org/project/technical-description/file',new Uint8Array(),'application/pdf'),/IMPORT_PERMANENT_STORAGE_DISABLED/);
+    await assert.rejects(db.uploadUserStorageObject('project-files','org/project/technical-description/file',new Uint8Array(),'application/pdf'),/Invalid project PDF scope|IMPORT_STORAGE_SCOPE/);
     assert.equal(requests.length,2);
   } finally {
     globalThis.fetch=savedFetch;

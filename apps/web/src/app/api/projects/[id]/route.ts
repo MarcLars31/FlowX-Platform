@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { cleanupProjectSourcePdfs } from "@/lib/project-pdf-cleanup.server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
   callUserRpc,
@@ -80,6 +81,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         requested_warehouse_location: project.warehouse_location
       });
     }
+    if (project.current_stage === "completed" || project.status === "archived") after(() => cleanupProjectSourcePdfs(id));
     return NextResponse.json({ project });
   } catch (error) {
     return projectDetailError(error);

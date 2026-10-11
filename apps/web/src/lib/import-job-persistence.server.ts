@@ -2,6 +2,8 @@ import "server-only";
 import * as user from "./supabase-user-rest";
 import { getSupabaseConfig } from "./supabase-rest";
 import { buildSupabaseHeaders } from "./supabase-headers";
+import { createHash } from "node:crypto";
+import { projectPdfStoragePath } from "./project-pdf-storage";
 import { collectAllRows, collectAllRowsById } from "./paginated-rows";
 
 const tables = new Set(["projects", "project_modules", "technical_description_documents", "project_documents", "project_requirements",
@@ -67,6 +69,19 @@ export function importJobPersistence(scope: { organization_id: string; project_i
     callUserRpc: async () => { throw new Error("IMPORT_RPC_NOT_ALLOWED"); },
     deleteUserRows: async () => { throw new Error("IMPORT_DELETE_NOT_ALLOWED"); },
     deleteUserRowsReturning: async () => { throw new Error("IMPORT_DELETE_NOT_ALLOWED"); },
-    uploadUserStorageObject: async () => { throw new Error("IMPORT_PERMANENT_STORAGE_DISABLED"); }
+    uploadUserStorageObject: async (bucket,path,body,contentType,options = {}) => {
+      assertBudget();
+      const bytes = Buffer.from(body instanceof ArrayBuffer ? new Uint8Array(body) : body);
+      const expected = projectPdfStoragePath(scope.organization_id,scope.project_id,createHash("sha256").update(bytes).digest("hex"));
+      if (bucket !== "project-files" || path !== expected || contentType !== "application/pdf" || options.upsert
+        || bytes.length > 30*1024*1024 || bytes.subarray(0,5).toString() !== "%PDF-") throw new Error("IMPORT_STORAGE_SCOPE");
+      const url = new URL(`/storage/v1/object/project-files/${expected}`,config.url);
+      const response = await fetch(url,{method:"POST",headers:{...buildSupabaseHeaders(config.key),"Content-Type":"application/pdf","x-upsert":"false"},
+        body:bytes,signal:AbortSignal.timeout(Math.min(20_000,Math.max(1,deadline-Date.now()))),cache:"no-store"});
+      if (!response.ok) {
+        const error=await response.json().catch(()=>({}));
+        throw new user.UserSupabaseError("Project PDF storage failed",response.status,error.error ?? error.code);
+      }
+    }
   };
 }
