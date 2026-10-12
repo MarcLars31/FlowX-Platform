@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-11.7",
+  "version": "scipx-product-rules-2026-10-12.1",
   "sources": {
     "ahlsell-accessory-suggestions.ts": "a10b5f459889722e1aa0d7b125247ca7dc94d791bdad156564e06fb5d97cc238",
     "ahlsell-cable-trunking.ts": "ff672cb6ea5a2e8005f35977800772eb513bf54c66439a1e4e666a4c0b2e966c",
@@ -46,7 +46,7 @@
     "project-overview.ts": "8a034d9c5be067e005cd44b4b2a68672b55413d220ac27e6f01a764feeba53ea",
     "project-requirement-views.ts": "ef553e809a9189f9800781e3333bb0596bb795cc776fe2ae4366e15c5411e312",
     "requirement-discipline.ts": "2ccf468875fc23406b77500a39273b2a386eb3448209f760df5928c7eff8f28c",
-    "requirement-extraction-warnings.ts": "f8814bd93ad6cbeca476fbf0b194b2db4bcfce98918419defab0daa374aa9f8a",
+    "requirement-extraction-warnings.ts": "dc90e048e4e0a30aa9de518716c1a406c27b0dfd6b1be625910ea16c6a8e2165",
     "requirement-snapshot.ts": "c83b90e0a572ed7b8944170b217997c621a047d819a33e197078d9bf1bb01896",
     "requirement-text-storage.ts": "23570dac94880468e158408a047a41f1de207846a0c29ee3c0fddd6d842462ee",
     "sprinkler-assembly-plan.ts": "653883d4bcf630508683c4bc7b564fa7ea7792cfd6b7758802b2752ce5b1ca91",

@@ -73,6 +73,7 @@ export function extractTechnicalDescriptionFromPages(
   const chapters = pdfChaptersByPage(pages);
   const unrecognizedQuantityPages = new Set(pages
     .filter(page => page.postTable?.quantityColumnsUnrecognized).map(page => page.pageNumber));
+  const uncertainPages = new Map(pages.filter(page => page.method === "ocr" && page.confidence < 0.7).map(page => [page.pageNumber,page.confidence]));
   for (const [index, line] of materialLines.entries()) {
     let chapter = chapters.get(line.sourcePage);
     const nextChapter = chapters.get(line.sourcePage + 1);
@@ -88,6 +89,11 @@ export function extractTechnicalDescriptionFromPages(
     if (chapter) line.sourceChapter = chapter;
     if ((line.sourcePages ?? [line.sourcePage]).some(pageNumber => unrecognizedQuantityPages.has(pageNumber))) {
       line.reviewFlags = unique([...line.reviewFlags, "unrecognized-quantity-columns"]);
+    }
+    const uncertainSources = (line.sourcePages ?? [line.sourcePage]).flatMap(number => uncertainPages.has(number) ? [uncertainPages.get(number)!] : []);
+    if (uncertainSources.length) {
+      line.reviewFlags = unique([...line.reviewFlags, "low-ocr-confidence"]);
+      line.confidence = Math.min(line.confidence, ...uncertainSources);
     }
     line.sourceOrder = index + 1;
     line.chapterInformation = Boolean(chapter && line.sourcePage === chapter.sourcePage
@@ -756,7 +762,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       if (category === "unknown") reviewFlags.push("unknown-category");
       if (page.method === "ocr") reviewFlags.push("ocr-source");
       if (quantity?.unit === "?") reviewFlags.push("missing-unit");
-      if (page.method === "ocr") reviewFlags.push("ocr-source");
+      if (page.method === "ocr" && page.confidence < 0.7) reviewFlags.push("low-ocr-confidence");
       if (prepared.inferredPostNumbers.has(fullPostNumber)) {
         reviewFlags.push("inferred-post-number");
       }
@@ -783,6 +789,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         operation,
         quantity: quantity?.quantity,
         quantityText: quantity?.text,
+        quantitySourcePage: quantity ? page.pageNumber : undefined,
         unit: quantity?.unit,
         attributes,
         attributeSources: {
@@ -803,7 +810,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         confidence: Math.min(
           0.99,
           Math.max(
-            0.45,
+            page.method === "ocr" ? 0 : 0.45,
             page.confidence -
               (category === "unknown" ? 0.12 : 0) -
               (page.method === "ocr" ? 0.04 : 0)
@@ -1293,6 +1300,7 @@ function appendPostContinuation(page: TechnicalDescriptionPage, continuation: st
       const quantity = page.postTable ? page.postTable.quantities.find(quantity => quantity.lineIndex < (page.postTable!.posts[0]?.lineIndex ?? Infinity)) : findTableQuantity(body);
       if (quantity) {
         line.quantity = quantity.quantity; line.unit = quantity.unit; line.quantityText = quantity.text;
+        line.quantitySourcePage = page.pageNumber;
         line.reviewFlags = line.reviewFlags.filter(flag => flag !== "missing-quantity");
       }
     }
@@ -1373,7 +1381,8 @@ function reconcilePageQuantities(pages: TechnicalDescriptionPage[], lines: Techn
       && (parseStructuredPostStart(pageLines, index)?.quantity?.quantity ?? findTableQuantity([text])?.quantity ?? 0) > 0).length;
     const extracted = lines.filter(line => line.sourcePage === page.pageNumber);
     if (!observed && !extracted.length) return [];
-    const quantified = extracted.filter(line => line.quantity !== undefined).length;
+    const quantified = lines.filter(line => line.quantity !== undefined
+      && (line.quantitySourcePage ?? line.sourcePage) === page.pageNumber).length;
     const unresolved = Math.max(0, observed - quantified);
     if (unresolved) {
       for (const line of extracted) line.reviewFlags = unique([...line.reviewFlags, "unresolved-source-quantity"]);
@@ -1680,6 +1689,7 @@ function buildMaterialLine(
     operation,
     quantity: block.quantity,
     quantityText: block.quantityText,
+    quantitySourcePage: block.quantity !== undefined ? page.pageNumber : undefined,
     unit: block.unit,
     attributes: block.attributes,
     system: block.attributes.sprinkleranlegg,

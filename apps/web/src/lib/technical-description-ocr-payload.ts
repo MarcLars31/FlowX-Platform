@@ -16,13 +16,14 @@ export class ClientOcrPayloadError extends Error {}
 
 export function parseClientOcrPages(
   value: FormDataEntryValue | null,
-  expectedPageCount: number
+  expectedPageCount: number,
+  limits: {maxPages?: number; maxBytes?: number} = {}
 ): ClientOcrPage[] | undefined {
   if (value === null) return undefined;
   if (typeof value !== "string") {
     throw new ClientOcrPayloadError("OCR-resultatet måste vara textdata.");
   }
-  if (value.length > MAX_CLIENT_OCR_TOTAL_CHARACTERS) {
+  if (new TextEncoder().encode(value).byteLength > (limits.maxBytes ?? 4_000_000)) {
     throw new ClientOcrPayloadError("OCR-resultatet är för stort.");
   }
 
@@ -32,7 +33,7 @@ export function parseClientOcrPages(
   } catch {
     throw new ClientOcrPayloadError("OCR-resultatet är inte giltig JSON.");
   }
-  if (!Array.isArray(parsed) || parsed.length > MAX_CLIENT_OCR_PAGES) {
+  if (!Array.isArray(parsed) || parsed.length > (limits.maxPages ?? MAX_CLIENT_OCR_PAGES)) {
     throw new ClientOcrPayloadError("OCR-resultatet innehåller för många sidor.");
   }
 
@@ -50,7 +51,7 @@ export function parseClientOcrPages(
       !Number.isInteger(pageNumber) ||
       typeof pageNumber !== "number" ||
       pageNumber < 1 ||
-      pageNumber > expectedPageCount ||
+      !Number.isInteger(expectedPageCount) || pageNumber > expectedPageCount ||
       seen.has(pageNumber)
     ) {
       throw new ClientOcrPayloadError("OCR-resultatet har ett ogiltigt sidnummer.");
@@ -94,7 +95,7 @@ export function mergeClientOcrPages(
     if (!clientPage?.text.trim()) return serverPage;
     // Reading only the same digital header has not recovered the image body.
     if (serverPage.ocrReason && clientPage.text.replace(/\s+/g, "") === serverPage.text.replace(/\s+/g, "")) return serverPage;
-    const readable = clientPage.text.length >= minimumReadableLength;
+    const readable = clientPage.text.length >= minimumReadableLength && clientPage.confidence >= 0.7;
     return {
       ...serverPage,
       pageNumber: serverPage.pageNumber,
@@ -103,12 +104,14 @@ export function mergeClientOcrPages(
       postTable: undefined,
       ocrReason: readable ? undefined : serverPage.ocrReason,
       method: "ocr",
-      confidence: Math.min(Math.max(clientPage.confidence, 0.45), 0.96),
+      confidence: Math.min(Math.max(clientPage.confidence, 0), 1),
       status: readable ? "success" : "partial",
       errorCode: readable ? undefined : "ocr_failed",
       errorMessage: readable
         ? undefined
-        : "OCR gav för lite läsbar text. Sidan behöver granskas."
+        : clientPage.confidence < 0.7
+          ? "OCR-texten har låg säkerhet. Kontrollera postnummer, mängder och krav mot originalet."
+          : "OCR gav för lite läsbar text. Sidan behöver granskas."
     };
   });
 }

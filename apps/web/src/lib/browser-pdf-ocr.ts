@@ -26,7 +26,8 @@ export type BrowserOcrProgress = {
 export async function extractPdfPagesWithBrowserOcr(
   file: File,
   requestedPageNumbers: readonly number[],
-  onProgress?: (progress: BrowserOcrProgress) => void
+  onProgress?: (progress: BrowserOcrProgress) => void,
+  onPage?: (page: ClientOcrPage) => Promise<void>
 ): Promise<ClientOcrPage[]> {
   onProgress?.({ label: "Förbereder OCR…", progress: 0 });
   const pdfjs = await import("pdfjs-dist");
@@ -180,11 +181,13 @@ export async function extractPdfPagesWithBrowserOcr(
           if (isBetterOcrText(recoveredText, text)) text = recoveredText;
         }
 
-        extractedPages.push({
+        const extractedPage: ClientOcrPage = {
           pageNumber,
           text,
           confidence: normalizeOcrConfidence(result.data.confidence)
-        });
+        };
+        if (onPage) await onPage(extractedPage);
+        else extractedPages.push(extractedPage);
       } finally {
         if (canvas) {
           canvas.width = 0;
@@ -250,8 +253,8 @@ function needsHigherResolutionOcr(text: string) {
 }
 
 function normalizeOcrConfidence(confidence: number | undefined) {
-  const safeConfidence = typeof confidence === "number" ? confidence : 72;
-  return Math.min(Math.max(safeConfidence / 100, 0.45), 0.96);
+  const safeConfidence = typeof confidence === "number" && Number.isFinite(confidence) ? confidence : 0;
+  return Math.min(Math.max(safeConfidence / 100, 0), 1);
 }
 
 function documentCreateCanvas(width: number, height: number) {

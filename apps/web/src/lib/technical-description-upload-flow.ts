@@ -1,5 +1,6 @@
 import { validateTechnicalDescriptionFile } from "./technical-description-file";
 import type { ClientOcrPage } from "./technical-description-ocr-payload";
+import { resumeOcrImport } from "./ocr-batches";
 import { waitForImportJob } from "./import-job-client";
 
 export type PdfUploadProgress = { label: string; percent: number };
@@ -10,7 +11,8 @@ type UploadDependencies = {
   extractOcr: (
     file: File,
     pageNumbers: number[],
-    onProgress: (progress: { progress?: number }) => void
+    onProgress: (progress: { progress?: number }) => void,
+    onPage?: (page: ClientOcrPage) => Promise<void>
   ) => Promise<ClientOcrPage[]>;
 };
 
@@ -72,22 +74,27 @@ export async function uploadTechnicalDescription(
     acceptedJob = response.status === 202;
     response = await waitForImportJob(response, dependencies.fetch, label => onProgress?.({label,percent:currentPercent}));
     const payload = await response.clone().json().catch(() => null) as {
-      code?: string; pageNumbers?: number[];
+      code?: string; pageNumbers?: number[]; jobId?: string;
     } | null;
     if (response.status === 422 && payload?.code === "OCR_REQUIRED" && Array.isArray(payload.pageNumbers)) {
-      const ocrPages = await dependencies.extractOcr(
-        file, payload.pageNumbers,
-        progress => reportProgress(30 + (progress.progress ?? 0) * 65)
-      );
-      if (!ocrPages.some(page => page.text.trim().length > 0)) {
-        throw new Error("PDF-filen kunne ikke leses. Kontroller at sidene er tydelige og prøv igjen.");
+      if (payload.jobId) {
+        response = await resumeOcrImport(file,payload.jobId,payload.pageNumbers,dependencies.extractOcr,dependencies.fetch,
+          progress => reportProgress(30 + (progress.progress ?? 0) * 65));
+      } else {
+        const ocrPages = await dependencies.extractOcr(
+          file, payload.pageNumbers,
+          progress => reportProgress(30 + (progress.progress ?? 0) * 65)
+        );
+        if (!ocrPages.some(page => page.text.trim().length > 0)) {
+          throw new Error("PDF-filen kunne ikke leses. Kontroller at sidene er tydelige og prøv igjen.");
+        }
+        analysis.set("ocrPages", JSON.stringify(ocrPages));
+        analysis.set("ocrRetry", "true");
+        reportProgress(99);
+        response = await dependencies.fetch(endpoint, {
+          method: "POST", body: analysis
+        });
       }
-      analysis.set("ocrPages", JSON.stringify(ocrPages));
-      analysis.set("ocrRetry", "true");
-      reportProgress(99);
-      response = await dependencies.fetch(endpoint, {
-        method: "POST", body: analysis
-      });
       response = await waitForImportJob(response, dependencies.fetch, label => onProgress?.({label,percent:currentPercent}));
     }
     completed = response.ok;

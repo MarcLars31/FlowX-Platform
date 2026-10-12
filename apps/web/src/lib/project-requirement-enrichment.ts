@@ -96,6 +96,7 @@ export function enrichProjectRequirements(
         operation: line.operation,
         quantity: line.quantity ?? currentValue.quantity ?? null,
         quantityText: line.quantityText ?? currentValue.quantityText ?? null,
+        quantitySourcePage: line.quantitySourcePage ?? currentValue.quantitySourcePage ?? null,
         unit: line.unit ?? currentValue.unit ?? null,
         attributes,
         system: line.system ?? currentValue.system ?? null,
@@ -121,7 +122,7 @@ export function enrichProjectRequirements(
 
 function mergedReviewFlags(extracted: string[], current: unknown) {
   const extractionFlags = new Set(["unknown-category", "inferred-post-number", "inferred-parent-context", "missing-parent-context",
-    "missing-post-number", "missing-quantity", "missing-unit", "project-information", "ocr-source", "pipe-unit-not-length", "unresolved-source-quantity", "reextracted-requirement-conflict"]);
+    "missing-post-number", "missing-quantity", "missing-unit", "project-information", "ocr-source", "low-ocr-confidence", "pipe-unit-not-length", "unresolved-source-quantity", "reextracted-requirement-conflict"]);
   const stored = Array.isArray(current)
     ? current.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
     : [];

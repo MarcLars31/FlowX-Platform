@@ -3,6 +3,7 @@ import { ExtractionQualityNotice } from "@/components/ExtractionQualityNotice";
 import type { ExtractionQualitySummary } from "@/lib/technical-description-quality";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { resumeOcrImport } from "@/lib/ocr-batches";
 import type { ImportJobStatus } from "@/lib/import-job-client";
 const labels:Record<string,string>={queued:"I kö",running:"Bearbetas",awaiting_ocr:"Behöver textläsning",completed:"Klar",failed:"Kunde inte slutföras"};
 export function ImportStatus() {
@@ -32,6 +33,13 @@ export function ImportStatus() {
   async function resume(job:ImportJobStatus) {
     setBusy(job.id);setError("");
     try {
+      // Another attempt/tab may already have checkpointed pages since the last poll.
+      const status=await fetch(`/api/technical-descriptions/jobs?id=${encodeURIComponent(job.id)}`,{cache:"no-store"});
+      if(!status.ok)throw new Error("Importstatus kunde inte laddas.");
+      const current=(await status.json()).jobs[0] as ImportJobStatus | undefined;
+      if(!current)throw new Error("Importen hittades inte.");
+      job=current;
+      if(!["failed","awaiting_ocr"].includes(job.status)){setJobs(await load());return;}
       const form=new FormData();
       if(job.status==="failed") form.set("retryJobId",job.id);
       else {
@@ -39,8 +47,9 @@ export function ImportStatus() {
         if(!response.ok)throw new Error("PDF-filen kunde inte hämtas.");
         const file=new File([await response.blob()],job.file_name,{type:"application/pdf"});
         const {extractPdfPagesWithBrowserOcr}=await import("@/lib/browser-pdf-ocr");
-        const pages=await extractPdfPagesWithBrowserOcr(file,job.result?.pageNumbers as number[],()=>undefined);
-        form.set("uploadId",job.upload_id);form.set("fileName",job.file_name);form.set("projectId",job.project_id);form.set("ocrPages",JSON.stringify(pages));
+        await resumeOcrImport(file,job.id,job.result?.pageNumbers as number[],extractPdfPagesWithBrowserOcr,fetch);
+        setJobs(await load());
+        return;
       }
       const response=await fetch("/api/technical-descriptions/jobs",{method:"POST",body:form});
       if(!response.ok)throw new Error((await response.json()).error ?? "Importen kunde inte fortsätta.");
@@ -52,7 +61,7 @@ export function ImportStatus() {
     <p>Importer fortsätter i bakgrunden. Skannade sidor kan behöva läsas i webbläsaren.</p>
     {error&&<p role="alert">{error} <button type="button" onClick={()=>void load().then(jobs=>{setJobs(jobs);setError("");}).catch(error=>setError(error.message))}>Försök igen</button></p>}
     <table className="w-full text-left text-sm"><thead><tr><th className="p-2">PDF</th><th>Status</th><th>Åtgärd</th></tr></thead><tbody>
-      {jobs.map(job=><tr key={job.id} className="border-t border-neutral-200"><td className="p-2">{job.file_name}</td><td>{labels[job.status]??job.status}<ExtractionQualityNotice summary={job.result?.warningSummary as ExtractionQualitySummary | undefined} /></td><td>
+      {jobs.map(job=><tr key={job.id} className="border-t border-neutral-200"><td className="p-2">{job.file_name}</td><td>{labels[job.status]??job.status}{job.status==="failed" && typeof job.result?.error === "string" && <p>{job.result.error}</p>}<ExtractionQualityNotice summary={job.result?.warningSummary as ExtractionQualitySummary | undefined} /></td><td>
         {job.status==="completed"?<Link prefetch={false} className="underline" href={`/projects/${job.project_id}?step=products`}>Öppna projekt</Link>:
           ["failed","awaiting_ocr"].includes(job.status)?<button type="button" disabled={busy!==null} className="border border-neutral-400 px-3 py-1" onClick={()=>void resume(job)}>{busy===job.id?"Bearbetar…":job.status==="failed"?"Försök igen":"Fortsätt textläsning"}</button>:"Du kan lämna sidan"}
       </td></tr>)}

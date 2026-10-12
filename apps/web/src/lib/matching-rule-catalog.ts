@@ -1,6 +1,6 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-11.7";
-export const RULE_CATALOG_DATE = "11 oktober 2026";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-12.1";
+export const RULE_CATALOG_DATE = "12 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
@@ -65,7 +65,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
       rule("pdf-tabellkolumner", "Läs post, enhet och mängd i separata kolumner", "En digital ISY-tabell har Sted, Postnr och Beskrivelse samt separata mängdkolumner.", "Sätt ihop radbrutna postnummer endast i postkolumnen. Behåll kapitel och underposter; hänvisningar i kravtext skapar inga nya poster. Känn igen Enh., Enhet och motsvarande rubrikvarianter. Läs m²/m³ i enhetskolumnen och mängden i mängdkolumnen. Otydliga kolumner kräver granskning; pris och summa får inte användas som mängd. Bevara postens egna sidfortsättningar och separata kapiteltexter."),
       rule("pdf-lagring", "Återanvänd identisk kravtext", "En ny PDF-import innehåller flera identiska textfält i samma post eller kandidat.", "Spara en text och lokala hänvisningar för exakt identiska fält. Återskapa samma kravtext när posten öppnas. Avvikande kravtext och rättelser behålls separat. Tidigare importer och godkända produktval skrivs inte om."),
       rule("pdf-oversikt", "Ladda en kompakt postöversikt", "Projektets postlista öppnas.", "Återanvänd sparade sammanfattningar av grupper, rubriker och varningar. Hämta fullständig kravtext för poster som saknar aktuell sammanfattning. Ändrad postversion eller ändrade visningsregler kräver en ny sammanfattning. Produktkortet använder alltid de fullständiga sparade kraven."),
-      rule("pdf-varningar", "Behåll osäkerhet i PDF-underlaget", "Läsningen har varningar eller kravprofilen innehåller motstridiga värden.", "Visa olästa sidor och mängder som behöver kontrolleras i importstatus och projektet, även efter en bakgrundsimport. För vidare kontrollbehovet till produktbedömningen. Saknat eller motsägelsefullt underlag ska inte bli en säker match.", { kind: "review" })
+      rule("pdf-varningar", "Behåll osäkerhet i PDF-underlaget", "Läsningen har varningar eller kravprofilen innehåller motstridiga värden.", "Visa olästa sidor och mängder som behöver kontrolleras i importstatus och projektet, även efter en bakgrundsimport. Vid låg OCR-konfidens ska postnummer, mängd, dimension och övriga krav kontrolleras mot originalet. Låg konfidens höjs inte för att texten är lång. För vidare kontrollbehovet till produktbedömningen. Saknat eller motsägelsefullt underlag ska inte bli en säker match.", { kind: "review" })
     ]
   },
   {

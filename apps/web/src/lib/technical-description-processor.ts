@@ -1,3 +1,4 @@
+import { permanentPdfError } from "./technical-description-errors";
 import { compactRequirementText } from "./requirement-text-storage";
 import { extractionQualitySummary } from "./technical-description-quality";
 import { retainProjectPdf } from "./project-pdf-storage";
@@ -8,7 +9,7 @@ import type { PermissionKey } from "@/lib/organization-rbac";
 export type ImportAuthorization = { user: { id: string }; context: { organization: { id: string; name: string }; permissions: readonly PermissionKey[] } };
 import { UserSupabaseError } from "@/lib/supabase-user-rest";
 import type {
-  TechnicalDescriptionMaterialLine
+  TechnicalDescriptionMaterialLine, TechnicalDescriptionPage
 } from "@/modules/technical-description-extractor";
 import { clientTechnicalDescriptionResult } from "@/lib/technical-description-client-result";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
@@ -31,6 +32,7 @@ import {
   parseClientOcrPages
 } from "@/lib/technical-description-ocr-payload";
 import {
+  TECHNICAL_IMPORT_VERSION,
   isCompleteTechnicalDescription,
   persistenceKey,
   persistTechnicalDescriptionBatches,
@@ -48,6 +50,7 @@ type ProjectDocumentRow = {
   processing_status: string;
   storage_bucket?: string | null;
   storage_path?: string | null;
+  import_summary?: {version:number;documentId:string;lineCount:number;requirementCount:number;result:ReturnType<typeof clientTechnicalDescriptionResult>} | null;
 };
 type RequirementSetRow = { id: string; version: number; status: string };
 type ExtractionRunRow = { id: string };
@@ -57,7 +60,9 @@ type ExistingSourceDocumentRow = {
 };
 
 export async function processTechnicalDescription(request: Request, authorization: ImportAuthorization, db = userPersistence,
-  options: { preserveStaged?: boolean; createdProject?: boolean; onPhase?: (phase: string) => Promise<void> } = {}) {
+  options: { preserveStaged?: boolean; createdProject?: boolean; onPhase?: (phase: string) => Promise<void>;
+    ocrPages?: import("./technical-description-ocr-payload").ClientOcrPage[];
+    extractPages?: (buffer: Buffer, hash: string) => Promise<TechnicalDescriptionPage[]> } = {}) {
   const { callUserRpc, insertUserRowReturning, selectAllUserRows, selectUserRows, updateUserRowsReturning } = db;
   let stagedPath: string | undefined;
   let awaitingOcr = false;
@@ -82,6 +87,41 @@ export async function processTechnicalDescription(request: Request, authorizatio
         { error: "För många tekniska beskrivningar på kort tid. Försök igen senare." },
         { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
       );
+    }
+
+    const projectIdValue = formData.get("projectId");
+    let projectId =
+      typeof projectIdValue === "string" && projectIdValue.trim()
+        ? projectIdValue.trim()
+        : null;
+    const createProject = formData.get("createProject") === "true";
+    if (!projectId && !createProject) {
+      return NextResponse.json(
+        { error: "Projekt-id saknas och automatisk projektskapning är inte begärd." },
+        { status: 400 }
+      );
+    }
+    if (projectId && !isUuid(projectId)) {
+      return NextResponse.json({ error: "Ogiltigt projekt-id." }, { status: 400 });
+    }
+    if (
+      !projectId &&
+      !authorization.context.permissions.includes("project.create")
+    ) {
+      return NextResponse.json(
+        { error: "Du saknar behörighet att skapa projekt." },
+        { status: 403 }
+      );
+    }
+
+    let existingProjectName: string | undefined;
+    if (projectId) {
+      const [project] = await selectUserRows<ProjectRow>("projects", {
+        select: "id,organization_id,name", id: `eq.${projectId}`,
+        organization_id: `eq.${authorization.context.organization.id}`, deleted_at: "is.null", limit: "1"
+      });
+      if (!project) return NextResponse.json({error:"Projektet hittades inte eller du saknar projektåtkomst."}, {status:404});
+      existingProjectName=project.name;
     }
 
     const uploadId = formData.get("uploadId");
@@ -124,40 +164,44 @@ export async function processTechnicalDescription(request: Request, authorizatio
       pagesRequiringOcr
     } = await import("@/modules/technical-description-extractor");
 
-    const projectIdValue = formData.get("projectId");
-    let projectId =
-      typeof projectIdValue === "string" && projectIdValue.trim()
-        ? projectIdValue.trim()
-        : null;
-    const createProject = formData.get("createProject") === "true";
-    if (!projectId && !createProject) {
-      return NextResponse.json(
-        { error: "Projekt-id saknas och automatisk projektskapning är inte begärd." },
-        { status: 400 }
-      );
-    }
-    if (projectId && !isUuid(projectId)) {
-      return NextResponse.json({ error: "Ogiltigt projekt-id." }, { status: 400 });
-    }
-    if (
-      !projectId &&
-      !authorization.context.permissions.includes("project.create")
-    ) {
-      return NextResponse.json(
-        { error: "Du saknar behörighet att skapa projekt." },
-        { status: 403 }
-      );
-    }
-
     const buffer = Buffer.from(await file.arrayBuffer());
     if (!hasPdfSignature(buffer.subarray(0, 5))) {
       return NextResponse.json({ error: "Filen är inte en giltig PDF." }, { status: 415 });
     }
     const fileSha256 = createHash("sha256").update(buffer).digest("hex");
-    const serverPages = await extractTechnicalDescriptionPages(buffer);
+    // A completed duplicate only needs identity/count checks, not another PDF/OCR pass.
+    if (projectId && clientResultOptions.summaryOnly) {
+      const [saved] = await selectUserRows<ProjectDocumentRow>("project_documents",{
+        select:"id,upload_status,processing_status,storage_bucket,storage_path,import_summary",
+        organization_id:`eq.${authorization.context.organization.id}`,project_id:`eq.${projectId}`,
+        checksum:`eq.${fileSha256}`,deleted_at:"is.null",limit:"1"
+      });
+      const summary=saved?.import_summary;
+      if (summary?.version===TECHNICAL_IMPORT_VERSION && Number.isInteger(summary.lineCount) && summary.lineCount>=0
+        && Number.isInteger(summary.requirementCount) && summary.requirementCount>=0
+        && saved?.upload_status==="uploaded" && ["completed","requires_review"].includes(saved.processing_status)) {
+        const [source] = await selectUserRows<DocumentRow>("technical_description_documents",{
+          select:"id,status",organization_id:`eq.${authorization.context.organization.id}`,project_id:`eq.${projectId}`,
+          file_sha256:`eq.${fileSha256}`,id:`eq.${summary.documentId}`,limit:"1"
+        });
+        if (source) {
+          const [lines,requirements]=await Promise.all([
+            selectAllUserRows<{id:string}>("technical_description_material_lines",{select:"id",organization_id:`eq.${authorization.context.organization.id}`,document_id:`eq.${source.id}`,order:"id.asc"}),
+            selectAllUserRows<{id:string}>("project_requirements",{select:"id",organization_id:`eq.${authorization.context.organization.id}`,project_id:`eq.${projectId}`,
+              source_technical_description_document_id:`eq.${source.id}`,deleted_at:"is.null",order:"id.asc"})
+          ]);
+          if (lines.length>=summary.lineCount && requirements.length>=summary.requirementCount) {
+            if (!saved.storage_path) await retainProjectPdf(db,{organizationId:authorization.context.organization.id,projectId,documentId:saved.id},buffer);
+            return NextResponse.json({...summary.result,projectId,projectName:existingProjectName,documentId:source.id,duplicate:true,
+              persistedLineCount:lines.length,persistedRequirementCount:requirements.length});
+          }
+        }
+      }
+    }
+    const serverPages = options.extractPages ? await options.extractPages(buffer, fileSha256) : await extractTechnicalDescriptionPages(buffer);
     let clientOcrPages;
     try {
-      clientOcrPages = parseClientOcrPages(
+      clientOcrPages = options.ocrPages?.length ? options.ocrPages : parseClientOcrPages(
         formData.get("ocrPages"),
         serverPages.length
       );
@@ -168,8 +212,9 @@ export async function processTechnicalDescription(request: Request, authorizatio
       throw error;
     }
     const pages = mergeClientOcrPages(serverPages, clientOcrPages);
-    const unreadablePageNumbers = pagesRequiringOcr(pages);
-    if (!clientOcrPages && unreadablePageNumbers.length > 0) {
+    const suppliedOcr = new Set(clientOcrPages?.map(page => page.pageNumber));
+    const unreadablePageNumbers = pagesRequiringOcr(serverPages).filter(page => !suppliedOcr.has(page));
+    if (unreadablePageNumbers.length > 0) {
       awaitingOcr = true;
       return NextResponse.json(
         {
@@ -435,6 +480,11 @@ export async function processTechnicalDescription(request: Request, authorizatio
           result.materialLines.length,
           authorization.context.permissions.includes("project.requirement.create")
         )) {
+          // Older completed imports gain the same compact shortcut after one verified read.
+          await updateUserRowsReturning("project_documents",{
+            id:`eq.${projectDocument!.id}`,organization_id:`eq.${authorization.context.organization.id}`,project_id:`eq.${projectId}`
+          },{import_summary:{version:TECHNICAL_IMPORT_VERSION,documentId:document.id,lineCount:result.materialLines.length,
+            requirementCount:persistedRequirements.length,result:clientTechnicalDescriptionResult(result,{summaryOnly:true})}});
           return NextResponse.json({
             projectId,
             projectName: projects[0].name,
@@ -536,13 +586,11 @@ export async function processTechnicalDescription(request: Request, authorizatio
       const existingPages = await selectAllUserRows<{
         id: string;
         page_number: number;
-        extracted_text: string;
-        extraction_method: string;
-        metadata: unknown;
+        content_sha256: string | null;
       }>(
         "document_pages",
         {
-          select: "id,page_number,extracted_text,extraction_method,metadata",
+          select: "id,page_number,content_sha256",
           organization_id: `eq.${authorization.context.organization.id}`,
           project_id: `eq.${projectId}`,
           document_id: `eq.${projectDocument.id}`,
@@ -561,11 +609,11 @@ export async function processTechnicalDescription(request: Request, authorizatio
         annotations: page.annotations ?? [],
         annotation_read_failed: page.annotationReadFailed ?? false
       });
+      const pageHash = (page: typeof result.pages[number]) => createHash("sha256")
+        .update(persistenceKey([page.text,page.method,pageMetadata(page)])).digest("hex");
       const changedPages = result.pages.filter(page => {
         const previous = existingPageByNumber.get(page.pageNumber);
-        return previous && (previous.extracted_text !== page.text
-          || previous.extraction_method !== page.method
-          || persistenceKey(previous.metadata) !== persistenceKey(pageMetadata(page)));
+        return previous && previous.content_sha256 !== pageHash(page);
       });
       for (let offset = 0; offset < changedPages.length; offset += 4) {
         await Promise.all(changedPages.slice(offset, offset + 4).map(page =>
@@ -580,7 +628,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
               {
                 extracted_text: page.text,
                 extraction_method: page.method,
-                metadata: pageMetadata(page)
+                metadata: pageMetadata(page),
+                content_sha256: pageHash(page)
               }
             )
           ));
@@ -599,7 +648,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
             page_number: page.pageNumber,
             extracted_text: page.text,
             extraction_method: page.method,
-            metadata: pageMetadata(page)
+            metadata: pageMetadata(page),
+            content_sha256: pageHash(page)
           }))
       );
     }
@@ -695,6 +745,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
           operation: line.operation,
           quantity: line.quantity ?? null,
           quantityText: line.quantityText ?? null,
+          quantitySourcePage: line.quantitySourcePage ?? null,
           unit: line.unit ?? null,
           attributes: line.attributes,
           system: line.system ?? null,
@@ -751,6 +802,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
             operation: line.operation,
             quantity: line.quantity ?? null,
             quantityText: line.quantityText ?? null,
+            quantitySourcePage: line.quantitySourcePage ?? null,
             unit: line.unit ?? null,
             attributes: line.attributes,
             system: line.system ?? null,
@@ -791,7 +843,9 @@ export async function processTechnicalDescription(request: Request, authorizatio
         {
           upload_status: "uploaded",
           processing_status:
-            status === "review_required" ? "requires_review" : "completed"
+            status === "review_required" ? "requires_review" : "completed",
+          import_summary: {version:TECHNICAL_IMPORT_VERSION,documentId:document.id,lineCount:result.materialLines.length,
+            requirementCount:persistedRequirementCount,result:clientTechnicalDescriptionResult(result,{summaryOnly:true})}
         }
       );
     }
@@ -842,10 +896,17 @@ async function persistRows<T extends Record<string, unknown>>(
 ) {
   if (!payloads.length) return [] as Array<T & { id: string }>;
   try {
-    const existing = await db.selectAllUserRows<Record<string, unknown> & { id: string }>(table, {
-      ...scope, select: `id,${identityColumns}`, order: "created_at.asc,id.asc"
-    });
-    const plan = planTechnicalDescriptionRows(`${table}|${persistenceKey(scope)}`, payloads, existing, key);
+    const existingIds = await db.selectAllUserRows<{ id: string }>(table, {...scope, select: "id", order: "id.asc"});
+    const fresh = planTechnicalDescriptionRows(`${table}|${persistenceKey(scope)}`, payloads, [], key);
+    const plannedIds = new Set(fresh.rows.map(row => row.id));
+    const savedIds = new Set(existingIds.map(row => row.id));
+    const legacy = existingIds.some(row => !plannedIds.has(row.id));
+    const plan = legacy
+      ? planTechnicalDescriptionRows(`${table}|${persistenceKey(scope)}`, payloads,
+          await db.selectAllUserRows<Record<string, unknown> & {id:string}>(table, {
+            ...scope, select: `id,${identityColumns}`, order: "created_at.asc,id.asc"
+          }), key)
+      : {rows:fresh.rows,missing:fresh.rows.filter(row => !savedIds.has(row.id))};
     await persistTechnicalDescriptionBatches(plan.missing, batch =>
       db.insertUserRows(table, batch.map(row => table === "project_requirements" ? compactRequirementText(row) : table === "requirement_candidates" ? compactRequirementText(row, true) : row), { ignoreIdConflicts: true }));
     return plan.rows;
@@ -907,7 +968,9 @@ function rpcProjectId(value: unknown) {
   return null;
 }
 
-function technicalDescriptionErrorResponse(error: unknown) {
+export function technicalDescriptionErrorResponse(error: unknown) {
+  const permanent = permanentPdfError(error);
+  if (permanent) return NextResponse.json(permanent, { status: 422 });
   if (error instanceof StorageObjectTooLargeError) {
     return NextResponse.json(
       { error: "PDF-filen får vara högst 30 MB." }, { status: 413 }

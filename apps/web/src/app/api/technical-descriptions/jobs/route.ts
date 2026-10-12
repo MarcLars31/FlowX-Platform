@@ -1,3 +1,5 @@
+import { saveOcrCheckpoint } from "@/lib/import-checkpoint.server";
+import { ocrBatchWriter } from "@/lib/ocr-batches";
 import { after, NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { callUserRpc, selectUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
@@ -23,11 +25,16 @@ export async function POST(request: Request) {
     const uploadId = form.get("uploadId"); const projectId = form.get("projectId"); const fileName = form.get("fileName");
     if (!isUuid(uploadId) || (projectId && !isUuid(projectId)) || typeof fileName !== "string" || !/\.pdf$/i.test(fileName) || fileName.length>255)
       return NextResponse.json({error:"Ogiltig uppladdning."},{status:400});
-    const ocr = parseClientOcrPages(form.get("ocrPages"), 100_000);
+    const ocr = parseClientOcrPages(form.get("ocrPages"), 100_000, {maxPages:100_000,maxBytes:4_000_000});
     const job = await callUserRpc<ImportJob>("enqueue_technical_description_job", {
       requested_organization_id:auth.context.organization.id,requested_project_id:projectId || null,requested_upload_id:uploadId,
-      requested_file_name:fileName,requested_create_project:form.get("createProject")==="true",requested_ocr_pages:ocr ?? null
+      requested_file_name:fileName,requested_create_project:form.get("createProject")==="true",requested_ocr_pages:null
     });
+    if (ocr?.length) {
+      const writer=ocrBatchWriter(async pages=>{await saveOcrCheckpoint(job,auth.user.id,pages);});
+      for (const page of ocr) await writer.add(page);
+      await writer.flush();
+    }
     after(() => runImportWorker(job.id));
     return NextResponse.json({jobId:job.id,projectId:job.project_id,status:job.status,requestId},{status:202,headers:{"Cache-Control":"no-store"}});
   } catch (error) {

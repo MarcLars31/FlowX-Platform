@@ -106,3 +106,21 @@ test("missing, empty and unchanged header OCR do not mark an unreadable image bo
   assert.equal(short.status, "partial");
   assert.equal(short.ocrReason, "image-body");
 });
+
+
+test("low-confidence OCR remains uncertain even when it returns plenty of text", async () => {
+  const { extractTechnicalDescriptionFromPages } = await import("../modules/technical-description-extractor/extractor");
+  const { extractionQualitySummary } = await import("./technical-description-quality");
+  const text = "33.500.1 UE2.1111132\nSPRINKLER\nAntall stk 60\nMateriale: Messing\nUtløsningstemperatur: 68 °C\nAndre krav: Nei";
+  for (const confidence of [0, 0.3, 0.69]) {
+    const pages = mergeClientOcrPages([{pageNumber:1,text:"",method:"text",confidence:0,status:"failed"}],
+      [{pageNumber:1,text,confidence}]);
+    assert.equal(pages[0].confidence, confidence);
+    assert.equal(pages[0].status, "partial");
+    const result = extractTechnicalDescriptionFromPages(pages);
+    assert.equal(extractionQualitySummary(result).incompletePageCount, 1);
+    assert.ok(result.materialLines.length > 0);
+    assert.ok(result.materialLines.every(line => line.confidence <= confidence));
+    assert.ok(result.materialLines.every(line => line.reviewFlags.includes("low-ocr-confidence")));
+  }
+});

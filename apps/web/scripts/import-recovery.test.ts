@@ -24,6 +24,7 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
   let interrupted = false;
   const uploaded = new Map<string, Uint8Array>();
   const changes: string[] = [];
+  const selections: Array<{table:string;columns?:string}> = [];
   const find = (table: string, filters: Record<string,string> = {}) => (rows[table] ?? []).filter(row =>
     Object.entries(filters).every(([key, value]) => {
       if (["select","order","limit","offset"].includes(key)) return true;
@@ -31,7 +32,7 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
       if (value.startsWith("eq.")) return String(row[key]) === value.slice(3);
       throw new Error(`Unexpected filter ${key}`);
     }));
-  const select = async (table: string, filters?: Record<string,string>) => structuredClone(find(table, filters));
+  const select = async (table: string, filters?: Record<string,string>) => {selections.push({table,columns:filters?.select}); return structuredClone(find(table, filters));};
   const insert = (table: string, body: Record<string,unknown>) => {
     const row = {...body,id:String(body.id ?? randomUUID())};
     const items = rows[table] ??= [];
@@ -79,9 +80,11 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
   assert.equal(rows.project_requirements.length,1);
   assert.ok(!changes.some(change=>/update:extraction_runs:(completed|requires_review)/.test(change)));
   assert.ok(!changes.some(change=>/update:project_documents:(completed|requires_review)/.test(change)));
+  selections.length=0;
   const second = await processTechnicalDescription(request(),auth,db);
   assert.equal(second.status,201, JSON.stringify(await second.clone().json()));
   assert.equal(rows.project_requirements.length,2);
+  assert.ok(selections.every(read=>!/(source_excerpt|source_text|raw_text|extracted_text)/.test(read.columns ?? "")), "new-format retries fetch IDs and page hashes instead of source text");
   assert.equal(new Set(rows.project_requirements.map(row=>row.id)).size,2);
   assert.equal(rows.project_documents.length,1); assert.equal(rows.extraction_runs.length,1);
   assert.equal(rows.document_pages.length,2);
@@ -113,8 +116,14 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
   assert.ok(workbook.worksheets.length>0);
   const content = JSON.stringify(workbook.worksheets.map(sheet=>sheet.getSheetValues()));
   assert.match(content,/1401\.40\.411\.35/); assert.match(content,/1234567/); assert.match(content,/71\.75/);
-  const third = await processTechnicalDescription(request(),auth,db);
+  const third = await processTechnicalDescription(request(),auth,db,{extractPages:async()=>assert.fail("A completed duplicate must not parse the PDF again")});
   assert.equal(third.status,200); assert.equal(rows.project_requirements.length,2);
+  delete rows.project_documents[0].import_summary;
+  const legacy = await processTechnicalDescription(request(),auth,db);
+  assert.equal(legacy.status,200);
+  assert.ok(rows.project_documents[0].import_summary,"an older completed document receives a compact summary after verification");
+  const cachedLegacy = await processTechnicalDescription(request(),auth,db,{extractPages:async()=>assert.fail("Verified legacy duplicates must also reuse their summary")});
+  assert.equal(cachedLegacy.status,200);
 });
 
 test("import polling reports persisted completion and preserves retry status when the browser loses contact", async () => {

@@ -255,3 +255,16 @@ test("a consultant header does not erase real continuation prose before the next
   assert.equal(first.attributes.trykk, "PN16");
   assert.doesNotMatch(first.sourceText, /07.08.2026|33.500.3/);
 });
+
+
+test("a quantity on the continuation page is reconciled there without blaming the next post", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    page(1, `${header}33.332.1 UE2.11112312\nSPRINKLER\nMateriale: Messing\nSum:`),
+    page(2, `${header}33.332.1\nAntall stk 12\nAndre krav:\nRosetter skal inngå.\n33.332.2 UC1.3121151\nSTENGEVENTIL\nAntall stk 1\nSum:`)
+  ]);
+  assert.deepEqual(result.materialLines.map(line => line.quantity), [12, 1]);
+  assert.equal(result.materialLines[0].quantitySourcePage, 2);
+  assert.equal(result.pageChecks?.find(page => page.sourcePage === 2)?.extractedQuantityRows, 2);
+  assert.ok(result.pageChecks?.every(page => page.unresolvedQuantityRows === 0));
+  assert.ok(result.materialLines.every(line => !line.reviewFlags.includes("unresolved-source-quantity")));
+});

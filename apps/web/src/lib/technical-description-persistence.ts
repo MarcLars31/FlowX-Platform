@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
 
+/** Bump when imported material-line semantics change. */
+export const TECHNICAL_IMPORT_VERSION = 2;
+
 type Row = Record<string, unknown> & { id?: string };
 
 /** JSONB changes object-key order, so compare content independently of key order. */

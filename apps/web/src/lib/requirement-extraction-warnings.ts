@@ -5,6 +5,7 @@ export function requirementExtractionWarnings(requirement: Record<string, unknow
   const value = record(requirement.value_json);
   const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
   const warnings: string[] = [];
+  if (flags.includes('low-ocr-confidence')) warnings.push('OCR-texten har låg säkerhet. Kontrollera postnummer, mängd, dimension och övriga krav mot original-PDF:n.');
   if (flags.includes('missing-parent-context')) warnings.push('Underpostens huvudpost och gemensamma krav har inte kunnat identifieras. Kontrollera material, anslutning och övriga krav i PDF-filen.');
   if (flags.includes('unknown-category') && !isCableTrunkingProduct(String(requirement.value_text ?? requirement.display_name ?? ''))) warnings.push('PDF-postens huvudprodukt har inte kunnat identifieras säkert. Kontrollera produktgruppen före produktval.');
   if (flags.includes('reextracted-requirement-conflict')) warnings.push('Sparade krav skiljer sig från den nya PDF-läsningen. Kontrollera ändringarna innan produktvalet verifieras.');

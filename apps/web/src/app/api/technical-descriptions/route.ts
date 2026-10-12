@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import { selectUserRows } from "@/lib/supabase-user-rest";
-import { processTechnicalDescription } from "@/lib/technical-description-processor";
+import { POST as enqueueImport } from "./jobs/route";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function GET() {
@@ -28,7 +28,5 @@ export async function GET() {
 
 
 export async function POST(request: Request) {
-  const auth = await requireOrganizationApi(["technical_description.create"]);
-  if (auth.error) return auth.error;
-  return processTechnicalDescription(request, auth);
+  return enqueueImport(request);
 }

@@ -62,6 +62,8 @@ export type TechnicalDescriptionMaterialLine = {
   operation: "install" | "remove" | "unknown";
   quantity?: number;
   quantityText?: string;
+  /** Actual source of the amount, which may follow the post on another page. */
+  quantitySourcePage?: number;
   unit?: string;
   attributes: Record<string, string>;
   /** Origin of each own or inherited requirement, before any user correction. */
