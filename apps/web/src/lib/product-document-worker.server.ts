@@ -10,7 +10,8 @@ export function enqueueProductDocument(documentId: string, userId: string | null
 /** One bounded attempt per invocation. The scheduler resumes the durable queue. */
 export async function runProductDocumentWorker(documentId: string | null = null) {
   const job = await callSupabaseRpc<ProductJob | null>("claim_product_document_job", { requested_document_id: documentId });
-  if (!job) return;
+  // PostgREST represents an empty composite result as an object of null fields.
+  if (!job?.document_id || !job.lease_id) return;
   const filters = { document_id: `eq.${job.document_id}`, lease_id: `eq.${job.lease_id}`, status: "eq.running", select: "document_id" };
   let errorCode: string | null = null;
   let shouldRetry = false;
