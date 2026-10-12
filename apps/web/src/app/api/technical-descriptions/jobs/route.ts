@@ -66,3 +66,17 @@ export async function GET(request: Request) {
     return NextResponse.json({error:"Importstatus kunde inte hämtas. Försök igen.",requestId},{status:503,headers:{"Retry-After":"5"}});
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const auth = await requireOrganizationApi(["technical_description.create"]);
+    if (auth.error) return auth.error;
+    const id = new URL(request.url).searchParams.get("id");
+    if (!isUuid(id)) return NextResponse.json({error:"Ogiltigt import-id."},{status:400});
+    await callUserRpc("cancel_technical_description_job",{requested_job_id:id});
+    return new NextResponse(null,{status:204});
+  } catch (error) {
+    const forbidden = error instanceof UserSupabaseError && error.code === "42501";
+    return NextResponse.json({error:forbidden ? "Du saknar behörighet för importen." : "Importen kunde inte avbrytas. Vänta tills pågående bearbetning är klar."},{status:forbidden ? 403 : 409});
+  }
+}

@@ -11,11 +11,11 @@ produktmatchning och versionshanterad materiallista.
 
 **Version:** 0.1
 
-**Status:** fas 1 för databasarkitektur och fas 2 för säker demodata är
-implementerade och verifierade lokalt. Äldre delar av projektåtkomst och
-organisationsinställningar har tidigare verifierats mot den länkade
-Supabase-databasen. De nya `20260806`-migrationerna är inte applicerade i
-produktion genom denna leverans.
+**Status:** aktiv ScipX-applikation med projekt, PDF-import, produktval och
+organisationsbehörigheter. Dokumentationen beskriver koden i denna arbetskopia;
+vilka migrationer som faktiskt är installerade måste kontrolleras i respektive miljö.
+Stabiliseringsändringarna i `20261012120000`–`20261012125000` kräver samordnad
+installation av databas och webbapp. Se [ändringar och verifiering](docs/stabilization-2026-10-12.md).
 
 **Ägare:** Marcus Larsson
 
@@ -56,19 +56,19 @@ produktdata och tekniska resultat.
 - Tailwind CSS
 - Supabase Auth och PostgreSQL
 - Next.js Route Handlers
-- `pdf-parse`/`pdfjs-dist`
+- `unpdf`/`pdfjs-dist` för text och sidlayout, Tesseract för OCR
 
 ## Starta lokalt
 
 Krav:
 
-- Node.js 20+
+- Node.js 24 (samma huvudversion som CI)
 - npm
 - `apps/web/.env.local` med Supabase-konfiguration
 
 ```powershell
 cd apps/web
-npm.cmd install
+npm.cmd ci
 npm.cmd run dev
 ```
 
@@ -104,16 +104,28 @@ verkliga nycklar till Git.
 
 ```powershell
 cd apps/web
-npm.cmd run lint
-npm.cmd run typecheck
-npm.cmd run test:authz
-npm.cmd run test:rbac
-npm.cmd run test:extractor
-npm.cmd run test:normalizer
-npm.cmd run test:technical-description
-npm.cmd run test:product-pdf
-npm.cmd run build
+npm.cmd ci
+npm.cmd run test:release
+npm.cmd run build:production
 ```
+
+`test:release` kör generering av routetyper, typkontroll, lint utan varningar och
+alla lokala `.test.ts`-filer under `src` och `scripts`. `build:production` inkluderar
+samma kontroller, beroendegranskning och produktionsbygge. Kör normalt bara den
+senare vid en fullständig leveranskontroll.
+
+Databasen verifieras separat från en tom, lokal PGlite-databas:
+
+```powershell
+cd supabase
+npm.cmd ci
+npm.cmd run verify:empty
+```
+
+CI kör även crawlerns Python-tester. HTTP-tester mot riktiga testkonton är separat:
+`npm.cmd run test:e2e:test-accounts` i `apps/web`, med en isolerad testmiljö.
+De lokala databasproven ersätter inte ett test av Supabase Storage, Vault,
+pg_cron och pg_net i staging; PGlite saknar dessa tjänster.
 
 ### Offentlig dokumentcrawler och produktdatablad
 

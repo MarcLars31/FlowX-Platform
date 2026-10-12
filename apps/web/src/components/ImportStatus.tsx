@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { resumeOcrImport } from "@/lib/ocr-batches";
 import type { ImportJobStatus } from "@/lib/import-job-client";
-const labels:Record<string,string>={queued:"I kö",running:"Bearbetas",awaiting_ocr:"Behöver textläsning",completed:"Klar",failed:"Kunde inte slutföras"};
+const labels:Record<string,string>={queued:"I kö",running:"Bearbetas",awaiting_ocr:"Behöver textläsning",completed:"Klar",failed:"Kunde inte slutföras",cancelled:"Avbruten"};
 export function ImportStatus() {
   const [jobs,setJobs]=useState<ImportJobStatus[]>([]);
   const [error,setError]=useState(""); const [busy,setBusy]=useState<string|null>(null);
@@ -30,6 +30,15 @@ export function ImportStatus() {
     }
     void poll();return()=>{cancelled=true;clearTimeout(timer);controller?.abort();};
   },[load]);
+  async function cancel(job: ImportJobStatus) {
+    setBusy(job.id); setError("");
+    try {
+      const response = await fetch(`/api/technical-descriptions/jobs?id=${encodeURIComponent(job.id)}`, {method:"DELETE",signal:AbortSignal.timeout(20_000)});
+      if (!response.ok) throw new Error((await response.json()).error ?? "Importen kunde inte avbrytas.");
+      setJobs(await load());
+    } catch (error) { setError(error instanceof Error ? error.message : "Importen kunde inte avbrytas."); }
+    finally { setBusy(null); }
+  }
   async function resume(job:ImportJobStatus) {
     setBusy(job.id);setError("");
     try {
@@ -58,12 +67,13 @@ export function ImportStatus() {
     finally{setBusy(null);}
   }
   return <section className="space-y-4 border border-neutral-300 bg-white p-5"><h1 className="text-xl font-semibold">Importstatus</h1>
-    <p>Importer fortsätter i bakgrunden. Skannade sidor kan behöva läsas i webbläsaren.</p>
+    <p>Importer fortsätter i bakgrunden. Skannade sidor kan behöva läsas i webbläsaren. Importer som väntat på textläsning i 14 dagar avbryts automatiskt.</p>
     {error&&<p role="alert">{error} <button type="button" onClick={()=>void load().then(jobs=>{setJobs(jobs);setError("");}).catch(error=>setError(error.message))}>Försök igen</button></p>}
     <table className="w-full text-left text-sm"><thead><tr><th className="p-2">PDF</th><th>Status</th><th>Åtgärd</th></tr></thead><tbody>
       {jobs.map(job=><tr key={job.id} className="border-t border-neutral-200"><td className="p-2">{job.file_name}</td><td>{labels[job.status]??job.status}{job.status==="failed" && typeof job.result?.error === "string" && <p>{job.result.error}</p>}<ExtractionQualityNotice summary={job.result?.warningSummary as ExtractionQualitySummary | undefined} /></td><td>
         {job.status==="completed"?<Link prefetch={false} className="underline" href={`/projects/${job.project_id}?step=products`}>Öppna projekt</Link>:
-          ["failed","awaiting_ocr"].includes(job.status)?<button type="button" disabled={busy!==null} className="border border-neutral-400 px-3 py-1" onClick={()=>void resume(job)}>{busy===job.id?"Bearbetar…":job.status==="failed"?"Försök igen":"Fortsätt textläsning"}</button>:"Du kan lämna sidan"}
+          ["failed","awaiting_ocr"].includes(job.status)?<button type="button" disabled={busy!==null} className="border border-neutral-400 px-3 py-1" onClick={()=>void resume(job)}>{busy===job.id?"Bearbetar…":job.status==="failed"?"Försök igen":"Fortsätt textläsning"}</button>:job.status==="cancelled"?"Ladda upp filen igen för ett nytt försök":"Du kan lämna sidan"}
+        {["queued","awaiting_ocr","failed"].includes(job.status)&&<button type="button" className="ml-3 underline" disabled={busy!==null} onClick={()=>void cancel(job)}>Avbryt import</button>}
       </td></tr>)}
     </tbody></table>{!jobs.length&&!error&&<p>Inga importer att visa.</p>}
   </section>;

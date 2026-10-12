@@ -4,7 +4,6 @@ import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
   callUserRpc,
   selectUserRows,
-  updateUserRowsReturning,
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
@@ -60,27 +59,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     const input = validateProjectUpdate(body);
     if ("error" in input) return NextResponse.json({ error: input.error }, { status: 400 });
 
-    const manufacturer = optionalCatalogName(body?.supplier);
-    const distributor = optionalCatalogName(body?.distributor);
-    const project = await updateUserRowsReturning<OrganizationProject>(
-      "projects",
-      {
-        id: `eq.${id}`,
-        organization_id: `eq.${authorization.context.organization.id}`,
-        deleted_at: "is.null"
-      },
-      input
-    );
-    if ("supplier" in (body ?? {}) || "distributor" in (body ?? {})) {
-      await callUserRpc("set_project_supplier_preferences", {
-        requested_project_id: id,
-        requested_manufacturer: manufacturer,
-        requested_distributor: distributor,
-        requested_currency: project.currency,
-        requested_delivery_country: project.delivery_country,
-        requested_warehouse_location: project.warehouse_location
-      });
-    }
+    const preferences: Record<string, string | null> = {};
+    if (body && "supplier" in body) preferences.manufacturer = optionalCatalogName(body.supplier);
+    if (body && "distributor" in body) preferences.distributor = optionalCatalogName(body.distributor);
+    const project = await callUserRpc<OrganizationProject>("update_project_settings_atomic", {
+      requested_project_id: id, patch: input, preferences
+    });
     if (project.current_stage === "completed" || project.status === "archived") after(() => cleanupProjectSourcePdfs(id));
     return NextResponse.json({ project });
   } catch (error) {
@@ -179,7 +163,8 @@ function validateProjectUpdate(body: ProjectUpdate | null) {
     output.technical_parameters = body.technicalParameters;
   }
 
-  return Object.keys(output).length > 0 ? output : { error: "Ingen ändring angavs." } as const;
+  if ("distributor" in body && typeof body.distributor !== "string") return { error: "Distributör måste vara text." } as const;
+  return Object.keys(output).length > 0 || "distributor" in body ? output : { error: "Ingen ändring angavs." } as const;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

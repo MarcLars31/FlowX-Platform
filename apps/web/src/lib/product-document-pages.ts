@@ -22,10 +22,10 @@ export type ProductDocumentPageInspection = {
 
 export async function inspectProductDocumentPages(
   data: Buffer | Uint8Array,
-  options: { fallbackPageCount?: number | null; languageCode?: string | null } = {}
+  options: { fallbackPageCount?: number | null; languageCode?: string | null; beforePage?: () => void } = {}
 ): Promise<ProductDocumentPageInspection> {
   try {
-    const extractedPages = await extractTechnicalDescriptionPages(data);
+    const extractedPages = await extractTechnicalDescriptionPages(data, { beforePage: options.beforePage });
     return summarizeProductDocumentPages(
       prepareProductDocumentPages(
         extractedPages,
@@ -33,6 +33,7 @@ export async function inspectProductDocumentPages(
       )
     );
   } catch (error) {
+    options.beforePage?.();
     const technicalErrorDetail = safeErrorMessage(error);
     const fallbackPageCount = positiveInteger(options.fallbackPageCount);
     const pages = fallbackPageCount

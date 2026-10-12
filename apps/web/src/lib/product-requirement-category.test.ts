@@ -145,3 +145,11 @@ test("automation and electrical headings without a code also avoid the sprinkler
     assert.deepEqual(findAhlsellMldlCandidates(row),[]);
   }
 });
+
+// A named valve is positive evidence; an incidental mention in another item is not.
+test("special valves are grouped by their own heading without classifying other items from comments", () => {
+  for (const name of ["Specialventil PN16", "Spesialventil DN25"]) {
+    assert.equal(productRequirementCategory({ value_text: name, category: "other" }), "valve");
+  }
+  assert.equal(productRequirementCategory({ value_text: "Okänd produkt", category: "valve", value_json: { comments: "Inkluderar specialventil" } }), "other");
+});

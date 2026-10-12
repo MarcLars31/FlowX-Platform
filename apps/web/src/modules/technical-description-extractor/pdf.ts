@@ -20,15 +20,23 @@ export async function extractTechnicalDescriptionPages(
 ): Promise<TechnicalDescriptionPage[]> {
   const document = await openPdfTextDocument(data);
 
-  try {
+  try { return await extractPagesFromDocument(document, options); }
+  finally { await closePdfTextDocument(document); }
+}
+
+export async function extractPagesFromDocument(
+  document: Awaited<ReturnType<typeof openPdfTextDocument>>,
+  options: { cachedPages?: TechnicalDescriptionPage[]; onPage?: (page: TechnicalDescriptionPage) => Promise<void>; beforePage?: () => void } = {}
+): Promise<TechnicalDescriptionPage[]> {
     const pages: TechnicalDescriptionPage[] = [];
     const cached = new Map(options.cachedPages?.map(page => [page.pageNumber,page]));
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       options.beforePage?.();
       const saved = cached.get(pageNumber);
       if (saved) { pages.push(saved); continue; }
-      const page = await document.getPage(pageNumber);
+      let page: Awaited<ReturnType<typeof document.getPage>> | undefined;
       try {
+        page = await document.getPage(pageNumber);
         const content = await page.getTextContent();
         const plainText = plainTextFromPdfItems(content.items);
         const layoutText = layoutTextFromPdfItems(content.items);
@@ -66,13 +74,17 @@ export async function extractTechnicalDescriptionPages(
           ...(annotations?.length ? { annotations } : {}),
           ...(annotationReadFailed ? { annotationReadFailed } : {})
         });
-        await options.onPage?.(pages[pages.length - 1]);
-      } finally { page.cleanup(); }
+      } catch {
+        pages.push({pageNumber,text:"",method:"text",confidence:0,status:"failed",errorCode:"text_extraction_failed",
+          errorMessage:"Sidans text kunde inte läsas. Sidan behöver OCR eller manuell granskning."});
+      } finally {
+        try { page?.cleanup(); }
+        catch { console.warn("pdf_page_cleanup_failed", { pageNumber }); }
+      }
+      // Persistence/cancellation failures must still abort the worker, not become PDF errors.
+      await options.onPage?.(pages[pages.length - 1]);
     }
     return pages;
-  } finally {
-    await closePdfTextDocument(document);
-  }
 }
 
 export function pagesRequiringOcr(pages: readonly TechnicalDescriptionPage[]) {

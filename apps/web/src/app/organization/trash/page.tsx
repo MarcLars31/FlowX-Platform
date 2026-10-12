@@ -72,7 +72,8 @@ export default async function TrashPage() {
                       projectId={project.id}
                       projectName={project.name}
                       canRestore={context.permissions.includes("project.restore")}
-                      canPermanentlyDelete={context.permissions.includes(
+                      // eslint-disable-next-line react-hooks/purity -- Dynamic server page: evaluate retention at request time; SQL independently enforces it.
+                      canPermanentlyDelete={(retentionDays === null || !project.deleted_at || Date.parse(project.deleted_at) + retentionDays * 86_400_000 <= Date.now()) && context.permissions.includes(
                         "project.permanent_delete"
                       )}
                     />

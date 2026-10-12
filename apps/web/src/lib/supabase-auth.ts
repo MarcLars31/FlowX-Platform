@@ -1,3 +1,5 @@
+import { cache } from "react";
+import { authRequest } from "./auth-transport";
 import "server-only";
 import { cookies } from "next/headers";
 import {
@@ -29,7 +31,7 @@ type AuthSession = {
 };
 
 export async function signInWithPassword(email: string, password: string) {
-  const response = await fetch(authUrl("token?grant_type=password"), {
+  const response = await authRequest(authUrl("token?grant_type=password"), {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ email, password }),
@@ -43,12 +45,12 @@ export async function signInWithPassword(email: string, password: string) {
   return (await response.json()) as AuthSession;
 }
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   const accessToken = await getCurrentAccessToken();
 
   if (!accessToken) return null;
 
-  const response = await fetch(authUrl("user"), {
+  const response = await authRequest(authUrl("user"), {
     headers: authHeaders(accessToken),
     cache: "no-store"
   });
@@ -56,7 +58,7 @@ export async function getCurrentUser() {
   if (!response.ok) return null;
 
   return (await response.json()) as FlowXUser;
-}
+});
 
 export async function getCurrentAccessToken() {
   const cookieStore = await cookies();

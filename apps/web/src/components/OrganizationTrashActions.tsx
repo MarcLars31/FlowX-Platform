@@ -22,18 +22,20 @@ export function OrganizationTrashActions({
   async function restore() {
     setBusy("restore");
     setError(null);
-    const response = await fetch(`/api/projects/${projectId}/restore`, {
-      method: "POST"
-    });
-    const result = (await response.json().catch(() => null)) as
-      | { error?: string; detail?: string }
-      | null;
-    if (!response.ok) {
-      setError(result?.detail ?? result?.error ?? "Projektet kunde inte återställas.");
-      setBusy(null);
-      return;
-    }
-    router.refresh();
+    try {
+      const response = await fetch(`/api/projects/${projectId}/restore`, {
+        method: "POST"
+      });
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string; detail?: string }
+        | null;
+      if (!response.ok) {
+        setError(result?.detail ?? result?.error ?? "Projektet kunde inte återställas.");
+        return;
+      }
+      router.refresh();
+    } catch { setError("Anslutningen avbröts. Försök igen."); }
+    finally { setBusy(null); }
   }
 
   async function permanentlyDelete() {
@@ -44,20 +46,22 @@ export function OrganizationTrashActions({
 
     setBusy("delete");
     setError(null);
-    const response = await fetch(`/api/projects/${projectId}/permanent`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirmation })
-    });
-    const result = (await response.json().catch(() => null)) as
-      | { error?: string; detail?: string }
-      | null;
-    if (!response.ok) {
-      setError(result?.detail ?? result?.error ?? "Projektet kunde inte raderas.");
-      setBusy(null);
-      return;
-    }
-    router.refresh();
+    try {
+      const response = await fetch(`/api/projects/${projectId}/permanent`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation })
+      });
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string; detail?: string }
+        | null;
+      if (!response.ok) {
+        setError(result?.detail ?? result?.error ?? "Projektet kunde inte raderas.");
+        return;
+      }
+      router.refresh();
+    } catch { setError("Anslutningen avbröts. Försök igen."); }
+    finally { setBusy(null); }
   }
 
   return (

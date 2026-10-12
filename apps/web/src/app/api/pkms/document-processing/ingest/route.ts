@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { NextResponse } from "next/server";
+import { createHash, randomUUID } from "node:crypto";
+import { after, NextResponse } from "next/server";
 import { authorizeCrawlerOrPlatformAdmin } from "@/lib/crawler-api-authorization";
 import { hasPdfSignature } from "@/lib/pdf-security";
 import {
@@ -10,7 +10,7 @@ import {
   deleteAdminStorageObjects,
   uploadAdminStorageObject
 } from "@/lib/supabase-admin-storage";
-import { processProductDocumentWithAutomaticRetries } from "@/lib/product-document-processor";
+import { runProductDocumentWorker } from "@/lib/product-document-worker.server";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -25,6 +25,7 @@ type ProductDocumentRow = {
   file_name: string | null;
   pdf_sha256: string | null;
   current_processing_status: string;
+  storage_path: string | null;
 };
 
 export async function POST(request: Request) {
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
 
     const finalPdfUrl = publicUrl(form.get("finalPdfUrl"));
     const canonicalUrl = publicUrl(form.get("canonicalUrl")) ?? finalPdfUrl;
-    const existing = await findExistingDocument(sha256, canonicalUrl);
+    const existing = await findExistingDocument(sha256);
     if (existing) {
       return NextResponse.json({ document: existing, duplicate: true });
     }
@@ -70,13 +71,15 @@ export async function POST(request: Request) {
     const title =
       text(form.get("title"), 500) ?? file.name.replace(/\.pdf$/i, "").slice(0, 500);
     const safeName = safeFileName(file.name);
-    const storagePath = `${slug(supplierName)}/${sha256.slice(0, 2)}/${sha256}-${safeName}`;
+    const storagePath = `${slug(supplierName)}/${sha256.slice(0, 2)}/${sha256}-${randomUUID()}-${safeName}`;
 
     await uploadAdminStorageObject(STORAGE_BUCKET, storagePath, bytes, "application/pdf");
     try {
       const now = new Date().toISOString();
+      const shouldProcess = text(form.get("process"), 10)?.toLowerCase() !== "false";
       const document = await insertSupabaseRowReturning<ProductDocumentRow>("documents", {
         title,
+        processing_requested: shouldProcess,
         document_type: text(form.get("documentType"), 100) ?? "datasheet",
         supplier_name: supplierName,
         file_name: safeName,
@@ -98,34 +101,21 @@ export async function POST(request: Request) {
         status: "needs_review"
       });
 
-      const shouldProcess = text(form.get("process"), 10)?.toLowerCase() !== "false";
-      if (!shouldProcess) {
-        return NextResponse.json({ document, duplicate: false, processing: null }, { status: 201 });
-      }
-
-      try {
-        const processing = await processProductDocumentWithAutomaticRetries(
-          document.id,
-          authorization.userId,
-          3
-        );
-        return NextResponse.json(
-          { document, duplicate: false, processing },
-          { status: 201 }
-        );
-      } catch {
-        return NextResponse.json(
-          {
-            document,
-            duplicate: false,
-            processing: null,
-            processingError: "Dokumentet sparades men PDF-behandlingen kunde inte starta."
-          },
-          { status: 201 }
-        );
-      }
+      if (shouldProcess) after(() => runProductDocumentWorker(document.id));
+      return NextResponse.json({ document, duplicate: false, processing: shouldProcess ? { status: "queued" } : null }, { status: 201 });
     } catch (error) {
-      await deleteAdminStorageObjects(STORAGE_BUCKET, [storagePath]).catch(() => undefined);
+      // A timed-out response can still have committed. Never remove a referenced source.
+      const persisted = await findExistingDocument(sha256).catch(() => null);
+      if (persisted) {
+        if (persisted.storage_path !== storagePath) {
+          await deleteAdminStorageObjects(STORAGE_BUCKET, [storagePath]).catch(() => undefined);
+        }
+        return NextResponse.json({ document: persisted, duplicate: persisted.storage_path !== storagePath });
+      }
+      // A definite client rejection did not commit; an ambiguous transport/5xx failure may have.
+      if (error instanceof Error && /^Supabase 4(?!08)/.test(error.message)) {
+        await deleteAdminStorageObjects(STORAGE_BUCKET, [storagePath]).catch(() => undefined);
+      }
       throw error;
     }
   } catch {
@@ -136,23 +126,14 @@ export async function POST(request: Request) {
   }
 }
 
-async function findExistingDocument(sha256: string, canonicalUrl: string | null) {
+async function findExistingDocument(sha256: string) {
   const byHash = await selectSupabaseRows<ProductDocumentRow>("documents", {
-    select: "id,title,file_name,pdf_sha256,current_processing_status",
+    select: "id,title,file_name,pdf_sha256,current_processing_status,storage_path",
     pdf_sha256: `eq.${sha256}`,
     deleted_at: "is.null",
     limit: "1"
   });
-  if (byHash[0]) return byHash[0];
-  if (!canonicalUrl) return null;
-
-  const byUrl = await selectSupabaseRows<ProductDocumentRow>("documents", {
-    select: "id,title,file_name,pdf_sha256,current_processing_status",
-    canonical_url: `eq.${canonicalUrl}`,
-    deleted_at: "is.null",
-    limit: "1"
-  });
-  return byUrl[0] ?? null;
+  return byHash[0] ?? null;
 }
 
 function text(value: FormDataEntryValue | null, maxLength: number) {

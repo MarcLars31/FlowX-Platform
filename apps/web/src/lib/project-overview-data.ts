@@ -1,5 +1,6 @@
+import { after } from "next/server";
 import "server-only";
-import { selectAllUserRows, selectUserRows } from "./supabase-user-rest";
+import { callUserRpc, selectAllUserRows, selectUserRows } from "./supabase-user-rest";
 import { REQUIREMENT_OVERVIEW_SELECT, TECHNICAL_DOCUMENT_SUMMARY_SELECT, type OverviewRow } from "./project-overview";
 import { resolveRequirementOverviews } from "./project-overview-cache";
 import { callSupabaseRpc } from "./supabase-rest";
@@ -11,9 +12,9 @@ export async function loadProjectOverviewRequirements(projectId: string, organiz
     ...scope, select: REQUIREMENT_OVERVIEW_SELECT, order: "id.asc"
   }, { pagination: "id" });
   return resolveRequirementOverviews(heads, {
-    loadDetails: ids => selectUserRows<OverviewRow>("project_requirements", {
-      ...scope, id: `in.(${ids.join(",")})`, select: "*"
-    }),
+    batchSize: 500,
+    defer: work => after(work),
+    loadDetails: ids => callUserRpc<OverviewRow[]>("project_requirement_detail_batch", {requested_project_id:projectId,requested_ids:ids}),
     // The service-only RPC accepts only snapshots matching the current scoped
     // source revision. It never updates requirements or product approvals.
     save: entries => callSupabaseRpc<void>("cache_project_requirement_overviews", {

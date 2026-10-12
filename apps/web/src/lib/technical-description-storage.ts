@@ -1,6 +1,6 @@
+import { callSupabaseRpc } from "./supabase-rest";
 import "server-only";
 import {
-  deleteAdminStorageObjects,
   downloadAdminStorageObject
 } from "@/lib/supabase-admin-storage";
 import {
@@ -38,10 +38,10 @@ export async function readTechnicalDescriptionUpload(path: string, name: unknown
 
 export async function cleanupTechnicalDescriptionUpload(path: string) {
   try {
-    await deleteAdminStorageObjects(TECHNICAL_DESCRIPTION_UPLOAD_BUCKET, [path]);
+    await callSupabaseRpc("request_temporary_pdf_cleanup", { requested_path: path });
   } catch {
     // A cleanup failure must not turn a saved analysis into a failed upload.
     // Log only the scoped path; signed URLs and service keys stay out of logs.
-    console.error("Temporary technical description cleanup failed", { path });
+    console.error("Temporary technical description cleanup scheduling failed", { path });
   }
 }

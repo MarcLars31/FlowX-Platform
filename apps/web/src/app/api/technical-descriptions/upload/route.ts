@@ -1,3 +1,4 @@
+import { callSupabaseRpc } from "@/lib/supabase-rest";
 import { selectUserRows } from "@/lib/supabase-user-rest";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
@@ -38,6 +39,9 @@ export async function POST(request: Request) {
       organizationId: authorization.context.organization.id,
       userId: authorization.user.id
     }, uploadId);
+    await callSupabaseRpc("register_temporary_pdf_upload", {
+      requested_organization_id: authorization.context.organization.id, requested_user_id: authorization.user.id, requested_upload_id: uploadId
+    });
     const signedUrl = await createAdminStorageUploadUrl(TECHNICAL_DESCRIPTION_UPLOAD_BUCKET, path);
     return NextResponse.json({ uploadId, signedUrl }, {
       headers: { "Cache-Control": "private, no-store" }

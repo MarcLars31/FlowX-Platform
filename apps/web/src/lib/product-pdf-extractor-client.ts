@@ -24,7 +24,8 @@ export function isProductPdfExtractorConfigured() {
 
 export async function extractProductPdf(
   file: Uint8Array,
-  fileName: string
+  fileName: string,
+  remainingMs = DEFAULT_TIMEOUT_MS
 ): Promise<ProductPdfExtractionPayload> {
   const baseUrl = productPdfExtractorUrl();
   if (!baseUrl) {
@@ -35,7 +36,7 @@ export async function extractProductPdf(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), extractorTimeoutMs());
+  const timeout = setTimeout(() => controller.abort(), Math.max(1, Math.min(remainingMs, extractorTimeoutMs())));
 
   try {
     const form = new FormData();

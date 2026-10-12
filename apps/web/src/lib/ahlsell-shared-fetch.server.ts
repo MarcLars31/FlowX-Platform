@@ -1,3 +1,4 @@
+import { createSingleFlight, withCallerAbort } from "./single-flight";
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
@@ -21,6 +22,7 @@ export function ahlsellRequestContext() {
 
 /** Global quota + short leases/cache, shared by independent Vercel instances.
  * Fail closed if coordination is unavailable; never amplify an outage. */
+const supplierFlights = createSingleFlight<Response>();
 export const sharedAhlsellFetch: typeof fetch = async (input, init = {}) => {
   const url = new URL(input instanceof Request ? input.url : String(input));
   if (url.protocol !== "https:" || !["www.ahlsell.no", "www.ahlsell.se"].includes(url.hostname)
@@ -28,16 +30,24 @@ export const sharedAhlsellFetch: typeof fetch = async (input, init = {}) => {
   const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
   if (headers.has("cookie") || headers.has("authorization")) throw new Error("Private supplier responses cannot be shared");
   const key = createHash("sha256").update(`${url.href}|${headers.get("accept")}|${headers.get("accept-language")}`).digest("hex");
+  const signal = init.signal ?? (input instanceof Request ? input.signal : undefined);
+  const response = await withCallerAbort(supplierFlights(key, () => fetchClaimedSupplier(url, {...init,signal:undefined}, key)), signal);
+  return response.clone();
+};
+
+async function fetchClaimedSupplier(url: URL, init: RequestInit, key: string) {
   const lease = randomUUID();
   const signal = AbortSignal.any([AbortSignal.timeout(12_000), ...(init.signal ? [init.signal] : [])]);
   let claim: Claim;
   const started = Date.now();
+  let delay = 500;
   do {
     signal.throwIfAborted();
     claim = await callSupabaseRpc<Claim>("claim_ahlsell_request", { requested_key: key, requested_lease: lease });
     if (claim.state !== "pending") break;
-    if (Date.now() - started > 7000) return busyResponse(2);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    if (Date.now() - started >= 7000) return busyResponse(2);
+    await new Promise(resolve => setTimeout(resolve, Math.min(delay, 7000 - (Date.now() - started))));
+    delay = Math.min(3000, delay * 2);
   } while (true);
   if (claim.state === "cached" && claim.response) return new Response(claim.response.encoding === "gzip-base64"
     ? gunzipSync(Buffer.from(claim.response.body,"base64"),{maxOutputLength:2_000_000}).toString("utf8") : claim.response.body, claim.response);

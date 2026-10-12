@@ -1,3 +1,5 @@
+import { consumeLoginRateLimit } from "@/lib/login-rate-limit.server";
+import { AuthServiceUnavailableError } from "@/lib/auth-transport";
 import { NextResponse } from "next/server";
 import {
   saveAuthSession,
@@ -38,6 +40,7 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!await consumeLoginRateLimit(request, email)) return NextResponse.json({error:"För många inloggningsförsök. Försök igen senare."},{status:429,headers:{"Retry-After":"300"}});
     const session = await signInWithPassword(email, password);
     await saveAuthSession(session);
 
@@ -45,6 +48,7 @@ export async function POST(request: Request) {
       redirectTo: getPostLoginDestination(session.user)
     });
   } catch (error) {
+    if (error instanceof AuthServiceUnavailableError) return NextResponse.json({error:"Inloggningstjänsten är tillfälligt otillgänglig. Försök igen."},{status:503,headers:{"Retry-After":"5"}});
     return NextResponse.json(
       {
         error: "Inloggningen misslyckades. Kontrollera uppgifterna och försök igen."

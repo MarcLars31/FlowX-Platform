@@ -1,8 +1,6 @@
-import { cleanupImportCheckpoints } from "@/lib/import-checkpoint.server";
+import { runBackgroundMaintenance } from "@/lib/background-worker.server";
 import { after, NextResponse } from "next/server";
 import { callSupabaseRpc } from "@/lib/supabase-rest";
-import { cleanupProjectSourcePdfs } from "@/lib/project-pdf-cleanup.server";
-import { runImportWorker } from "@/lib/import-worker.server";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -13,6 +11,6 @@ export async function POST(request: Request) {
   if (!limit.allowed) return new NextResponse(null,{status:429});
   const valid = await callSupabaseRpc<boolean>("authorize_import_scheduler",{requested_token:token});
   if (!valid) return new NextResponse(null,{status:403});
-  after(async () => { await cleanupProjectSourcePdfs(); await cleanupImportCheckpoints(); await runImportWorker(); });
+  after(runBackgroundMaintenance);
   return new NextResponse(null,{status:202});
 }

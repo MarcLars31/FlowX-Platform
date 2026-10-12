@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requirePlatformAdminApi } from "@/lib/platform-api-authorization";
-import { processProductDocument } from "@/lib/product-document-processor";
+import { enqueueProductDocument, runProductDocumentWorker } from "@/lib/product-document-worker.server";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
 import { getCurrentUser } from "@/lib/supabase-auth";
 
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   for (const id of documentIds) {
     try {
       results.push(
-        await processProductDocument(id, "manual_retry", user?.id ?? null)
+        { ...(await enqueueProductDocument(id, user?.id ?? null)), documentId: id, status: "queued" }
       );
     } catch (error) {
       results.push({
@@ -56,6 +56,7 @@ export async function POST(request: Request) {
     }
   }
 
+  after(() => runProductDocumentWorker());
   const failed = results.filter((result) => result.status === "failed").length;
   return NextResponse.json({
     results,

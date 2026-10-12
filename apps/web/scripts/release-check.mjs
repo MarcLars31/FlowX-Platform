@@ -1,17 +1,12 @@
-import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-
 function run(args) {
-  const result = spawnSync(process.execPath, args, { stdio: "inherit", env: process.env });
-  if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  const result = spawnSync(process.execPath,args,{stdio:"inherit",env:process.env});
+  if(result.error)throw result.error;
+  if(result.status!==0)process.exit(result.status??1);
 }
-const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-const suites = ["authz", "security", "rbac", "rules", "technical-upload", "technical-description",
-  "technical-evaluator", "distributor-mapping", "ahlsell-hybrid", "ahlsell-lookup", "requirement-review", "project-governance", "material-list-export", "test-accounts"];
-const files = [...new Set(suites.flatMap(name => pkg.scripts[`test:${name}`].split(/\s+/).filter(arg => arg.endsWith(".test.ts"))))];
-files.push("src/lib/ocr-batches.test.ts", "src/lib/import-checkpoint.server.test.ts", "src/lib/technical-description-errors.test.ts", "scripts/pdf-import-checkpoints-database.test.ts", "src/lib/project-overview-cache.test.ts", "scripts/pdf-reader-storage-database.test.ts", "src/lib/requirement-text-storage.test.ts", "src/lib/project-pdf-storage.test.ts", "scripts/project-pdf-lifecycle-database.test.ts", "src/lib/product-choice-collection.test.ts", "scripts/multiple-product-choices-database.test.ts", "src/lib/project-delivery.test.ts", "scripts/project-delivery-database.test.ts", "src/lib/structured-post-layout.test.ts", "src/lib/project-source-pdf.test.ts", "src/lib/ahlsell-shared-fetch.test.ts", "scripts/import-recovery.test.ts", "scripts/pdf-retention-database.test.ts", "src/lib/import-job-persistence.server.test.ts", "scripts/import-jobs-database.test.ts", "src/lib/architecture-remediation.test.ts", "scripts/architecture-database.test.ts", "scripts/clear-product-choice-database.test.ts",
-  "src/lib/project-overview.test.ts", "src/lib/paginated-rows.test.ts", "src/lib/commercial-project-insights.test.ts", "src/lib/project-work-assignment.test.ts");
-run(["node_modules/next/dist/bin/next", "typegen"]);
-run(["node_modules/typescript/bin/tsc", "--noEmit", "--incremental", "false"]);
-run(["--import", "./scripts/register-server-only-test.mjs", "--import", "tsx", "--test", "--test-concurrency=4", ...files]);
+const files = ["src","scripts"].flatMap(directory => readdirSync(directory,{recursive:true}).filter(file => typeof file === "string" && file.endsWith(".test.ts") && !file.endsWith("test-account-http-e2e.test.ts")).map(file=>`${directory}/${file}`));
+run(["node_modules/next/dist/bin/next","typegen"]);
+run(["node_modules/typescript/bin/tsc","--noEmit","--incremental","false"]);
+run(["node_modules/eslint/bin/eslint.js",".","--max-warnings=0"]);
+run(["--import","./scripts/register-server-only-test.mjs","--import","tsx","--test","--test-concurrency=4",...files]);

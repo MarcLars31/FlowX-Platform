@@ -28,14 +28,16 @@ export function consumeRateLimit(
 
   if (bucket.timestamps.length >= safeLimit) {
     const retryAfterSeconds = Math.max(1, Math.ceil((bucket.timestamps[0] + safeWindow - now) / 1000));
+    buckets.delete(key);
     buckets.set(key, bucket);
-    pruneBuckets(now);
+    pruneBuckets();
     return { allowed: false, retryAfterSeconds };
   }
 
   bucket.timestamps.push(now);
+  buckets.delete(key);
   buckets.set(key, bucket);
-  pruneBuckets(now);
+  pruneBuckets();
   return { allowed: true, retryAfterSeconds: 0 };
 }
 
@@ -46,10 +48,12 @@ export function requestRateLimitKey(request: Request, scope: string, subject?: s
   return `${scope}:${address}:${(subject ?? "").slice(0, 160)}`;
 }
 
-function pruneBuckets(now: number) {
+function pruneBuckets() {
   if (buckets.size <= MAX_BUCKETS) return;
-  for (const [key, bucket] of buckets) {
-    if (bucket.lastSeen < now - 15 * 60_000) buckets.delete(key);
-    if (buckets.size <= MAX_BUCKETS) break;
+  // Map insertion order is an LRU list; eviction is bounded even for fresh keys.
+  while (buckets.size > MAX_BUCKETS) {
+    const oldest = buckets.keys().next().value;
+    if (oldest === undefined) break;
+    buckets.delete(oldest);
   }
 }

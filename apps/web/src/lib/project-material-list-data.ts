@@ -39,11 +39,13 @@ export async function loadProjectMaterialListData(
     selectAllUserRows<{ requirement_id: string; product_revision: number; review: DeliveryReview }>("project_post_workflows", { project_id: `eq.${projectId}`, organization_id: `eq.${organizationId}`, order: "requirement_id.asc" })
   ]);
 
+  const reviewsByRequirement = new Map(reviews.map(row => [row.requirement_id,row]));
+  const requirementsById = new Map(requirements.map(row => [row.id,row]));
   return {
     project,
     rows: buildProjectMaterialRows({ requirements, assignments }).map(row => {
-      const workflow = reviews.find(w => w.requirement_id === row.requirementId);
-      const requirement = requirements.find(r => r.id === row.requirementId) as (MaterialListRequirement & { edit_revision: number }) | undefined;
+      const workflow = reviewsByRequirement.get(row.requirementId ?? "");
+      const requirement = requirementsById.get(row.requirementId ?? "") as (MaterialListRequirement & { edit_revision: number }) | undefined;
       return { ...row, notes: [row.notes, deliveryExportNotes(workflow?.review, Boolean(workflow && workflow.product_revision !== requirement?.edit_revision))].filter(Boolean).join(" · ") };
     })
   };

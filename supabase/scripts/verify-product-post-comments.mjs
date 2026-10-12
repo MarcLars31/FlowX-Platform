@@ -8,7 +8,7 @@ export async function verifyProductPostComments(database, projectId) {
   const sql = `insert into public.product_post_comments (id, organization_id, project_id, requirement_id, product_number, product_name, body, author_name)
     values (gen_random_uuid(), $1, $2, $3, $4, $5, 'Project comment', 'Test user') returning *`;
   const denied = async task => {
-    await assert.rejects(task, /permission denied|row-level security/);
+    await assert.rejects(task, /permission denied|row-level security|This post is assigned to another person/);
   };
   await database.exec("set role authenticated");
   try {

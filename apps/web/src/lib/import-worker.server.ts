@@ -24,6 +24,7 @@ export async function runImportWorker(jobId: string | null = null) {
     const allowed = await callSupabaseRpc<boolean>("authorize_technical_description_job",{requested_job_id:job.id,requested_lease:job.lease_id});
     if (!allowed) throw new Error("IMPORT_ACCESS_REVOKED");
   };
+  let writerBusy = false;
   let failure: ReturnType<typeof importFailure> | undefined;
   try {
     await authorize();
@@ -43,7 +44,11 @@ export async function runImportWorker(jobId: string | null = null) {
           onPage:page=>writer.add(page)});
         } finally {await writer.flush();}
       },
-      onPhase:async phase => {await authorize(); await update({phase}); console.info("import_phase",{jobId:job.id,phase,elapsedMs:Date.now()-started});}});
+      onPhase:async phase => {await authorize();
+        if (phase === "persisting" && !await callSupabaseRpc<boolean>("enter_pdf_import_write_phase", {requested_job_id:job.id,requested_lease:job.lease_id})) {
+          writerBusy = true; throw new Error("IMPORT_WRITER_BUSY");
+        }
+        await update({phase}); console.info("import_phase",{jobId:job.id,phase,elapsedMs:Date.now()-started});}});
     const result = await response.json();
     if (response.status === 422 && result.code === "OCR_REQUIRED") {
       await update({status:"awaiting_ocr",phase:"awaiting_ocr",result,lease_until:null}); return;
@@ -56,6 +61,10 @@ export async function runImportWorker(jobId: string | null = null) {
     if (error instanceof Error && error.message === "IMPORT_LEASE_LOST") return;
     if (error instanceof Error && error.message === "IMPORT_ACCESS_REVOKED") {
       await update({status:"failed",error_code:"ACCESS_REVOKED",lease_until:null}); return;
+    }
+    if (writerBusy) {
+      await update({status:"queued",phase:"waiting_for_writer",attempts:Math.max(0,job.attempts-1),lease_until:null,next_attempt_at:new Date(Date.now()+15_000).toISOString()});
+      return;
     }
     const permanent = failure?.permanent ?? false;
     await update({status:permanent || job.attempts>=5 ? "failed" : "queued",phase:"retry",error_code:failure?.code ?? "RETRY_REQUIRED",

@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
+import { enqueueProductDocument, runProductDocumentWorker } from "@/lib/product-document-worker.server";
+import { after, NextResponse } from "next/server";
 import { requirePlatformAdminApi } from "@/lib/platform-api-authorization";
 import {
-  processProductDocument,
   ProductDocumentAlreadyProcessingError,
   ProductDocumentNotFoundError
 } from "@/lib/product-document-processor";
@@ -35,11 +35,16 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const result = await processProductDocument(id, "manual_retry", user?.id ?? null);
-    return NextResponse.json({ result });
+    await enqueueProductDocument(id, user?.id ?? null);
+    after(() => runProductDocumentWorker(id));
+    return NextResponse.json({ result: { documentId: id, status: "queued" } }, { status: 202 });
   } catch (error) {
-    if (error instanceof ProductDocumentNotFoundError) {
+    const detail = error instanceof Error ? error.message : "";
+    if (error instanceof ProductDocumentNotFoundError || detail.includes("P0002")) {
       return NextResponse.json({ error: "Dokumentet hittades inte." }, { status: 404 });
+    }
+    if (detail.includes("55000")) {
+      return NextResponse.json({ error: "Dokumentet har ersatts av en nyare version. Öppna den senaste versionen." }, { status: 409 });
     }
     if (error instanceof ProductDocumentAlreadyProcessingError) {
       return NextResponse.json(

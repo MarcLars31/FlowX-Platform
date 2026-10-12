@@ -4,7 +4,7 @@ import { normalizeTechnicalText } from "./ahlsell-requirement-context";
 import { requirementDiscipline, requirementHeading, requirementNsCode } from "./requirement-discipline";
 import { electricalHeatingIntent } from "./ahlsell-electrical-heating";
 
-export const PRODUCT_REQUIREMENT_CATEGORY_VERSION = 3;
+export const PRODUCT_REQUIREMENT_CATEGORY_VERSION = 4;
 
 export const PRODUCT_REQUIREMENT_CATEGORIES = [
   { id: "sprinkler_head", label: "Sprinklerhuvuden och galler", shortLabel: "Sprinklerhuvuden" },
@@ -90,7 +90,7 @@ export function productRequirementCategory(requirement: Record<string, unknown>)
   if (/^(?:sprinklerslang\w*|fleksibelslang\w*|flexislang\w*|vicflex|dryflex)\b/.test(ownName)) return "sprinkler_hose";
   const plumbingName = ownName.replace(/^(?:innendors|utendors|innvendig|utvendig)\s+/, "");
   if (/^(?:kupling|kobling|rillekobling|bend|rorboy|t ror|t stykke|tee|reduksjon|overgang|flensadapter|endelokk|anboringsklammer|rordel\w*|tilkobling av vannledning)\b/.test(plumbingName)) return "fitting";
-  if (/^(?:ventil\w*|stengeventil\w*|avstangningsventil\w*|sprinklersentral|alarmventil|tilbakeslagsventil|kuleventil|spjeldventil|reguleringsventil)\b/.test(plumbingName)) return "valve";
+  if (/^(?:ventil\w*|specialventil\w*|spesialventil\w*|stengeventil\w*|avstangningsventil\w*|sprinklersentral|alarmventil|tilbakeslagsventil|kuleventil|spjeldventil|reguleringsventil)\b/.test(plumbingName)) return "valve";
   if (/^(?:pressostat|trykkvakt|tryckvakt|stromningsvakt|flow switch|manometer|mengdemaler|vannmaler|termometer)\b/.test(plumbingName)) return "control";
   if (/^(?:roroppheng|rorklammer|oppheng|klammer|dekkskive|montasjemateriell|rorstotte)\b/.test(plumbingName)) return "support";
   if (/^(?:pumpe\w*|pump|sirkulasjonspumpe\w*|trykkokningspumpe\w*)\b/.test(plumbingName)) return "pump";

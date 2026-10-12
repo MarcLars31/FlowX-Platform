@@ -11,7 +11,7 @@ export async function cleanupProjectSourcePdfs(projectId: string | null = null) 
       let successful=false;
       try {
         const prefix=`${job.organization_id}/${job.project_id}/`;
-        if (job.storage_bucket!=="project-files" || !job.storage_path.startsWith(prefix) || job.storage_path.split("/").includes("..")) throw new Error("Invalid cleanup scope");
+        if (!["project-files","pdf-import-cache"].includes(job.storage_bucket) || !job.storage_path.startsWith(prefix) || job.storage_path.split("/").includes("..")) throw new Error("Invalid cleanup scope");
         await deleteAdminStorageObjects(job.storage_bucket,[job.storage_path]);
         successful=true;
       } catch { console.warn("project_pdf_cleanup_retry",{jobId:job.id}); }

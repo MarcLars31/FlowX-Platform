@@ -20,7 +20,10 @@ type CacheEntry = { requirement_id: string; source_updated_at: unknown; source_r
 export async function resolveRequirementOverviews(heads: OverviewRow[], dependencies: {
   loadDetails(ids: string[]): Promise<OverviewRow[]>;
   save(entries: CacheEntry[]): Promise<void>;
+  defer?: (work: () => Promise<void>) => void;
+  batchSize?: number;
 }) {
+  const batchSize = Math.min(500, Math.max(1, dependencies.batchSize ?? 100));
   const resolved = new Map<string, OverviewRow>();
   const missing: string[] = [];
   for (const head of heads) {
@@ -28,7 +31,7 @@ export async function resolveRequirementOverviews(heads: OverviewRow[], dependen
     if (cached) resolved.set(head.id, cached); else missing.push(head.id);
   }
   const detailed: OverviewRow[] = [];
-  for (let offset = 0; offset < missing.length; offset += 100) detailed.push(...await dependencies.loadDetails(missing.slice(offset, offset + 100)));
+  for (let offset = 0; offset < missing.length; offset += batchSize) detailed.push(...await dependencies.loadDetails(missing.slice(offset, offset + batchSize)));
   const all = [...resolved.values(), ...detailed];
   const recovered = new Map<string, string>();
   for (const row of legacyParentHeadingSources(all).values()) {
@@ -42,10 +45,16 @@ export async function resolveRequirementOverviews(heads: OverviewRow[], dependen
     resolved.set(row.id, summary);
     return { requirement_id: row.id, source_updated_at: row.updated_at, source_revision: row.edit_revision, version: REQUIREMENT_OVERVIEW_VERSION, summary };
   });
-  for (let offset = 0; offset < entries.length; offset += 100) {
-    try { await dependencies.save(entries.slice(offset, offset + 100)); }
-    catch { console.warn("requirement_overview_cache_write_failed", { rows: Math.min(100, entries.length - offset) }); break; }
-  }
+  const save = async () => {
+    for (let offset = 0; offset < entries.length; offset += batchSize) {
+      try { await dependencies.save(entries.slice(offset, offset + batchSize)); }
+      catch {
+        console.warn("requirement_overview_cache_write_failed", { rows: Math.min(batchSize, entries.length - offset) });
+        break;
+      }
+    }
+  };
+  if (entries.length) { if (dependencies.defer) dependencies.defer(save); else await save(); }
   const rows = heads.flatMap(head => resolved.has(head.id) ? [resolved.get(head.id)!] : []);
   rows.sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) || a.id.localeCompare(b.id));
   return sortProjectRequirementsBySource(rows);

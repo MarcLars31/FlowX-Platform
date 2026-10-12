@@ -1,3 +1,4 @@
+import { AuthServiceUnavailableError } from "./auth-transport";
 import "server-only";
 import { NextResponse } from "next/server";
 import { getOrganizationContext } from "@/lib/organization-context";
@@ -13,7 +14,7 @@ type OrganizationApiRequirement =
   | readonly PermissionKey[]
   | OrganizationAccessRequirement;
 
-export async function requireOrganizationApi(
+async function requireOrganizationApiImpl(
   requirement: OrganizationApiRequirement = []
 ) {
   const user = await getCurrentUser();
@@ -26,7 +27,7 @@ export async function requireOrganizationApi(
     } as const;
   }
 
-  const context = await getOrganizationContext();
+  const context = await getOrganizationContext(user);
   if (!context) {
     return {
       error: NextResponse.json(
@@ -68,4 +69,12 @@ function normalizeRequirement(
   }
 
   return requirement as OrganizationAccessRequirement;
+}
+
+export async function requireOrganizationApi(requirement: OrganizationApiRequirement = []) {
+  try { return await requireOrganizationApiImpl(requirement); }
+  catch (error) {
+    if (error instanceof AuthServiceUnavailableError) return {error:NextResponse.json({error:"Inloggningstjänsten är tillfälligt otillgänglig. Försök igen."},{status:503,headers:{"Retry-After":"5"}})} as const;
+    throw error;
+  }
 }

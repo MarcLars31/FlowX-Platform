@@ -18,6 +18,7 @@ export async function downloadAdminStorageObject(
   const config = storageConfig();
   const response = await fetch(storageObjectUrl(config.url, bucket, path), {
     headers: buildSupabaseHeaders(config.key),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
 
@@ -69,6 +70,7 @@ export async function createAdminStorageUploadUrl(bucket: string, path: string) 
     method: "POST",
     headers: { ...buildSupabaseHeaders(config.key), "Content-Type": "application/json" },
     body: JSON.stringify({}),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
   if (!response.ok) throw new Error(`Storage signing failed with HTTP ${response.status}.`);
@@ -99,6 +101,7 @@ export async function uploadAdminStorageObject(
       "x-upsert": "false"
     },
     body: Buffer.from(file),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store"
   });
 
@@ -123,7 +126,8 @@ export async function deleteAdminStorageObjects(
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ prefixes: paths }),
-      cache: "no-store"
+      signal: AbortSignal.timeout(20_000),
+    cache: "no-store"
     }
   );
 

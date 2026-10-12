@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
 import {
-  updateUserRowsReturning,
+  callUserRpc,
   UserSupabaseError
 } from "@/lib/supabase-user-rest";
-import type { Organization } from "@/types/organization";
 
 export const runtime = "nodejs";
 
@@ -40,7 +39,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Du saknar behörighet att ändra retention-inställningen." }, { status: 403 });
     }
 
-    let organization: Organization | undefined;
+    const patch: Record<string, unknown> = {};
     if (hasOrganizationFields) {
       const name = typeof body.name === "string" ? body.name.trim() : "";
       if (!name || name.length > 200) {
@@ -54,28 +53,21 @@ export async function PATCH(request: Request) {
       if (organizationNumber === undefined) {
         return NextResponse.json({ error: "Organisationsnummer måste vara text." }, { status: 400 });
       }
-      organization = await updateUserRowsReturning<Organization>(
-        "organizations",
-        { id: `eq.${authorization.context.organization.id}` },
-        { name, organization_number: organizationNumber }
-      );
+      patch.name = name;
+      patch.organization_number = organizationNumber;
     }
 
-    let subscription: { retention_days: number | null } | undefined;
     if (hasRetention) {
       const value = body.retentionDays;
       const retentionDays = value === null || value === "" ? null : Number(value);
       if (retentionDays !== null && (!Number.isInteger(retentionDays) || retentionDays < 0 || retentionDays > 3650)) {
         return NextResponse.json({ error: "Retention ska vara ett heltal mellan 0 och 3650 dagar." }, { status: 400 });
       }
-      subscription = await updateUserRowsReturning<{ retention_days: number | null }>(
-        "organization_subscriptions",
-        { organization_id: `eq.${authorization.context.organization.id}` },
-        { retention_days: retentionDays }
-      );
+      patch.retention_days = retentionDays;
     }
 
-    return NextResponse.json({ organization, subscription });
+    const result = await callUserRpc("update_organization_settings_atomic", {requested_organization_id:authorization.context.organization.id,patch});
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof UserSupabaseError) {
       const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";

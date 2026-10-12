@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
-import { callUserRpc, selectUserRows, updateUserRowsReturning, UserSupabaseError } from "@/lib/supabase-user-rest";
+import { callUserRpc, selectUserRows, UserSupabaseError } from "@/lib/supabase-user-rest";
 import { isUuid } from "@/lib/distributor-product-mapping";
 import { loadDistributorProductMemory } from "@/lib/distributor-product-memory";
 import { requirementSnapshot } from "@/lib/requirement-snapshot";
@@ -47,17 +47,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     const input = validateReview(body);
     if ("error" in input) return NextResponse.json({ error: input.error }, { status: 400 });
 
-    const requirement = await updateUserRowsReturning("project_requirements", {
-      id: `eq.${requirementId}`,
-      project_id: `eq.${id}`,
-      organization_id: `eq.${authorization.context.organization.id}`
-    }, {
-      ...input,
-      reviewed_by: authorization.user.id,
-      reviewed_at: new Date().toISOString()
+    if (!Number.isSafeInteger(body?.expectedRevision) || Number(body?.expectedRevision) < 0) {
+      return NextResponse.json({error:"Ladda om posten före sparning. Revision saknas."},{status:428});
+    }
+    const requirement = await callUserRpc("review_project_requirement", {
+      requested_project_id:id,requested_requirement_id:requirementId,expected_revision:body!.expectedRevision,patch:input
     });
     return NextResponse.json({ requirement });
   } catch (error) {
+    if (error instanceof UserSupabaseError && error.code === "40001") return NextResponse.json({error:"Posten har ändrats av någon annan. Ladda om och granska ändringen före sparning."},{status:409});
     if (error instanceof UserSupabaseError) {
       const forbidden = error.status === 401 || error.status === 403 || error.code === "42501";
       return NextResponse.json({ error: forbidden ? "Ändringen nekades." : "Produktraden kunde inte uppdateras." }, { status: forbidden ? 403 : 500 });
@@ -67,6 +65,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 type RequirementReviewInput = {
+  expectedRevision?: unknown;
   status?: unknown;
   valueText?: unknown;
   certainty?: unknown;

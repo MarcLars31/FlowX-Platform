@@ -16,7 +16,7 @@ export async function waitForImportJob(response: Response, fetcher: typeof fetch
     if (!job) throw new Error("Importstatus saknas.");
     if (job.status==="completed") return Response.json({...job.result,jobId,projectId:job.project_id},{status:201});
     if (job.status==="awaiting_ocr") return Response.json({...job.result,jobId},{status:422});
-    if (job.status==="failed") return Response.json({error:typeof job.result?.error === "string" ? job.result.error : "Importen kunde inte slutföras. Öppna Importstatus för att försöka igen.",jobId},{status:503});
+    if (job.status==="failed" || job.status==="cancelled") return Response.json({error:typeof job.result?.error === "string" ? job.result.error : "Importen kunde inte slutföras. Öppna Importstatus för att försöka igen.",jobId},{status:503});
     const phase = `${job.status}:${job.phase}`;
     delayMs = phase === previousPhase ? Math.min(8000, delayMs * 2) : 2000;
     previousPhase = phase;

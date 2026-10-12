@@ -76,6 +76,8 @@ export function AccountMenu({
       }
 
       setIsOpen(false);
+      // A full navigation discards every organization-scoped client cache after switching tenants.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/dashboard");
     } catch (error) {
       setSwitchError(

@@ -38,9 +38,9 @@ export async function DELETE(
   } catch (error) {
     return NextResponse.json(
       {
-        error: "The project could not be permanently deleted."
+        error: error instanceof UserSupabaseError && error.code === "55000" ? "Projektets retentionstid har inte löpt ut." : "Projektet kunde inte raderas permanent."
       },
-      { status: error instanceof UserSupabaseError ? 403 : 500 }
+      { status: error instanceof UserSupabaseError && error.code === "55000" ? 409 : error instanceof UserSupabaseError && error.code === "42501" ? 403 : 500 }
     );
   }
 }

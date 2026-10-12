@@ -228,7 +228,7 @@ export function FailedProductDocumentsTable() {
           )
         );
       }
-      setMessage(`Ett nytt läsförsök har startats för ${document.file_name ?? document.title}.`);
+      setMessage(`Ett nytt läsförsök har köats för ${document.file_name ?? document.title}.`);
       await loadDocuments();
     });
   }
@@ -250,8 +250,11 @@ export function FailedProductDocumentsTable() {
           )
         );
       }
-      setMessage(`${documentIds.length} dokument har lagts i kön för ett nytt läsförsök.`);
-      setSelectedIds(new Set());
+      const payload = await response.json() as { results: Array<{ documentId: string; status: string }> };
+      const failed = payload.results.filter(result => result.status === "failed");
+      const queued = payload.results.length - failed.length;
+      setMessage(`${queued} dokument har lagts i kön för ett nytt läsförsök.${failed.length ? ` ${failed.length} kunde inte köas och är fortfarande markerade.` : ""}`);
+      setSelectedIds(new Set(failed.map(result => result.documentId)));
       await loadDocuments();
     });
   }

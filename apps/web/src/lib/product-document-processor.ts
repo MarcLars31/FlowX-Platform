@@ -74,40 +74,23 @@ export type ProductDocumentProcessingResult = {
 export class ProductDocumentNotFoundError extends Error {}
 export class ProductDocumentAlreadyProcessingError extends Error {}
 
-const AUTOMATICALLY_RETRYABLE_CODES = new Set([
-  "ocr_failed",
-  "text_extraction_failed",
-  "table_extraction_failed",
-  "timeout",
-  "out_of_memory",
-  "extractor_unavailable",
-  "unknown_error"
-]);
-
-export async function processProductDocumentWithAutomaticRetries(
-  documentId: string,
-  requestedBy: string | null,
-  maxAttempts = 3
-) {
-  const attempts = Math.min(Math.max(Math.floor(maxAttempts), 1), 3);
-  let result = await processProductDocument(documentId, "initial", requestedBy);
-
-  for (let index = 1; index < attempts; index += 1) {
-    if (!result.errorCode || !AUTOMATICALLY_RETRYABLE_CODES.has(result.errorCode)) break;
-    await delay(Math.min(500 * 2 ** (index - 1), 2_000));
-    result = await processProductDocument(documentId, "automatic_retry", requestedBy);
-  }
-
-  return result;
-}
-
 export async function processProductDocument(
   documentId: string,
   trigger: ProcessingTrigger,
-  requestedBy: string | null
+  requestedBy: string | null,
+  attemptKey?: string
 ): Promise<ProductDocumentProcessingResult> {
+  const deadline = Date.now() + 210_000;
+  const remainingMs = () => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new ProductPdfServiceError(
+      { status: "failed", code: "timeout", publicMessage: "PDF-läsningen tog för lång tid. Ett nytt försök schemaläggs.", retryable: true },
+      "Product extraction phase exceeded its time budget."
+    );
+    return remaining;
+  };
   const document = await loadDocument(documentId);
-  const idempotencyKey = processingIdempotencyKey(document, trigger);
+  const idempotencyKey = attemptKey ?? processingIdempotencyKey(document, trigger);
 
   let attempt: ProcessingAttempt;
   try {
@@ -137,13 +120,15 @@ export async function processProductDocument(
     // Reuse the existing text/OCR preprocessor before the product parser so a
     // scanned or partly broken page is still stored and reviewable even when
     // the product-layout parser rejects the document.
-    pageInspection = await inspectProductDocumentPages(file);
+    pageInspection = await inspectProductDocumentPages(file, { beforePage: remainingMs });
+    remainingMs();
     pageStagingFailure = await stageInspectedPages(
       document.id,
       attempt.id,
       pageInspection
     );
-    const extraction = await extractProductPdf(file, document.file_name ?? "datasheet.pdf");
+    const extraction = await extractProductPdf(file, document.file_name ?? "datasheet.pdf", remainingMs());
+    remainingMs();
     const staging = await stageExtraction(document.id, attempt.id, extraction);
     const metadata = extractionMetadata(extraction);
     const extractorLanguage = extractionLanguageCode(extraction);
@@ -259,7 +244,7 @@ async function downloadStoredPdf(document: DocumentRow) {
   if (!document.storage_bucket || !document.storage_path) {
     throw new Error("The product document has no private Storage object.");
   }
-  return downloadAdminStorageObject(document.storage_bucket, document.storage_path);
+  return downloadAdminStorageObject(document.storage_bucket, document.storage_path, { maxBytes: 50 * 1024 * 1024 });
 }
 
 async function stageExtraction(
@@ -436,8 +421,4 @@ function maximumInteger(...values: Array<number | null | undefined>) {
 function safeTechnicalMessage(error: unknown) {
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   return message.replace(/[\r\n]+/g, " ").slice(0, 8_000);
-}
-
-function delay(milliseconds: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }

@@ -240,6 +240,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
     const result = extractTechnicalDescriptionFromPages(pages, {
       fileName: file.name
     });
+    await options.onPhase?.("persisting");
     let createdProjectName: string | null = options.createdProject ? result.project.name ?? file.name.replace(/\.pdf$/i, "") : null;
     if (createdProjectName && projectId) {
       const details = automaticProjectDetails({extractedName:result.project.name,extractedProjectNumber:result.project.projectNumber,
@@ -249,7 +250,6 @@ export async function processTechnicalDescription(request: Request, authorizatio
       }, { name: details.name, description:details.description,standard:details.standard,
         ...(details.projectNumber ? {project_number:`${details.projectNumber.slice(0,85)}-${projectId.slice(0,8)}`} : {}) });
     }
-    await options.onPhase?.("persisting");
     let reusedExistingEmptyProject = false;
     if (!projectId) {
       const [existingSourceDocument] =

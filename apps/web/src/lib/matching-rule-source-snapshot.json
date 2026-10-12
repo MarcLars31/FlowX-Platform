@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-12.1",
+  "version": "scipx-product-rules-2026-10-12.2",
   "sources": {
     "ahlsell-accessory-suggestions.ts": "a10b5f459889722e1aa0d7b125247ca7dc94d791bdad156564e06fb5d97cc238",
     "ahlsell-cable-trunking.ts": "ff672cb6ea5a2e8005f35977800772eb513bf54c66439a1e4e666a4c0b2e966c",
@@ -20,7 +20,7 @@
     "ahlsell-public-match.ts": "9878adbe12e1af1fbcf604dcd760b02ed65bf12bafb26fd072e2af2881d2c891",
     "ahlsell-requirement-context.ts": "d2910c185e20a4c82e55c8532f8df3b2dea8f45925b261f55e6692ce27f8a23f",
     "ahlsell-requirement-intent.ts": "7486fb91800f34409b3871444a82580816fe8d9bf8f1bd7029d5af7f7a5f8157",
-    "ahlsell-shared-fetch.server.ts": "331c65f8d383b2e068c8d728f75b5ed545b0755486b51b1cdbdbd1c3ed2e57ff",
+    "ahlsell-shared-fetch.server.ts": "d57994228f436fd57293d23d02d0dad3591d83d321eb507061a6400bf8feb9c0",
     "ahlsell-technical-conflicts.ts": "b109648e43b63f2c29c8aae2711ad87bb34488495f079ebb2216f9df0d72916b",
     "ahlsell-technical-evaluator.ts": "a30c489ad7c47825e54ac10041bbdf9eac70f325bc523ec299dc59d51e4e9d8c",
     "ahlsell-technical-evidence.ts": "0bd5f3c1a9f34c5dbf26c04aaae1ca97fb548a2d0ea498beccab79ea17d23f7f",
@@ -40,9 +40,9 @@
     "pipe-technical-terms.ts": "6b8e4ee5cea36cbd736a7411738088cd7d69cd60d57c9a197a43e28b5d96acf4",
     "product-assembly-plan.ts": "86b2409290dad8e3e962853ad8f5951eac8ab37688c5dc38993bca5597192b38",
     "product-card-accessories.ts": "99a679f608539dcef9986c20603b1795bb80a1f45fd17ee7e4bcd8bdb27376d0",
-    "product-requirement-category.ts": "be98b780c6aee95ef61f549efc553979a911ce88dbbaf7d78d3234a2f0e679a9",
+    "product-requirement-category.ts": "69b609ad8408e4e08725388141e5f153046b44c89a2deb1875c7e661c2eaa141",
     "product-selection-review.ts": "7e704b14d9631953a3b50715a50bff4b059b6fdfffb9d902bf9eacceb6c8432d",
-    "project-overview-cache.ts": "fb1fa104738dda1d66752b86a0bd2d024cb74f24685ac1054790cc38e237fed6",
+    "project-overview-cache.ts": "3abfe01fa0d267f94990778b1b1d6849e9e544fbeac14075bbf19d280ae08d39",
     "project-overview.ts": "8a034d9c5be067e005cd44b4b2a68672b55413d220ac27e6f01a764feeba53ea",
     "project-requirement-views.ts": "ef553e809a9189f9800781e3333bb0596bb795cc776fe2ae4366e15c5411e312",
     "requirement-discipline.ts": "2ccf468875fc23406b77500a39273b2a386eb3448209f760df5928c7eff8f28c",
