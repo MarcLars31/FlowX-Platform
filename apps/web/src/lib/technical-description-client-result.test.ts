@@ -48,6 +48,7 @@ test("keeps the saved extraction result compact in the HTTP response", () => {
   assert.equal(clientResult.materialLines[0].postNumber, "33.335.1");
 
   const largeResult = { ...result,
+    structure: { version: 1 as const, pageCount: 1, chapters: [], fileName: "large.pdf" },
     materialLines: Array.from({ length: 3560 }, () => ({ ...result.materialLines[0], sourceText: "krav ".repeat(1000) })),
     warnings: Array.from({ length: 3560 }, (_, index) => ({ id: `warning-${index}`, code: "unknown", message: "Needs review", severity: "warning" as const }))
   };
@@ -56,6 +57,8 @@ test("keeps the saved extraction result compact in the HTTP response", () => {
   assert.equal(summary.document.pageCount, 1);
   assert.equal(summary.project.name, "Test");
   assert.equal(summary.materialLines.length, 0);
+  assert.equal(summary.structure, undefined);
+  assert.deepEqual(clientTechnicalDescriptionResult(largeResult).structure, largeResult.structure);
   assert.equal(largeResult.materialLines.length, 3560);
   assert.equal(largeResult.materialLines[0].sourceText.length, 5000);
 });

@@ -10,7 +10,8 @@ import { PdfDropzone } from "@/components/PdfDropzone";
 import { ScipxPageHeader } from "@/components/ScipxPageHeader";
 import type {
   TechnicalDescriptionExtractionResult,
-  TechnicalDescriptionMaterialLine
+  TechnicalDescriptionMaterialLine,
+  PdfDocumentNode
 } from "@/modules/technical-description-extractor";
 import { uploadTechnicalDescriptionWithOcr } from "@/lib/technical-description-upload";
 
@@ -343,6 +344,21 @@ function ExtractionResult({ result }: { result: ExtractionResponse }) {
           </ul>
         </div>
       )}
+      {result.structure && <section className="rounded-lg border border-ink-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-semibold">Kapitler og underposter</h3>
+          <Button type="button" variant="secondary" onClick={() => {
+            const url = URL.createObjectURL(new Blob([JSON.stringify(result.structure, null, 2)], { type: "application/json" }));
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${(result.document.fileName ?? "dokument").replace(/\.pdf$/i, "")}-struktur.json`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }}>Last ned dokumentstruktur</Button>
+        </div>
+        <p className="mt-2 text-sm text-ink-600">Originaltekst og mengder, med felles krav fra hovedpostene.</p>
+        <DocumentNodes nodes={result.structure.chapters} />
+      </section>}
       {Boolean(result.pageChecks?.length) && (
         <details className="rounded-lg border border-ink-200 p-4">
           <summary className="cursor-pointer text-sm font-semibold text-ink-900">Avstämning per PDF-sida</summary>
@@ -360,6 +376,22 @@ function ExtractionResult({ result }: { result: ExtractionResponse }) {
       <MaterialTable lines={result.materialLines} />
     </section>
   );
+}
+
+function DocumentNodes({ nodes }: { nodes: PdfDocumentNode[] }) {
+  return <ul className="mt-3 space-y-2 border-l border-ink-200 pl-3">
+    {nodes.map(node => <li key={node.id}><details>
+      <summary className="cursor-pointer text-sm"><strong>{node.number}</strong> {node.title}
+        {node.quantity !== undefined && <span className="ml-2 font-semibold">{node.quantity.toLocaleString("nb-NO")} {node.unit}</span>}
+      </summary>
+      <p className="mt-1 text-xs text-ink-600">PDF-side {node.sourcePages.join(", ")}{node.code ? ` · ${node.code}` : ""}</p>
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{node.text}</p>
+      {node.parentId && <details className="mt-2 text-sm"><summary className="cursor-pointer">Post med krav fra hovedposter</summary>
+        <p className="mt-2 whitespace-pre-wrap leading-6">{node.specification}</p>
+      </details>}
+      {node.children.length > 0 && <DocumentNodes nodes={node.children} />}
+    </details></li>)}
+  </ul>;
 }
 
 function MaterialTable({ lines }: { lines: TechnicalDescriptionMaterialLine[] }) {

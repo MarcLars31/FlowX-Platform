@@ -3,6 +3,7 @@ import {
   openPdfTextDocument,
   plainTextFromPdfItems
 } from "@/lib/pdf-runtime";
+import { buildPdfDocumentStructure } from "./document-structure";
 import type { TechnicalDescriptionPage } from "./types";
 import { commentsFromPdfAnnotations } from "./pdf-annotations";
 import {
@@ -13,6 +14,11 @@ import {
 import { sitePostTableFromPdfItems } from "./pdf-post-table";
 
 import { nonTextBodyOcrReason, pageRequiresOcr, MIN_TEXT_PAGE_LENGTH } from "./pdf-ocr-detection";
+
+/** Read the document hierarchy independently of product analysis. */
+export async function readPdfDocument(data: Buffer | Uint8Array, fileName?: string) {
+  return buildPdfDocumentStructure(await extractTechnicalDescriptionPages(data), fileName);
+}
 
 export async function extractTechnicalDescriptionPages(
   data: Buffer | Uint8Array,

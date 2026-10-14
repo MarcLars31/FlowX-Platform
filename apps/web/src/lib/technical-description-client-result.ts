@@ -9,6 +9,7 @@ export function clientTechnicalDescriptionResult(
     document: result.document,
     warningSummary: extractionQualitySummary(result),
     project: result.project,
+    structure: options.summaryOnly ? undefined : result.structure,
     pageChecks: options.summaryOnly ? undefined : result.pageChecks,
     materialLines: (options.summaryOnly ? [] : result.materialLines).map((line) => {
       const clientLine = { ...line };

@@ -49,6 +49,10 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
             : <p key={index} className={block.kind === "page" ? "!mt-3 border-t border-neutral-200 pt-2 text-xs text-neutral-600" : block.kind === "heading" ? "!mt-3 font-[700]" : block.kind === "bullet" ? "pl-4 -indent-4" : "break-words"}><SpecificationText value={block.text} /></p>)}
           {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
         </div>}
+        {details.inheritedSpecification && <details open className="mt-4 border-t border-neutral-300 pt-3">
+          <summary className="cursor-pointer font-[700]">Krav fra hovedpost{details.parentPostNumber ? " " + details.parentPostNumber : "er"}</summary>
+          <div className="mt-2 whitespace-pre-wrap break-words leading-6"><SpecificationText value={details.inheritedSpecification} /></div>
+        </details>}
         {(details.standardRefs.length > 0 || pdfArticleNumber) &&
           <dl className="mt-4 space-y-1 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
             {details.standardRefs.length > 0 && <SpecificationField label="Standarder" value={details.standardRefs.join(", ")} />}

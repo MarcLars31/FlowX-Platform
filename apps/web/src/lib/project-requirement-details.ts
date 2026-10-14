@@ -5,6 +5,7 @@ export type ProjectRequirementDetail = {
   postNumber: string | null;
   chapterPost: string | null;
   parentPostNumber: string | null;
+  inheritedSpecification?: string | null;
   nsCode: string | null;
   system: string | null;
   standardRefs: string[];
@@ -31,6 +32,7 @@ export function projectRequirementDetails(
     postNumber: text(value.postNumber) ?? postNumberFromSource(sourceExcerpt),
     chapterPost,
     parentPostNumber: text(value.parentPostNumber),
+    inheritedSpecification: text(value.inheritedSpecification),
     nsCode:
       text(value.nsCode) ??
       (requirementKey && looksLikeNsCode(requirementKey) ? requirementKey : null),

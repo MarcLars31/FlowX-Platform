@@ -107,6 +107,7 @@ export type TechnicalDescriptionWarning = {
 };
 
 export type TechnicalDescriptionExtractionResult = {
+  structure?: Omit<import("./document-structure").PdfDocumentStructure, "pages">;
   pageChecks?: Array<{
     sourcePage: number;
     observedQuantityRows: number;

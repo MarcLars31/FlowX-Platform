@@ -31,6 +31,12 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
     : foreign && leadingPost(specification) !== post ? source || ownPart(specification) : specification || source;
   const ownText = [ownSpecification, source, text(requirement.value_text)].filter(Boolean).join("\n");
   const ancestors = parts.filter(part => foreign && part.trim() !== ownSpecification.trim()).join("\n");
+  // Keep numbered ancestor text available for the PDF view across repeated
+  // projections. It remains separate from this post's own fields and quantity.
+  const inheritedSpecification = text(value.inheritedSpecification) || parts.filter(part => {
+    const ancestor = leadingPost(part);
+    return ancestor && post.startsWith(ancestor + ".");
+  }).join("\n\nUNDERPOST\n");
   const ownLabels = labels(ownText);
   const ancestorLabels = labels(ancestors);
   const attributes = Object.fromEntries(Object.entries(record(value.attributes)).filter(([key, raw]) => {
@@ -65,6 +71,7 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
     source_excerpt: canonicalText(source || ownSpecification),
     value_json: {
       ...value, attributes: canonicalAttributes,
+      ...(inheritedSpecification ? { inheritedSpecification: canonicalText(inheritedSpecification) } : {}),
       ...(repairOcr && typeof value.description === "string" ? { description: canonicalText(value.description) } : {}),
       attributeSources: Object.fromEntries(Object.entries(origins).filter(([key]) => Object.hasOwn(attributes, key))),
       sourceText: canonicalText(source || ownSpecification), technicalSpecification: canonicalText(ownSpecification),
