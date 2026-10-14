@@ -16,6 +16,7 @@ import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 import { isManifoldCabinetProduct } from "@/lib/ahlsell-manifold-cabinet";
 import { distributorRequirementKind } from "@/lib/distributor-requirement-lines";
 import { conflictingMaterialRequirement } from "@/lib/requirement-extraction-warnings";
+import { attachNumberedChapters, numberedChaptersFromPages } from "./chapters";
 import { pdfChaptersByPage } from "./pdf-chapters";
 import { withSiteTableChapterHeadings } from "./pdf-post-table";
 
@@ -68,7 +69,9 @@ export function extractTechnicalDescriptionFromPages(
 ): TechnicalDescriptionExtractionResult {
   pages = withSiteTableChapterHeadings(pages);
   const warnings: TechnicalDescriptionWarning[] = [];
+  const numberedChapters = numberedChaptersFromPages(pages);
   const project = extractProject(pages);
+  if (!project.chapter && numberedChapters.length) project.chapter = numberedChapters[0].label;
   const materialLines = extractMaterialLines(pages, warnings);
   const chapters = pdfChaptersByPage(pages);
   const unrecognizedQuantityPages = new Set(pages
@@ -99,6 +102,7 @@ export function extractTechnicalDescriptionFromPages(
     line.chapterInformation = Boolean(chapter && line.sourcePage === chapter.sourcePage
       && line.reviewFlags.includes("project-information") && !line.unit && line.quantity === undefined);
   }
+  attachNumberedChapters(materialLines, numberedChapters);
   const pageChecks = reconcilePageQuantities(pages, materialLines, warnings);
   appendMaterialLineValidationWarnings(materialLines, warnings);
   const standards = unique(

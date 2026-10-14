@@ -1198,3 +1198,108 @@ test("exposes comments for review without turning their proposed products into s
   assert.equal(warning?.sourcePage, 1);
   assert.match(warning?.message ?? "", /9257423/);
 });
+
+test("maps object-based numbered chapters to wrapped posts across pages and chapter changes", () => {
+  const page = (pageNumber: number, text: string): TechnicalDescriptionPage =>
+    ({ pageNumber, text, method: "text", confidence: 0.98 });
+  const result = extractTechnicalDescriptionFromPages([
+    page(1, "02 Bygg 09 Aquahall\n02.30 VVS-installasjoner\nProsjekt: Testprosjekt Side 02-1\nObjekt: 02 Bygg 09 Aquahall"),
+    // This page has no sprinkler keyword and is skipped by the material reader.
+    page(7, "02.30.311Bunnledninger for sanitærinstallasjoner\nGenerelle krav til bunnledninger."),
+    page(23, "02.30.311.\n22\nUC4.539989A\nINNENDØRS TILBAKESLAGSVENTIL\nAntall stk 2\nBrannvann\nSum denne side:"),
+    page(85, [
+      "02.30.326 Isolasjon av varmeinstallasjoner",
+      "02.30.326.1 SB2.111111",
+      "ISOLASJON",
+      "Lengde m 10",
+      "02.30.332\tInstallasjon for brannslokking med sprinkler",
+      "02.30.332.1 UE2.11112312",
+      "SPRINKLER",
+      "Antall stk 12"
+    ].join("\n")),
+    page(86, "02.30.332.2 UE2.11112312\nSPRINKLER\nAntall stk 4")
+  ]);
+
+  assert.equal(result.project.name, "Testprosjekt");
+  assert.equal(result.project.chapter, "02.30 VVS-installasjoner");
+  assert.deepEqual(result.materialLines.filter(line => ["02.30.311.22", "02.30.326.1", "02.30.332.1", "02.30.332.2"].includes(line.postNumber ?? "")).map(line => [line.postNumber, line.quantity, line.attributes.kapittelpost]), [
+    ["02.30.311.22", 2, "02.30.311 Bunnledninger for sanitærinstallasjoner"],
+    ["02.30.326.1", 10, "02.30.326 Isolasjon av varmeinstallasjoner"],
+    ["02.30.332.1", 12, "02.30.332 Installasjon for brannslokking med sprinkler"],
+    ["02.30.332.2", 4, "02.30.332 Installasjon for brannslokking med sprinkler"]
+  ]);
+  assert.deepEqual(result.materialLines.find(line => line.postNumber === "02.30.311.22")?.attributeSources?.kapittelpost,
+    { postNumber: "02.30.311", sourcePage: 7 });
+  assert.deepEqual(result.materialLines.at(-1)?.sourceChapter,
+    { title: "02.30.332 Installasjon for brannslokking med sprinkler", sourcePage: 85 });
+  assert.equal(result.materialLines.find(line => line.postNumber === "02.30.332")?.chapterInformation, true);
+  assert.deepEqual(result.materialLines.at(-1)?.attributeSources?.kapittelpost,
+    { postNumber: "02.30.332", sourcePage: 85 });
+});
+
+test("preserves explicit chapter paths when numbered headings are also present", () => {
+  const result = extractTechnicalDescriptionFromPages([{
+    pageNumber: 1, method: "text", confidence: 0.98,
+    text: [
+      "Prosjekt: Test",
+      "Kapittel: 30 VVS - 33 Brannslokking - 3325 Utstyr",
+      "02.30 VVS-installasjoner",
+      "02.30.332 Installasjon for brannslokking med sprinkler",
+      "02.30.332.1 UE2.11112312",
+      "SPRINKLER",
+      "Antall stk 12"
+    ].join("\n")
+  }]);
+  assert.equal(result.project.chapter, "30 VVS - 33 Brannslokking - 3325 Utstyr");
+  assert.equal(result.materialLines[0].attributes.kapittelpost, "3325 Utstyr");
+});
+
+test("does not invent a chapter from product numbers, NS codes, dimensions or later headings", () => {
+  const result = extractTechnicalDescriptionFromPages([
+    {
+      pageNumber: 1, method: "text", confidence: 0.98,
+      text: "01.10.2026\n02.30.332.1 UE2.11112312\nSPRINKLER\nAntall stk 12\nSe post 02.30.332 Installasjon med sprinkler"
+    },
+    {
+      pageNumber: 2, method: "text", confidence: 0.98,
+      text: "02.30.332 Installasjon med sprinkler\n02.30.332.2 UE2.11112312\nSPRINKLER\nAntall stk 4"
+    }
+  ]);
+  assert.equal(result.materialLines[0].attributes.kapittelpost, undefined);
+  assert.equal(result.materialLines[1].attributes.kapittelpost, "02.30.332 Installasjon med sprinkler");
+
+  for (const heading of [
+    "30.332 UE2.11112312", "30.332 DN25", "30.332 Sprinkler stk 12",
+    "30.332 SPRINKLER\nAntall stk 12", "30.332 Installasjon med sprinkler .... 85",
+    "360.010 er et mindre aggregat som betjener control", "369.001 Spesialavtrekk sveiseavtrekk"
+  ]) {
+    const withoutChapter = extractTechnicalDescriptionFromPages([{
+      pageNumber: 1, method: "text", confidence: 0.98,
+      text: `${heading}\n30.332.1 UE2.11112312\nSPRINKLER\nAntall stk 12`
+    }]);
+    assert.equal(withoutChapter.project.chapter, undefined, heading);
+    assert.ok(withoutChapter.materialLines.every(line => !line.attributes.kapittelpost), heading);
+  }
+});
+
+
+test("keeps an abbreviated orientation inside its active numbered chapter", async () => {
+  const { attachNumberedChapters, numberedChaptersFromPages } = await import("./chapters");
+  const page = (pageNumber: number, text: string): TechnicalDescriptionPage =>
+    ({ pageNumber, text, method: "text", confidence: 0.98 });
+  type MaterialLine = ReturnType<typeof extractTechnicalDescriptionFromPages>["materialLines"][number];
+  const row = (sourcePage: number): MaterialLine => ({
+    id: String(sourcePage), postNumber: "362", sourcePage, description: "KANALNETT FOR LUFTBEHANDLING",
+    category: "other", operation: "unknown", attributes: {}, sourceText: "362 KANALNETT FOR LUFTBEHANDLING",
+    standardRefs: [], reviewFlags: ["project-information"], confidence: 0.98
+  });
+  const lines = [row(122), row(143), { ...row(122), quantity: 2, unit: "st" }];
+  attachNumberedChapters(lines, numberedChaptersFromPages([
+    page(118, "02.30.362 Kanalnett for luftbehandling"),
+    page(142, "02.30.364 Utstyr for luftfordeling")
+  ]));
+  assert.deepEqual(lines[0].sourceChapter, { title: "02.30.362 Kanalnett for luftbehandling", sourcePage: 118 });
+  assert.equal(lines[0].chapterInformation, false);
+  assert.equal(lines[1].sourceChapter, undefined);
+  assert.equal(lines[2].sourceChapter, undefined);
+});
