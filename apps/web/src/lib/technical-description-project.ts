@@ -40,7 +40,7 @@ export function automaticProjectDetails({
     name,
     projectNumber,
     standard,
-    systemType: "Sprinklersystem – fastställs från underlaget",
+    systemType: "Fastställs från det tekniska underlaget",
     description: `Skapat automatiskt av Scipx från den tekniska beskrivningen ”${safeFileName ?? "uppladdad PDF"}”.`
   };
 }

@@ -75,5 +75,5 @@ test("uses the underpost K-factor instead of a different parent value", () => {
 });
 
 function requirement(attributes: Record<string, unknown>) {
-  return { value_json: { attributes } };
+  return { value_text: "SPRINKLER", value_json: { attributes } };
 }

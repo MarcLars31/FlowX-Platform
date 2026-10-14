@@ -6,6 +6,7 @@ import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 import { immediateParentHeading, mainProductText } from "./ahlsell-requirement-context";
 import { CONTROL_VALVE_PATTERN, ENERGY_VALVE_PATTERN, isLuminaireProduct } from "./ahlsell-functional-products";
 import { electricalHeatingIntent } from "./ahlsell-electrical-heating";
+import { hasSprinklerContext, hasSprinklerHeadEvidence } from "./sprinkler-requirement-context";
 
 export type AhlsellProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "manometer" | "pressure_switch"
   | "flow_switch" | "ball_valve" | "butterfly_valve" | "shutoff_valve" | "check_valve"
@@ -29,6 +30,7 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   const category = String(requirement.category ?? "");
   const primaryDescription = normalize(description);
   const codeFamily = ns3420ProductFamily(String(value.nsCode ?? requirement.requirement_key ?? ""), description);
+  const sprinklerContext = hasSprinklerContext(requirement);
   if (isManifoldCabinetProduct(description)) return "manifold_cabinet";
   // Metres measure channels too; a named channel outranks a stale pipe category.
   if (isCableTrunkingProduct(description)) return "cable_trunking";
@@ -79,15 +81,15 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   if (has(/\b(handslokker|handslukker|handslokkeapparat|brannslokker|brannslukker)\b/)) {
     return has(/\b(skum|foam)\b/) ? "foam_extinguisher" : "portable_fire_extinguisher";
   }
-  if (has(/\b(beskyttelsesgit(?:ter|re)|skyddskorg|sprinklerkorg|sprinklergitter)\b/)) return "sprinkler_guard";
+  if (sprinklerContext && has(/\b(beskyttelsesgit(?:ter|re)|skyddskorg|sprinklerkorg|sprinklergitter)\b/)) return "sprinkler_guard";
   if (has(/\b(sprinklerskap|reservesprinklerhoder)\b/) || (/\bskap med reservesprinklerhoder\b/.test(detail) && /^sprinkleranlegg$/i.test(description))) return "sprinkler_cabinet";
   if (has(/\b(vannmaler|vannkapasitetsmaler|water meter)\b/)) return "water_meter";
   if (has(/\b(folerlomme|sensorlomme|thermowell)\b/) || (has(/\bseparat tilkobling av utstyr\b/) && /\b(folerlomme|trykkgiver|trykkvakt)\b/.test(detail))) return "sensor_pocket";
-  if (has(/\b(sprinklerslange|sprinkler slange|fleksibelslange|koblingsslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b|\bbrannslokking\s+slange\b/)) return "sprinkler_hose";
+  if ((sprinklerContext || codeFamily === "sprinkler_hose") && has(/\b(sprinklerslange|sprinkler slange|fleksibelslange|koblingsslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b|\bbrannslokking\s+slange\b/)) return "sprinkler_hose";
   if (has(/\b(pumpe innendors|sprinklerpumpe|lensepumpe|type pumpe|pumpedrift)\b/)) return "pump";
   if (has(/\b(partikkelutskiller|grovfilter|y filter|sil netting|type partikkelutskiller)\b/)) return "strainer";
   if (has(/\b(torr.*(?:alarmventil|sprinklersentral)|dry (?:alarm )?valve|d769n)\b/)) return "dry_alarm_valve";
-  if (has(/\b(vat alarmventil|wet alarm valve|kontrollventilsett)\b/)) return "wet_alarm_valve";
+  if (has(/\b(vat alarmventil|wet alarm valve)\b/) || sprinklerContext && has(/\bkontrollventilsett\b/)) return "wet_alarm_valve";
   if (has(/\b(trykkreduksjonsventil|pressure reducing valve|reduksjonsventil)\b/)) return "pressure_reducing_valve";
   if (has(/\b(tilbakeslagsventil|backventil|check valve)\b/)) return "check_valve";
   if (has(/\b(dreiespjeldventil|spjeldventil|butterfly valve)\b/)) return "butterfly_valve";
@@ -109,7 +111,7 @@ export function ahlsellRequirementIntent(requirement: Record<string, unknown>): 
   if (has(/\b(bend|albue|rorboy|elbow)\b/)) return "bend";
   if (has(/\b(kupling|rillekobling|hurtigrillekobling|coupling)\b/)) return "coupling";
   if (has(/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/)) return "custom_fabrication";
-  if (category === "sprinkler_head" || has(/\bsprinkler head\b|\bk faktor\b|\butlosningstemperatur\b/)) return "sprinkler_head";
+  if (hasSprinklerHeadEvidence(requirement)) return "sprinkler_head";
   if (codeFamily) return codeFamily;
   if (category === "pipe" && (dimensionOnly || /\b(?:ror|stalror|sprinklerror|rorledning)\b/.test(source))) return "pipe";
   if (category === "support" || has(/\b(oppheng|rorstotte|support|rorbarer|klammer)\b/)) return "support";

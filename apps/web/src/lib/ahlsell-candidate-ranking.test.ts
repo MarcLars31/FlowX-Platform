@@ -470,7 +470,8 @@ test("recognizes Ahlsell manometer terminology from a generic measuring-instrume
     value_json: { attributes: { type: "Analog, absolutt trykk, direkte måling" } }
   }, [candidate("9255634", "Manometer til sprinkler", "Manometer for sprinkleranlegg", "/manometer/9255634/")]);
 
-  assert.equal(ranked.recommendation, "recommended");
+  assert.equal(ranked.matchScore, 65);
+  assert.equal(ranked.recommendation, "possible");
 });
 
 test("always places Scipx most likely product first without mutating the input", () => {

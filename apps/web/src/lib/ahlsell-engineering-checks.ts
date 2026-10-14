@@ -5,6 +5,7 @@ import { MANIFOLD_CABINET_REVIEW_WARNING } from "./ahlsell-manifold-cabinet";
 import { cableTrunkingReviewWarnings } from "./ahlsell-cable-trunking";
 import { functionalProductReviewWarnings } from "./ahlsell-functional-products";
 import { isCompletePipeLengthDescription } from "./ns3420-product-classification";
+import { hasSprinklerContext } from "./sprinkler-requirement-context";
 import { normalizeTechnicalText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 
 /** Cross-catalogue checks that must also run on directly verified products. */
@@ -36,7 +37,7 @@ export function engineeringRequirementWarnings(
   if (intent === "pipe" && /\bRAL\s*9010\b/i.test(`${requirementText} ${detail}`)) {
     warnings.push("Posten kräver vit målning RAL 9010. Kontrollera målningssystem, grundning och bättring av kapade ändar och montageskador i den kompletta leveransen.");
   }
-  if (intent === "alarm_device") {
+  if (intent === "alarm_device" && hasSprinklerContext(requirement)) {
     warnings.push("Verifiera komplett alarmgivarset inklusive extra alarmgivare och kompatibilitet med det valda alarmventilsetet. En enskild pressostat verifierar inte hela setet eller likvärdighet med PDF-referensen.");
   }
   if (intent === "pressure_switch" && /\b(?:vannforsyning|vanninnlegg)\b/i.test(`${ownText} ${detail}`)) {
@@ -51,7 +52,9 @@ export function engineeringRequirementWarnings(
     } else if (!requiredRange || !productRange) {
       warnings.push(`Kapacitetsmätarens mätområde behöver verifieras${rangeText ? ` mot PDF-kravet ${rangeText}` : " mot PDF-posten"}.`);
     }
-    warnings.push("Verifiera kapacitetsmätarens sprinklergodkännande, anslutningar och komplett leveransomfattning mot databladet.");
+    warnings.push(hasSprinklerContext(requirement)
+      ? "Verifiera kapacitetsmätarens sprinklergodkännande, anslutningar och komplett leveransomfattning mot databladet."
+      : "Verifiera kapacitetsmätarens anslutningar och komplett leveransomfattning mot databladet.");
   }
   if (["shutoff_valve", "butterfly_valve", "ball_valve"].includes(intent)
     && valveMonitoringRequirement(requirementText) === "none") {

@@ -1,5 +1,7 @@
 import catalogData from "@/data/ahlsell-mldl-catalog.json";
 import { orderAhlsellCandidatesForDisplay, rankAhlsellCandidates } from "@/lib/ahlsell-candidate-ranking";
+import { hasSprinklerContext } from "./sprinkler-requirement-context";
+import { productRequirementAttributes, productTechnicalSpecification } from "./ahlsell-requirement-context";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 import { requirementDiscipline } from "./requirement-discipline";
@@ -42,7 +44,7 @@ export function findAhlsellMldlCandidates(
   if (["electrical", "ventilation"].includes(requirementDiscipline(requirement))) return [];
   const requirementText = normalizedRequirementText(requirement);
   const primaryTypes = catalogTypesForIntent(ahlsellRequirementIntent(requirement));
-  const expectedTypes = primaryTypes ? new Set(primaryTypes) : expectedCatalogTypes(requirementText);
+  const expectedTypes = primaryTypes ? new Set(primaryTypes) : expectedCatalogTypes(requirementText, hasSprinklerContext(requirement));
   const explicitArticles = new Set(articleNumbers(requirementText));
   const explicitModels = new Set(modelNumbers(requirementText));
   const pool = catalogData.products.filter((product) => {
@@ -193,16 +195,18 @@ function boostStructuredCatalogEvidence(
   });
 }
 
-function expectedCatalogTypes(value: string) {
+function expectedCatalogTypes(value: string, sprinklerContext: boolean) {
   const types = new Set<string>();
   const add = (...values: string[]) => values.forEach((item) => types.add(item));
-  if (/\bub1[.]3311[a-z0-9]*\b/.test(value)) {
+  if (sprinklerContext && /\bub1[.]3311[a-z0-9]*\b/.test(value)) {
     add("sprinkler_hose");
     return types;
   }
-  if (/\b(dekkskiv|dekkplate|pyntering|rosett|escutcheon|cover plate|sprinklergitter|sprinklerskap|nokkel)\b/.test(value)) add("sprinkler_accessory");
-  else if (/\b(sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b/.test(value)) add("sprinkler_hose");
-  else if (/\b(sprinklerhode|sprinkler head|sprinklerhuvud|sprinkelhode|k faktor)\b/.test(value)) add("sprinkler_head");
+  if (sprinklerContext) {
+    if (/\b(dekkskiv|dekkplate|pyntering|rosett|escutcheon|cover plate|sprinklergitter|sprinklerskap|nokkel)\b/.test(value)) add("sprinkler_accessory");
+    else if (/\b(sprinklerslange|sprinkler slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose|vicflex|dryflex)\b/.test(value)) add("sprinkler_hose");
+    else if (/\b(sprinklerhode|sprinkler head|sprinklerhuvud|sprinkelhode)\b/.test(value)) add("sprinkler_head");
+  }
   if (/\b(anboringsklammer|anboring|avstikk|branch outlet)\b/.test(value)) add("branch_outlet");
   if (/\b(reduksjonskupling|reducing coupling)\b/.test(value)) add("reducer_coupling");
   else if (/\b(kupling|kobling|coupling|rillekobling)\b/.test(value)) add("coupling");
@@ -235,10 +239,13 @@ function expectedCatalogTypes(value: string) {
 
 function normalizedRequirementText(requirement: Record<string, unknown>) {
   const value = requirement.value_json as Record<string, unknown> | undefined;
-  const attributes = value?.attributes as Record<string, unknown> | undefined;
-  return normalize(flatten({ ...requirement, value_json: { ...value,
-    attributes: Object.fromEntries(Object.entries(attributes ?? {}).filter(([key]) => key !== "pdf-kommentar"))
-  } }));
+  return normalize(flatten({
+    description: requirement.value_text ?? requirement.display_name,
+    nsCode: value?.nsCode ?? requirement.requirement_key,
+    unit: value?.unit,
+    attributes: productRequirementAttributes(requirement),
+    source: productTechnicalSpecification(requirement)
+  }));
 }
 
 function flatten(value: unknown): string {

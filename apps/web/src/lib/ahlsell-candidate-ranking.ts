@@ -235,11 +235,11 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     response: intent === "sprinkler_head" ? responseResult.response : null,
     orientation: intent === "sprinkler_head" ? orientation : null,
     mount: intent === "sprinkler_head" ? mount : null,
-    visibleMount: /\b(synlig|visible|eksponert)\b/.test(placementText)
+    visibleMount: intent === "sprinkler_head" && (/\b(synlig|visible|eksponert)\b/.test(placementText)
       || installation.exposed
-      || sprinklerExplicitlyExcludesCoverPlate(deckPlateText),
-    sprinklerSystem: extractSprinklerSystem(sprinklerSystemText),
-    sprinklerHeadType: extractRequiredSprinklerHeadType(sprinklerTypeText),
+      || sprinklerExplicitlyExcludesCoverPlate(deckPlateText)),
+    sprinklerSystem: intent === "sprinkler_head" ? extractSprinklerSystem(sprinklerSystemText) : null,
+    sprinklerHeadType: intent === "sprinkler_head" ? extractRequiredSprinklerHeadType(sprinklerTypeText) : null,
     expectsSteel: /\b(stalror|stal ror|materiale stal|ror av stal|stal fittings?)\b/.test(primaryText),
     material: extractMaterial(materialText),
     materialGrade: stainlessSteelGrade(materialText),
@@ -248,11 +248,11 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     allowedJoints: /\b(?:eller|or)\b/.test(jointText) ? extractJointTypes(jointText) : extractJointTypes(jointText).slice(0, 1),
     allowsGroovedPipe: intent === "pipe" && (/\brillede stalror for alle dimensjoner\b/.test(generalPipeRules)
       || (/\b(?:eller|or)\b/.test(jointText) && extractJointTypes(jointText).includes("threaded") && extractJointTypes(jointText).includes("grooved"))),
-    coverage: sprinklerCoverageFromText(coverageText),
-    requiresAccessoryReview: sprinklerRequiresAccessoryReview(attributes, sourceOnlyText)
+    coverage: intent === "sprinkler_head" ? sprinklerCoverageFromText(coverageText) : null,
+    requiresAccessoryReview: intent === "sprinkler_head" && sprinklerRequiresAccessoryReview(attributes, sourceOnlyText)
       || Boolean(productAssemblyPlan(requirement)?.components.some(part => !part.optional))
       || (intent === "pipe" && /\bror inkludert deler\b|\bsprinklerror inkludert deler\b/.test(text)),
-    requiresHydraulicReview: sprinklerNeedsHydraulicReview(coverageText),
+    requiresHydraulicReview: intent === "sprinkler_head" && sprinklerNeedsHydraulicReview(coverageText),
     finish: explicitFinish,
     requiresSupervisedOpenValve: valveMonitoringRequirement(`${primaryText} ${sourceOnlyText}`) === "required",
     requiresHandwheelValve: /\b(manuell med ratt|med ratt|rattet|handratt|handwheel|gear operated|girbetjent)\b/.test(`${primaryText} ${sourceOnlyText}`),
@@ -320,10 +320,6 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
       score += 65;
       reasons.push("Produkttypen är ett manometer/mätinstrument för tryck.");
     }
-    if (/\bsprinkler\b/.test(candidateText)) {
-      score += 10;
-      reasons.push("Produkten är avsedd för sprinklerinstallation.");
-    }
     if (/\b(pressostat|trykkvakt|kuleventil)\b/.test(candidateText)) {
       score -= 60;
       warnings.push("Träffen är inte ett manometer.");
@@ -386,10 +382,6 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     if (isHoseAccessory) {
       score -= 70;
       warnings.push("Träffen är ett tillbehör till en sprinklerslang, inte en komplett slang.");
-    }
-    if (/\bsprinkler\b/.test(candidateText)) {
-      score += 10;
-      reasons.push("Produkten är avsedd för sprinklerinstallation.");
     }
     if (!isHose) {
       score -= wrongFamilyPenalty(

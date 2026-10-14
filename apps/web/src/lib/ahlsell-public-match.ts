@@ -33,6 +33,7 @@ import { requirementExtractionWarnings } from "./requirement-extraction-warnings
 import { pipeRequirementDimensions, pipeRequirementLimits } from './pipe-matching-evidence';
 import type { AhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
 import type { TechnicalEvaluation } from "./technical-evaluation-model";
+import { hasSprinklerContext } from "./sprinkler-requirement-context";
 
 export type AhlsellPublicCandidate = {
   articleNumber: string;
@@ -172,6 +173,8 @@ export function buildAhlsellRequirementGuide(
     ? AHLSELL_NORWAY_SEARCH_URL
     : AHLSELL_SWEDEN_SEARCH_URL;
   const intent = ahlsellRequirementIntent(requirement);
+  const sprinklerContext = hasSprinklerContext(requirement);
+  const sprinklerHead = intent === "sprinkler_head";
   const nsCode = text(value.nsCode) ?? text(requirement.requirement_key);
   const nsCodeIntent = ns3420ProductFamily(nsCode, description);
   const isSprinklerAccessory = intent === "sprinkler_guard";
@@ -205,7 +208,7 @@ export function buildAhlsellRequirementGuide(
     ?? numberFromText(combined, /\bk\s*[-=]?\s*(\d+(?:[.,]\d+)?)/i);
   // Norwegian descriptions frequently write K-80. The hyphen is a separator,
   // not a negative hydraulic value.
-  const kFactor = rawKFactor === null ? null : Math.abs(rawKFactor);
+  const kFactor = !sprinklerHead || rawKFactor === null ? null : Math.abs(rawKFactor);
   const sprinklerModel = combined.match(/\bv\d{3,4}\b/i)?.[0]?.toUpperCase() ?? null;
   const explicitOutsideDiameters = outsideDiametersFromText(`${description} ${rowSourceText}`);
   const dnValues = uniqueNumbers([
@@ -236,36 +239,36 @@ export function buildAhlsellRequirementGuide(
   const responseText = firstAttribute(attributes, ["folsomhetsgrad", "respons", "response"]);
   const finishAttribute = firstAttribute(attributes, ["overflatebehandling", "farge", "farg", "finish", "colour", "color"]);
   const finishText = `${finishAttribute ?? ""} ${description}`;
-  const sprinklerSystem = sprinklerSystemType(
+  const sprinklerSystem = sprinklerContext ? sprinklerSystemType(
     firstAttribute(attributes, ["sprinkleranlegg", "anleggstype", "systemtype", "sprinkler system"])
       ?? combined
-  );
-  const sprinklerHeadType = requiredSprinklerHeadType(
+  ) : null;
+  const sprinklerHeadType = sprinklerHead ? requiredSprinklerHeadType(
     firstAttribute(attributes, ["type sprinkler", "sprinklertype", "sprinkler type"])
       ?? combined
-  );
-  const sprinklerCoverage = sprinklerCoverageFromText(combined);
+  ) : null;
+  const sprinklerCoverage = sprinklerHead ? sprinklerCoverageFromText(combined) : null;
   const requiresSupervisedOpenValve = ["butterfly_valve", "shutoff_valve", "ball_valve"].includes(intent)
     && valveMonitoringRequirement(primarySourceText) === "required";
   const requiresHandwheelValve = intent === "butterfly_valve"
     && /\b(manuell med ratt|med ratt|handratt|handwheel|gear operated|girbetjent)\b/.test(primaryCombined);
   const requiresSoftClosingValve = intent === "butterfly_valve"
     && /\b(myk stenging|mjuk stangning|soft clos|slow clos)\b/.test(primaryCombined);
-  const requiresAccessoryReview = sprinklerRequiresAccessoryReview(
+  const requiresAccessoryReview = sprinklerHead && sprinklerRequiresAccessoryReview(
     attributes,
     `${description} ${rowSourceText} ${technicalSpecification}`
   );
   const installation = sprinklerInstallationRequirements(record(value.attributes), `${description}\n${rowSourceText}`);
-  const mount = installation.mount;
-  const visibleMount = /\b(synlig|visible|eksponert)\b/.test(normalize(placement ?? ""))
+  const mount = sprinklerHead ? installation.mount : null;
+  const visibleMount = sprinklerHead && (/\b(synlig|visible|eksponert)\b/.test(normalize(placement ?? ""))
     || installation.exposed
-    || sprinklerExplicitlyExcludesCoverPlate(deckPlate);
+    || sprinklerExplicitlyExcludesCoverPlate(deckPlate));
   const orientationResult = intent === "sprinkler_head"
     ? sprinklerOrientation(`${placement ?? ""} ${description}`)
     : { orientation: null, mixed: false };
   const orientation = orientationResult.orientation
     ?? (!orientationResult.mixed && mount !== null && /\b(tak|himling|ceiling)\b/.test(normalize(placement ?? "")) ? "pendent" : null);
-  const responseResult = sprinklerResponse(responseText, technicalSpecification);
+  const responseResult = sprinklerHead ? sprinklerResponse(responseText, technicalSpecification) : { response: null, conflict: false };
   // Unspecified sprinkler finishes use the catalogue's standard brass variant.
   // An explicit colour or finish in the PDF always takes precedence.
   const finish = sprinklerFinish(finishText)
@@ -299,7 +302,7 @@ export function buildAhlsellRequirementGuide(
     orientation === "pendent" ? "Pendent" : orientation === "upright" ? "Upright" : orientation === "sidewall" ? "HSW" : null,
     mount === "recessed" ? "Recessed" : mount === "concealed" ? "Concealed" : null,
     finish ? finishSearchLabel(finish) : null,
-    specialSearchTerm(combined)
+    sprinklerHead ? specialSearchTerm(combined) : null
   ]);
 
   const pdfReferenceCandidate = candidateFromPdfReference(
@@ -316,6 +319,7 @@ export function buildAhlsellRequirementGuide(
     : buildCatalogQueries({
         category,
         intent,
+        sprinklerContext,
         description,
         combined,
         criteria,
@@ -329,6 +333,7 @@ export function buildAhlsellRequirementGuide(
         sprinklerHeadType,
         isSprinklerAccessory,
         outsideDiameters,
+        dnValues,
         pn,
         sdr: pipeLimits.sdr,
         pipeJoints: pipeJointTypes(requirementJointText(Object.fromEntries(attributes), description)),
@@ -345,10 +350,12 @@ export function buildAhlsellRequirementGuide(
     intent === "pipe" && isCompletePipeLengthDescription(description)
       ? "Posten omfattar rör, böjar, T-stycken, ändlock och upphängning. Rördelarnas antal och utförande behöver tas från ritning; rörlängden anger inte antal delar."
       : null,
-    intent === "alarm_device"
+    intent === "alarm_device" && sprinklerContext
       ? "Kontrollera komplett alarmgivarset, extra alarmgivare och kompatibilitet med det valda alarmventilsetet. Huvudventilens DN är inte alarmgivarens anslutningsdimension."
       : null,
-    intent === "flow_meter" ? "Verifiera kapacitetsmätarens mätområde, anslutningar och sprinklergodkännande mot databladet." : null,
+    intent === "flow_meter" ? (sprinklerContext
+      ? "Verifiera kapacitetsmätarens mätområde, anslutningar och sprinklergodkännande mot databladet."
+      : "Verifiera kapacitetsmätarens mätområde och anslutningar mot databladet.") : null,
     intent === "shower_set"
       ? "Kontrollera komplett duschleverans och PDF-postens tilläggskrav på blandare, duschstång, eventuella stödhandtag och duschsits."
       : null,
@@ -511,14 +518,17 @@ function buildCatalogQueries({
   sprinklerHeadType,
   isSprinklerAccessory,
   outsideDiameters,
+  dnValues,
   pn,
   sdr,
   pipeJoints,
   pipeMaterial,
-  materialGrade
+  materialGrade,
+  sprinklerContext
 }: {
   category: string;
   intent: AhlsellProductIntent;
+  sprinklerContext: boolean;
   pipeJoints: PipeJoint[];
   pipeMaterial: string;
   materialGrade: string | null;
@@ -535,6 +545,7 @@ function buildCatalogQueries({
   sprinklerHeadType: SprinklerHeadType | null;
   isSprinklerAccessory: boolean;
   outsideDiameters: number[];
+  dnValues: number[];
   pn: number | null;
   sdr: number | null;
 }) {
@@ -546,6 +557,9 @@ function buildCatalogQueries({
     .map((value) => `${formatCatalogDecimal(value)}mm`)
     .join(" ");
   const pressureTerm = pn === null ? null : `PN${formatNumber(pn)}`;
+  const systemTerm = (term: string) => sprinklerContext ? `${term} sprinkler` : term;
+  const jointTerm = pipeJointSearchTerm[pipeJoints[0]];
+  const jointDimension = pipeJoints.includes("grooved") ? outsideDiameterTerm ?? dnTerm : dnTerm ?? outsideDiameterTerm;
 
   if (intent === "shower_set") {
     return /\b(blandebatteri|dusjbatteri|duschblandare|blandare)\b/.test(combined)
@@ -579,24 +593,24 @@ function buildCatalogQueries({
   }
 
   if (intent === "pressure_switch") {
-    if (/\b(?:vannforsyning|vanninnlegg)\b/.test(combined)) return ["Pressostat vanntrykk", "Trykkbryter vannforsyning", "Pressostat sprinkler"];
-    return ["Pressostat", "Pressostat vann", "PS10 pressostat"];
+    if (/\b(?:vannforsyning|vanninnlegg)\b/.test(combined)) return ["Pressostat vanntrykk", "Trykkbryter vannforsyning", systemTerm("Pressostat")];
+    return compact(["Pressostat", "Pressostat vann", sprinklerContext || /\bps\s*10\b/.test(combined) ? "PS10 pressostat" : null]);
   }
   if (intent === "alarm_device") {
-    return compact([/\bkit\s*5\b/.test(combined) ? "Tyco KIT5" : null, "Alarmgiver sprinkler", "Alarmpressostat"]);
+    return compact([/\bkit\s*5\b/.test(combined) ? "Tyco KIT5" : null, systemTerm("Alarmgiver"), sprinklerContext ? "Alarmpressostat" : null]);
   }
   if (intent === "flow_meter") {
     return compact([/\bds1162\b/.test(combined) ? "DS1162" : null,
-      compact(["Kapasitetsmåler", dnTerm]).join(" "), compact(["Flowmeter sprinkler", dnTerm]).join(" ")]);
+      compact(["Kapasitetsmåler", dnTerm]).join(" "), compact([systemTerm("Flowmeter"), dnTerm]).join(" ")]);
   }
   if (intent === "flow_switch") {
-    return ["Strømningsvakt", "Flow switch sprinkler"];
+    return ["Strømningsvakt", systemTerm("Flow switch")];
   }
   if (intent === "manometer") {
-    return ["Manometer sprinkler", "Manometer 0-16 bar"];
+    return [compact([systemTerm("Manometer"), dnTerm]).join(" "), "Manometer"];
   }
   if (intent === "test_drain") {
-    return ["Test og dreneringsventil sprinkler", "Sprinkler testventil"];
+    return [systemTerm("Test og dreneringsventil"), systemTerm("Testventil")];
   }
   if (intent === "ball_valve") {
     return [compact(["Kuleventil", dnTerm, pressureTerm]).join(" "), compact(["Kuleventil", dnTerm]).join(" ")];
@@ -605,14 +619,14 @@ function buildCatalogQueries({
     if (/\b(signal (?:ved|nar) stengt ventil|tilkobling for signal|overvaket|overvakning|supervised open|supervisory switch)\b/.test(combined)) {
       return [
         compact(["Spjeldventil overvåket åpen", outsideDiameterTerm ?? dnTerm]).join(" "),
-        compact(["Vic 705 Fire", outsideDiameterTerm ?? dnTerm]).join(" "),
+        ...(sprinklerContext ? [compact(["Vic 705 Fire", outsideDiameterTerm ?? dnTerm]).join(" ")] : []),
         compact(["Spjeldventil signal", dnTerm]).join(" ")
       ];
     }
-    return ["Spjeldventil sprinkler", compact(["Spjeldventil", dnTerm]).join(" "), "Spjeldventil rillede tilkoblinger"];
+    return [compact([systemTerm("Spjeldventil"), dnTerm]).join(" "), compact(["Spjeldventil", dnTerm, pressureTerm, pipeJointSearchTerm[pipeJoints[0]]]).join(" ")];
   }
   if (intent === "check_valve") {
-    return [compact(["Tilbakeslagsventil rillet", dnTerm]).join(" "), compact(["Tilbakeslagsventil", dnTerm]).join(" "), "Tilbakeslagsventil rillet"];
+    return [compact(["Tilbakeslagsventil", dnTerm, pipeJointSearchTerm[pipeJoints[0]], pressureTerm]).join(" "), compact(["Tilbakeslagsventil", dnTerm]).join(" ")];
   }
   if (intent === "pressure_reducing_valve") {
     return [compact(["Trykkreduksjonsventil", dnTerm]).join(" "), "Trykkreduksjonsventil"];
@@ -623,10 +637,10 @@ function buildCatalogQueries({
         compact(["Spjeldventil", outsideDiameterTerm ?? dnTerm, "håndtak"]).join(" "),
         compact(["Stengeventil", dnTerm]).join(" ")];
     }
-    return ["Sprinklerventil", compact(["Sprinklerventil", dnTerm]).join(" ")];
+    return [compact([systemTerm("Stengeventil"), dnTerm, pressureTerm]).join(" "), compact(["Stengeventil", dnTerm]).join(" ")];
   }
   if (intent === "flange_adapter") {
-    return [compact(["Flensadapter rillet", outsideDiameterTerm]).join(" "), compact(["Flenseadapter", dnTerm]).join(" ")];
+    return [compact(["Flensadapter", dnTerm, pipeJointSearchTerm[pipeJoints[0]]]).join(" "), compact(["Flenseadapter", dnTerm]).join(" ")];
   }
   if ((intent === "flanged_bend" || intent === "bend" && /\b(flens|flanged)\b/.test(combined))) {
     return [
@@ -641,13 +655,14 @@ function buildCatalogQueries({
       : /\b(?:pe\s*\d*|polyetylen|polyethylene)\b/.test(pipeMaterial) ? "PE rør"
       : /\b(?:pex|pe x)\b/.test(pipeMaterial) ? "PEX rør"
       : /\bpvc\b/.test(pipeMaterial) ? "PVC rør"
-      : /\b(?:kobber\w*|koppar\w*|copper)\b/.test(pipeMaterial) ? "Kobberrør" : "Stålrør sprinkler";
+      : /\b(?:kobber\w*|koppar\w*|copper)\b/.test(pipeMaterial) ? "Kobberrør"
+      : /\b(?:stal\w*|steel)\b/.test(pipeMaterial) ? systemTerm("Stålrør") : systemTerm("Rør");
     // The steel DN/OD table does not define plastic or copper pipe sizes.
-    const alternateDimension = material.includes("stålrør") || material === "Stålrør sprinkler"
+    const alternateDimension = /stålrør/i.test(material)
       ? outsideDiameterTerm ?? dnTerm : dnTerm ?? outsideDiameterTerm;
     const joints = pipeJoints.map(joint => pipeJointSearchTerm[joint]);
     return [
-      ...(!joints.length && !materialGrade && material === "Stålrør sprinkler"
+      ...(sprinklerContext && !joints.length && !materialGrade && material === "Stålrør sprinkler"
         ? [compact(["Rør sprinkler", outsideDiameterTerm ?? dnTerm]).join(" ")] : []),
       compact([material, materialGrade, dnTerm ?? outsideDiameterTerm, sdr === null ? null : `SDR${sdr}`, joints[0], pressureTerm]).join(" "),
       compact([material, materialGrade, alternateDimension, joints[1] ?? joints[0]]).join(" "),
@@ -656,45 +671,43 @@ function buildCatalogQueries({
   }
   if (intent === "coupling") {
     return [
-      compact(["Kupling sprinkler", outsideDiameterTerm]).join(" "),
-      compact(["Kupling fast", outsideDiameterTerm]).join(" "),
-      compact(["Kupling", outsideDiameterTerm]).join(" ")
+      compact([systemTerm("Kupling"), jointTerm, jointDimension]).join(" "),
+      compact(["Kupling", dnTerm, pressureTerm]).join(" ")
     ];
   }
   if (intent === "bend") {
     return [
-      compact(["Bend rillet", outsideDiameterTerm]).join(" "),
-      compact(["Rillede bend", outsideDiameterTerm]).join(" "),
-      compact(["Bend sprinkler", dnTerm]).join(" ")
+      compact(["Bend", jointTerm, jointDimension]).join(" "),
+      compact([systemTerm("Bend"), dnTerm]).join(" ")
     ];
   }
   if (intent === "tee") {
     return [
-      compact(["T-rør rillet", outsideDiameterTerm]).join(" "),
-      compact(["Rillede T-rør", outsideDiameterTerm]).join(" "),
-      compact(["T-rør sprinkler", dnTerm]).join(" ")
+      compact(["T-rør", jointTerm, jointDimension]).join(" "),
+      compact([systemTerm("T-rør"), dnTerm]).join(" ")
     ];
   }
   if (intent === "reducer") {
+    const dimensions = pipeJoints.includes("grooved") ? outsideDiameterPair || jointDimension
+      : dnValues.map(value => `DN${formatNumber(value)}`).join(" ") || jointDimension;
     return [
-      compact(["Reduksjon rillet", outsideDiameterPair || outsideDiameterTerm]).join(" "),
-      compact(["Reduksjonskupling", outsideDiameterPair || outsideDiameterTerm]).join(" "),
-      compact(["T-rør reduksjon rillet", outsideDiameterTerm]).join(" ")
+      compact(["Reduksjon", jointTerm, dimensions]).join(" "),
+      compact(["Reduksjonskupling", dimensions]).join(" ")
     ];
   }
   if (intent === "cap") {
     if (pipeJoints.includes('threaded') && !pipeJoints.includes('grooved')) {
       return [compact(['Plugg gjenget', dnTerm]).join(' '), compact(['Endelokk gjenget', dnTerm]).join(' ')];
     }
-    return [compact(["Endelokk", outsideDiameterTerm]).join(" "), compact(["Endelokk rillet", dnTerm]).join(" ")];
+    return [compact(["Endelokk", dnTerm, pipeJointSearchTerm[pipeJoints[0]]]).join(" "), compact(["Endelokk", dnTerm]).join(" ")];
   }
   if (intent === "branch") {
     return [compact(["Anboringsklammer", outsideDiameterTerm]).join(" "), compact(["Utløpskupling", dnTerm]).join(" ")];
   }
   if (intent === "pump") {
-    return ["Lensepumpe", "Pumpe avløpsvann", "Sprinklerpumpe"];
+    return /\b(?:lensepumpe|avlop)\b/.test(combined) ? ["Lensepumpe", "Pumpe avløpsvann"] : [systemTerm("Pumpe")];
   }
-  if (intent === "water_meter") return [compact(["Vannmåler", dnTerm]).join(" "), "Vannkapasitetsmåler sprinkler"];
+  if (intent === "water_meter") return [compact(["Vannmåler", dnTerm]).join(" "), systemTerm("Vannkapasitetsmåler")];
   if (intent === "flushing_connection") return [compact(["Spyleventil", dnTerm]).join(" "), compact(["Spjeldventil", dnTerm]).join(" ")];
   if (intent === "sensor_pocket") return ["Følerlomme trykkgiver", "Tilkobling trykkvakt"];
   if (intent === "sprinkler_cabinet") return ["Sprinklerskap", "Skap reservesprinkler"];
@@ -702,12 +715,12 @@ function buildCatalogQueries({
     return [compact(["Sil", dnTerm]).join(" "), compact(["Grovfilter", dnTerm]).join(" "), compact(["Filter", dnTerm]).join(" ")];
   }
   if (intent === "support") {
-    return [compact(["Røroppheng", dnTerm]).join(" "), "Rørklammer sprinkler"];
+    return [compact(["Røroppheng", dnTerm]).join(" "), systemTerm("Rørklammer")];
   }
   if (intent === "custom_fabrication") {
-    return ["Dreneringskar sprinkler"];
+    return [searchDescription ?? description];
   }
-  if (intent === "key_switch") return ["Nøkkelbryter sprinkler", "Nøkkelboks sprinkler"];
+  if (intent === "key_switch") return [systemTerm("Nøkkelbryter"), systemTerm("Nøkkelboks")];
   if (intent === "valve_actuator") return [searchDescription ?? description, "Ventilaktuator"];
 
   if (intent === "sprinkler_head" && kFactor !== null) {
@@ -738,16 +751,16 @@ function buildCatalogQueries({
 
   if (category === "fitting") {
     return [
-      compact(["Kupling sprinkler", outsideDiameterTerm]).join(" "),
-      compact(["Rilledeler sprinkler", outsideDiameterTerm]).join(" "),
+      compact([systemTerm("Kupling"), dnTerm]).join(" "),
+      compact([systemTerm("Rørdeler"), dnTerm]).join(" "),
       conciseCatalogQuery(criteria, searchDescription ?? description)
     ];
   }
   if (category === "valve") {
-    return ["Sprinklerventil", compact(["Sprinklerventil", dnTerm]).join(" ")];
+    return [compact([systemTerm("Ventil"), dnTerm]).join(" ")];
   }
   if (category === "control") {
-    return ["Sprinkler overvåkning", compact(["Sprinkler alarm", dnTerm]).join(" ")];
+    return [searchDescription ?? description];
   }
 
   return [conciseCatalogQuery(criteria, searchDescription ?? description)];
@@ -863,15 +876,15 @@ function categoryLabel(category: string, description: string) {
   if (/h[åa]ndsl[ou]kker|brannsl[ou]kker|slokkemiddel\s*:\s*skum/i.test(description)) {
     return /skum/i.test(description) ? "Skumsläckare" : "Handbrandsläckare";
   }
-  if (/beskyttelsesgitter|beskyttelsesgitre|skyddskorg|sprinklerkorg/i.test(description)) return "Sprinkler skyddskorg";
+  if (/sprinklerkorg/i.test(description)) return "Sprinkler skyddskorg";
   return ({
     sprinkler_head: "Sprinkler",
     sprinkler_hose: "Flexibel sprinklerslang",
-    pipe: "Sprinklerrör",
-    fitting: "Sprinklerrördel",
-    valve: "Sprinklerventil",
-    support: "Rörupphängning sprinkler",
-    control: "Sprinkler övervakning"
+    pipe: "Rör",
+    fitting: "Rördel",
+    valve: "Ventil",
+    support: "Rörupphängning",
+    control: "Kontrollutrustning"
   } as Record<string, string>)[category] ?? "Teknisk produkt";
 }
 
@@ -885,8 +898,8 @@ function intentLabel(intent: AhlsellProductIntent, category: string, description
     sprinkler_head: "Sprinkler",
     sprinkler_guard: "Sprinkler skyddskorg",
     sprinkler_hose: "Flexibel sprinklerslang",
-    pipe: "Sprinklerrör",
-    coupling: "Rillkoppling",
+    pipe: "Rör",
+    coupling: "Rörkoppling",
     bend: "Rörböj",
     tee: "T-rör",
     reducer: "Rörreduktion",
@@ -903,7 +916,7 @@ function intentLabel(intent: AhlsellProductIntent, category: string, description
     manometer: "Manometer",
     pressure_switch: "Tryckvakt",
     flow_switch: "Flödesvakt",
-    alarm_device: "Alarmgivare för sprinkler", flow_meter: "Kapacitetsmätare",
+    alarm_device: "Alarmgivare", flow_meter: "Kapacitetsmätare",
     test_drain: "Test- och dräneringsventil",
     pump: "Pump",
     strainer: "Sil/filter",

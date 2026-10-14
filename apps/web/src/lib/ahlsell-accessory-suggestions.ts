@@ -8,6 +8,7 @@ import type {
   AhlsellPublicCandidate
 } from "@/lib/ahlsell-public-match";
 import { sprinklerInstallationRequirements } from "@/lib/sprinkler-technical-rules";
+import { hasSprinklerContext } from "./sprinkler-requirement-context";
 
 export function attachAhlsellAccessorySuggestions(
   requirement: Record<string, unknown>,
@@ -23,6 +24,7 @@ export function suggestedAccessories(
   requirement: Record<string, unknown>,
   candidate: AhlsellPublicCandidate
 ): AhlsellAccessorySuggestion[] {
+  if (!hasSprinklerContext(requirement)) return [];
   const main = ahlsellMldlProduct(candidate.articleNumber);
   if (!main) return [];
   const requirementText = accessoryRequirementText(requirement);

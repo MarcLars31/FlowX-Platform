@@ -2,6 +2,7 @@ import type { AhlsellProductIntent } from "./ahlsell-requirement-intent";
 import type { AssemblyComponent, ProductAssemblyPlan } from "./product-assembly-plan";
 import { sprinklerInstallationRequirements } from "./sprinkler-technical-rules";
 import { normalizeTechnicalText } from "./ahlsell-requirement-context";
+import { hasSprinklerContext } from "./sprinkler-requirement-context";
 
 /** Only parts required by this post become shopping steps. Adjacent, separately
  * quantified posts must not be purchased again as accessories. */
@@ -11,7 +12,8 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
   const own = `${requirement.value_text ?? requirement.display_name ?? ""} ${value.sourceText ?? ""}`;
   const source = `${own} ${value.technicalSpecification ?? ""} ${requirement.source_excerpt ?? ""}`;
   const components: AssemblyComponent[] = [];
-  if (intent === "sprinkler_head") {
+  const sprinklerContext = hasSprinklerContext(requirement);
+  if (sprinklerContext && intent === "sprinkler_head") {
     const installation = sprinklerInstallationRequirements(attributes, source);
     for (const part of installation.accessories) {
       if (["not_required", "not_applicable"].includes(part.status)) continue;
@@ -30,7 +32,7 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
     return { kind: "sprinkler", mainLabel: "Sprinklerhuvud", components,
       guidance: "Välj först sprinklerhuvudet utifrån K-faktor, gängdimension, respons, temperatur och montage. Tillbehören måste passa exakt vald modell." };
   }
-  if (intent === "sprinkler_hose") {
+  if (sprinklerContext && intent === "sprinkler_hose") {
     const mountingText = [source, ...Object.entries(attributes).map(([key, item]) => `${key}: ${item}`)].join("\n");
     if (requiresHoseSupport(mountingText)) components.push({
       id: "hose-support", kind: "support", label: "Infästning för sprinklerslang", optional: false,
@@ -44,9 +46,9 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
       searchTerm: "Motflens", quantityNeedsReview: true, requirement: "Motflänsar enligt PDF-posten. Kontrollera DN, tryckklass, flänsstandard och leveransomfattning mot exakt vald ventil." });
     if (/\bbolter\b/i.test(source) && /\bpakninger\b/i.test(source)) components.push({ id: "flange-fasteners", kind: "fastener", label: "Bultar och packningar", optional: false,
       searchTerm: "Boltesett pakning flens", quantityNeedsReview: true, requirement: "Kontrollera antal, dimensioner, material och packning mot exakt vald ventil, fläns och medium. Kontrollera vad som redan ingår." });
-    if (components.length) return { kind: "sprinkler", mainLabel: "Ventil med anslutningsdelar", components };
+    if (components.length) return { kind: sprinklerContext ? "sprinkler" : "valve", mainLabel: "Ventil med anslutningsdelar", components };
   }
-  if (intent === "wet_alarm_valve" || intent === "dry_alarm_valve") {
+  if (sprinklerContext && (intent === "wet_alarm_valve" || intent === "dry_alarm_valve")) {
     if (/retarda(?:sjons|tions?)kamm(?:er|are)|retard(?:ing)? chamber/i.test(source)) components.push({
       id: "retard-chamber", kind: "retard_chamber", label: "Retardationskammare", optional: false, searchTerm: "Retardasjonskammer",
       quantityNeedsReview: true,
@@ -55,7 +57,7 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
     return { kind: "sprinkler", mainLabel: intent === "wet_alarm_valve" ? "Komplett vått alarmventilset" : "Komplett torrt alarmventilset", components,
       guidance: "Kontrollera komplett ventilset, dimension, arbetstryck och anslutning. Alarmgivare och avstängningsventiler med egna PDF-postnummer väljs på sina respektive poster." };
   }
-  if (intent === "alarm_device") {
+  if (sprinklerContext && intent === "alarm_device") {
     if (/(?:extra|ekstra)\s+alarmgiv/i.test(own)) components.push({ id: "extra-alarm", kind: "alarm_device", label: "Extra alarmgivare", optional: false,
       searchTerm: "Alarmpressostat sprinkler", quantityNeedsReview: true,
       requirement: "Extra alarmgivare enligt PDF-posten. Kontrollera om den redan ingår i setet, antal per set, kontakter och kompatibilitet med alarmventilsetet på huvudposten."
@@ -66,10 +68,12 @@ export function sprinklerAssemblyPlan(requirement: Record<string, unknown>, inte
   const simple: Partial<Record<AhlsellProductIntent, [string, string]>> = {
     pressure_switch: ["Tryckbrytare", "Kontrollera inställningsområde, larmgränser, kontakter, anslutning och arbetstryck. PDF-posten namnger inga separata tillbehör; komplettera endast enligt vald produkts installationsunderlag."],
     shutoff_valve: ["Avstängningsventil", "Kontrollera dimension, anslutning och kravet på övervakning. Eventuella montage- och anslutningsdelar bestäms av den valda ventilen och rörsystemet."],
-    flow_meter: ["Kapacitetsmätare", "Kontrollera hela mätområdet, dimension, sprinklergodkännande och anslutningar. Avstängningsventiler som mängdas på egna PDF-poster ska inte läggas till igen här."]
+    flow_meter: ["Kapacitetsmätare", sprinklerContext
+      ? "Kontrollera hela mätområdet, dimension, sprinklergodkännande och anslutningar. Avstängningsventiler som mängdas på egna PDF-poster ska inte läggas till igen här."
+      : "Kontrollera hela mätområdet, dimension och anslutningar. Avstängningsventiler som mängdas på egna PDF-poster ska inte läggas till igen här."]
   };
   const info = simple[intent];
-  return info ? { kind: "sprinkler", mainLabel: info[0], guidance: info[1], components } : null;
+  return info ? { kind: sprinklerContext ? "sprinkler" : "equipment", mainLabel: info[0], guidance: info[1], components } : null;
 }
 
 function requiresHoseSupport(text: string) {

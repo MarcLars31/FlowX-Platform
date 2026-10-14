@@ -1,3 +1,4 @@
+import { hasSprinklerContext, hasSprinklerHeadEvidence, hasSprinklerHeadText, hasSprinklerText } from "@/lib/sprinkler-requirement-context";
 import { ATTRIBUTE_PATTERN, NS3420_CODE_PATTERN, QUANTITY_UNIT_SOURCE, type StructuredPostStart, STRUCTURED_POST_SOURCE, parseStructuredPostStart, recoverDisplacedOcrPostNumbers, recoverMissingStructuredPostNumbers, footerIndex, normalizedPageLines, extractPostScope, extractChapterPost, findTableQuantity, tableDescription, extractTableAttributes, extractInlineAttributes, normalizeAttributeKey, normalizeAttributeValue } from "./document-parser";
 export { isTechnicalDescriptionDateHeader } from "./document-parser";
 import { buildPdfDocumentStructure } from "./document-structure";
@@ -32,25 +33,6 @@ const POST_NUMBER_PATTERN = /^\s*(\d{2}\.\d{3}(?:\.\d+)*)/;
 const NS_CODE_PATTERN = /\b([A-ZÆØÅ]{2}\d[\w.-]*)\b/i;
 const STANDARD_PATTERN =
   /\b((?:NS(?:[-\s]?EN)?|NFPA)\s*\d+(?:[-:]\d+)*(?:\s*\+\s*\d+)*)\b/gi;
-
-const ATTRIBUTE_KEYS = [
-  "sprinkleranlegg",
-  "type sprinkler",
-  "plassering",
-  "følsomhetsgrad",
-  "folsomhetsgrad",
-  "felsomhetsgrad",
-  "utløsningstemperatur",
-  "utlesningstemperatur",
-  "lokalisering",
-  "k-faktor",
-  "trykk",
-  "gjengedimensjon (dn)",
-  "overflatebehandling",
-  "dekkskive/pyntering (ved innfelling)",
-  "beskyttelse",
-  "dokumentasjon"
-];
 
 export function extractTechnicalDescriptionFromPages(
   pages: TechnicalDescriptionPage[],
@@ -212,6 +194,7 @@ function appendMaterialLineValidationWarnings(
     if (line.reviewFlags.includes("inferred-parent-context")) warnings.push({ id: `parent-context-${line.id}`, code: "INFERRED_PARENT_CONTEXT",
       message: `Post ${line.postNumber} har avvikande numrering. Gemensamma rörkrav har preliminärt kopplats från ${line.parentPostNumber}; kontrollera original-PDF:n.`,
       sourcePage: line.sourcePage, sourceText: line.sourceText, severity: "warning" });
+    if (line.category !== "sprinkler_head" || !hasSprinklerHeadEvidence({ value_text: line.description, value_json: line })) continue;
     const kFactor = numericAttributeValue(line.attributes, "k-faktor");
     if (kFactor === null || kFactor <= MAX_SUPPORTED_SPRINKLER_K_FACTOR) continue;
 
@@ -486,7 +469,7 @@ function extractLegacyMaterialLines(
       if (!current) continue;
       current.lines.push(rawLine);
       const attributeMatch = rawLine.match(ATTRIBUTE_PATTERN);
-      if (attributeMatch && isKnownAttribute(attributeMatch[1])) {
+      if (attributeMatch) {
         const key = normalizeAttributeKey(attributeMatch[1]);
         current.attributes[key] = normalizeAttributeValue(key, attributeMatch[2]);
       }
@@ -1080,7 +1063,7 @@ function buildMaterialLine(
   const normalizedText = sourceText.toLocaleLowerCase();
   const category = ns3420ProductFamily(block.nsCode, block.title) ?? inferCategory(normalizedText);
   const description =
-    block.title.replace(/\bSPRINKLER\b/gi, "").trim() ||
+    block.title.trim() ||
     block.attributes["type sprinkler"] ||
     categoryLabel(category);
   const operation = inferOperation(
@@ -1123,7 +1106,7 @@ function buildMaterialLine(
     quantitySourcePage: block.quantity !== undefined ? page.pageNumber : undefined,
     unit: block.unit,
     attributes: block.attributes,
-    system: block.attributes.sprinkleranlegg,
+    system: block.attributes.system ?? block.attributes.systemtype ?? block.attributes.anleggstype ?? block.attributes.sprinkleranlegg,
     standardRefs: unique(block.standardRefs),
     technicalSpecification: sourceText,
     sourcePage: page.pageNumber,
@@ -1136,6 +1119,7 @@ function buildMaterialLine(
 function extractRuleHints(pages: TechnicalDescriptionPage[]) {
   const hints: TechnicalDescriptionRuleHint[] = [];
   for (const page of pages) {
+    if (!hasSprinklerText(page.text)) continue;
     const spareMatch = page.text.match(/Hoder som er til overs[^.]*reservehoder/i);
     if (spareMatch) {
       hints.push({
@@ -1174,8 +1158,7 @@ function inferCategory(text: string): TechnicalDescriptionCategory {
     return "fitting";
   }
   if (
-    /sprinklerslange|sprinkler\s*slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose/.test(text)
-    || /brannsl[ou]kking\s*[—-]\s*slange/.test(text)
+    hasSprinklerText(text) && /sprinklerslange|sprinkler\s*slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose/.test(text)
   ) {
     return "sprinkler_hose";
   }
@@ -1186,7 +1169,7 @@ function inferCategory(text: string): TechnicalDescriptionCategory {
     return "pipe";
   }
   if (/oppheng|støtte|support/.test(text)) return "support";
-  if (/\bsprinkler\b|sprinklerhode|sprinklerdyse|standard spray|utvidet dekning/.test(text)) {
+  if (hasSprinklerHeadText(text)) {
     return "sprinkler_head";
   }
   return "unknown";
@@ -1196,7 +1179,10 @@ function inferStructuredCategory(description: string, sourceText: string) {
   if (isManifoldCabinetProduct(description)) return "other";
   const descriptionCategory = inferCategory(description.toLocaleLowerCase());
   if (descriptionCategory !== "unknown") return descriptionCategory;
-  return inferCategory(sourceText.toLocaleLowerCase());
+  const sourceCategory = inferCategory(sourceText.toLocaleLowerCase());
+  if (sourceCategory === "sprinkler_head" && !hasSprinklerHeadEvidence({ value_text: description, value_json: { sourceText } })) return "unknown";
+  if (sourceCategory === "sprinkler_hose" && !hasSprinklerContext({ value_text: description, value_json: { sourceText } })) return "unknown";
+  return sourceCategory;
 }
 
 function resolveStructuredCategory(
@@ -1235,14 +1221,9 @@ function categoryLabel(category: TechnicalDescriptionCategory) {
     valve: "Ventil",
     support: "Oppheng",
     control: "Kontrollutstyr",
-    other: "Annet brannslokkingsutstyr",
+    other: "Annet utstyr",
     unknown: "Teknisk materiallinje"
   }[category];
-}
-
-function isKnownAttribute(value: string) {
-  const normalized = normalizeAttributeKey(value);
-  return normalized === "antall" || ATTRIBUTE_KEYS.includes(normalized);
 }
 
 function normalizeStandard(value: string) {

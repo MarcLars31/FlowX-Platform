@@ -11,7 +11,7 @@ export type AssemblyComponent = {
   quantityNeedsReview?: boolean;
   conditional?: boolean;
 };
-export type ProductAssemblyPlan = { mainLabel: string; components: AssemblyComponent[]; kind: "cabinet" | "pipe" | "sprinkler"; guidance?: string };
+export type ProductAssemblyPlan = { mainLabel: string; components: AssemblyComponent[]; kind: "cabinet" | "pipe" | "sprinkler" | "valve" | "equipment"; guidance?: string };
 
 /** Identify physical parts separately from performance and installation criteria.
  * No article or compatibility is inferred from the requirement alone. */

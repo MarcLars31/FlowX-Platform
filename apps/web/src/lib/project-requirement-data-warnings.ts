@@ -1,3 +1,5 @@
+import { ahlsellRequirementIntent } from "./ahlsell-requirement-intent";
+
 export const MAX_SUPPORTED_SPRINKLER_K_FACTOR = 400;
 
 export type ProjectRequirementDataWarning = {
@@ -52,6 +54,7 @@ export function projectRequirementKFactorDisplayValue(
 export function projectRequirementDataWarnings(
   requirement: Record<string, unknown>
 ): ProjectRequirementDataWarning[] {
+  if (ahlsellRequirementIntent(requirement) !== "sprinkler_head") return [];
   const overview = requirement.overview as { warnings?: ProjectRequirementDataWarning[] } | undefined;
   if (Array.isArray(overview?.warnings)) return overview.warnings;
   const readings = [

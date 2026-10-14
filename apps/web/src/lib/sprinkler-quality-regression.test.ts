@@ -42,7 +42,7 @@ Lengde m 384` }]);
   } };
   const guide = buildAhlsellRequirementGuide(stale);
   assert.equal(productRequirementCategory(stale), "pipe");
-  assert.ok(guide.criteria.includes("Sprinklerrör"), guide.criteria.join(" "));
+  assert.ok(guide.criteria.includes("Rör"), guide.criteria.join(" "));
   assert.ok(guide.searchQueries.every(query => !/oppheng|klammer/i.test(query)));
   assert.ok(findAhlsellMldlCandidates(stale).every(c => !/oppheng|klammer/i.test(c.productName)));
 });

@@ -484,7 +484,7 @@ test("translates procurement language into Ahlsell product terminology", () => {
     value_json: { attributes: { type: "Bend med flens", dimensjon: "DN100", trykk: "PN16" } }
   });
 
-  assert.equal(manometer.searchQuery, "Manometer sprinkler");
+  assert.equal(manometer.searchQuery, "Manometer");
   assert.equal(pressureSwitch.searchQuery, "Pressostat");
   assert.equal(bend.searchQuery, "Flensebend DN100 PN16");
 });
@@ -543,9 +543,9 @@ test("uses Ahlsell's Norwegian family terms and pipe outside diameters", () => {
     value_json: { attributes: { rørdel: "Kupling", dimensjon: "DN80" } }
   });
 
-  assert.equal(pipe.searchQuery, "Rør sprinkler 48.3mm");
+  assert.equal(pipe.searchQuery, "Rør DN40");
   assert.equal(bend.searchQuery, "Bend rillet 88.9mm");
-  assert.equal(coupling.searchQuery, "Kupling sprinkler 88.9mm");
+  assert.equal(coupling.searchQuery, "Kupling DN80");
 });
 
 test("prioritizes the row's explicit outside diameter over dimensions in parent text", () => {
@@ -585,7 +585,7 @@ test("uses fitting subtype and both dimensions for reductions", () => {
     value_json: { attributes: { rørdel: "Dimensjonsovergang", dimensjon: "DN50/80" } }
   });
 
-  assert.equal(guide.searchQuery, "Reduksjon rillet 60.3mm 88.9mm");
+  assert.equal(guide.searchQuery, "Reduksjon DN50 DN80");
 });
 
 test("uses UB1.3311 as authoritative product evidence for a sprinkler hose", () => {
@@ -611,7 +611,7 @@ test("uses UB1.3311 as authoritative product evidence for a sprinkler hose", () 
   assert.ok(guide.recognitionNotes.some((note) => note.includes("UB1.33114699900A")));
 });
 
-test("searches supervised-open Series 705 wording for UC1.9111118A", () => {
+test("searches supervised-open valves without assuming a sprinkler model for UC1.9111118A", () => {
   const guide = buildAhlsellRequirementGuide({
     category: "valve",
     requirement_key: "UC1.9111118A",
@@ -632,6 +632,6 @@ test("searches supervised-open Series 705 wording for UC1.9111118A", () => {
     "Mjuk stängning"
   ]);
   assert.equal(guide.searchQuery, "Spjeldventil overvåket åpen 114.3mm");
-  assert.ok(guide.searchQueries.some((query) => /Vic 705 Fire 114[.,]3mm/.test(query)));
+  assert.ok(guide.searchQueries.every((query) => !/Vic 705|sprinkl/i.test(query)));
   assert.ok(guide.recognitionNotes.some((note) => note.includes("Signal vid stängd ventil")));
 });

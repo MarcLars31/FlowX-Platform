@@ -36,9 +36,9 @@ export function ProductRequirementReview({ id, checks, products, value, onChange
         const complete = requirementDecisionComplete(check, decision, products);
         const controlId = `${id}-${index}`;
         const staleProducts = decision.productKeys.some(key => !products.some(product => product.key === key));
-        return <li key={check.id} className={`p-4 ${complete ? "bg-emerald-50" : "bg-white"}`}>
+        return <li key={check.id} className="bg-white p-4">
           <div className="flex items-start gap-2">
-            {complete ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />}
+            {complete ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ink-700" aria-hidden="true" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />}
             <div className="min-w-0 flex-1">
               <label htmlFor={controlId} className="text-sm font-bold text-ink-950">{index + 1}. {check.label}{check.optional ? " · valfritt" : ""}</label>
               {check.text.length > 500 ? <details className="mt-1 text-xs leading-5 text-ink-700"><summary className="cursor-pointer font-semibold">Läs hela kravtexten</summary><p className="mt-2 whitespace-pre-wrap">{check.text}</p></details>

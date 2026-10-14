@@ -1,3 +1,4 @@
+import { hasSprinklerHeadText, hasSprinklerText } from "@/lib/sprinkler-requirement-context";
 import type {
   ExtractedLineItem,
   ExtractedLineItemCategory,
@@ -70,7 +71,7 @@ const systemPatterns: SystemPattern[] = [
   }
 ];
 
-const standardPattern = /\b(NFPA\s*13|NFPA\s*14|NS-?\s*EN\s*12845|FM|UL|VdS)\b/gi;
+const standardPattern = /\b((?:(?:NS|SS|BS|DIN)[-\s]*)?(?:EN|ISO)[-\s]*\d+(?:[-:]\d+)*|NFPA\s*\d+|FM|UL|VdS)\b/gi;
 const postNumberPattern = /^(\d{2,4}(?:\.\d+){2,})(?:\s+|$)/;
 const quantityPatternSource =
   String.raw`(?:\d{1,3}(?:[ .]\d{3})+(?:[,.]\d+)?|\d+(?:[,.]\d+)?)`;
@@ -127,7 +128,7 @@ export function extractTechnicalSpecificationFromPages(
   const standards = extractStandards(pages);
   const systems = extractSystems(pages);
   const sections = extractSections(pages);
-  const lineItems = extractLineItems(pages, systems, standards);
+  const lineItems = extractLineItems(pages, standards);
   const requirements = extractRequirements(pages, standards);
 
   if (pages.length === 0 || pages.every((page) => page.text.length === 0)) {
@@ -143,7 +144,7 @@ export function extractTechnicalSpecificationFromPages(
     warnings.push({
       id: "warning-no-standards",
       code: "NO_STANDARDS_DETECTED",
-      message: "No known sprinkler standards were detected.",
+      message: "No known standards were detected.",
       severity: "warning"
     });
   }
@@ -247,8 +248,9 @@ function extractProject(
     fileName?.match(/\b\d{4}\b/)?.[0] ?? firstText.match(/\b\d{4}\b/)?.[0];
   const revision =
     fileName?.match(/\bRev\s*\d+/i)?.[0] ?? firstText.match(/\bRev\s*\d+/i)?.[0];
-  const discipline = /sprinkler|brann|fire/i.test(`${fileName ?? ""}\n${firstText}`)
+  const discipline = hasSprinklerText(firstText)
     ? "Sprinkler / fire suppression"
+    : /brann|fire/i.test(firstText) ? "Fire suppression"
     : undefined;
 
   return {
@@ -353,25 +355,15 @@ function extractSections(pages: ExtractedPageText[]): ExtractedSection[] {
 
 function extractLineItems(
   pages: ExtractedPageText[],
-  systems: ExtractedSystem[],
   standards: ExtractedStandard[]
 ): ExtractedLineItem[] {
   const items: ExtractedLineItem[] = [];
   const seen = new Set<string>();
 
   for (const page of pages) {
-    let activeSystem: string | undefined;
     const pageStandards = standards
       .filter((standard) => standard.sourcePage === page.pageNumber)
       .map((standard) => standard.code);
-
-    for (const line of getLines(page.text)) {
-      const systemMention = detectSystem(line);
-
-      if (systemMention) {
-        activeSystem = systemMention.name;
-      }
-    }
 
     for (const row of getMaterialSourceRows(page.text)) {
       const parsedLine = parseMaterialLine(row.text);
@@ -390,12 +382,10 @@ function extractLineItems(
       const dimensions = extractDimensions(description);
       const dimension = dimensions[0];
       const material = extractMaterial(description);
-      const lineSystem = detectSystem(description)?.name ?? activeSystem;
+      const heading = getSectionTitleForRow(page.text, row);
+      const lineSystem = detectSystem(description)?.name ?? (heading ? detectSystem(heading)?.name : undefined);
       const specificationCode = parsedLine.specificationCode ?? parsedLine.nsCode ?? extractNsCode(description);
-      const sectionTitle =
-        getSectionTitleForRow(page.text, row) ??
-        lineSystem ??
-        inferDefaultSystem(systems);
+      const sectionTitle = heading ?? lineSystem;
       const standardRefs = pageStandards.length
         ? pageStandards
         : standards.map((standard) => standard.code);
@@ -446,7 +436,7 @@ function extractLineItems(
         dimension,
         dimensions,
         material,
-        system: lineSystem ?? inferDefaultSystem(systems),
+        system: lineSystem,
         standardRefs,
         quantity: parsedLine.quantity,
         quantityText: parsedLine.quantityText,
@@ -784,7 +774,8 @@ function getSectionTitleForRow(pageText: string, row: MaterialSourceRow) {
   const lines = getLines(pageText);
 
   for (let index = row.startLineIndex; index >= 0; index -= 1) {
-    const title = detectSectionTitle(lines[index] ?? "");
+    const line = lines[index] ?? "";
+    const title = detectSectionTitle(line) ?? (!parseMaterialLine(line) ? detectSystem(line)?.name : undefined);
 
     if (title) {
       return title;
@@ -901,10 +892,6 @@ function categorizeLineItem(description: string): ExtractedLineItemCategory {
     return "hose";
   }
 
-  if (/standard\s+spray|sprinklerhode|sprinkler\s*head|\bsprinkler\b|\bqr\b|\bk\s*=|dyse|nozzle/.test(lower)) {
-    return "sprinkler";
-  }
-
   if (/kuleventil|stengeventil|tilbakeslagsventil|alarmventil|butterfly|\bventil\b|\bvalve\b/.test(lower)) {
     return "valve";
   }
@@ -920,6 +907,8 @@ function categorizeLineItem(description: string): ExtractedLineItemCategory {
   if (/rillede\s+r(?:\u00f8|o)r|\briller(?:\u00f8|o)r\b|\br(?:\u00f8|o)r\b|\bpipe\b/.test(lower)) {
     return "pipe";
   }
+
+  if (hasSprinklerHeadText(description)) return "sprinkler";
 
   if (/test|pr(?:\u00f8|o)ving|drenering/.test(lower)) {
     return "test";
@@ -1049,10 +1038,6 @@ function detectSystem(text: string) {
   return systemPatterns.find((pattern) =>
     pattern.patterns.some((regex) => regex.test(text))
   );
-}
-
-function inferDefaultSystem(systems: ExtractedSystem[]) {
-  return systems.find((system) => system.normalizedName === "sprinkler-a10")?.name;
 }
 
 function normalizeStandardCode(code: string) {

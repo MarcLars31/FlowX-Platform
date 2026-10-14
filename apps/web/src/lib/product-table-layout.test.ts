@@ -60,7 +60,7 @@ test("hides optional columns but keeps core columns visible", () => {
   assert.deepEqual(setProductTableColumnVisible(DEFAULT_PRODUCT_TABLE_LAYOUT, "requirement", false).hidden, []);
 });
 
-test("colors only approved product rows green", () => {
+test("keeps approved rows neutral and highlights the selected row", () => {
   assert.equal(
     productTableRowClass({ approved: false, selected: false }),
     "bg-white hover:bg-ink-50/80"
@@ -70,7 +70,11 @@ test("colors only approved product rows green", () => {
     "bg-cyan-50 ring-1 ring-inset ring-flow-500"
   );
   assert.equal(
+    productTableRowClass({ approved: true, selected: false }),
+    "bg-white hover:bg-ink-50/80"
+  );
+  assert.equal(
     productTableRowClass({ approved: true, selected: true }),
-    "bg-emerald-100 hover:bg-emerald-200"
+    "bg-cyan-50 ring-1 ring-inset ring-flow-500"
   );
 });
