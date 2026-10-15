@@ -30,6 +30,9 @@ enabled, authenticated/service access remains enabled and anonymous access denie
 - Distributor matching: 362 tests passed.
 - Hybrid matching: 22 tests passed; technical evaluation: 23 tests passed.
 - TypeScript, targeted ESLint and the Next.js production build passed.
+- The complete release suite passed all 1,051 tests with no failures, including
+  drainage subpost inheritance. Matching rule descriptions and their audited
+  source snapshot are updated to `scipx-product-rules-2026-10-15.3`.
 - Read-only integration tests against production found 72 matches for both
   `Viking pendent` and `Viking hängande`, 67 for `Tyco quick response`, and
   147 for K80. Supplier-name changes did not change rankings across all 467 rows.

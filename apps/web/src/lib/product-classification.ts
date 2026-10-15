@@ -57,7 +57,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
       || Object.keys(attributes).some(key => normalize(key) === "rordel"));
   if (dimensionOnly && unit === "m" && codeFamily !== "sprinkler_hose" && !explicitFitting) return "pipe";
   const mainHeading = dimensionOnly ? normalize(immediateParentHeading(requirement)) : mainProductText(description);
-  if (/^(?:(?:innendors|utendors|komplett|nye)\s+)*(?:vannledning|stalror|kobberror|kopparror|trykkror|avlopsror|sprinklerror|rorledning|ror)\b/.test(mainHeading)
+  if (/^(?:(?:innendors|utendors|komplett|nye)\s+)*(?:vannledning|avlopsledning|stalror|kobberror|kopparror|trykkror|avlopsror|sprinklerror|rorledning|ror)\b/.test(mainHeading)
     && !explicitFitting && !/\brordel\b/.test(mainHeading) && (unit === "m" || /\b(?:vannledning|rorledning)\b/.test(mainHeading)) && codeFamily !== "sprinkler_hose") return "pipe";
 
   // A quantified pipe assembly includes fittings; they are not its main item.
@@ -112,7 +112,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   if (has(/\b(bend|albue|rorboy|elbow)\b/)) return "bend";
   if (has(/\b(kupling|rillekobling|hurtigrillekobling|coupling)\b/)) return "coupling";
   if (has(/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/)) return "custom_fabrication";
-  if (/^(?:(?:red|sorte|rillede|innendors|utendors|lopemeter)\s+)*(?:pipe|ror|rorledning|stalror|rilleror|sprinklerror)\b/.test(mainProductText(description))
+  if (/^(?:(?:red|sorte|rillede|innendors|utendors|lopemeter)\s+)*(?:pipe|ror|rorledning|avlopsledning|stalror|rilleror|sprinklerror)\b/.test(mainProductText(description))
     && !explicitFitting && codeFamily !== "sprinkler_hose") return "pipe";
   if (hasSprinklerHeadEvidence(requirement)) return "sprinkler_head";
   if (codeFamily) return codeFamily;
@@ -186,7 +186,7 @@ function inferProductCategory(requirement: Record<string, unknown>): ProductRequ
   if (/^(?:wc|klosett\w*|toalett\w*|servant\w*|tvattstall|dusj\w*|dusch\w*|urinal\w*|blandebatteri|tappearmatur|sanitaerutstyr|fordelerskap|fordelarskap)\b/.test(plumbingName)) return "sanitary";
   const codeFamily = ns3420ProductFamily(code, heading);
   if (codeFamily) return codeFamily;
-  if (/^(?:rorledning|vattenledning|vannledning|ror|sprinklerror|stalror|sorte stalror|sorte ror)\b/.test(plumbingName)) {
+  if (/^(?:rorledning|avlopsledning|vattenledning|vannledning|ror|sprinklerror|stalror|sorte stalror|sorte ror)\b/.test(plumbingName)) {
     if (/^rorledning\s+(?:brannslokking\s+)?slange\b/.test(plumbingName)) return "sprinkler_hose";
     if (/^rorledning\s+(?:brannslokking\s+)?rordel\b/.test(plumbingName)) return "fitting";
     return "pipe";

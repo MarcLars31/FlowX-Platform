@@ -10,6 +10,7 @@ test("navigation, extraction and retrieval share the named product instead of a 
     ["Trykkvakt for alarmventil", "control", "pressure_switch", "control"],
     ["Kuleventil DN25", "valve", "ball_valve", "valve"],
     ["Red pipe sprinkler DN40", "pipe", "pipe", "pipe"],
+    ["INNENDØRS AVLØPSLEDNING – TRYKKLØS – KOMPLETT", "pipe", "pipe", "pipe"],
     ["Veggkanal for kabler", "cable_trunking", "cable_trunking", "other"]
   ]) {
     const row = { category: "sprinkler_head", value_text: description, value_json: {} };
