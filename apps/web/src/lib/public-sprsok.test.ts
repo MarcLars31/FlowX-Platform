@@ -41,3 +41,10 @@ test("numeric sorting and pagination handle copied or malformed URLs", () => {
   assert.equal(sprsokPage(new URLSearchParams({ page: "99" }), 414), 9);
   assert.equal(sprsokPage(new URLSearchParams({ page: "9" }), 0), 1);
 });
+
+test("technical synonyms combine across fields and exact article numbers rank first by default", () => {
+  const products = [product({ id: 2, sin: "AB-TY123" }), product()];
+  assert.equal(searchPublicSprsok(products, new URLSearchParams({ q: "Tyco snabb respons hängande" })).length, 2);
+  assert.deepEqual(searchPublicSprsok(products, new URLSearchParams({ q: "ty123" })).map(row => row.id), [1, 2]);
+  assert.deepEqual(searchPublicSprsok(products, new URLSearchParams({ q: "ty123", sort: "sin" })).map(row => row.id), [2, 1]);
+});

@@ -16,7 +16,7 @@ import {
   sprinklerRequiresAccessoryReview,
   sprinklerResponse
 } from "@/lib/sprinkler-technical-rules";
-import { ahlsellRequirementIntent, type AhlsellProductIntent } from "./ahlsell-requirement-intent";
+import { classifyProductRequirement, type ProductIntent as AhlsellProductIntent } from "./product-classification";
 import { cableTrunkingRequirementGuide } from "./ahlsell-cable-trunking";
 import { functionalProductGuide } from "./ahlsell-functional-products";
 import { electricalHeatingGuide } from "./ahlsell-electrical-heating";
@@ -159,7 +159,7 @@ export function buildAhlsellRequirementGuide(
   requirement = currentPostRequirement(requirement);
   const value = record(requirement.value_json);
   const attributes = normalizedAttributeMap(productRequirementAttributes(requirement));
-  const category = text(requirement.category) ?? text(requirement.requirement_key) ?? "unknown";
+  const { category, intent } = classifyProductRequirement(requirement);
   const description = text(requirement.value_text) ?? text(requirement.display_name) ?? "Teknisk produkt";
   const technicalSpecification = productTechnicalSpecification(requirement);
   const rowSourceText = text(value.sourceText) ?? text(requirement.source_excerpt) ?? "";
@@ -172,7 +172,6 @@ export function buildAhlsellRequirementGuide(
   const ahlsellSearchUrl = isNorwegianSource
     ? AHLSELL_NORWAY_SEARCH_URL
     : AHLSELL_SWEDEN_SEARCH_URL;
-  const intent = ahlsellRequirementIntent(requirement);
   const sprinklerContext = hasSprinklerContext(requirement);
   const sprinklerHead = intent === "sprinkler_head";
   const nsCode = text(value.nsCode) ?? text(requirement.requirement_key);

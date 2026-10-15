@@ -9,7 +9,7 @@ import {
   projectRequirementDataWarnings,
   projectRequirementKFactorDisplayValue
 } from "@/lib/project-requirement-data-warnings";
-import { ahlsellRequirementIntent, type AhlsellProductIntent as ProductIntent } from "./ahlsell-requirement-intent";
+import { classifyProductRequirement, type ProductIntent } from "./product-classification";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 import { assessLuminaireFeatures, CONTROL_VALVE_PATTERN, ENERGY_VALVE_PATTERN, isLuminaireProduct, luminaireRequirements } from "./ahlsell-functional-products";
@@ -169,10 +169,10 @@ function confidenceTier(candidate: AhlsellPublicCandidate) {
 
 function requirementProfile(requirement: Record<string, unknown>): TechnicalProfile {
   const value = record(requirement.value_json);
-  const intent = ahlsellRequirementIntent(requirement);
+  const { intent, category } = classifyProductRequirement(requirement);
   const attributes = productRequirementAttributes(requirement);
   const semanticText = normalize(flattenText({
-    category: requirement.category,
+    category,
     description: requirement.value_text,
     displayName: requirement.display_name,
     unit: value.unit,

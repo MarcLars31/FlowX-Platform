@@ -8,32 +8,15 @@ import {
 } from "@/lib/supabase-rest";
 import {
   buildSprsokSearchOr,
-  isMissingSprsokSearchView,
-  sprsokIlikeContains
+  sprsokIlikeContains,
+  sprsokExactNumberFilter
 } from "@/lib/sprsok-search";
 
-const PRODUCT_SEARCH_VIEW = "flowx_product_search";
-const SPRSOK_PRODUCT_SEARCH_VIEW = "sprsok_product_search";
-const LEGACY_PRODUCT_TABLE = "sprsok_products";
+import { findSimilarProducts, type SimilarityProduct, type ProductSimilarity } from "@/lib/product-similarity";
+import { rankedProductSearchPage } from "@/lib/product-search-pagination";
+import { normalizeArticleNumber } from "@/lib/sprsok-sync-core";
 
-const LEGACY_PRODUCT_COLUMNS = [
-  "id",
-  "sin",
-  "leverandor",
-  "type",
-  "utforelse",
-  "k_verdi",
-  "rti",
-  "datablad"
-].join(",");
-
-const PRODUCT_COLUMNS = [
-  LEGACY_PRODUCT_COLUMNS,
-  "source",
-  "source_id",
-  "is_demo",
-  "demo_disclaimer"
-].join(",");
+import { createProductSearchStore } from "@/lib/product-search-store";
 
 const SEARCHABLE_COLUMNS = [
   "sin",
@@ -48,9 +31,9 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
 const DEFAULT_SIMILAR_LIMIT = 5;
 const MAX_SIMILAR_LIMIT = 12;
-const SIMILAR_CANDIDATE_LIMIT = 100;
 
-type ProductRow = {
+type ProductRow = SimilarityProduct & {
+  similarity?: ProductSimilarity;
   id: string | number | null;
   source?: "sprsok" | "flowx" | null;
   source_id?: string | null;
@@ -88,21 +71,8 @@ type ProductsSearchResponse = {
   count: number;
   limit: number;
   offset: number;
+  truncated?: boolean;
 };
-
-const SIMILARITY_FIELDS: Array<{
-  column: keyof Pick<
-    ProductRow,
-    "leverandor" | "type" | "utforelse" | "k_verdi" | "rti"
-  >;
-  weight: number;
-}> = [
-  { column: "leverandor", weight: 6 },
-  { column: "type", weight: 4 },
-  { column: "utforelse", weight: 3 },
-  { column: "rti", weight: 2 },
-  { column: "k_verdi", weight: 2 }
-];
 
 function cleanSearchTerm(value: string | null) {
   if (!value) return "";
@@ -119,7 +89,7 @@ function cleanFilterValue(value: string | null) {
 
   return value
     .trim()
-    .replace(/[,*%_()[\]{}]/g, "")
+    .replace(/[*%_\[\]{}]/g, "")
     .replace(/[\u0000-\u001f\u007f]/g, "")
     .slice(0, 200);
 }
@@ -161,51 +131,6 @@ function escapePostgrestOrValue(value: string) {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-function rankSimilarProducts(source: ProductRow, candidates: ProductRow[]) {
-  return deduplicateProducts(candidates)
-    .filter((candidate) => candidate.id !== source.id)
-    .map((candidate) => ({
-      product: candidate,
-      score: SIMILARITY_FIELDS.reduce((score, { column, weight }) => {
-        const sourceValue = normalizeComparableValue(source[column]);
-        const candidateValue = normalizeComparableValue(candidate[column]);
-
-        return sourceValue && sourceValue === candidateValue
-          ? score + weight
-          : score;
-      }, 0)
-    }))
-    .filter(({ score }) => score > 0)
-    .sort(
-      (left, right) =>
-        right.score - left.score ||
-        (left.product.sin ?? "").localeCompare(right.product.sin ?? "", "sv")
-    );
-}
-
-function deduplicateProducts(products: ProductRow[]) {
-  const seen = new Set<string>();
-
-  return products.filter((product) => {
-    const key = product.id
-      ? `id:${product.id}`
-      : [
-          product.sin,
-          product.leverandor,
-          product.type,
-          product.utforelse,
-          product.k_verdi,
-          product.rti
-        ]
-          .map((value) => value?.trim().toUpperCase() ?? "")
-          .join("|");
-
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -238,7 +163,7 @@ export async function GET(request: NextRequest) {
     if (searchParams.has("similar_to")) {
       if (!similarTo) {
         return NextResponse.json(
-          { error: "Ogiltigt produkt-ID fÃ¶r liknande produkter." },
+          { error: "Ogiltigt produkt-ID för liknande produkter." },
           { status: 400 }
         );
       }
@@ -250,26 +175,9 @@ export async function GET(request: NextRequest) {
 
       if (!source) {
         return NextResponse.json(
-          { error: "Produkten som ska jÃ¤mfÃ¶ras hittades inte." },
+          { error: "Produkten som ska jämföras hittades inte." },
           { status: 404 }
         );
-      }
-
-      const similarityExpressions = SIMILARITY_FIELDS.flatMap(({ column }) => {
-        const value = source[column]?.trim();
-        return value ? [`${column}.eq.${escapePostgrestOrValue(value)}`] : [];
-      });
-
-      if (similarityExpressions.length === 0) {
-        return NextResponse.json({
-          products: [],
-          count: 0,
-          limit: DEFAULT_SIMILAR_LIMIT,
-          offset: 0
-        } satisfies ProductsSearchResponse, {
-          status: 200,
-          headers: { "Cache-Control": "private, no-store" }
-        });
       }
 
       const similarLimit = parseNumber(
@@ -278,22 +186,15 @@ export async function GET(request: NextRequest) {
         1,
         MAX_SIMILAR_LIMIT
       );
-      const candidates = await selectProductRows({
-        id: `neq.${source.id}`,
-        or: `(${similarityExpressions.join(",")})`,
-        limit: String(SIMILAR_CANDIDATE_LIMIT),
-        order: "sin.asc.nullslast"
-      });
-      const rankedProducts = rankSimilarProducts(source, candidates)
-        .slice(0, similarLimit)
-        .map(({ product }) => product);
-      const products = await attachPublishedDocuments(rankedProducts);
+      const similar = await findSimilarProducts(source, selectProductRows, similarLimit);
+      const products = await attachPublishedDocuments(similar.products);
 
       return NextResponse.json({
         products,
         count: products.length,
         limit: similarLimit,
-        offset: 0
+        offset: 0,
+        truncated: similar.truncated
       } satisfies ProductsSearchResponse, {
         status: 200,
         headers: { "Cache-Control": "private, no-store" }
@@ -303,26 +204,34 @@ export async function GET(request: NextRequest) {
     const params: Record<string, string> = {
       limit: String(limit),
       offset: String(offset),
-      order: "sin.asc.nullslast"
+      order: "sin.asc.nullslast,id.asc"
     };
 
     if (leverandor) params.leverandor = sprsokIlikeContains(leverandor);
     if (type) params.type = sprsokIlikeContains(type);
     if (utforelse) params.utforelse = sprsokIlikeContains(utforelse);
-    if (kVerdi) params.k_verdi = sprsokIlikeContains(kVerdi);
+    if (kVerdi) params.k_verdi = sprsokExactNumberFilter(kVerdi);
     if (rti) params.rti = sprsokIlikeContains(rti);
 
     const legacyParams = { ...params };
     const indexedParams = { ...params };
     if (query) {
-      legacyParams.or = buildSprsokSearchOr(SEARCHABLE_COLUMNS, query, false);
-      indexedParams.or = buildSprsokSearchOr(SEARCHABLE_COLUMNS, query, true);
+      const legacySearch = buildSprsokSearchOr(SEARCHABLE_COLUMNS, query, false);
+      const indexedSearch = buildSprsokSearchOr(SEARCHABLE_COLUMNS, query, true);
+      if (legacySearch) legacyParams.or = legacySearch;
+      if (indexedSearch) indexedParams.or = indexedSearch;
     }
 
-    const { rows: matchedProducts, total } = await selectProductRowsWithCount(
-      indexedParams,
-      legacyParams
-    );
+    const { rows: matchedProducts, total } = await rankedProductSearchPage(query, limit, offset,
+      (group, pageLimit, pageOffset) => {
+        const indexed = { ...indexedParams, limit: String(pageLimit), offset: String(pageOffset) };
+        const legacy = { ...legacyParams, limit: String(pageLimit), offset: String(pageOffset) };
+        if (group !== "all") {
+          Object.assign(indexed, { normalized_article_number: `${group === "exact" ? "eq" : "not.eq"}.${normalizeArticleNumber(query)}` });
+          Object.assign(legacy, { sin: `${group === "exact" ? "ilike" : "not.ilike"}.${query}` });
+        }
+        return selectProductRowsWithCount(indexed, legacy);
+      });
     const products = await attachPublishedDocuments(matchedProducts);
 
     const response: ProductsSearchResponse = {
@@ -347,69 +256,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function selectProductRows(params: Record<string, string>) {
-  try {
-    return await selectSupabaseRows<ProductRow>(PRODUCT_SEARCH_VIEW, {
-      ...params,
-      select: PRODUCT_COLUMNS,
-      order:
-        params.order === "sin.asc.nullslast"
-          ? "is_demo.desc,sin.asc.nullslast"
-          : params.order
-    });
-  } catch (error) {
-    if (!isMissingSprsokSearchView(error)) throw error;
-  }
-
-  try {
-    return await selectSupabaseRows<ProductRow>(SPRSOK_PRODUCT_SEARCH_VIEW, {
-      ...params,
-      select: LEGACY_PRODUCT_COLUMNS
-    });
-  } catch (error) {
-    if (!isMissingSprsokSearchView(error)) throw error;
-    // Web and migrations may be deployed independently. Keep the legacy
-    // product catalog available until the versioned views exist.
-    return selectSupabaseRows<ProductRow>(LEGACY_PRODUCT_TABLE, {
-      ...params,
-      select: LEGACY_PRODUCT_COLUMNS
-    });
-  }
-}
-
-async function selectProductRowsWithCount(
-  indexedParams: Record<string, string>,
-  legacyParams: Record<string, string>
-) {
-  try {
-    return await selectSupabaseRowsWithCount<ProductRow>(
-      PRODUCT_SEARCH_VIEW,
-      {
-        ...indexedParams,
-        select: PRODUCT_COLUMNS,
-        order:
-          indexedParams.order === "sin.asc.nullslast"
-            ? "is_demo.desc,sin.asc.nullslast"
-            : indexedParams.order
-      }
-    );
-  } catch (error) {
-    if (!isMissingSprsokSearchView(error)) throw error;
-  }
-
-  try {
-    return await selectSupabaseRowsWithCount<ProductRow>(
-      SPRSOK_PRODUCT_SEARCH_VIEW,
-      { ...legacyParams, select: LEGACY_PRODUCT_COLUMNS }
-    );
-  } catch (error) {
-    if (!isMissingSprsokSearchView(error)) throw error;
-    return selectSupabaseRowsWithCount<ProductRow>(LEGACY_PRODUCT_TABLE, {
-      ...legacyParams,
-      select: LEGACY_PRODUCT_COLUMNS
-    });
-  }
-}
+const { selectRows: selectProductRows, selectWithCount: selectProductRowsWithCount } = createProductSearchStore<ProductRow>({
+  select: selectSupabaseRows,
+  selectWithCount: selectSupabaseRowsWithCount
+});
 
 async function attachPublishedDocuments(products: ProductRow[]) {
   const productNumbers = [

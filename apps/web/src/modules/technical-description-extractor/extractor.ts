@@ -1,4 +1,5 @@
-import { hasSprinklerContext, hasSprinklerHeadEvidence, hasSprinklerHeadText, hasSprinklerText } from "@/lib/sprinkler-requirement-context";
+import { hasSprinklerContext, hasSprinklerHeadEvidence, hasSprinklerText } from "@/lib/sprinkler-requirement-context";
+import { productExtractionCategory } from "@/lib/product-classification";
 import { ATTRIBUTE_PATTERN, NS3420_CODE_PATTERN, QUANTITY_UNIT_SOURCE, type StructuredPostStart, STRUCTURED_POST_SOURCE, parseStructuredPostStart, recoverDisplacedOcrPostNumbers, recoverMissingStructuredPostNumbers, footerIndex, normalizedPageLines, extractPostScope, extractChapterPost, findTableQuantity, tableDescription, extractTableAttributes, extractInlineAttributes, normalizeAttributeKey, normalizeAttributeValue } from "./document-parser";
 export { isTechnicalDescriptionDateHeader } from "./document-parser";
 import { buildPdfDocumentStructure } from "./document-structure";
@@ -15,7 +16,6 @@ import {
   MAX_SUPPORTED_SPRINKLER_K_FACTOR,
   parseSprinklerKFactor
 } from "@/lib/project-requirement-data-warnings";
-import { ns3420ProductFamily } from "@/lib/ns3420-product-classification";
 import { isManifoldCabinetProduct } from "@/lib/ahlsell-manifold-cabinet";
 import { distributorRequirementKind } from "@/lib/distributor-requirement-lines";
 import { conflictingMaterialRequirement } from "@/lib/requirement-extraction-warnings";
@@ -667,8 +667,9 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const missingParent = !parent?.nsCode && !nsCode && dimensionOnly
         && !Object.keys(ownAttributes).some(key => /^(?:materiale|skjøt|type sprinkler|type ventil)$/i.test(key));
       const effectiveNsCode = nsCode ?? parent?.nsCode;
-      const ownCategory = ns3420ProductFamily(effectiveNsCode, description)
-        ?? inferStructuredCategory(description, sourceText);
+      const classifiedCategory = productExtractionCategory({ value_text: description,
+        value_json: { nsCode: effectiveNsCode, unit: quantity?.unit, attributes: ownAttributes } });
+      const ownCategory = classifiedCategory !== "unknown" ? classifiedCategory : inferStructuredCategory(description, sourceText);
       const inheritedCategory = parent?.category === "unknown"
         ? inferCategory(parent.sourceText.toLocaleLowerCase())
         : parent?.category;
@@ -1061,7 +1062,8 @@ function buildMaterialLine(
 ): TechnicalDescriptionMaterialLine | null {
   const sourceText = block.lines.join("\n");
   const normalizedText = sourceText.toLocaleLowerCase();
-  const category = ns3420ProductFamily(block.nsCode, block.title) ?? inferCategory(normalizedText);
+  const category = productExtractionCategory({ value_text: block.title || sourceText,
+    value_json: { nsCode: block.nsCode, unit: block.unit, attributes: block.attributes } });
   const description =
     block.title.trim() ||
     block.attributes["type sprinkler"] ||
@@ -1146,33 +1148,7 @@ function extractRuleHints(pages: TechnicalDescriptionPage[]) {
 }
 
 function inferCategory(text: string): TechnicalDescriptionCategory {
-  if (/h[åa]ndsl[ou]kker|h[åa]ndslukkeapparat|brannsl[ou]kker|gassslokke?flaske|reserveutstyr|veggskap|metallkurv|l[åa]sereim/.test(text)) {
-    return "other";
-  }
-  if (/kontrollventilsett/.test(text)) return "valve";
-  if (/kontroll|alarm|sensor|detektor|sentral|signalapparat|strømningsvakt|trykkvakt|pressostat|måleinstrument|manometer|måleblende|kapasitetsmåler|kapasitetsmaaler|kompressor|pumpe|melder/.test(text)) {
-    return "control";
-  }
-  if (/ventil|valve/.test(text)) return "valve";
-  if (/fitting|bend|muffe|kobling|kupling|t-r[øo]r|t-klave|r[øo]rdel|overgang|endebunn|anborring|blindflens|filter|partikkelutskiller|\breduksjon\b|\breducer\b/.test(text)) {
-    return "fitting";
-  }
-  if (
-    hasSprinklerText(text) && /sprinklerslange|sprinkler\s*slange|fleksibelslange|flexislange|flexible sprinkler hose|braided hose/.test(text)
-  ) {
-    return "sprinkler_hose";
-  }
-  if (/innendørs r[øo]rledning|avl[øo]psledning|r[øo]rledningsanlegg|r[øo]rledning\s*[—-]\s*brannslokking/.test(text)) {
-    return "pipe";
-  }
-  if (/r[øo]r\b|r[øo]rledning|vannledning|st[åa]lr[øo]r|riller[øo]r|rillede r[øo]r|\bpipe\b|red pipe/.test(text)) {
-    return "pipe";
-  }
-  if (/oppheng|støtte|support/.test(text)) return "support";
-  if (hasSprinklerHeadText(text)) {
-    return "sprinkler_head";
-  }
-  return "unknown";
+  return productExtractionCategory({ value_text: text });
 }
 
 function inferStructuredCategory(description: string, sourceText: string) {

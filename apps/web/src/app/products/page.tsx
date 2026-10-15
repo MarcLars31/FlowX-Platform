@@ -7,6 +7,8 @@ import { DemoBadge } from "@/components/DemoBadge";
 import { Input } from "@/components/Input";
 
 type SprsokProduct = {
+  product_name?: string | null;
+  similarity?: { matched: string[]; missing: string[]; status: "needs_verification" };
   id: string | number | null;
   source?: "sprsok" | "flowx" | null;
   source_id?: string | null;
@@ -38,6 +40,7 @@ type ProductSearchResponse = {
   limit: number;
   offset: number;
   error?: string;
+  truncated?: boolean;
 };
 
 type ProductFilters = {
@@ -77,6 +80,7 @@ const columns: Array<{
   value: (product: SprsokProduct) => string;
 }> = [
   { label: "SIN / artikelnummer", value: (product) => text(product.sin) },
+  { label: "Produktnamn", value: product => text(product.product_name ?? null) },
   { label: "Leverantör", value: (product) => text(product.leverandor) },
   { label: "Typ", value: (product) => text(product.type) },
   { label: "Utförande", value: (product) => text(product.utforelse) },
@@ -100,24 +104,27 @@ export default function ProductsPage() {
   const [similarError, setSimilarError] = useState<string | null>(null);
   const [isSimilarLoading, setIsSimilarLoading] = useState(false);
   const similarRequestId = useRef(0);
+  const searchRequestId = useRef(0);
+  const [similarTruncated, setSimilarTruncated] = useState(false);
 
   const hasActiveFilters = Object.values(filters).some((value) => value.trim());
   const hasVisibleDemoData = products?.some((product) => product.is_demo) ?? false;
 
   useEffect(() => {
     let active = true;
+    const requestId = ++searchRequestId.current;
     fetch("/api/products/search?limit=50&offset=0", { cache: "no-store" })
       .then(async (response) => {
         const payload = (await response.json()) as ProductSearchResponse;
         if (!response.ok) throw new Error(payload.error ?? "Produktsökningen misslyckades.");
-        if (!active) return;
+        if (!active || requestId !== searchRequestId.current) return;
         setProducts(payload.products);
         setTotalProducts(payload.count);
         setOffset(payload.offset);
         setSearchedFor("alla produkter");
       })
       .catch((initialError: unknown) => {
-        if (active) {
+        if (active && requestId === searchRequestId.current) {
           setError(initialError instanceof Error ? initialError.message : "Produktsökningen misslyckades.");
         }
       });
@@ -130,6 +137,7 @@ export default function ProductsPage() {
   }
 
   async function loadProducts(requestedOffset: number) {
+    const requestId = ++searchRequestId.current;
     const searchTerm = query.trim();
     if (!searchTerm && !hasActiveFilters) {
       setProducts(null);
@@ -158,6 +166,7 @@ export default function ProductsPage() {
         throw new Error(payload.error ?? "Produktsökningen kunde inte genomföras.");
       }
 
+      if (requestId !== searchRequestId.current) return;
       setProducts(payload.products);
       setTotalProducts(payload.count);
       setOffset(payload.offset);
@@ -167,11 +176,10 @@ export default function ProductsPage() {
       setSimilarError(null);
       similarRequestId.current += 1;
 
-      const [firstProduct] = payload.products;
-      if (firstProduct?.id !== null && firstProduct?.id !== undefined) {
-        void loadSimilarProducts(firstProduct);
-      }
+      setIsSimilarLoading(false);
+      setSimilarTruncated(false);
     } catch (searchError) {
+      if (requestId !== searchRequestId.current) return;
       setProducts(null);
       setError(
         searchError instanceof Error
@@ -179,11 +187,15 @@ export default function ProductsPage() {
           : "Produktsökningen kunde inte genomföras."
       );
     } finally {
-      setIsLoading(false);
+      if (requestId === searchRequestId.current) setIsLoading(false);
     }
   }
 
   function clearSearch() {
+    searchRequestId.current += 1;
+    setIsLoading(false);
+    setIsSimilarLoading(false);
+    setSimilarTruncated(false);
     setQuery("");
     setFilters(emptyFilters);
     setProducts(null);
@@ -213,6 +225,7 @@ export default function ProductsPage() {
     setSimilarProducts(null);
     setSimilarError(null);
     setIsSimilarLoading(true);
+    setSimilarTruncated(false);
 
     try {
       const parameters = new URLSearchParams({
@@ -232,6 +245,7 @@ export default function ProductsPage() {
 
       if (requestId !== similarRequestId.current) return;
       setSimilarProducts(payload.products);
+      setSimilarTruncated(payload.truncated ?? false);
     } catch (similarSearchError) {
       if (requestId !== similarRequestId.current) return;
       setSimilarError(
@@ -268,7 +282,7 @@ export default function ProductsPage() {
             <Input
               id="product-search"
               label="Sök produkt"
-              placeholder="Exempel: R7618, Reliable, QR eller 109"
+              placeholder="Artikelnummer, produktnamn eller flera ord, t.ex. Viking pendent"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               autoComplete="off"
@@ -293,7 +307,7 @@ export default function ProductsPage() {
                   {"Filtrera s\u00f6kningen"}
                 </h2>
                 <p className="text-xs text-ink-500">
-                  {"Kombinera fritext med filter. Delar av ett v\u00e4rde fungerar, till exempel 109 f\u00f6r K-v\u00e4rde 109 (7.6)."}
+                  Kombinera flera sökord med filter. K-värde jämförs som ett helt tal eller decimaltal, till exempel 80 eller 7,6.
                 </p>
               </div>
               {hasActiveFilters && (
@@ -454,7 +468,7 @@ export default function ProductsPage() {
                   {"Liknande produkter till "} {text(similarTo.sin)}
                 </h2>
                 <p className="mt-1 text-sm text-ink-600">
-                  {"Rangordnas efter samma leverant\u00f6r, typ, utf\u00f6rande, RTI och K-v\u00e4rde."}
+                  Produkter med samma funktion och matchande tekniska uppgifter. Kända avvikelser utesluts. Kontrollera datablad och projektkrav före produktbyte.
                 </p>
               </div>
               <button
@@ -485,9 +499,10 @@ export default function ProductsPage() {
 
             {similarProducts && !isSimilarLoading && (
               <>
+                {similarTruncated && <p className="mt-3 text-sm text-amber-800">Endast en del av katalogen har jämförts. Fler relevanta produkter kan finnas.</p>}
                 {similarProducts.length === 0 ? (
                   <p className="mt-5 rounded-md border border-dashed border-ink-300 bg-white p-4 text-sm text-ink-600">
-                    {"Inga tillr\u00e4ckligt lika produkter hittades i databasen."}
+                    Inga tekniskt jämförbara produkter hittades i det undersökta urvalet. Produktuppgifter kan saknas.
                   </p>
                 ) : (
                   <div className="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
@@ -511,6 +526,10 @@ export default function ProductsPage() {
                             </div>
                           ))}
                         </dl>
+                        {product.similarity && <div className="mt-3 border-t border-ink-100 pt-3 text-xs">
+                          <p className="font-medium text-flow-800">Matchar: {product.similarity.matched.join(", ")}</p>
+                          {product.similarity.missing.length > 0 && <p className="mt-1 text-amber-800">Måste verifieras: {product.similarity.missing.join(", ")}</p>}
+                        </div>}
                         <div className="mt-4 flex items-center justify-between gap-3">
                           <ProductDocumentLinks product={product} compact />
                           {product.id !== null && (

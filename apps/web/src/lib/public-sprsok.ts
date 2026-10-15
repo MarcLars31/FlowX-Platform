@@ -1,3 +1,5 @@
+import { exactCatalogArticle, matchesCatalogSearch, normalizeCatalogText } from "./catalog-search";
+
 /** Only the former public Sprsok catalog fields may cross the server boundary. */
 export const SPRSOK_PUBLIC_COLUMNS = [
   "id", "sin", "leverandor", "type", "utforelse", "k_verdi", "rti", "datablad"
@@ -27,8 +29,7 @@ export type SprsokSortKey = "sin" | SprsokFilterKey;
 export const SPRSOK_PAGE_SIZE = 50;
 
 const collator = new Intl.Collator("nb", { numeric: true, sensitivity: "base" });
-const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase("nb").trim();
-const compactArticle = (value: string) => normalize(value).replace(/[^\p{L}\p{N}]/gu, "");
+const normalize = normalizeCatalogText;
 
 /** The legacy import includes one literal spreadsheet heading row. */
 export function isSprsokHeadingRow(row: PublicSprsokProduct) {
@@ -63,18 +64,15 @@ export function sprsokFilterOptions(products: readonly PublicSprsokProduct[], ke
 
 export function searchPublicSprsok(products: readonly PublicSprsokProduct[], params: URLSearchParams) {
   const query = normalize((params.get("q") ?? "").slice(0, 200));
-  const tokens = query.split(/\s+/).filter(Boolean);
-  const article = compactArticle(query);
   const sortParam = params.get("sort");
   const sort: SprsokSortKey = SPRSOK_FILTERS.some(({ key }) => key === sortParam) ? sortParam as SprsokFilterKey : "sin";
   const direction = params.get("dir") === "desc" ? -1 : 1;
 
   return products.filter(product => {
     if (!SPRSOK_FILTERS.every(({ key }) => !params.get(key) || product[key] === params.get(key))) return false;
-    if (!tokens.length) return true;
-    const text = normalize([product.sin, ...SPRSOK_FILTERS.map(({ key }) => product[key])].join(" "));
-    return tokens.every(token => text.includes(token)) || Boolean(article && compactArticle(product.sin ?? "").includes(article));
-  }).sort((a, b) => direction * collator.compare(a[sort] ?? "", b[sort] ?? "") || collator.compare(a.sin ?? "", b.sin ?? "") || a.id - b.id);
+    return matchesCatalogSearch([product.sin, ...SPRSOK_FILTERS.map(({ key }) => product[key])], product.sin, query);
+  }).sort((a, b) => (!sortParam ? Number(exactCatalogArticle(b.sin, query)) - Number(exactCatalogArticle(a.sin, query)) : 0)
+    || direction * collator.compare(a[sort] ?? "", b[sort] ?? "") || collator.compare(a.sin ?? "", b.sin ?? "") || a.id - b.id);
 }
 
 export function sprsokPage(params: URLSearchParams, total: number) {

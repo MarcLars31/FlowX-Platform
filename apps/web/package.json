@@ -37,7 +37,8 @@
     "test:test-accounts": "node --import tsx --test scripts/test-account-fixtures.test.ts scripts/demo-account-fixture.test.ts src/lib/test-account-e2e-readiness.test.ts",
     "test:e2e:test-accounts": "node --import tsx --env-file-if-exists=.env.test.local --test scripts/test-account-http-e2e.test.ts",
     "test:sprsok": "node --import tsx --test src/lib/sprsok-sync-core.test.ts src/lib/sprsok-source-client.test.ts src/lib/sprsok-reconcile.test.ts src/lib/sprsok-search.test.ts",
-    "product-sync": "node --import tsx src/cli/product-sync.ts"
+    "product-sync": "node --import tsx src/cli/product-sync.ts",
+    "test:product-search": "node --import tsx --test src/lib/product-requirement-category.test.ts src/lib/product-classification.test.ts src/lib/sprsok-search.test.ts src/lib/public-sprsok.test.ts src/lib/product-search-pagination.test.ts src/lib/product-search-store.test.ts src/lib/product-similarity.test.ts"
   },
   "dependencies": {
     "@tesseract.js-data/eng": "1.0.0",
