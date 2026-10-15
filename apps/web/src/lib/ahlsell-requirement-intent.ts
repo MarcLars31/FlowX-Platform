@@ -8,6 +8,7 @@ export function catalogTypesForIntent(intent: AhlsellProductIntent): readonly st
     sprinkler_guard: ["sprinkler_accessory"], sprinkler_cabinet: ["sprinkler_accessory"],
     cap: ["end_cap"], branch: ["branch_outlet"], flanged_bend: ["bend"],
     reducer: ["reducer", "reducer_coupling"], tee: ["tee", "sprinkler_tee"],
+    equipment_connection: ["coupling", "reducer", "reducer_coupling", "flange_adapter", "fitting"],
     shutoff_valve: ["butterfly_valve", "ball_valve", "gate_valve"], support: ["support_bracket"],
     test_drain: ["test_drain"], sensor_pocket: ["sensor_pocket"], water_meter: ["water_meter"],
     flushing_connection: ["butterfly_valve", "ball_valve", "valve"],

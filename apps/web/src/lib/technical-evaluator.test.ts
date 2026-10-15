@@ -65,7 +65,7 @@ test("wrong identity, expired, future-dated, inferred and conditional evidence c
   }
 });
 
-test("resolves only own post requirements with provenance, preserving the original", () => {
+test("resolves relevant product-parent requirements with provenance, preserving the original", () => {
   const row = { id: "row", source_page: 7, value_text: "Rør", value_json: { postNumber: "1.1.1", parentPostNumber: "1.1", parentDescription: "Rør", attributes: {
     materiale: "Stål", "dimensjon (dn)": "20", finish: "Valgfritt"
   }, attributeSources: { materiale: { postNumber: "1.1", sourcePage: 5 }, "dimensjon (dn)": { postNumber: "1.1.1", sourcePage: 7 } } } };
@@ -73,13 +73,13 @@ test("resolves only own post requirements with provenance, preserving the origin
   const resolved = withEffectiveRequirements(row);
   assert.equal(JSON.stringify(row), before);
   const fields = resolved.effectiveRequirements.requirements;
-  assert.equal(fields.length, 1);
-  assert.equal(fields.some(item => item.property === "material"), false);
+  assert.equal(fields.length, 2);
+  assert.equal(fields.find(item => item.property === "material")?.source.kind, "parent");
   assert.equal(fields.find(item => item.property === "dn")?.source.kind, "post");
-  assert.equal(fields.some(item => item.source.kind !== "post"), false);
+  assert.equal(fields.find(item => item.property === "material")?.source.postNumber, "1.1");
   const search = requirementForSearch(resolved).value_json as { attributes: Record<string, string> };
   assert.equal(search.attributes.trykk, undefined);
-  assert.equal(search.attributes.materiale, undefined);
+  assert.equal(search.attributes.materiale, "Stål");
   assert.equal(resolveEffectiveRequirements({ ...row, value_json: { ...row.value_json, attributes: { "dimensjon (dn)": "25" } } }).revision === resolved.effectiveRequirements.revision, false);
 });
 

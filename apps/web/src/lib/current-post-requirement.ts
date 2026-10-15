@@ -1,4 +1,5 @@
 import { parseStructuredPostStart } from "@/modules/technical-description-extractor/document-parser";
+import { captureInheritedProductRequirements } from "./inherited-product-requirements";
 import { normalizeOcrDnTokens, repairedOcrPostAttributes, withoutPdfHeaderContinuations, withoutPdfPageSumFooters } from "./pdf-post-text";
 
 type Row = Record<string, unknown>;
@@ -7,9 +8,10 @@ const boundary = /\n\s*UNDERPOST\s*\n/i;
 const metadata = /^(?:kapittel|kapittelpost|chapter|chapterpost)$/;
 const normalized = (value: unknown) => String(value ?? "").normalize("NFKC").toLocaleLowerCase().replace(/[\s_–—-]+/g, " ").trim();
 
-/** A read-only view of the saved post. Ancestors stay in the extraction and
- * navigation, but never become this product's fields, prose or search terms. */
+/** A read-only view of the post's own PDF fields. Proven parent product
+ * requirements stay separate and are resolved explicitly for search/evaluation. */
 export function currentPostRequirement<T extends Row>(requirement: T): T {
+  const inheritedProductRequirements = captureInheritedProductRequirements(requirement);
   const value = record(requirement.value_json);
   const post = text(value.postNumber);
   const origins = record(value.attributeSources);
@@ -72,6 +74,7 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
     source_excerpt: canonicalText(source || ownSpecification),
     value_json: {
       ...value, attributes: canonicalAttributes,
+      ...(inheritedProductRequirements ? { inheritedProductRequirements } : {}),
       ...(inheritedSpecification ? { inheritedSpecification: canonicalText(inheritedSpecification) } : {}),
       ...(repairOcr && typeof value.description === "string" ? { description: canonicalText(value.description) } : {}),
       attributeSources: Object.fromEntries(Object.entries(origins).filter(([key]) => Object.hasOwn(attributes, key))),

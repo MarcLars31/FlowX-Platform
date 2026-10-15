@@ -4,7 +4,7 @@ import { requirementDiscipline, requirementHeading, requirementNsCode } from "./
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
-import { immediateParentHeading, mainProductText, normalizeTechnicalText } from "./ahlsell-requirement-context";
+import { immediateParentHeading, mainProductText, normalizeTechnicalText, productRequirementContext } from "./ahlsell-requirement-context";
 import { CONTROL_VALVE_PATTERN, ENERGY_VALVE_PATTERN, isLuminaireProduct } from "./ahlsell-functional-products";
 import { electricalHeatingIntent } from "./ahlsell-electrical-heating";
 import { hasSprinklerContext, hasSprinklerHeadEvidence } from "./sprinkler-requirement-context";
@@ -15,13 +15,14 @@ export type ProductIntent = "wet_alarm_valve" | "dry_alarm_valve" | "manometer" 
   | "reducer" | "cap" | "branch" | "flange_adapter" | "pump" | "strainer" | "support"
   | "test_drain" | "flushing_connection" | "sprinkler_head" | "sprinkler_guard" | "sprinkler_hose" | "sprinkler_cabinet"
   | "water_meter" | "flow_meter" | "alarm_device" | "sensor_pocket" | "foam_extinguisher" | "portable_fire_extinguisher"
-  | "toilet" | "shower_set" | "manifold_cabinet" | "cable_trunking" | "custom_fabrication" | "key_switch" | "valve_actuator" | "generic";
+  | "toilet" | "shower_set" | "manifold_cabinet" | "cable_trunking" | "custom_fabrication" | "key_switch" | "valve_actuator" | "equipment_connection" | "generic";
 
 /** The row's product and attributes govern retrieval, before included parts. */
 export function inferProductIntent(requirement: Record<string, unknown>): ProductIntent {
   const value = record(requirement.value_json);
   const unit = normalizeQuantityUnit(value.unit);
-  const attributes = record(value.attributes);
+  const context = productRequirementContext(requirement);
+  const attributes = context.attributes;
   const description = String(requirement.value_text ?? requirement.display_name ?? "");
   const source = normalize(`${mainProductText(description)} ${Object.entries(attributes)
     .filter(([key]) => /^(?:type(?: .*)?|rordel|ventiltype|sprinklertype|sprinkleranlegg|slokkemiddel|k faktor|utlosningstemperatur)$/.test(normalize(key)))
@@ -40,6 +41,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   if (heating) return heating;
   const discipline = requirementDiscipline(requirement);
   if (discipline === "electrical" || discipline === "ventilation") return "generic";
+  if (context.equipmentConnection) return "equipment_connection";
   if (ENERGY_VALVE_PATTERN.test(source)) return "energy_valve";
   if (CONTROL_VALVE_PATTERN.test(source)) return "control_valve";
 
@@ -210,7 +212,7 @@ const INTENT_CATEGORIES = {
   test_drain: "valve", flushing_connection: "valve", sprinkler_head: "sprinkler_head", sprinkler_guard: "sprinkler_head",
   sprinkler_hose: "sprinkler_hose", sprinkler_cabinet: "other", water_meter: "control", flow_meter: "control", alarm_device: "control",
   sensor_pocket: "control", foam_extinguisher: "other", portable_fire_extinguisher: "other", toilet: "sanitary", shower_set: "sanitary",
-  manifold_cabinet: "sanitary", custom_fabrication: "other", key_switch: "control", valve_actuator: "control"
+  manifold_cabinet: "sanitary", custom_fabrication: "other", key_switch: "control", valve_actuator: "control", equipment_connection: "fitting"
 } satisfies Record<Exclude<ProductIntent, "generic">, ProductCategory>;
 
 

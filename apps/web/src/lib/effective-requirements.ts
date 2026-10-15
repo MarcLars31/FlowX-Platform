@@ -1,5 +1,5 @@
 import { currentPostRequirement } from "./current-post-requirement";
-import { productRequirementAttributes } from "./ahlsell-requirement-context";
+import { productRequirementAttributes, productRequirementContext } from "./ahlsell-requirement-context";
 import { canonicalProperty, normalizeRequirementValue, technicalRevision, technicalText, type EffectiveRequirement, type EffectiveRequirementSet, type RequirementSource, type RequirementOperator } from "./technical-evaluation-model";
 
 type Row = Record<string, unknown>;
@@ -11,7 +11,7 @@ const freeChoice = /^(?:valgfritt|valfritt|optional|ikke relevant|ej relevant|no
 export function resolveEffectiveRequirements(requirement: Row): EffectiveRequirementSet {
   requirement = currentPostRequirement(requirement);
   const value = record(requirement.value_json);
-  const origins = record(value.attributeSources);
+  const origins = productRequirementContext(requirement).attributeSources;
   const requirements: EffectiveRequirement[] = [];
   const postNumber = string(value.postNumber);
   const documentId = string(requirement.source_technical_description_document_id ?? requirement.source_document_id);
@@ -101,7 +101,7 @@ export function resolveEffectiveRequirements(requirement: Row): EffectiveRequire
   for (const [label, raw] of Object.entries(record(value.attributes))) {
     if (/^(?:generelle krav|andre krav|andra krav)$/.test(technicalText(label)) && !freeChoice.test(String(raw))) add(label, raw, ownSource(String(raw)));
   }
-  return { version: 1, revision: technicalRevision(["effective-requirements-current-post-2", requirement.id, requirement.updated_at, requirements]), requirements };
+  return { version: 1, revision: technicalRevision(["effective-requirements-product-parent-3", requirement.id, requirement.updated_at, requirements]), requirements };
 }
 
 export function effectiveRequirements(requirement: Row): EffectiveRequirementSet {
@@ -114,9 +114,11 @@ export function withEffectiveRequirements<T extends Row>(requirement: T) {
   return { ...current, effectiveRequirements: resolveEffectiveRequirements(current) };
 }
 
-/** Card, retrieval and evaluation share the same post-only source. */
+/** Retrieval and evaluation share own values plus the relevant product-parent fields. */
 export function requirementForSearch(requirement: Row): Row {
-  return currentPostRequirement(requirement);
+  const current = currentPostRequirement(requirement);
+  const context = productRequirementContext(current);
+  return { ...current, value_json: { ...record(current.value_json), attributes: context.attributes, attributeSources: context.attributeSources } };
 }
 
 function record(value: unknown): Row { return value && typeof value === "object" && !Array.isArray(value) ? value as Row : {}; }

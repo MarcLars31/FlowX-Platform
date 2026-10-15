@@ -13,6 +13,8 @@ import { mergeAhlsellTechnicalEvidence, type AhlsellEvidenceStore } from "./ahls
 import { technicalConflictWarnings, withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
 import { requirementDiscipline } from "./requirement-discipline";
 import { genericProductIdentity, hasGenericProductIdentity } from "./ahlsell-generic-product-relevance";
+import { productRequirementAttributes } from "./ahlsell-requirement-context";
+import { technicalText } from "./technical-evaluation-model";
 
 import { evaluateAhlsellCandidates } from "./ahlsell-technical-evaluator";
 import { requirementForSearch } from "./effective-requirements";
@@ -22,7 +24,7 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
   const authoritativeRequirement = requirement;
   requirement = requirementForSearch(requirement);
   const guide = buildAhlsellRequirementGuide(requirement);
-  const local = withAhlsellOfferCandidates(requirement, findMldlOnlyCandidates(requirement), offerCatalog);
+  const local = excludeUnrelatedMainProducts(requirement, withAhlsellOfferCandidates(requirement, findMldlOnlyCandidates(requirement), offerCatalog));
   const market = ahlsellMarketFromSearchUrl(guide.searchUrl);
   const value = requirement.value_json as { attributes?: Record<string, unknown> } | undefined;
   const commentArticle = String(value?.attributes?.["pdf-kommentar"] ?? "").match(/\b\d{6,8}(?:N5)?\b/i)?.[0];
@@ -131,6 +133,16 @@ function excludeUnrelatedMainProducts(requirement: Record<string, unknown>, cand
     candidates = candidates.filter(candidate => !/\b(?:sprinkler(?:hode|hoved|huvud|slange|head)?[a-z]*|firelock|alarmventil)\b/i.test(candidate.productName));
   }
   const intent = ahlsellRequirementIntent(requirement);
+  if (intent === "equipment_connection") {
+    const grade = Object.entries(productRequirementAttributes(requirement))
+      .find(([key]) => /^(?:materialkvalitet|grade)$/.test(technicalText(key)))?.[1];
+    const required = typeof grade === "string" && !/^(?:valgfri|valfritt|valfri|se\b|iht\b|unknown|ukjent)/i.test(grade) ? grade : "";
+    // A named system/grade requires positive product evidence. A supplier name
+    // cannot establish compatibility; Bluepipe and Blue pipe are equivalent spelling.
+    const compact = (value: string) => technicalText(value).replace(/[^a-z0-9]/g, "");
+    return candidates.filter(candidate => !hasAhlsellProductFamilyMismatch(intent, candidate.productName)
+      && (!required || compact([candidate.productName, candidate.description, ...candidate.specifications].filter(Boolean).join(" ")).includes(compact(required))));
+  }
   if (intent === "generic") {
     const identity = genericProductIdentity(requirement);
     const offerIdentity = genericProductIdentity(offerRequirementIdentity(requirement));

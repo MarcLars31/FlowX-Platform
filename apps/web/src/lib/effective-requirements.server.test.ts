@@ -113,7 +113,7 @@ test('a DN-only child shows its own dimension without its main post specificatio
   assert.deepEqual(current.value_json.attributes, { dimensjon: 'DN100' });
   assert.equal(current.value_json.nsCode, null);
   assert.equal(current.value_json.parentPostNumber, '33.332.2');
-  assert.ok(current.effectiveRequirements.requirements.every(item => item.source.kind === 'post'));
+  assert.ok(current.effectiveRequirements.requirements.some(item => item.property === 'material' && item.source.kind === 'parent'));
 });
 
 test('a foreign standalone source or missing current block never substitutes another post', () => {

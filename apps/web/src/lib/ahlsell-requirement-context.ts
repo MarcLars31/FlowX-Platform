@@ -1,4 +1,5 @@
 import { currentPostRequirement } from "./current-post-requirement";
+import { mergedProductRequirements } from "./inherited-product-requirements";
 /** Only the immediate parent heading may supply the product of a DN-only row. */
 export function immediateParentHeading(requirement: Record<string, unknown>): string {
   const value = record(requirement.value_json);
@@ -31,11 +32,15 @@ export function mainProductText(value: string) {
   return normalizeTechnicalText(value).split(/\b(?:med|with|inkl|inkludert|inklusive|including|for|til)\b/)[0].trim();
 }
 
-/** Retrieval uses only fields belonging to this post. */
+/** Retrieval combines own fields with relevant, proven product-parent fields. */
 export function productRequirementAttributes(requirement: Record<string, unknown>) {
-  const value = record(currentPostRequirement(requirement).value_json);
-  return Object.fromEntries(Object.entries(record(value.attributes)).filter(([key]) =>
+  const { attributes } = productRequirementContext(requirement);
+  return Object.fromEntries(Object.entries(attributes).filter(([key]) =>
     !/^(?:pdf kommentar|lokalisering|dokumentasjon|omfang|vannforsyning)$/.test(normalizeTechnicalText(key))));
+}
+
+export function productRequirementContext(requirement: Record<string, unknown>) {
+  return mergedProductRequirements(currentPostRequirement(requirement));
 }
 
 export function productTechnicalSpecification(requirement: Record<string, unknown>) {

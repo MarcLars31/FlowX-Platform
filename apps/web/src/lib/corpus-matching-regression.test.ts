@@ -157,8 +157,10 @@ test('chapter equipment does not impose its dimensions or sprinkler properties o
  assert.equal(good.matchWarnings?.length, 0);
  assert.equal(ahlsellCandidateMatchState(good), 'review');
  const [wrong] = rankAhlsellCandidates(req, [candidate('Stålrør DN32 PN10 rillet')]);
- assert.equal(ahlsellCandidateMatchState(wrong), 'review');
- assert.doesNotMatch((wrong.matchWarnings ?? []).join(' '), /Fel skarv/);
+ // The immediate pipe parent specifies a threaded joint; the chapter still
+ // cannot impose sprinkler dimensions or properties on this DN32 child.
+ assert.equal(ahlsellCandidateMatchState(wrong), 'mismatch');
+ assert.match((wrong.matchWarnings ?? []).join(' '), /skarv.*stämmer inte/);
  const [wrongDn] = rankAhlsellCandidates(req, [candidate('Stålrør DN50 PN10 rillet')]);
  assert.equal(ahlsellCandidateMatchState(wrongDn), 'mismatch');
  assert.equal(ahlsellRequirementIntent(req), 'pipe');

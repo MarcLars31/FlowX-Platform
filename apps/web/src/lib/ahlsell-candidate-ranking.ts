@@ -401,6 +401,9 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
       reasons.push('Produkten är en rörlängd.');
     }
     score -= wrongFamilyPenalty(candidateName, /\b(bend|t ror|kupling|ventil|flensadapter|anboringsklammer)\b/, "Träffen är en rördel och inte en rörlängd.", warnings);
+  } else if (requirement.intent === "equipment_connection") {
+    score += scoreNamedProductFamily(candidateName, PRODUCT_FAMILY_PATTERNS.equipment_connection!, "Produkttypen är en anslutnings- eller övergångsdel.", reasons);
+    warnings.push("Kontrollera anslutningsdimension, systemkompatibilitet och komplett leverans för tur/retur.");
   } else if (requirement.intent === "coupling") {
     score += scoreNamedProductFamily(candidateName, PRODUCT_FAMILY_PATTERNS.coupling!, "Produkttypen är en rörkoppling.", reasons);
     score -= wrongFamilyPenalty(candidateName, /\b(spjeldventil|bend|t ror|endelokk)\b/, "Träffen är inte en rillkoppling.", warnings);
@@ -540,6 +543,7 @@ const PRODUCT_FAMILY_PATTERNS: Partial<Record<ProductIntent, RegExp>> = {
   reducer: /\b(reduksjon|reduksjonskupling|redusert|reducer|overgang)\b/,
   cap: /\b(endelokk|endebunn|blindflens|plugg|cap)\b/,
   coupling: /\b(kupling|kobling|coupling|muffe)\b/,
+  equipment_connection: /\b(?:overgang\w*|union\w*|adapter\w*|kupling\w*|kobling\w*|muffe\w*|flens\w*)\b/,
   branch: /\b(anboringsklammer|anb klammer|utlopskupling|mekanisk t|branch)\b/,
   flange_adapter: /\b(flensadapter|flenseadapter|flens overgang)\b/,
   alarm_device: /\b(alarmgiver|alarmapparat|alarmkit|alarmpressostat|pressostat|pressure switch)\b/,

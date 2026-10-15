@@ -202,6 +202,25 @@ export function buildAhlsellRequirementGuide(
       warnings: dataWarnings.map(warning => warning.message), recognitionNotes: [], directCandidates: [] };
   }
 
+  if (intent === "equipment_connection") {
+    const usable = (value: string | null) => value && !/^(?:valgfri|valgfritt|valfritt|valfri|se\b|iht\b|unknown|ukjent)/i.test(value) ? value.slice(0, 80) : null;
+    // Exact field names: "DN" also occurs inside "ledning".
+    const field = (aliases: string[]) => aliases.map(alias => attributes.get(normalize(alias))).find(Boolean) ?? null;
+    const system = usable(field(["materialkvalitet", "grade"])) ?? usable(field(["materiale rordel", "materiale ror", "materiale", "material"])) ?? "";
+    const nominal = usable(field(["dn", "dimensjon dn"]));
+    const dimension = nominal ? (/^\d/.test(nominal) ? `DN${nominal}` : nominal) : usable(field(["dimensjon", "dimensjon tilkoblinger"]));
+    const terms = compact([system, dimension]);
+    const searchQueries = ["overgang", "union", "kobling"].map(part => compact([...terms, part]).join(" "));
+    const url = new URL(ahlsellSearchUrl);
+    url.searchParams.set("parameters.SearchPhrase", searchQueries[0]);
+    return { searchQuery: searchQueries[0], searchQueries, searchUrl: url.toString(),
+      criteria: ["Rördelar för anslutning av teknisk utrustning", ...[...attributes].map(([key, raw]) => `${key}: ${raw}`)],
+      warnings: [...dataWarnings.map(warning => warning.message),
+        "Posten omfattar anslutning av utrustning och kan kräva flera övergångsdelar. Kontrollera tur/retur, anslutningstyp, systemkompatibilitet och antal delar.",
+        ...(!dimension ? ["Anslutningsdimension saknas i posten och måste verifieras före produktval."] : [])],
+      recognitionNotes: [], directCandidates: [] };
+  }
+
   const rawKFactor = parseSprinklerKFactor(projectRequirementKFactorDisplayValue(requirement))
     ?? numberFromAttribute(attributes, ["k faktor", "k factor", "k verdi", "k value"])
     ?? numberFromText(combined, /\bk\s*[-=]?\s*(\d+(?:[.,]\d+)?)/i);
