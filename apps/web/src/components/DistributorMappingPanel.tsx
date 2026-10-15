@@ -55,6 +55,7 @@ import {
 } from "@/lib/product-card-accessories";
 import {
   projectRequirementSourcePdfHref,
+  projectRequirementSourcePdfFileName,
   type ProjectSourcePdfLookup
 } from "@/lib/project-source-pdf";
 type Row = Record<string, unknown> & { id: string };
@@ -307,6 +308,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
               key={`${activeRequirement.id}:${String(activeRequirement.edit_revision ?? "")}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
               projectId={projectId} currency={currency} requirement={activeRequirement} assignment={activeAssignment}
               sourcePdfHref={projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup)}
+              sourcePdfFileName={projectRequirementSourcePdfFileName(activeRequirement, sourcePdfLookup)}
               position={activeIndex + 1}
               memories={memories.filter(memory => memory.requirement_fingerprint === activeRequirement.mapping_fingerprint)}
               onCatalogResult={recordFullCatalogResult} onSavingChange={setProductCardSaving} onDirtyChange={setProductCardDirty}
@@ -371,7 +373,7 @@ function ResolvedRequirementCard(props: ComponentProps<typeof RequirementProduct
   return <RequirementInformationCard {...props} onChooseProduct={() => setChooseProduct(true)} />;
 }
 
-function RequirementInformationCard({ projectId, requirement, sourcePdfHref, onDirtyChange, onSavingChange, onChooseProduct }: ComponentProps<typeof RequirementProductMappingCard> & { onChooseProduct: () => void }) {
+function RequirementInformationCard({ projectId, requirement, sourcePdfHref, sourcePdfFileName, onDirtyChange, onSavingChange, onChooseProduct }: ComponentProps<typeof RequirementProductMappingCard> & { onChooseProduct: () => void }) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const details = projectRequirementDetails(requirement);
@@ -383,19 +385,20 @@ function RequirementInformationCard({ projectId, requirement, sourcePdfHref, onD
       <header className="product-panel-caption">Prosjektinformasjon<Button neutral variant="secondary" type="button" disabled={requirement.can_edit === false || saving || dirty} onClick={onChooseProduct}>Velg produkt</Button></header>
       <div className="product-information-content"><ProjectPostSpecification id={requirement.id} details={details} informationOnly
         description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
-        quantity={projectRequirementQuantity(requirement.value_json)} sourcePdfHref={sourcePdfHref} />
+        quantity={projectRequirementQuantity(requirement.value_json)} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} />
         <details className="mt-3"><summary>Kommentarer til posten</summary>{postComments}</details>
       </div>
     </article>}
   </ProductPostComments>;
 }
 
-function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, position, memories, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   currency: string;
   requirement: Row;
   assignment?: Row;
   sourcePdfHref: string | null;
+  sourcePdfFileName: string | null;
   position: number;
   memories: Row[];
   onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
@@ -1038,7 +1041,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           <ProjectPostSpecification id={"full-" + requirement.id} details={details}
               description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
               quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
-              sourcePdfHref={sourcePdfHref} pdfArticleNumber={pdfArticleNumber} />
+              sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
 
           <div className="product-post-extras">
           <details>

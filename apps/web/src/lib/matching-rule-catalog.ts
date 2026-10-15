@@ -1,6 +1,6 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-14.2";
-export const RULE_CATALOG_DATE = "14 oktober 2026";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-15.1";
+export const RULE_CATALOG_DATE = "15 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
@@ -26,7 +26,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     description: "Sökningen hittar kandidater. En separat kontroll jämför varje faktiskt krav med dokumenterade produktdata.",
     sources: ["effective-requirements.ts", "effective-requirements.server.ts", "technical-evaluation-model.ts", "technical-evaluator.ts", "ahlsell-technical-evaluator.ts"],
     rules: [
-      rule("effective-requirements", "Samma krav i kort, sökning och kontroll", "En produktpost öppnas eller en kandidat bedöms.", "Använd den aktuella postens sparade fält och text i sökning och teknisk kontroll. PDF-kortet visar också sparad text från numrerade huvudposter i en separat del märkt Krav fra hovedpost. Den delen ändrar inte underpostens egna fält eller mängd. Projektets standardvärden läggs inte till. Egna sidfortsättningar och sparade rättelser behålls. Interna sidmarkeringar är källhänvisningar och blir inte tekniska krav. Olösta egna krav och konflikter kräver verifiering. PDF-filer tolkas inte om vid läsning."),
+      rule("effective-requirements", "Samma krav i kort, sökning och kontroll", "En produktpost öppnas eller en kandidat bedöms.", "Använd den aktuella postens sparade fält och text i sökning och teknisk kontroll. PDF-kortet visar också sparad text från numrerade huvudposter direkt under posten i en separat del märkt Arvede krav. Radbrutna postnummer sätts ihop även när NS-kod eller beskrivning ligger mellan nummerdelarna, så att postens egen text inte räknas som ärvd. Den delen ändrar inte underpostens egna fält eller mängd. Projektets standardvärden läggs inte till. Egna sidfortsättningar och sparade rättelser behålls. Interna sidmarkeringar är källhänvisningar och blir inte tekniska krav. Olösta egna krav och konflikter kräver verifiering. PDF-filer tolkas inte om vid läsning."),
       rule("technical-status", "MATCH, FAIL eller VERIFY per krav", "Krav jämförs med produktdata för den aktuella artikeln.", "MATCH kräver stöd för samtliga obligatoriska krav. Ett konstaterat obligatoriskt fel ger FAIL. Saknad, gammal, motsägelsefull eller otolkad information ger VERIFY. Ett tomt kravunderlag kan aldrig ge MATCH."),
       rule("technical-revision", "Ändrade krav kräver ny kontroll", "Den aktuella postens krav ändras efter att kortet öppnats.", "Resultat för en annan kravversion godtas inte. Produktvalet måste kontrolleras igen före sparande. Krav- och evidensversioner följer bedömningen."),
       rule("technical-sources", "Artikelbunden dokumentation krävs", "Produkten har katalogdata, historik eller en offertreferens.", "Kontrollera artikelidentitet, dokumentationsstatus och giltighetstid. Tidigare val, sökpoäng och offertuppgifter är inte ett tekniskt godkännande. MLDL:s granskningsflaggor och kvarstående variant- eller tillbehörskrav kräver verifiering.")

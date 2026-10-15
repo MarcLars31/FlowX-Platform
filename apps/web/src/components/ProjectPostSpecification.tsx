@@ -1,19 +1,25 @@
+import { PdfInheritedRequirements, PdfSourceDocument } from "./PdfRequirementSource";
+import { projectRequirementSourceSections } from "@/lib/project-requirement-source";
 import { FileText } from "lucide-react";
 import { projectInformationBody, projectInformationParagraphs, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
 import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { structuredPostBlocks } from "@/lib/structured-post-layout";
 import { orderedSpecificationAttributes } from "@/lib/project-specification-layout";
 
-export function ProjectPostSpecification({ id, details, description, quantity, quantityText, sourcePdfHref, pdfArticleNumber, informationOnly = false }: {
+export function ProjectPostSpecification({ id, details: sourceDetails, description, quantity, quantityText, sourcePdfHref, sourcePdfFileName, pdfArticleNumber, informationOnly = false }: {
   id: string;
   details: ProjectRequirementDetail;
   description: string;
   quantity: ProjectRequirementQuantity;
   quantityText?: string;
   sourcePdfHref?: string | null;
+  sourcePdfFileName?: string | null;
   pdfArticleNumber?: string | null;
   informationOnly?: boolean;
 }) {
+  const current = projectRequirementSourceSections(sourceDetails.sourceExcerpt ?? "", sourceDetails.postNumber)
+    .find(section => section.relation === "current");
+  const details = current ? { ...sourceDetails, sourceExcerpt: current.text } : sourceDetails;
   const fields = orderedSpecificationAttributes(details);
   const blocks = structuredPostBlocks(details, description).filter(block => block.kind !== "quantity");
   const rs = quantity.unit === "RS";
@@ -32,6 +38,7 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
         </a> : postLabel}
       </h3>
       <div className="min-w-0 px-3 py-3">
+        <PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} />
         {details.nsCode && <p className="break-words font-[700]">{details.nsCode}</p>}
         {hasHeading && <p className="break-words font-[700] leading-5">{description}</p>}
         {showQuantity && <dl className="my-2 flex flex-wrap items-baseline gap-x-2">
@@ -49,10 +56,7 @@ export function ProjectPostSpecification({ id, details, description, quantity, q
             : <p key={index} className={block.kind === "page" ? "!mt-3 border-t border-neutral-200 pt-2 text-xs text-neutral-600" : block.kind === "heading" ? "!mt-3 font-[700]" : block.kind === "bullet" ? "pl-4 -indent-4" : "break-words"}><SpecificationText value={block.text} /></p>)}
           {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
         </div>}
-        {details.inheritedSpecification && <details open className="mt-4 border-t border-neutral-300 pt-3">
-          <summary className="cursor-pointer font-[700]">Krav fra hovedpost{details.parentPostNumber ? " " + details.parentPostNumber : "er"}</summary>
-          <div className="mt-2 whitespace-pre-wrap break-words leading-6"><SpecificationText value={details.inheritedSpecification} /></div>
-        </details>}
+        {details.inheritedSpecification && <PdfInheritedRequirements specification={details.inheritedSpecification} postNumber={details.postNumber} />}
         {(details.standardRefs.length > 0 || pdfArticleNumber) &&
           <dl className="mt-4 space-y-1 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
             {details.standardRefs.length > 0 && <SpecificationField label="Standarder" value={details.standardRefs.join(", ")} />}

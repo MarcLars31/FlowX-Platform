@@ -5,6 +5,8 @@ export type ProjectSourcePdfLookup = {
   unavailableDocumentIds?: readonly string[];
   byTechnicalDescriptionId: Readonly<Record<string, string | null>>;
   fallbackDocumentId: string | null;
+  fileNamesByDocumentId?: Readonly<Record<string, string | null>>;
+  fileNamesByTechnicalDescriptionId?: Readonly<Record<string, string | null>>;
 };
 
 export function buildProjectSourcePdfLookup(
@@ -39,7 +41,9 @@ export function buildProjectSourcePdfLookup(
     projectDocumentIds: usableDocuments.map((document) => document.id),
     unavailableDocumentIds: projectDocuments.filter(document => document.storage_path === null).map(document => document.id),
     byTechnicalDescriptionId,
-    fallbackDocumentId
+    fallbackDocumentId,
+    fileNamesByDocumentId: Object.fromEntries(projectDocuments.map(document => [document.id, originalDocumentName(document)])),
+    fileNamesByTechnicalDescriptionId: Object.fromEntries(technicalDescriptions.map(document => [document.id, originalDocumentName(document)]))
   };
 }
 
@@ -49,6 +53,25 @@ export function projectRequirementSourcePdfHref(
   lookup: ProjectSourcePdfLookup
 ) {
   if (!isUuid(projectId)) return null;
+  const documentId = sourceDocumentId(requirement, lookup);
+  if (!documentId) return null;
+
+  const page = positiveInteger(requirement.source_page);
+  const fileUrl = `/api/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/file`;
+  return page ? `${fileUrl}#page=${page}` : fileUrl;
+}
+
+export function projectRequirementSourcePdfFileName(requirement: Row, lookup: ProjectSourcePdfLookup) {
+  const documentId = sourceDocumentId(requirement, lookup);
+  const documentName = documentId ? lookup.fileNamesByDocumentId?.[documentId] : null;
+  if (documentName) return documentName;
+  // Even if the original file is unavailable, its saved name identifies the
+  // source. Never replace it with the name of another PDF in the project.
+  const technicalDescriptionId = stringValue(requirement.source_technical_description_document_id);
+  return technicalDescriptionId ? lookup.fileNamesByTechnicalDescriptionId?.[technicalDescriptionId] ?? null : null;
+}
+
+function sourceDocumentId(requirement: Row, lookup: ProjectSourcePdfLookup) {
   const availableDocumentIds = new Set(lookup.projectDocumentIds);
   const directDocumentId = stringValue(requirement.source_document_id);
   if (directDocumentId && lookup.unavailableDocumentIds?.includes(directDocumentId)) return null;
@@ -71,9 +94,7 @@ export function projectRequirementSourcePdfHref(
       : lookup.fallbackDocumentId;
   if (!documentId || !availableDocumentIds.has(documentId)) return null;
 
-  const page = positiveInteger(requirement.source_page);
-  const fileUrl = `/api/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/file`;
-  return page ? `${fileUrl}#page=${page}` : fileUrl;
+  return documentId;
 }
 
 function firstByKey(items: readonly Row[], keyForItem: (item: Row) => string | null) {
@@ -107,6 +128,10 @@ function documentHash(document: Row) {
 
 function documentName(document: Row) {
   return normalized(document.file_name ?? document.fileName ?? document.original_filename);
+}
+
+function originalDocumentName(document: Row) {
+  return stringValue(document.file_name ?? document.fileName ?? document.original_filename);
 }
 
 function normalized(value: unknown) {

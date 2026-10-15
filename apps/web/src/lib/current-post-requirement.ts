@@ -1,3 +1,4 @@
+import { parseStructuredPostStart } from "@/modules/technical-description-extractor/document-parser";
 import { normalizeOcrDnTokens, repairedOcrPostAttributes, withoutPdfHeaderContinuations, withoutPdfPageSumFooters } from "./pdf-post-text";
 
 type Row = Record<string, unknown>;
@@ -88,6 +89,9 @@ function labels(source: string) {
   return new Set([...source.matchAll(/^([^:\n]{1,100}):/gm)].map(match => normalized(match[1])));
 }
 function leadingPost(source: string) {
+  const lines = source.trim().split(/\r?\n/).map(line => line.trim());
+  const structured = parseStructuredPostStart(lines, 0);
+  if (structured) return structured.postNumber;
   const split = source.trim().match(/^(\d+(?:\.\d+)+)\.\s+(\d+(?:\.\d+)*)\b/);
   return split ? `${split[1]}.${split[2]}` : source.trim().match(/^(\d+(?:\.\d+)+)\b/)?.[1];
 }

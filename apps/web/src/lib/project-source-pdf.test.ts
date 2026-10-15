@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   findPdfPostAnchor, buildProjectSourcePdfLookup,
+  projectRequirementSourcePdfFileName,
   projectRequirementSourcePdfHref
 } from "./project-source-pdf";
 
@@ -9,6 +10,27 @@ const projectId = "11111111-1111-4111-8111-111111111111";
 const firstDocumentId = "22222222-2222-4222-8222-222222222222";
 const secondDocumentId = "33333333-3333-4333-8333-333333333333";
 const technicalDescriptionId = "44444444-4444-4444-8444-444444444444";
+
+test("labels the linked source document, not another PDF in the project", () => {
+  const lookup = buildProjectSourcePdfLookup([
+    { id: firstDocumentId, file_name: "02 Bygg 09 Aquahall.pdf", file_sha256: "aquahall" },
+    { id: secondDocumentId, file_name: "03 Bygg 10 Rørhall.pdf", file_sha256: "rorhall" }
+  ], [{ id: technicalDescriptionId, file_name: "03 Bygg 10 Rørhall.pdf", file_sha256: "rorhall" }]);
+  const requirement = { id: "post", source_technical_description_document_id: technicalDescriptionId, source_page: 29 };
+  assert.equal(projectRequirementSourcePdfFileName(requirement, lookup), "03 Bygg 10 Rørhall.pdf");
+  assert.equal(projectRequirementSourcePdfHref(projectId, requirement, lookup), `/api/projects/${projectId}/documents/${secondDocumentId}/file#page=29`);
+  assert.equal(projectRequirementSourcePdfFileName({ ...requirement, source_document_id: firstDocumentId }, lookup), "02 Bygg 09 Aquahall.pdf");
+});
+
+test("retains the known source filename when the original PDF cannot be matched", () => {
+  const lookup = buildProjectSourcePdfLookup([
+    { id: firstDocumentId, file_name: "02 Bygg 09 Aquahall.pdf", document_type: "technical_description", file_sha256: "aquahall" }
+  ], [{ id: technicalDescriptionId, file_name: "03 Bygg 10 Rørhall.pdf", file_sha256: "rorhall" }]);
+  const requirement = { id: "post", source_technical_description_document_id: technicalDescriptionId };
+  assert.equal(projectRequirementSourcePdfFileName(requirement, lookup), "03 Bygg 10 Rørhall.pdf");
+  assert.equal(projectRequirementSourcePdfHref(projectId, requirement, lookup), null);
+  assert.equal(projectRequirementSourcePdfFileName(requirement, buildProjectSourcePdfLookup([], [])), null);
+});
 
 test("builds an exact technical-description to project-document match from the file hash", () => {
   const lookup = buildProjectSourcePdfLookup(

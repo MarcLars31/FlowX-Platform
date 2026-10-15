@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-14.2",
+  "version": "scipx-product-rules-2026-10-15.1",
   "sources": {
     "ahlsell-accessory-suggestions.ts": "3f23823bbb3e5f772de20891f504d09f0fe167ce0ae2fe47c8aa81fb9eb14460",
     "ahlsell-cable-trunking.ts": "ff672cb6ea5a2e8005f35977800772eb513bf54c66439a1e4e666a4c0b2e966c",
@@ -26,7 +26,7 @@
     "ahlsell-technical-evidence.ts": "0bd5f3c1a9f34c5dbf26c04aaae1ca97fb548a2d0ea498beccab79ea17d23f7f",
     "assembly-component-lookup.ts": "41d597b7be276c279536bef12ad9060eec68f9e6288c6adfe9554df7d21d72b9",
     "assembly-component-matching.ts": "9de118786bc1b459e1f2ca8308bee5e87ddeb1c7023dc5d2f3515397a7532db8",
-    "current-post-requirement.ts": "89ddd5521ea7dfc79d2430a477f4be35f405220e27d72571d17a4012c0529276",
+    "current-post-requirement.ts": "0b32467fc3f0f304e5256967bf0650410b1ddbdfc5d393a0d08f34ec8d9d826e",
     "distributor-product-memory-match.ts": "3c4e8cb07b52efdbdd0a8f7930d980ae59d80a3ad263e32356c8ae7044af5c83",
     "distributor-product-memory.ts": "0bdeea40e0e250ec3aa9edd5099e4f138e32f95e0d092efb2ee54b53195db10f",
     "distributor-requirement-lines.ts": "19bc1584488f94520960edef5a9ba4ab0ed6490cbd455fa0959cc453c8bcfd47",
