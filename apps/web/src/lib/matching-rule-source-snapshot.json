@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-15.1",
+  "version": "scipx-product-rules-2026-10-15.2",
   "sources": {
     "ahlsell-accessory-suggestions.ts": "3f23823bbb3e5f772de20891f504d09f0fe167ce0ae2fe47c8aa81fb9eb14460",
     "ahlsell-cable-trunking.ts": "ff672cb6ea5a2e8005f35977800772eb513bf54c66439a1e4e666a4c0b2e966c",
@@ -20,7 +20,7 @@
     "ahlsell-public-match.ts": "cf465d749c0ff8583135048caf6108d5ff5f73a4ae0857254a780f7c859d092d",
     "ahlsell-requirement-context.ts": "d2910c185e20a4c82e55c8532f8df3b2dea8f45925b261f55e6692ce27f8a23f",
     "ahlsell-requirement-intent.ts": "cf40014e1343200179060c79f56650ba825f583fa29901375cccc4ec0433d3a6",
-    "ahlsell-shared-fetch.server.ts": "d57994228f436fd57293d23d02d0dad3591d83d321eb507061a6400bf8feb9c0",
+    "ahlsell-shared-fetch.server.ts": "a912b36d7257b553b6ad064c8d46ce4367c30887bfc06de19e6faa2546e87540",
     "ahlsell-technical-conflicts.ts": "b109648e43b63f2c29c8aae2711ad87bb34488495f079ebb2216f9df0d72916b",
     "ahlsell-technical-evaluator.ts": "a30c489ad7c47825e54ac10041bbdf9eac70f325bc523ec299dc59d51e4e9d8c",
     "ahlsell-technical-evidence.ts": "0bd5f3c1a9f34c5dbf26c04aaae1ca97fb548a2d0ea498beccab79ea17d23f7f",

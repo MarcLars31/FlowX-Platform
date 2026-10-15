@@ -22,7 +22,8 @@ export function ahlsellRequestContext() {
 
 /** Global quota + short leases/cache, shared by independent Vercel instances.
  * Fail closed if coordination is unavailable; never amplify an outage. */
-const supplierFlights = createSingleFlight<Response>();
+type BufferedSupplierResponse = { body: string | null; status: number; headers: Record<string, string> };
+const supplierFlights = createSingleFlight<BufferedSupplierResponse>();
 export const sharedAhlsellFetch: typeof fetch = async (input, init = {}) => {
   const url = new URL(input instanceof Request ? input.url : String(input));
   if (url.protocol !== "https:" || !["www.ahlsell.no", "www.ahlsell.se"].includes(url.hostname)
@@ -31,8 +32,13 @@ export const sharedAhlsellFetch: typeof fetch = async (input, init = {}) => {
   if (headers.has("cookie") || headers.has("authorization")) throw new Error("Private supplier responses cannot be shared");
   const key = createHash("sha256").update(`${url.href}|${headers.get("accept")}|${headers.get("accept-language")}`).digest("hex");
   const signal = init.signal ?? (input instanceof Request ? input.signal : undefined);
-  const response = await withCallerAbort(supplierFlights(key, () => fetchClaimedSupplier(url, {...init,signal:undefined}, key)), signal);
-  return response.clone();
+  const response = await withCallerAbort(supplierFlights(key, async () => {
+    const result = await fetchClaimedSupplier(url, { ...init, signal: undefined }, key);
+    return { body: result.body ? await result.text() : null, status: result.status, headers: Object.fromEntries(result.headers) };
+  }), signal);
+  // A cloned redirect body cannot finish cancellation while its original branch
+  // is unread. Share the bounded payload, then give each caller its own stream.
+  return new Response(response.body, response);
 };
 
 async function fetchClaimedSupplier(url: URL, init: RequestInit, key: string) {
