@@ -14,7 +14,7 @@ export type ProjectDeliveryData = {
   members: { user_id: string; label: string }[];
   documents: ProjectDeliveryDocument[];
   reviews: { requirement_id: string; product_revision: number; review: DeliveryReview }[];
-  requirements: { id: string; category: string; edit_revision: number; value_json: unknown; actionable?: boolean; source_document_id?: string; source_technical_description_document_id?: string }[];
+  requirements: { id: string; value_text?: string; source_page?: number; category: string; edit_revision: number; value_json: unknown; actionable?: boolean; source_document_id?: string; source_technical_description_document_id?: string }[];
 };
 type Snapshot = { data: ProjectDeliveryData | null; error: string; refreshing: boolean };
 export type ProjectDeliveryResource = ReturnType<typeof createProjectDeliveryResource>;

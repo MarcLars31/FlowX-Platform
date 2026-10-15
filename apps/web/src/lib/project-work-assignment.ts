@@ -37,7 +37,8 @@ export function workPackageLabel(item: ProjectWorkPackage, requirements: readonl
     const row = requirements.find(row => row.id === item.scope_value);
     const value = row?.value_json;
     const number = typeof value === "string" ? value : value && typeof value === "object" ? (value as Record<string, unknown>).postNumber : null;
-    return `Post ${number ?? "utan postnummer"}`;
+    const title = typeof row?.value_text === "string" ? row.value_text.split(/\r?\n/).map(line => line.trim()).find(Boolean)?.slice(0, 120) : "";
+    return `Post ${number ?? "utan postnummer"}${title ? ` · ${title}` : ""}`;
   }
   return `${item.scope_type === "chapter" ? "Post" : "Grupp"} ${item.scope_value}`;
 }

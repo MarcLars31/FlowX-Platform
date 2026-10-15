@@ -93,6 +93,9 @@ export function ProjectWorkspace({
   const deliveryResource = useMemo(() => createProjectDeliveryResource(data.project.id), [data.project.id]);
   useEffect(() => () => deliveryResource.cancelPending(), [deliveryResource]);
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [managementStep, setManagementStep] = useState<"details" | "assignments">("details");
+  const [projectDraft, setProjectDraft] = useState<Record<string, string> | null>(null);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [requirementView, setRequirementView] = useState<ProjectRequirementView | "all">("all");
   const [productEditState, setProductEditState] = useState<ProductEditState>({dirty: false, saving: false});
   const [saving, setSaving] = useState(false);
@@ -111,8 +114,10 @@ export function ProjectWorkspace({
   }
 
   function selectTab(nextTab: Tab, discardConfirmed = false) {
+    if ((saving || assignmentSaving) && !discardConfirmed) return;
     if (nextTab !== tab && !discardConfirmed && !canLeaveProductSelection()) return;
     setTab(nextTab);
+    if (nextTab === "management") setManagementStep("details");
     if (nextTab === "documents") {
       void advanceProjectStage("documents");
     } else if (nextTab === "products" && data.requirements.length > 0) {
@@ -238,6 +243,8 @@ export function ProjectWorkspace({
 
   async function saveProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const continueToAssignments = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "continue";
+    if (continueToAssignments && !projectDraft) { setManagementStep("assignments"); return; }
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -276,9 +283,13 @@ export function ProjectWorkspace({
       const payload = (await response.json().catch(() => null)) as { project?: OrganizationProject; error?: string } | null;
       if (!response.ok || !payload?.project) throw new Error(payload?.error ?? "Projektet kunde inte sparas.");
       setData((current) => ({ ...current, project: payload.project as OrganizationProject }));
-      if (data.project.current_stage === "setup") {
+      setProjectDraft(null);
+      if (continueToAssignments) {
+        setManagementStep("assignments");
+        setMessage("Projektinformationen är sparad.");
+      } else if (tab !== "management" && data.project.current_stage === "setup") {
         setMessage("Projektinformationen är sparad. Nästa steg är att ladda upp underlaget.");
-        selectTab("documents");
+        selectTab("documents", true);
       } else {
         setMessage("Projektinformationen är sparad.");
       }
@@ -407,6 +418,66 @@ export function ProjectWorkspace({
     data.requirements
   );
 
+  const projectDetailsForm = (<form id="project-details-form" onSubmit={saveProject} onChange={event => setProjectDraft(Object.fromEntries([...new FormData(event.currentTarget)].map(([key,value]) => [key,String(value)])))} className="border-t border-ink-100">
+            <fieldset disabled={saving}>
+            <div className="px-5 py-5 sm:px-6">
+              <h2 className="font-semibold text-ink-950">Projektförutsättningar</h2>
+              <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys och produktval.</p>
+            </div>
+
+            <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
+              <legend className="mb-4 text-xs font-semibold uppercase tracking-[0.1em] text-ink-500">Identitet och kund</legend>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Input id="workspace-name" name="name" label="Projektnamn" defaultValue={projectDraft?.name ?? (data.project.name)} required />
+                <Input id="workspace-number" name="projectNumber" label="Projektnummer" defaultValue={projectDraft?.projectNumber ?? (data.project.project_number ?? "")} />
+                <Input id="workspace-customer" name="customerName" label="Kund" defaultValue={projectDraft?.customerName ?? (data.project.customer_name ?? "")} />
+                <Input id="workspace-end-customer" name="endCustomer" label="Slutkund" defaultValue={projectDraft?.endCustomer ?? (data.project.end_customer ?? "")} />
+                <Input id="workspace-address" name="address" label="Projektadress" defaultValue={projectDraft?.address ?? (data.project.address ?? "")} />
+                <Input id="workspace-project-type" name="projectType" label="Projekttyp" defaultValue={projectDraft?.projectType ?? (data.project.project_type ?? "")} />
+              </div>
+            </fieldset>
+
+            <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
+              <legend className="mb-4 text-xs font-semibold uppercase tracking-[0.1em] text-ink-500">Teknik och inköp</legend>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Input id="workspace-system-type" name="systemType" label="Systemtyp" defaultValue={projectDraft?.systemType ?? (data.project.system_type ?? "")} />
+                <Input id="workspace-standard" name="standard" label="Huvudstandard" defaultValue={projectDraft?.standard ?? (data.project.standard ?? "")} />
+                <div className="rounded-lg border border-[#5f5f5f]/20 bg-[#5f5f5f]/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#535353]">Produktval</p>
+                  <p className="mt-1 font-semibold text-ink-950">Produktkatalog</p>
+                  <p className="mt-1 text-xs leading-5 text-ink-600">Produkt och tillbehör väljs direkt från de extraherade produktraderna.</p>
+                </div>
+                <Input id="workspace-currency" name="currency" label="Valuta" defaultValue={projectDraft?.currency ?? (data.project.currency ?? "NOK")} />
+                <Input id="workspace-delivery-country" name="deliveryCountry" label="Leveransland" defaultValue={projectDraft?.deliveryCountry ?? (data.project.delivery_country ?? "")} />
+                <Input id="workspace-warehouse" name="warehouseLocation" label="Lager/distributionspunkt" defaultValue={projectDraft?.warehouseLocation ?? (data.project.warehouse_location ?? "")} />
+              </div>
+            </fieldset>
+
+            <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
+              <legend className="mb-4 text-xs font-semibold uppercase tracking-[0.1em] text-ink-500">Planering och status</legend>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Input id="workspace-start" name="expectedStartDate" label="Förväntad start" type="date" defaultValue={projectDraft?.expectedStartDate ?? (data.project.expected_start_date ?? "")} />
+                <Input id="workspace-delivery" name="expectedDeliveryDate" label="Förväntad leverans" type="date" defaultValue={projectDraft?.expectedDeliveryDate ?? (data.project.expected_delivery_date ?? "")} />
+                <label className="block" htmlFor="workspace-status"><span className="mb-2 block text-sm font-medium text-ink-700">Projektstatus</span><select id="workspace-status" name="status" defaultValue={projectDraft?.status ?? (data.project.status)} className="block h-11 w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500">{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                <div className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-500">Nästa arbetssteg</p>
+                  <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.nextLabel}</p>
+                  <p className="mt-1 text-xs text-ink-500">Uppdateras automatiskt när varje steg är klart.</p>
+                </div>
+              </div>
+            </fieldset>
+
+            <div className="grid gap-4 border-t border-ink-100 px-5 py-5 sm:px-6 md:grid-cols-2">
+              <TextArea name="description" label="Projektbeskrivning" defaultValue={projectDraft?.description ?? (data.project.description ?? "")} />
+              <TextArea name="internalComments" label="Interna kommentarer" defaultValue={projectDraft?.internalComments ?? (data.project.internal_comments ?? "")} />
+            </div>
+            <div className="flex flex-wrap justify-end gap-3 border-t border-ink-100 bg-ink-50 px-5 py-4 sm:px-6">
+              <Button type="submit" disabled={saving}><Save className="h-4 w-4" aria-hidden="true" />{saving ? "Sparar..." : "Spara projektuppgifter"}</Button>
+              {tab === "management" && <Button type="submit" name="intent" value="continue" disabled={saving}>Fortsätt till fördelning och ansvar <ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>}
+            </div>
+            </fieldset>
+          </form>);
+
   return (
     <div className={`project-workspace-page ${tab === "products" ? "project-product-page" : "project-standard-page"}`}>
       {data.project.demo_data_set_id && <DemoBadge />}
@@ -469,8 +540,17 @@ export function ProjectWorkspace({
       )}
 
       {tab === "management" && <div className="space-y-5">
-        <ProjectDeliveryControl projectId={data.project.id} mode="assignments" onChanged={reload} resource={deliveryResource} />
-        {accessManagement}
+        <nav aria-label="Steg i projektstyrning" className="flex flex-wrap gap-3">
+          <Button variant={managementStep === "details" ? "primary" : "secondary"} disabled={saving || assignmentSaving} aria-current={managementStep === "details" ? "step" : undefined} onClick={() => setManagementStep("details")}>1. Projektuppgifter</Button>
+          {managementStep === "details" ? <Button variant="secondary" type="submit" form="project-details-form" name="intent" value="continue" disabled={saving}>2. Fördelning och ansvar</Button> : <Button aria-current="step">2. Fördelning och ansvar</Button>}
+        </nav>
+        <section hidden={managementStep !== "details"} className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
+          {projectDetailsForm}
+        </section>
+        {managementStep === "assignments" && <>
+          <ProjectDeliveryControl projectId={data.project.id} mode="assignments" onChanged={reload} resource={deliveryResource} onBusyChange={setAssignmentSaving} />
+          {accessManagement}
+        </>}
       </div>}
 
       {tab === "overview" && (
@@ -514,62 +594,7 @@ export function ProjectWorkspace({
               Visa eller ändra projektuppgifter
               <span className="text-sm font-semibold text-flow-700">Öppna</span>
             </summary>
-          <form onSubmit={saveProject} className="border-t border-ink-100">
-            <div className="px-5 py-5 sm:px-6">
-              <h2 className="font-semibold text-ink-950">Projektförutsättningar</h2>
-              <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys och produktval.</p>
-            </div>
-
-            <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
-              <legend className="mb-4 text-xs font-semibold uppercase tracking-[0.1em] text-ink-500">Identitet och kund</legend>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Input id="workspace-name" name="name" label="Projektnamn" defaultValue={data.project.name} required />
-                <Input id="workspace-number" name="projectNumber" label="Projektnummer" defaultValue={data.project.project_number ?? ""} />
-                <Input id="workspace-customer" name="customerName" label="Kund" defaultValue={data.project.customer_name ?? ""} />
-                <Input id="workspace-end-customer" name="endCustomer" label="Slutkund" defaultValue={data.project.end_customer ?? ""} />
-                <Input id="workspace-address" name="address" label="Projektadress" defaultValue={data.project.address ?? ""} />
-                <Input id="workspace-project-type" name="projectType" label="Projekttyp" defaultValue={data.project.project_type ?? ""} />
-              </div>
-            </fieldset>
-
-            <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
-              <legend className="mb-4 text-xs font-semibold uppercase tracking-[0.1em] text-ink-500">Teknik och inköp</legend>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Input id="workspace-system-type" name="systemType" label="Systemtyp" defaultValue={data.project.system_type ?? ""} />
-                <Input id="workspace-standard" name="standard" label="Huvudstandard" defaultValue={data.project.standard ?? ""} />
-                <div className="rounded-lg border border-[#5f5f5f]/20 bg-[#5f5f5f]/5 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#535353]">Produktval</p>
-                  <p className="mt-1 font-semibold text-ink-950">Produktkatalog</p>
-                  <p className="mt-1 text-xs leading-5 text-ink-600">Produkt och tillbehör väljs direkt från de extraherade produktraderna.</p>
-                </div>
-                <Input id="workspace-currency" name="currency" label="Valuta" defaultValue={data.project.currency ?? "NOK"} />
-                <Input id="workspace-delivery-country" name="deliveryCountry" label="Leveransland" defaultValue={data.project.delivery_country ?? ""} />
-                <Input id="workspace-warehouse" name="warehouseLocation" label="Lager/distributionspunkt" defaultValue={data.project.warehouse_location ?? ""} />
-              </div>
-            </fieldset>
-
-            <fieldset className="border-t border-ink-100 px-5 py-5 sm:px-6">
-              <legend className="mb-4 text-xs font-semibold uppercase tracking-[0.1em] text-ink-500">Planering och status</legend>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Input id="workspace-start" name="expectedStartDate" label="Förväntad start" type="date" defaultValue={data.project.expected_start_date ?? ""} />
-                <Input id="workspace-delivery" name="expectedDeliveryDate" label="Förväntad leverans" type="date" defaultValue={data.project.expected_delivery_date ?? ""} />
-                <label className="block" htmlFor="workspace-status"><span className="mb-2 block text-sm font-medium text-ink-700">Projektstatus</span><select id="workspace-status" name="status" defaultValue={data.project.status} className="block h-11 w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500">{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                <div className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-500">Nästa arbetssteg</p>
-                  <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.nextLabel}</p>
-                  <p className="mt-1 text-xs text-ink-500">Uppdateras automatiskt när varje steg är klart.</p>
-                </div>
-              </div>
-            </fieldset>
-
-            <div className="grid gap-4 border-t border-ink-100 px-5 py-5 sm:px-6 md:grid-cols-2">
-              <TextArea name="description" label="Projektbeskrivning" defaultValue={data.project.description ?? ""} />
-              <TextArea name="internalComments" label="Interna kommentarer" defaultValue={data.project.internal_comments ?? ""} />
-            </div>
-            <div className="flex justify-end border-t border-ink-100 bg-ink-50 px-5 py-4 sm:px-6">
-              <Button type="submit" disabled={saving}><Save className="h-4 w-4" aria-hidden="true" />{saving ? "Sparar..." : "Spara projektuppgifter"}</Button>
-            </div>
-          </form>
+          {projectDetailsForm}
           </details>
           {projectFinished && (
             <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6">
