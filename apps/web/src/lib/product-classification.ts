@@ -24,7 +24,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   const context = productRequirementContext(requirement);
   const attributes = context.attributes;
   const description = String(requirement.value_text ?? requirement.display_name ?? "");
-  const source = normalize(`${mainProductText(description)} ${Object.entries(attributes)
+  const source = normalize(`${mainProductText(context.dimensionVariant && context.parent ? context.parent.heading : description)} ${Object.entries(attributes)
     .filter(([key]) => /^(?:type(?: .*)?|rordel|ventiltype|sprinklertype|sprinkleranlegg|slokkemiddel|k faktor|utlosningstemperatur)$/.test(normalize(key)))
     .map(([key, item]) => `${key} ${item}`).join(" ")}`);
   const detail = normalize(`${value.technicalSpecification ?? ""} ${value.sourceText ?? ""} ${requirement.source_excerpt ?? ""}`);
@@ -42,6 +42,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   const discipline = requirementDiscipline(requirement);
   if (discipline === "electrical" || discipline === "ventilation") return "generic";
   if (context.equipmentConnection) return "equipment_connection";
+  if (context.dimensionVariant && (["insulation", "instrument", "tap"].includes(context.family ?? "") || /\bspyleventil\b/.test(source))) return "generic";
   if (ENERGY_VALVE_PATTERN.test(source)) return "energy_valve";
   if (CONTROL_VALVE_PATTERN.test(source)) return "control_valve";
 
@@ -53,7 +54,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   if (/^(?:stromningsvakt|flow switch)\b/.test(primaryDescription)) return "flow_switch";
   if (/^(?:manometer|pressure gauge)\b/.test(primaryDescription)) return "manometer";
   if (/^overgang fra pe til stal\b|^flens pa pe\b/.test(primaryDescription)) return "flange_adapter";
-  const dimensionOnly = /^(?:dimensjon\s+)?dn\s*\d+\b/.test(primaryDescription);
+  const dimensionOnly = context.dimensionVariant || /^(?:dimensjon\s+)?dn\s*\d+\b/.test(primaryDescription);
   const explicitFitting = !isCompletePipeLengthDescription(description)
     && (/\b(?:bend|albue|tee|t stykke|reduksjon|endelokk|kupling)\b/.test(mainProductText(description))
       || Object.keys(attributes).some(key => normalize(key) === "rordel"));
@@ -118,6 +119,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
     && !explicitFitting && codeFamily !== "sprinkler_hose") return "pipe";
   if (hasSprinklerHeadEvidence(requirement)) return "sprinkler_head";
   if (codeFamily) return codeFamily;
+  if (context.dimensionVariant && context.parent) return "generic";
   if (category === "pipe" && (dimensionOnly || /\b(?:ror|stalror|sprinklerror|rorledning)\b/.test(source))) return "pipe";
   if (category === "support" || has(/\b(oppheng|rorstotte|support|rorbarer|klammer)\b/)) return "support";
   if (category === "fitting" && dimensionOnly) return "coupling";
@@ -152,6 +154,11 @@ const namedGroups: ReadonlyArray<readonly [RegExp, ProductRequirementCategory]> 
 ];
 
 function inferProductCategory(requirement: Record<string, unknown>): ProductRequirementCategory | "unknown" {
+  const context = productRequirementContext(requirement);
+  if (context.dimensionVariant && context.family) {
+    const category = ({ pipe: "pipe", fitting: "fitting", hose: "sprinkler_hose", valve: "valve", sprinkler: "sprinkler_head", insulation: "plumbing_other", instrument: "control", tap: "sanitary" } as const)[context.family];
+    if (category) return category;
+  }
   const heading = requirementHeading(requirement);
   const ownName = normalizeTechnicalText(heading);
   const code = requirementNsCode(requirement);

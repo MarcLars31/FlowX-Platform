@@ -22,7 +22,7 @@ import { functionalProductGuide } from "./ahlsell-functional-products";
 import { electricalHeatingGuide } from "./ahlsell-electrical-heating";
 import { genericProductSearch, requirementDiscipline } from "./requirement-discipline";
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
-import { productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
+import { productRequirementAttributes, productRequirementContext, productSearchHeading, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
 import { engineeringRequirementWarnings } from "./ahlsell-engineering-checks";
 import { withVerifiedWorkingPressure } from "./victaulic-working-pressure";
 import { withTechnicalConflictAssessment } from "./ahlsell-technical-conflicts";
@@ -202,6 +202,18 @@ export function buildAhlsellRequirementGuide(
       warnings: dataWarnings.map(warning => warning.message), recognitionNotes: [], directCandidates: [] };
   }
 
+  if (intent === "generic" && productRequirementContext(requirement).parent) {
+    const heading = productSearchHeading(requirement);
+    const terms = [...attributes].filter(([key, raw]) => /^(?:dn|dimensjon(?: dn)?|ytre diameter|materiale|isolasjonsmateriale|tykkelse)$/.test(key)
+      && !/^(?:se\b|valgfri|[-–—]$)/i.test(raw)).map(([key, raw]) => key === "dn" && /^\d/.test(raw) ? `DN${raw}` : raw);
+    const searchQueries = [...new Set([compact([heading, ...terms]).join(" "), heading])];
+    const url = new URL(ahlsellSearchUrl);
+    url.searchParams.set("parameters.SearchPhrase", searchQueries[0]);
+    return { searchQuery: searchQueries[0], searchQueries, searchUrl: url.toString(),
+      criteria: [...attributes].map(([key, raw]) => `${key}: ${raw}`),
+      warnings: [...dataWarnings.map(warning => warning.message), "Kontrollera produktvariant och samtliga krav mot produktdokumentationen."], recognitionNotes: [], directCandidates: [] };
+  }
+
   if (intent === "equipment_connection") {
     const usable = (value: string | null) => value && !/^(?:valgfri|valgfritt|valfritt|valfri|se\b|iht\b|unknown|ukjent)/i.test(value) ? value.slice(0, 80) : null;
     // Exact field names: "DN" also occurs inside "ledning".
@@ -293,7 +305,7 @@ export function buildAhlsellRequirementGuide(
     ?? (intent === "sprinkler_head" && !/\b(valgfritt|valfritt|optional)\b/.test(normalize(finishAttribute ?? "")) ? "brass" : null);
   const specialApplication = sprinklerHeadType === "dry" || sprinklerHeadType === "open"
     || (sprinklerCoverage !== null && sprinklerCoverage !== "standard");
-  const pressureAttributes = new Map([...attributes].filter(([key]) => !/\bpma\b|tillatte driftstrykk/.test(key)));
+  const pressureAttributes = new Map([...attributes].filter(([key, raw]) => !/\bpma\b|tillatte driftstrykk/.test(key) && !/^SN\s*\d/i.test(raw)));
   const pn = numberFromAttribute(pressureAttributes, ["trykk", "arbeidstrykk", "trykklasse", "pressure"])
     ?? numberFromText(primaryCombined, /\bpn\s*(\d{1,3})\b/i);
 

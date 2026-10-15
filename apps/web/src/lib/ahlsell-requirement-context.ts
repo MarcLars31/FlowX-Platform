@@ -2,6 +2,8 @@ import { currentPostRequirement } from "./current-post-requirement";
 import { mergedProductRequirements } from "./inherited-product-requirements";
 /** Only the immediate parent heading may supply the product of a DN-only row. */
 export function immediateParentHeading(requirement: Record<string, unknown>): string {
+  const proven = productRequirementContext(requirement).parent;
+  if (proven) return proven.heading;
   const value = record(requirement.value_json);
   if (typeof value.parentDescription === "string") return value.parentDescription;
   const parent = typeof value.parentPostNumber === "string" ? value.parentPostNumber : "";
@@ -41,6 +43,16 @@ export function productRequirementAttributes(requirement: Record<string, unknown
 
 export function productRequirementContext(requirement: Record<string, unknown>) {
   return mergedProductRequirements(currentPostRequirement(requirement));
+}
+
+/** A dimension variant needs its proven product name, not a bare DN search. */
+export function productSearchHeading(requirement: Record<string, unknown>) {
+  const context = productRequirementContext(requirement);
+  if (context.dimensionVariant && context.parent) {
+    const type = Object.entries(context.attributes).find(([key]) => normalizeTechnicalText(key) === "type produkt")?.[1];
+    return typeof type === "string" && !/^(?:se\b|valgfri)/i.test(type) ? type : context.parent.heading;
+  }
+  return String(requirement.value_text ?? requirement.display_name ?? "");
 }
 
 export function productTechnicalSpecification(requirement: Record<string, unknown>) {

@@ -1,5 +1,6 @@
 import { currentPostRequirement } from "./current-post-requirement";
 import { productRequirementAttributes, productRequirementContext } from "./ahlsell-requirement-context";
+import { productRequirementProperty } from "./inherited-product-requirements";
 import { canonicalProperty, normalizeRequirementValue, technicalRevision, technicalText, type EffectiveRequirement, type EffectiveRequirementSet, type RequirementSource, type RequirementOperator } from "./technical-evaluation-model";
 
 type Row = Record<string, unknown>;
@@ -22,7 +23,7 @@ export function resolveEffectiveRequirements(requirement: Row): EffectiveRequire
     if (informational.test(technicalText(label))) return;
     // An explicit absence (false/"none") is meaningful. Only "free choice" removes a constraint.
     if (/^(?:valgfritt|valgfri|valfritt|valfri|optional)\.?$/i.test(text)) return;
-    let property = canonicalProperty(label);
+    let property = canonicalProperty(label) ?? canonicalProperty(productRequirementProperty(label, raw));
     if (property === "workingPressureBar" && /^(?:(?:minimum|minst|>=|≥)\s*)?PN\s*\d/i.test(text)) property = "pn";
     if (!property && /^(?:dimensjon|dimension|dimensjonerende dimensjon)$/.test(technicalText(label)) && /^DN\s*\d/i.test(text)) property = "dn";
     const minimum = /^(?:>=|≥|minimum|min\.?|minst)\s*/i;
@@ -81,7 +82,7 @@ export function resolveEffectiveRequirements(requirement: Row): EffectiveRequire
       const field = /^([^:]{1,90}):\s*(.+)$/.exec(line);
       if (field) {
         const [label, raw] = field.slice(1);
-        const existing = Object.entries(attributes).find(([key]) => technicalText(key) === technicalText(label));
+        const existing = Object.entries(attributes).find(([key, item]) => productRequirementProperty(key, item) === productRequirementProperty(label, raw));
         // Extractor's explicit child value replaces the same parent's field, not unrelated project constraints.
         if (existing) continue;
         add(label, raw, source);
@@ -101,7 +102,7 @@ export function resolveEffectiveRequirements(requirement: Row): EffectiveRequire
   for (const [label, raw] of Object.entries(record(value.attributes))) {
     if (/^(?:generelle krav|andre krav|andra krav)$/.test(technicalText(label)) && !freeChoice.test(String(raw))) add(label, raw, ownSource(String(raw)));
   }
-  return { version: 1, revision: technicalRevision(["effective-requirements-product-parent-3", requirement.id, requirement.updated_at, requirements]), requirements };
+  return { version: 1, revision: technicalRevision(["effective-requirements-product-parent-4", requirement.id, requirement.updated_at, requirements]), requirements };
 }
 
 export function effectiveRequirements(requirement: Row): EffectiveRequirementSet {

@@ -1,4 +1,4 @@
-export const PRODUCT_REQUIREMENT_CATEGORY_VERSION = 6;
+export const PRODUCT_REQUIREMENT_CATEGORY_VERSION = 7;
 
 export const PRODUCT_REQUIREMENT_CATEGORIES = [
   { id: "sprinkler_head", label: "Sprinklerhuvuden och galler", shortLabel: "Sprinklerhuvuden" },
