@@ -50,13 +50,13 @@ export async function GET(request: Request, context: Context) {
       selectAllUserRows<Row>('project_post_workflows',{...filters,order:'requirement_id.asc'}),
       selectUserRows<Row>('technical_description_documents',{...filters,select:'id,file_name,file_sha256,status,page_count',limit:'1000'}),
       selectUserRows<Row>('project_document_controls',{...filters,limit:'1000'}),
-      selectAllUserRows<Row>('project_requirements',{...filters,status:'neq.superseded',deleted_at:'is.null',select:'id,category,edit_revision,source_document_id,source_technical_description_document_id,post_number:value_json->>postNumber,source_chapter:value_json->sourceChapter,unit:value_json->unit,quantity:value_json->quantity',order:'id.asc'}),
+      selectAllUserRows<Row>('project_requirements',{...filters,status:'neq.superseded',deleted_at:'is.null',select:'id,category,value_text,source_page,edit_revision,source_document_id,source_technical_description_document_id,post_number:value_json->>postNumber,source_chapter:value_json->sourceChapter,source_order:value_json->sourceOrder,chapter_information:value_json->chapterInformation,unit:value_json->unit,quantity:value_json->quantity',order:'id.asc'}),
       selectUserRows<Row>('organization_members',{organization_id:filters.organization_id,status:'eq.active',select:'id,user_id',limit:'1000'}),
       selectUserRows<Row>('project_documents',{...filters,select:'id,file_sha256',storage_path:'not.is.null',deleted_at:'is.null',limit:'1000'})
     ]);
     const profiles=members.length ? await selectUserRows<Row>('profiles',{select:'id,display_name,email',id:`in.(${members.map(m=>m.user_id).join(',')})`}) : [];
     const memberLabels=members.map(m=>({...m,label:String(profiles.find(p=>p.id===m.user_id)?.display_name ?? profiles.find(p=>p.id===m.user_id)?.email ?? m.user_id)}));
-    return response({manager,packages,reviews,documents:documents.map(d=>({...d,...controls.find(c=>c.document_id===d.id),fileId:files.find(f=>f.file_sha256===d.file_sha256)?.id})),requirements:requirements.map(r=>({...r,value_json:{postNumber:r.post_number,sourceChapter:r.source_chapter},actionable:groupProjectRequirementViews([{id:r.id,value_json:{unit:r.unit,quantity:r.quantity}}]).products.length>0})),members:memberLabels,userId:auth.user.id,enforced:project.assignments_enforced});
+    return response({manager,packages,reviews,documents:documents.map(d=>({...d,...controls.find(c=>c.document_id===d.id),fileId:files.find(f=>f.file_sha256===d.file_sha256)?.id})),requirements:requirements.map(r=>({...r,value_text:typeof r.value_text==='string'?r.value_text.split(/\r?\n/).map(line=>line.trim()).find(Boolean)?.slice(0,200):'',value_json:{postNumber:r.post_number,sourceChapter:r.source_chapter,sourceOrder:r.source_order,chapterInformation:r.chapter_information},actionable:groupProjectRequirementViews([{id:r.id,value_json:{unit:r.unit,quantity:r.quantity}}]).products.length>0})),members:memberLabels,userId:auth.user.id,enforced:project.assignments_enforced});
   } catch(error) { return failed(error); }
 }
 export async function POST(request: Request, context: Context) {
