@@ -102,7 +102,7 @@ export function resolveEffectiveRequirements(requirement: Row): EffectiveRequire
   for (const [label, raw] of Object.entries(record(value.attributes))) {
     if (/^(?:generelle krav|andre krav|andra krav)$/.test(technicalText(label)) && !freeChoice.test(String(raw))) add(label, raw, ownSource(String(raw)));
   }
-  return { version: 1, revision: technicalRevision(["effective-requirements-product-parent-4", requirement.id, requirement.updated_at, requirements]), requirements };
+  return { version: 1, revision: technicalRevision(["effective-requirements-product-parent-5", requirement.id, requirement.updated_at, requirements]), requirements };
 }
 
 export function effectiveRequirements(requirement: Row): EffectiveRequirementSet {

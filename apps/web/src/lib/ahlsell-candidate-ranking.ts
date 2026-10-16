@@ -15,6 +15,7 @@ import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
 import { assessLuminaireFeatures, CONTROL_VALVE_PATTERN, ENERGY_VALVE_PATTERN, isLuminaireProduct, luminaireRequirements } from "./ahlsell-functional-products";
 import { assessElectricalHeating, electricalHeatingRequirements, isElectricalHeatingProduct } from "./ahlsell-electrical-heating";
 import { genericProductIdentity, hasGenericProductIdentity } from "./ahlsell-generic-product-relevance";
+import { nominalDiameterRange } from "./product-search-names";
 import { isRigidPipeProduct } from "./pipe-product-family";
 import { capPrimaryConnection, pipeCandidateMaterial, pipeCandidateOutsideDiameter, pipeLimitWarnings, pipeRequirementDimensions, pipeRequirementLimits } from './pipe-matching-evidence';
 import { mainProductText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
@@ -51,6 +52,7 @@ type TechnicalProfile = {
   heating: ReturnType<typeof electricalHeatingRequirements>;
   genericIdentity: string | null;
   dn: number | null;
+  dnRange: readonly [number, number] | null;
   pipeLimits: ReturnType<typeof pipeRequirementLimits>;
   outsideDiameter: number | null;
   pn: number | null;
@@ -171,6 +173,9 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   const value = record(requirement.value_json);
   const { intent, category } = classifyProductRequirement(requirement);
   const attributes = productRequirementAttributes(requirement);
+  const genericIdentity = intent === "generic" ? genericProductIdentity(requirement) : null;
+  const ownDimension = Object.entries(attributes).find(([key]) => /^(?:dn|dimensjon(?: dn)?|dimension)$/.test(normalize(key)))?.[1];
+  const dnRange = genericIdentity === "valve_insulation" ? nominalDiameterRange(String(ownDimension ?? requirement.value_text ?? "")) : null;
   const semanticText = normalize(flattenText({
     category,
     description: requirement.value_text,
@@ -186,7 +191,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
   const pipeDimensions = intent === 'pipe' ? pipeRequirementDimensions(requirement) : null;
   const nonPipe = ["cable_trunking", "luminaire", "electric_heater", "heating_cable"].includes(intent);
   const outsideDiameter = nonPipe ? null : pipeDimensions ? pipeDimensions.outsideDiameter : extractOutsideDiameter(primaryText) ?? extractOutsideDiameter(text);
-  const dn = intent === "alarm_device" || nonPipe ? null : pipeDimensions ? pipeDimensions.dn : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
+  const dn = dnRange || intent === "alarm_device" || nonPipe ? null : pipeDimensions ? pipeDimensions.dn : extractDn(primaryText) ?? dnFromOutsideDiameter(outsideDiameter) ?? extractDn(text);
   const placementText = normalize(attributeText(attributes, /\b(?:plassering|placering|orientation|montasje|montering|mounting)\b/));
   const deckPlateText = normalize(attributeText(attributes, /\b(?:dekkskive|pyntering|rosett|escutcheon|cover plate)\b/));
   const materialText = normalize(attributeText(attributes, /\b(?:materiale|materialkvalitet|material|ror material)\b/)
@@ -208,7 +213,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     sourceOnlyText
   );
   const reviewWarnings = [...projectRequirementDataWarnings(requirement).map((warning) => warning.message), ...requirementExtractionWarnings(requirement)];
-  if (intent === "generic") reviewWarnings.push("Huvudproduktens produktgrupp är inte fastställd. Produktförslaget behöver granskas.");
+  if (intent === "generic" && genericIdentity !== "valve_insulation") reviewWarnings.push("Huvudproduktens produktgrupp är inte fastställd. Produktförslaget behöver granskas.");
   if (intent === "sprinkler_head") reviewWarnings.push(...installation.warnings.filter(message => !isSprinklerAccessoryReviewWarning(message)));
   if (intent === "sprinkler_head" && responseResult.conflict) {
     reviewWarnings.push("PDF-posten anger både standard- och quick-respons. Kontrollera originaltexten innan produktval.");
@@ -222,8 +227,9 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
     intent,
     luminaire: luminaireRequirements(requirement),
     heating: electricalHeatingRequirements(requirement),
-    genericIdentity: intent === "generic" ? genericProductIdentity(requirement) : null,
+    genericIdentity,
     dn,
+    dnRange,
     pipeLimits: pipeRequirementLimits(requirement),
     outsideDiameter: outsideDiameter ?? (dn === null ? null : PIPE_OUTSIDE_DIAMETER_BY_DN[dn] ?? null),
     pn: numberAfterLabel(primaryText, /\bpn\s*(\d{1,3})\b/) ?? numberAfterLabel(text, /\bpn\s*(\d{1,3})\b/),
@@ -901,6 +907,17 @@ function scoreSprinklerSystem(
 }
 
 function scoreDimension(candidateText: string, requirement: TechnicalProfile, reasons: string[], warnings: string[]) {
+  if (requirement.dnRange) {
+    const [lower, upper] = requirement.dnRange;
+    const sizes = extractDnValues(candidateText);
+    if (sizes.length && !sizes.some(size => size >= lower && size <= upper)) {
+      warnings.push(`Fel dimension: PDF anger intervallet DN${lower}–DN${upper}, träffen anger ${sizes.map(size => `DN${size}`).join(" / ")}.`);
+      return -45;
+    }
+    warnings.push(`Välj och kontrollera faktisk ventilstorlek inom DN${lower}–DN${upper}; intervallet är inte ett godkännande av en enskild variant.`);
+    if (sizes.length) reasons.push(`Produktens DN ligger inom postens intervall DN${lower}–DN${upper}.`);
+    return sizes.length ? 15 : 0;
+  }
   if (requirement.intent === 'pipe' && requirement.dn === null && requirement.outsideDiameter !== null) {
     const diameter = extractOutsideDiameter(candidateText);
     if (diameter !== null && closeEnough(diameter, requirement.outsideDiameter)) {

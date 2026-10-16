@@ -1,4 +1,5 @@
 import { currentPostRequirement } from "./current-post-requirement";
+import { isValveInsulationProduct, nominalDiameterRange } from "./product-search-names";
 import {
   parseSprinklerKFactor,
   projectRequirementDataWarnings,
@@ -200,6 +201,19 @@ export function buildAhlsellRequirementGuide(
     return { searchQuery, searchQueries: [searchQuery], searchUrl: url.toString(),
       criteria: [...attributes].map(([key, value]) => `${key}: ${value}`),
       warnings: dataWarnings.map(warning => warning.message), recognitionNotes: [], directCandidates: [] };
+  }
+
+  if (intent === "generic" && isValveInsulationProduct(productSearchHeading(requirement))) {
+    const dimension = [...attributes].find(([key]) => /^(?:dn|dimensjon(?: dn)?|dimension)$/.test(key))?.[1];
+    const range = nominalDiameterRange(dimension ?? description);
+    const size = range ? `DN${range[0]}-DN${range[1]}` : dimension && /^(?:DN\s*)?\d+$/i.test(dimension) ? `DN${dimension.replace(/^DN\s*/i, "")}` : "";
+    const searchQueries = [...new Set([compact(["isolasjonspute ventil", size]).join(" "), "ventilpose", "isolasjonspute ventil"])];
+    const url = new URL(ahlsellSearchUrl);
+    url.searchParams.set("parameters.SearchPhrase", searchQueries[0]);
+    return { searchQuery: searchQueries[0], searchQueries, searchUrl: url.toString(),
+      criteria: [description, ...[...attributes].map(([key, raw]) => `${key}: ${raw}`)],
+      warnings: [...dataWarnings.map(warning => warning.message), "Kontrollera ventiltyp, faktisk dimension, isoleringsmaterial, tjocklek och snabb öppning/stängning. Dimensionsintervallet anger flera möjliga storlekar, inte en färdigvald variant."],
+      recognitionNotes: ["Ventilposer/mansjetter söks även som isolasjonsputer för ventiler."], directCandidates: [] };
   }
 
   if (intent === "generic" && productRequirementContext(requirement).parent) {

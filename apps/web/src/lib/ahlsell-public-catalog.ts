@@ -1,5 +1,6 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { buildAhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
+import { isValveInsulationProduct, nominalDiameterRange } from "./product-search-names";
 
 export type AhlsellMarket = "no" | "se";
 
@@ -514,6 +515,14 @@ function parseVariant(value: unknown, headers: Record<string, unknown>, origin: 
 function variantMatchScore(variant: ParsedVariant, query: string) {
   const normalizedQuery = normalize(query);
   let score = (variant.active ? 2 : 0) + (variant.buyable ? 1 : -20);
+  // Select a candidate inside an explicit valve-insulation size range rather
+  // than retaining the catalogue family's arbitrary first (often DN65) variant.
+  const range = isValveInsulationProduct(query) ? nominalDiameterRange(query) : null;
+  if (range) {
+    const dimension = [...variant.attributes].find(([key]) => /^(?:dimensjon|dimension|dn)$/.test(key))?.[1];
+    const dn = dimension?.match(/^dn\s*-?\s*(\d+)$/)?.[1];
+    if (dn) score += Number(dn) >= range[0] && Number(dn) <= range[1] ? 100 : -100;
+  }
   const kFactor = normalizedQuery.match(/\bk\s*-?\s*(\d+(?:[.,]\d+)?)\b/)?.[1];
   const temperature = normalizedQuery.match(/\b(57|68|79|93|100|121|141|182|260)\b/)?.[1];
   const response = /\b(?:sr|standard)\b/.test(normalizedQuery)

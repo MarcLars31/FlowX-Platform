@@ -6,7 +6,8 @@ import { cableTrunkingReviewWarnings } from "./ahlsell-cable-trunking";
 import { functionalProductReviewWarnings } from "./ahlsell-functional-products";
 import { isCompletePipeLengthDescription } from "./ns3420-product-classification";
 import { hasSprinklerContext } from "./sprinkler-requirement-context";
-import { normalizeTechnicalText, productRequirementAttributes, productTechnicalSpecification, valveMonitoringRequirement } from "./ahlsell-requirement-context";
+import { normalizeTechnicalText, productRequirementAttributes, productTechnicalSpecification, productSearchHeading, valveMonitoringRequirement } from "./ahlsell-requirement-context";
+import { isValveInsulationProduct } from "./product-search-names";
 
 /** Cross-catalogue checks that must also run on directly verified products. */
 export function engineeringRequirementWarnings(
@@ -20,6 +21,7 @@ export function engineeringRequirementWarnings(
   const requirementText = `${ownText} ${Object.entries(productRequirementAttributes(requirement)).map(([key, item]) => `${key} ${item}`).join(" ")}`;
   const detail = productTechnicalSpecification(requirement).replace(/\s+/g, " ");
   const intent = ahlsellRequirementIntent(requirement);
+  const valveInsulation = isValveInsulationProduct(productSearchHeading(requirement));
   // Cabinet, manifolds and supply pipes need separate evidence. A cabinet
   // family match cannot verify the whole assembly or inherit pipe dimensions.
   if (intent === "manifold_cabinet") return [MANIFOLD_CABINET_REVIEW_WARNING];
@@ -31,6 +33,7 @@ export function engineeringRequirementWarnings(
   // technical product evidence.
   const productText = `${candidate.productName} ${candidate.description ?? ""} ${candidate.specifications.join(" ")}`;
   const warnings: string[] = [];
+  if (valveInsulation) warnings.push("Kontrollera isoleringspåsens passform för ventiltypen, isoleringsmaterial, tjocklek och snabb öppning/stängning mot produktdokumentationen.");
   if (intent === "pipe" && isCompletePipeLengthDescription(String(requirement.value_text ?? ""))) {
     warnings.push("Rörposten omfattar även böjar, T-stycken, ändlock och upphängning. Kontrollera delarnas antal och kompatibilitet mot ritning; ett valt rör uppfyller inte hela posten.");
   }
@@ -124,7 +127,7 @@ export function engineeringRequirementWarnings(
   }
 
   const requiredDns = dimensions(requirementText);
-  if (requiredDns.length > 1) {
+  if (requiredDns.length > 1 && !valveInsulation) {
     const candidateDns = dimensions(productText);
     const missing = requiredDns.filter((dn) => !candidateDns.includes(dn));
     const wrong = candidateDns.filter(dn => !requiredDns.includes(dn));

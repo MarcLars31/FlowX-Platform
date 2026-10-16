@@ -4,7 +4,8 @@ import { requirementDiscipline, requirementHeading, requirementNsCode } from "./
 import { isCompletePipeLengthDescription, ns3420ProductFamily } from "./ns3420-product-classification";
 import { isManifoldCabinetProduct } from "./ahlsell-manifold-cabinet";
 import { isCableTrunkingProduct } from "./ahlsell-cable-trunking";
-import { immediateParentHeading, mainProductText, normalizeTechnicalText, productRequirementContext } from "./ahlsell-requirement-context";
+import { immediateParentHeading, mainProductText, normalizeTechnicalText, productRequirementContext, productSearchHeading } from "./ahlsell-requirement-context";
+import { isValveInsulationProduct, productNameAfterDimension } from "./product-search-names";
 import { CONTROL_VALVE_PATTERN, ENERGY_VALVE_PATTERN, isLuminaireProduct } from "./ahlsell-functional-products";
 import { electricalHeatingIntent } from "./ahlsell-electrical-heating";
 import { hasSprinklerContext, hasSprinklerHeadEvidence } from "./sprinkler-requirement-context";
@@ -23,8 +24,10 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   const unit = normalizeQuantityUnit(value.unit);
   const context = productRequirementContext(requirement);
   const attributes = context.attributes;
-  const description = String(requirement.value_text ?? requirement.display_name ?? "");
-  const source = normalize(`${mainProductText(context.dimensionVariant && context.parent ? context.parent.heading : description)} ${Object.entries(attributes)
+  const rawDescription = String(requirement.value_text ?? requirement.display_name ?? "");
+  const ownProductName = productNameAfterDimension(rawDescription);
+  const description = ownProductName ?? rawDescription;
+  const source = normalize(`${mainProductText(productSearchHeading(requirement))} ${Object.entries(attributes)
     .filter(([key]) => /^(?:type(?: .*)?|rordel|ventiltype|sprinklertype|sprinkleranlegg|slokkemiddel|k faktor|utlosningstemperatur)$/.test(normalize(key)))
     .map(([key, item]) => `${key} ${item}`).join(" ")}`);
   const detail = normalize(`${value.technicalSpecification ?? ""} ${value.sourceText ?? ""} ${requirement.source_excerpt ?? ""}`);
@@ -42,6 +45,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   const discipline = requirementDiscipline(requirement);
   if (discipline === "electrical" || discipline === "ventilation") return "generic";
   if (context.equipmentConnection) return "equipment_connection";
+  if (isValveInsulationProduct(productSearchHeading(requirement))) return "generic";
   if (context.dimensionVariant && (["insulation", "instrument", "tap"].includes(context.family ?? "") || /\bspyleventil\b/.test(source))) return "generic";
   if (ENERGY_VALVE_PATTERN.test(source)) return "energy_valve";
   if (CONTROL_VALVE_PATTERN.test(source)) return "control_valve";
@@ -54,7 +58,7 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   if (/^(?:stromningsvakt|flow switch)\b/.test(primaryDescription)) return "flow_switch";
   if (/^(?:manometer|pressure gauge)\b/.test(primaryDescription)) return "manometer";
   if (/^overgang fra pe til stal\b|^flens pa pe\b/.test(primaryDescription)) return "flange_adapter";
-  const dimensionOnly = context.dimensionVariant || /^(?:dimensjon\s+)?dn\s*\d+\b/.test(primaryDescription);
+  const dimensionOnly = !ownProductName && (context.dimensionVariant || /^(?:dimensjon\s+)?dn\s*\d+\b/.test(primaryDescription));
   const explicitFitting = !isCompletePipeLengthDescription(description)
     && (/\b(?:bend|albue|tee|t stykke|reduksjon|endelokk|kupling)\b/.test(mainProductText(description))
       || Object.keys(attributes).some(key => normalize(key) === "rordel"));
@@ -154,6 +158,7 @@ const namedGroups: ReadonlyArray<readonly [RegExp, ProductRequirementCategory]> 
 ];
 
 function inferProductCategory(requirement: Record<string, unknown>): ProductRequirementCategory | "unknown" {
+  if (isValveInsulationProduct(productSearchHeading(requirement))) return "plumbing_other";
   const context = productRequirementContext(requirement);
   if (context.dimensionVariant && context.family) {
     const category = ({ pipe: "pipe", fitting: "fitting", hose: "sprinkler_hose", valve: "valve", sprinkler: "sprinkler_head", insulation: "plumbing_other", instrument: "control", tap: "sanitary" } as const)[context.family];

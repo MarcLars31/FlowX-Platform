@@ -1,5 +1,6 @@
 import { currentPostRequirement } from "./current-post-requirement";
 import { mergedProductRequirements } from "./inherited-product-requirements";
+import { productNameAfterDimension } from "./product-search-names";
 /** Only the immediate parent heading may supply the product of a DN-only row. */
 export function immediateParentHeading(requirement: Record<string, unknown>): string {
   const proven = productRequirementContext(requirement).parent;
@@ -48,11 +49,16 @@ export function productRequirementContext(requirement: Record<string, unknown>) 
 /** A dimension variant needs its proven product name, not a bare DN search. */
 export function productSearchHeading(requirement: Record<string, unknown>) {
   const context = productRequirementContext(requirement);
+  const ownHeading = String(requirement.value_text ?? requirement.display_name ?? "");
   if (context.dimensionVariant && context.parent) {
-    const type = Object.entries(context.attributes).find(([key]) => normalizeTechnicalText(key) === "type produkt")?.[1];
-    return typeof type === "string" && !/^(?:se\b|valgfri)/i.test(type) ? type : context.parent.heading;
+    const typeField = Object.entries(context.attributes).find(([key]) => normalizeTechnicalText(key) === "type produkt");
+    const [key, type] = typeField ?? [];
+    const usableType = typeof type === "string" && !/^(?:se\b|valgfri)/i.test(type) ? type : null;
+    const source = key ? record(context.attributeSources[key]) : {};
+    if (usableType && source.postNumber !== context.parent.postNumber) return usableType;
+    return productNameAfterDimension(ownHeading) ?? usableType ?? context.parent.heading;
   }
-  return String(requirement.value_text ?? requirement.display_name ?? "");
+  return ownHeading;
 }
 
 export function productTechnicalSpecification(requirement: Record<string, unknown>) {

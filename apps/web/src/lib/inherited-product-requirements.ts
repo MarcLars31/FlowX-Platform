@@ -1,5 +1,6 @@
 import { parseStructuredPostStart } from "@/modules/technical-description-extractor/document-parser";
 import { canonicalProperty, technicalText } from "./technical-evaluation-model";
+import { productNameAfterDimension } from "./product-search-names";
 
 type Row = Record<string, unknown>;
 type Origin = { postNumber: string; sourcePage?: number };
@@ -88,6 +89,7 @@ export function mergedProductRequirements(requirement: Row) {
   const attributes = { ...record(value.attributes) };
   const attributeSources = { ...record(value.attributeSources) };
   const ownTitle = text(requirement.value_text ?? requirement.display_name);
+  const ownProductName = productNameAfterDimension(ownTitle);
   const ownName = normalized(ownTitle);
   const family = context ? parentFamily(context.heading) : null;
   const namedAfterDimension = parentFamily(ownName.replace(/^.*?\d+(?:\s*(?:dn)?\d+)*\s*/, ""));
@@ -139,7 +141,7 @@ export function mergedProductRequirements(requirement: Row) {
     const group = fieldGroup(key, raw);
     if (!allowedField(key) || !scalar(raw) || placeholder.test(scalar(raw)) || ownGroups.has(group)) continue;
     if (["dn", "outsideDiameterMm"].includes(group) && ["dn", "outsideDiameterMm"].some(item => ownGroups.has(item))) continue;
-    if (!dimensionVariant && !equipmentConnection && /^(?:rordel|ventiltype|type sprinkler|sprinklertype|funksjon|anvendelse|utforming|betjening)$/.test(normalized(key))) continue;
+    if ((!dimensionVariant || ownProductName) && !equipmentConnection && /^(?:type produkt|rordel|ventiltype|type sprinkler|sprinklertype|funksjon|anvendelse|utforming|betjening)$/.test(normalized(key))) continue;
     // A child's changed material must not silently retain the parent's system/grade.
     if (fieldGroup(key, raw) === "materialGrade" && ownGroups.has("material")) continue;
     attributes[key] = raw;
