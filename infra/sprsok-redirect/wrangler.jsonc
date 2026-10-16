@@ -1,0 +1,11 @@
+{
+  "$schema": "../../apps/web/node_modules/wrangler/config-schema.json",
+  "name": "sprsok-redirect",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-08",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "xn--sprsk-yua.no", "custom_domain": true },
+    { "pattern": "www.xn--sprsk-yua.no", "custom_domain": true }
+  ]
+}

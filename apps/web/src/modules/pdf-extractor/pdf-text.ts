@@ -1,19 +1,27 @@
-import { PDFParse } from "pdf-parse";
+import {
+  closePdfTextDocument,
+  openPdfTextDocument,
+  plainTextFromPdfItems
+} from "@/lib/pdf-runtime";
 import type { ExtractedPageText } from "./types";
 
 export async function extractPdfTextPages(
   data: Buffer | Uint8Array
 ): Promise<ExtractedPageText[]> {
-  const parser = new PDFParse({ data });
+  const document = await openPdfTextDocument(data);
 
   try {
-    const result = await parser.getText();
-
-    return result.pages.map((page) => ({
-      pageNumber: page.num,
-      text: page.text
-    }));
+    const pages: ExtractedPageText[] = [];
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      pages.push({
+        pageNumber,
+        text: plainTextFromPdfItems(content.items)
+      });
+    }
+    return pages;
   } finally {
-    await parser.destroy();
+    await closePdfTextDocument(document);
   }
 }
