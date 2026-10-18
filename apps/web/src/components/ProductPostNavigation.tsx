@@ -7,7 +7,7 @@ import { groupProductRequirementsByPdfChapter } from "@/lib/product-post-groups"
 import { chapterAssignmentTarget, projectAssignmentIndex, type AssignmentTarget } from "@/lib/project-work-assignment";
 import type { ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { PostAssignmentPicker } from "./PostAssignmentPicker";
-import { flattenProductPostTree, productChapterContents, type ProductPostNavigationGroup, type ProductPostNode } from "@/lib/product-post-tree";
+import { productChapterContents, type ProductPostNavigationGroup } from "@/lib/product-post-tree";
 import { projectRequirementDetails } from "@/lib/project-requirement-details";
 import { productRequirementResolution } from "@/lib/product-requirement-resolution";
 
@@ -49,87 +49,36 @@ export function ProductPostNavigation({ groups, requirements, projectId, resourc
       ? <PostAssignmentPicker key={`${target.type}:${target.value}`} projectId={projectId} target={target} current={currentAssignment(target)}
         inherited={inherited} data={data} resource={resource} onClose={() => setEditing(null)} /> : null;
   }
-  function renderPost(node: ProductPostNode<Row>) {
-    if (node.heading) {
-      const { postNumber, description } = node.heading;
-      const children = flattenProductPostTree(node.children);
-      const expanded = expandedKeys.has(node.key);
-      const childrenId = `product-post-children-${encodeURIComponent(node.key)}`;
-      return <li key={node.key}>
-        <div className="product-post-assigned-row product-post-parent-row">
-          <div className="product-post-parent-controls">
-            <button type="button" className="product-post-parent-toggle" aria-expanded={expanded} aria-controls={childrenId}
-              disabled={disabled} onClick={() => onToggle(node.key)}>
-              <strong className="product-post-list-number">
-                {expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-                <span>{postNumber}</span>
-              </strong>
-              <span className="product-post-list-description"><span>{description}</span>
-                <small className="product-post-branch-label">Underkapittel · {children.length} poster</small>
-              </span>
-            </button>
-            <span className="product-post-list-status">{children.filter(row => handledIds.has(row.id)).length}/{children.length} håndtert</span>
-          </div>
-        </div>
-        <ol id={childrenId} className="product-post-children" aria-label={`Underposter til ${postNumber}`} hidden={!expanded}>
-          {expanded && node.children.map(renderPost)}
-        </ol>
-      </li>;
-    }
-    const requirement = node.requirement;
+  function renderPost(requirement: Row) {
     const details = projectRequirementDetails(requirement);
     const handled = handledIds.has(requirement.id);
     const resolution = productRequirementResolution(requirement);
     const label = details.postNumber ?? String(requirement.value_text ?? "Post uten nummer");
     const target: AssignmentTarget = { type: "post", value: requirement.id, label };
     const assignment = assignmentByRow.get(requirement.id);
-    const hasChildren = node.children.length > 0;
-    const expanded = expandedKeys.has(node.key);
-    const childrenId = `product-post-children-${requirement.id}`;
     const status = <span className="product-post-list-status" data-handled={handled}>
       {handled && <Check aria-hidden="true" />}{resolution?.label ?? (handled ? "Produktvalg lagret" : "Åpen")}
     </span>;
-    return <li key={node.key}>
-      <div className={`product-post-assigned-row${hasChildren ? " product-post-parent-row" : ""}`}>
-        {hasChildren ? <div className="product-post-parent-controls">
-          <button id={`product-post-row-${requirement.id}`} type="button" className="product-post-parent-toggle"
-            aria-current={activeRequirementId === requirement.id ? "true" : undefined}
-            aria-expanded={expanded} aria-controls={childrenId} disabled={disabled} onClick={() => onToggle(node.key)}>
-            <strong className="product-post-list-number">
-              {expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-              <span>{details.postNumber ?? "Uten postnummer"}</span>
-            </strong>
-            <span className="product-post-list-description">
-              <span>{String(requirement.value_text ?? "Teknisk produktkrav")}</span>
-              <small className="product-post-branch-label">Hovedpost · {flattenProductPostTree(node.children).length} underposter</small>
-            </span>
-          </button>
-          {status}
-          <button type="button" className="product-post-open-parent" aria-label={`Åpne hovedpost ${label}`}
-            aria-controls="product-post-detail" disabled={disabled} onClick={() => onSelect(requirement.id)}>
-            Åpne <ChevronRight aria-hidden="true" />
-          </button>
-        </div> : <button id={`product-post-row-${requirement.id}`} type="button" className="product-post-list-row"
+    return <li key={requirement.id}>
+      <div className="product-post-assigned-row">
+        <button id={`product-post-row-${requirement.id}`} type="button" className="product-post-list-row"
           aria-current={activeRequirementId === requirement.id ? "true" : undefined}
           aria-controls="product-post-detail" disabled={disabled} onClick={() => onSelect(requirement.id)}>
           <strong className="product-post-list-number">{details.postNumber ?? "Uten postnummer"}</strong>
           <span className="product-post-list-description">{String(requirement.value_text ?? "Teknisk produktkrav")}</span>
           {status}
           <ChevronRight aria-hidden="true" />
-        </button>}
+        </button>
         {assignmentControl(target, assignment)}
       </div>
       {editor(target, assignment)}
-      {hasChildren && <ol id={childrenId} className="product-post-children" aria-label={`Underposter til ${label}`} hidden={!expanded}>
-        {expanded && node.children.map(renderPost)}
-      </ol>}
     </li>;
   }
 
   return (
     <nav id="product-post-list" aria-label="Postliste" className="product-post-list">
       <header className="product-post-list-heading">
-        <div><h2>Poster</h2><p>Åpne et kapittel for å se postene og underkapitlene.</p></div>
+        <div><h2>Poster</h2><p>Åpne et kapittel for å se alle postene som egne rader.</p></div>
         <span>{displayGroups.reduce((total, group) => total + group.requirements.length, 0)} poster</span>
       </header>
       {error && <p role="alert" className="post-assignment-error">Ansvar kunne ikke hentes. <button type="button" disabled={refreshing} onClick={() => void resource.refresh()}>Prøv igjen</button></p>}
@@ -170,7 +119,7 @@ export function ProductPostNavigation({ groups, requirements, projectId, resourc
                 {editor(target, assignment)}
               </li>;
             })}
-            {expanded && group.posts.map(renderPost)}
+            {expanded && group.requirements.map(renderPost)}
           </ol>
         </section>;
       })}

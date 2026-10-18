@@ -258,7 +258,7 @@ test("the chapter count excludes its repeated introduction and one expansion rev
   assert.equal((open.match(/Utstyr for sanitærinstallasjoner<\/span>/g) ?? []).length, 1);
 });
 
-test("opening a chapter preserves genuine subchapters and filtering without duplicating posts", () => {
+test("opening a filtered chapter shows parent and nested posts as separate rows without extra expansions", () => {
   const rows = sanitaryChapter();
   const nested = { ...post("nested", "02.30.315.2.1", 3, "02.30.315 Utstyr for sanitærinstallasjoner"), value_text: "Underpost" };
   const all = [...rows, nested];
@@ -271,10 +271,40 @@ test("opening a chapter preserves genuine subchapters and filtering without dupl
   assert.equal(new Set(contents.requirements.map(row => row.id)).size, contents.requirements.length);
   const html = renderToStaticMarkup(createElement(ProductPostNavigation, {
     groups: [group], requirements: all, projectId: "test", resource: createProjectDeliveryResource("test"),
-    expandedKeys: new Set(productPostExpansionKeys([group], "nested")), onToggle: () => {}, onSelect: () => true,
+    expandedKeys: new Set([group.key]), onToggle: () => {}, onSelect: () => true,
     handledIds: new Set<string>(), disabled: false
   }));
   assert.match(html, /id="product-post-row-nested"/);
+  assert.match(html, /id="product-post-row-sanitary-2"/);
+  assert.doesNotMatch(html, /product-post-parent-toggle|product-post-children|aria-expanded="false"/);
+});
+
+test("02.30.312 shows every level in numeric order after only opening its chapter", () => {
+  const chapter = "02.30.312 Ledningsnett for sanitærinstallasjoner";
+  const row = (id: string, number: string, parent?: string) => ({
+    ...post(id, number, 1, chapter), value_text: id,
+    value_json: { postNumber: number, parentPostNumber: parent, parentDescription: "Rørledninger", sourceChapter: { title: chapter }, quantity: 2, unit: "m" }
+  });
+  const rows = [row("ten", "02.30.312.1.10"), row("deep", "02.30.312.1.2.1"),
+    row("two", "02.30.312.1.2"), row("main", "02.30.312.1"),
+    row("synthetic-child", "02.30.312.2.1", "02.30.312.2"), row("direct", "02.30.312.3")];
+  const other = post("other", "02.30.313.1", 2, "02.30.313 Annet kapittel");
+  const all = [...rows, other];
+  const before = JSON.stringify(all);
+  const groups = productPostNavigationGroups(all);
+  const group = groups.find(item => item.title === chapter)!;
+  const html = renderToStaticMarkup(createElement(ProductPostNavigation, {
+    groups, requirements: all, projectId: "test", resource: createProjectDeliveryResource("test"),
+    expandedKeys: new Set([group.key]), onToggle: () => {}, onSelect: () => true,
+    handledIds: new Set(["two"]), activeRequirementId: "deep", disabled: false
+  }));
+  assert.deepEqual([...html.matchAll(/id="product-post-row-([^"]+)"/g)].map(match => match[1]),
+    ["main", "two", "deep", "ten", "synthetic-child", "direct"]);
+  assert.match(html, /<small>6 poster<\/small>/);
+  assert.match(html, /<small>1 håndtert<\/small>/);
+  assert.match(html, /id="product-post-row-deep"[^>]*aria-current="true"/);
+  assert.doesNotMatch(html, /product-post-parent-toggle|product-post-children|Hovedpost ·|Underkapittel ·/);
+  assert.equal(JSON.stringify(all), before);
 });
 
 test("a priced chapter post stays selectable and counted while its children appear directly", () => {
