@@ -14,6 +14,7 @@ export default defineConfig([
     "dist/**",
     "dist-old-*/**",
     "public/ocr/**",
+    "public/pdf-assets/**",
     "tmp/**",
     "next-env.d.ts"
   ])

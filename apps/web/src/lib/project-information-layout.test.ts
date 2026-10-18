@@ -107,15 +107,16 @@ test("tables retain captions, empty room cells, numeric columns, wrapped rows an
   assert.deepEqual(blocks.at(-1), { kind: "text", text: "Utstyret skal vibrasjonsisoleres." });
 });
 
-test("both card variants render the source once in PDF order, including the opening chapters", () => {
+test("both card variants retain the complete plain fallback without reconstructing tables or headings", () => {
   const row = requirementSnapshot(withEffectiveRequirements(requirementSnapshot(savedRow())));
   for (const informationOnly of [false, true]) {
     const html = renderToStaticMarkup(createElement(ProjectPostSpecification, {
       id: row.id, description: row.value_text, details: projectRequirementDetails(row), quantity: { quantity: null, unit: "?" }, informationOnly
     }));
-    assert.match(html, /<h4[^>]*>30\.0 OMFANG<\/h4>/);
-    assert.match(html, /<th[^>]*scope="col"[^>]*>Romnummer<\/th>/);
-    assert.equal((html.match(/<caption /g) ?? []).length, 5);
+    assert.match(html, /30\.0 OMFANG/);
+    assert.doesNotMatch(html, /<h4|<table|<strong|font-semibold/);
+    assert.match(html, /Romnavn Romnummer LAeq LAF,max/);
+    assert.equal((html.match(/Tabell [1-5] Krav/g) ?? []).length, 5);
     assert.ok(html.indexOf("NS8175:2012") < html.indexOf("Tabell 1:"));
     assert.ok(html.indexOf("Tabell 5 Krav") < html.indexOf("30.6.1 VIBRASJONER"));
     assert.equal((html.match(/Adkomst platform/g) ?? []).length, 1);
@@ -164,8 +165,9 @@ Avregnes etter medgåtte mengder`;
     const html = renderToStaticMarkup(createElement(ProjectPostSpecification, {
       id: raw.id, description: raw.value_text, details, quantity: { quantity: null, unit: "?" }, informationOnly
     }));
-    assert.match(html, /<p[^>]*whitespace-pre-line[^>]*>Produkt: Brannekspanderende tetting<\/p>/);
-    assert.match(html, /<p[^>]*whitespace-pre-line[^>]*>Konstruksjon: Utsparinger i lettklinker inntil 250 mm \+\ntosidig puss<\/p>/);
+    assert.match(html, /Produkt: Brannekspanderende tetting\nLokalisering: Se modell/);
+    assert.match(html, /<pre[^>]*whitespace-pre-wrap/);
+    assert.match(html, /Konstruksjon: Utsparinger i lettklinker inntil 250 mm \+\ntosidig puss/);
     for (const text of ["SF6.41A", "TETTING MED FERDIG PRODUKT", ...fields, "Andre krav:", "a) Omfang og prisgrunnlag", "Posten omfatter også krav gitt i Postnr. 100.27.200.1.", "x) Mengderegler", "Avregnes etter medgåtte mengder"]) {
       assert.equal(html.split(text).length - 1, 1, `Rendered once: ${text}`);
     }

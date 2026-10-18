@@ -43,11 +43,10 @@ test("description quantities are preserved by column position, even when identic
     quantity: { quantity: 2, unit: "st" }, quantityText: row.quantityText }));
   assert.equal(html.split("Antall st 2").length - 1, 1);
   assert.equal(html.split("Antall st 5").length - 1, 1);
-  assert.match(html, /aria-label="Enhet">stk<\/div>/);
-  assert.match(html, /aria-label="Antall">2<\/div>/);
+  assert.match(html, /<span>Enh\.: stk<\/span>/);
+  assert.match(html, /<span>Antall: 2<\/span>/);
   assert.doesNotMatch(html, /<dt[^>]*>Antall:/);
-  assert.match(html, /aria-label="Pris"><\/div>/);
-  assert.match(html, /aria-label="Sum"><\/div>/);
+  assert.doesNotMatch(html, /aria-label="Pris"|aria-label="Sum"/);
   assert.equal(html.split("Rom M3H1.02").length - 1, 1);
   assert.match(html, /28 varmerør MM med 30 mm isolasjon/);
 });
@@ -274,7 +273,7 @@ test("reads Enhet through actual PDF text extraction with the same result as Enh
     [["1201.30.311.1", 12, "m"], ["1201.30.311.2", 12, "m"]]);
 });
 
-test("source column display preserves empty RS amounts and original numeric formatting", async () => {
+test("plain fallback preserves empty RS amounts and original numeric formatting separately from description", async () => {
   const { createElement } = await import("react");
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { ProjectPostSpecification } = await import("@/components/ProjectPostSpecification");
@@ -286,7 +285,7 @@ test("source column display preserves empty RS amounts and original numeric form
     const details = projectRequirementDetails({ source_page: 1, source_excerpt: row.sourceText, value_json: row });
     const html = renderToStaticMarkup(createElement(ProjectPostSpecification, { id: row.id, details, description: row.description,
       quantity: { quantity: row.quantity!, unit: row.unit! } }));
-    assert.ok(html.includes('aria-label="Antall">' + amount + '</div>'));
-    assert.ok(html.includes('aria-label="Enhet">' + unit + '</div>'));
+    assert.ok(html.includes('<span>Antall: ' + amount + '</span>'));
+    assert.ok(html.includes('<span>Enh.: ' + unit + '</span>'));
   }
 });

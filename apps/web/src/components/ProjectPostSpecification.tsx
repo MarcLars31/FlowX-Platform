@@ -1,117 +1,46 @@
-import { PdfSourceDocument } from "./PdfRequirementSource";
-import { projectRequirementSourceSections } from "@/lib/project-requirement-source";
-import { FileText } from "lucide-react";
-import { projectInformationBody, projectRequirementPageLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
-import { projectInformationBlocks, type InformationTable } from "@/lib/project-information-layout";
-import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
-import { structuredPostBlocks } from "@/lib/structured-post-layout";
-import { orderedSpecificationAttributes } from "@/lib/project-specification-layout";
+import {PdfSourceDocument} from "./PdfRequirementSource";
+import {OriginalPdfPost} from "./OriginalPdfPost";
+import {projectRequirementSourceSections} from "@/lib/project-requirement-source";
+import {projectRequirementPageLabel,type ProjectRequirementDetail} from "@/lib/project-requirement-details";
+import {originalPdfSourcePages} from "@/lib/pdf-post-original-regions";
+import type {ProjectRequirementQuantity} from "@/lib/project-requirement-quantity";
 
-export function ProjectPostSpecification({ id, details: sourceDetails, description, quantity, quantityText, sourcePdfHref, sourcePdfFileName, pdfArticleNumber, informationOnly = false }: {
-  id: string;
-  details: ProjectRequirementDetail;
-  description: string;
-  quantity: ProjectRequirementQuantity;
-  quantityText?: string;
-  sourcePdfHref?: string | null;
-  sourcePdfFileName?: string | null;
-  pdfArticleNumber?: string | null;
-  informationOnly?: boolean;
+/** The original PDF supplies all typography, spacing and columns. Extracted
+ * text is an explicitly labelled fallback, never a reconstructed PDF layout. */
+export function ProjectPostSpecification({id,details:sourceDetails,description,quantity,sourcePdfHref,sourcePdfFileName,pdfArticleNumber}: {
+  id:string;details:ProjectRequirementDetail;description:string;quantity:ProjectRequirementQuantity;quantityText?:string;
+  sourcePdfHref?:string|null;sourcePdfFileName?:string|null;pdfArticleNumber?:string|null;informationOnly?:boolean;
 }) {
-  const current = projectRequirementSourceSections(sourceDetails.sourceExcerpt ?? "", sourceDetails.postNumber)
-    .find(section => section.relation === "current");
-  const details = current ? { ...sourceDetails, sourceExcerpt: current.text } : sourceDetails;
-  const columnLayout = details.sourceLayout === "six-column";
-  const fields = orderedSpecificationAttributes(details);
-  const blocks = structuredPostBlocks(details, description).filter(block => block.kind !== "quantity");
-  const rs = quantity.unit === "RS";
-  const amountLabel = rs ? "Rund sum" : quantityText?.match(/^(Antall|Antal|Lengde|Areal|Volum|Vekt|Tid)\b/i)?.[1] ?? "Mängd";
-  const showQuantity = !columnLayout && (rs || quantity.quantity !== null || !["", "?"].includes(quantity.unit));
-  // An unnumbered fragment often starts directly with a field, not a heading.
-  const hasHeading = description && !fields.some(field => description.toLocaleLowerCase().startsWith(`${field.label.toLocaleLowerCase()}:`));
-  const postLabel = details.postNumber ? `PDF-post ${details.postNumber}` : `PDF · sida ${details.sourcePage ?? "—"}`;
-  return <div className="overflow-x-auto border border-neutral-300 bg-white text-sm leading-6 text-neutral-950">
-    {Boolean(details.sourceWarnings?.length) && <div role="status" className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">
-      <strong>Kontroller PDF-posten</strong>
-      <ul className="list-disc pl-5">{details.sourceWarnings!.map(warning => <li key={warning}>{warning}</li>)}</ul>
+  const current=projectRequirementSourceSections(sourceDetails.sourceExcerpt??"",sourceDetails.postNumber).find(section=>section.relation==="current");
+  const details=current?{...sourceDetails,sourceExcerpt:current.text}:sourceDetails;
+  const pages=originalPdfSourcePages(details.sourcePage,details.sourcePages??[...(details.sourceExcerpt??"").matchAll(/^FORTSETTELSE SIDE (\d+)$/gm)].map(match=>Number(match[1])));
+  const body=details.sourceExcerpt||[details.nsCode,description,...details.attributes.filter(([key])=>key!=="pdf-kommentar").map(([key,value])=>`${key}: ${value}`)].filter(Boolean).join("\n");
+  const savedText=<div className="p-3 font-normal">
+    <pre className="m-0 whitespace-pre-wrap break-words font-sans text-sm font-normal leading-normal">{body}</pre>
+    {details.sourceLayout==="six-column"&&<div className="mt-3 flex gap-6 text-sm">
+      <span>Enh.: {details.pdfColumnValues?.unit??(quantity.unit==="?"?"":quantity.unit)}</span>
+      <span>Antall: {details.pdfColumnValues?.quantity??quantity.quantity??""}</span>
     </div>}
-    {Boolean(details.sourceReimportReadings?.length) && <details className="border-b border-amber-300 bg-amber-50 px-3 py-2">
-      <summary className="cursor-pointer font-semibold">Ny PDF-läsning att granska</summary>
-      <p className="my-2">Läsningen skiljer sig från den sparade texten. Jämför med original-PDF:n innan kraven ändras.</p>
-      {details.sourceReimportReadings!.map((reading, index) => <pre key={index} className="my-2 whitespace-pre-wrap break-words border-t border-amber-200 pt-2 font-sans">{reading}</pre>)}
-    </details>}
-    {columnLayout && <div className="border-b border-neutral-300 px-3 py-2"><PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} /></div>}
-    <div className={columnLayout ? "grid min-w-[52rem] grid-cols-[6.5rem_minmax(18rem,1fr)_4rem_5rem_5rem_5rem]" : "grid sm:grid-cols-[6.5rem_minmax(0,1fr)]"}>
-      {columnLayout && ["Postnr.", "Beskrivelse", "Enh.", "Antall", "Pris", "Sum"].map(label => <div key={label} className="border-b border-r border-neutral-300 px-3 py-2 font-bold last:border-r-0">{label}</div>)}
-      <h3 id={`pdf-specification-${id}`} className="break-words border-b border-neutral-300 px-3 py-3 font-[700] sm:border-b-0 sm:border-r">
-        {sourcePdfHref ? <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer"
-          title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
-          className="break-words underline decoration-neutral-400 underline-offset-4 hover:decoration-neutral-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
-          {postLabel} <FileText className="inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
-        </a> : postLabel}
+  </div>;
+  return <div className="border border-neutral-300 bg-white text-sm font-normal text-neutral-950">
+    <div className="border-b border-neutral-200 px-3 pt-3">
+      <h3 id={`pdf-specification-${id}`} className="mb-2 break-words text-sm font-normal">
+        {sourcePdfHref?<a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">{details.postNumber?`PDF-post ${details.postNumber}`:`PDF · sida ${details.sourcePage??"—"}`}</a>
+          :details.postNumber?`PDF-post ${details.postNumber}`:`PDF · sida ${details.sourcePage??"—"}`}
       </h3>
-      <div className="min-w-0 px-3 py-3">
-        {!columnLayout && <PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} />}
-        {details.nsCode && <p className="break-words font-[700]">{details.nsCode}</p>}
-        {hasHeading && <p className="break-words font-[700] leading-5">{description}</p>}
-        {showQuantity && <dl className="my-2 flex flex-wrap items-baseline gap-x-2">
-          <dt className="font-[700]">{amountLabel}:</dt>
-          <dd>{!rs && <>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)} </>}{quantity.unit === "?" ? "—" : quantity.unit}</dd>
-        </dl>}
-        {(columnLayout || informationOnly || details.chapterInformation) && details.sourceExcerpt ? <>
-          <div className={`${details.nsCode || columnLayout ? "mt-2 space-y-0" : "mt-4 space-y-3"} break-words leading-6`}>{projectInformationBlocks(projectInformationBody(details, hasHeading ? description : "")).map((paragraph, index) => paragraph.kind === "table"
-            ? <InformationSourceTable key={index} table={paragraph} />
-            : paragraph.kind === "heading" ? <h4 key={index} className={`${details.nsCode ? "" : "!mt-5 "}font-[700]`}><SpecificationText value={paragraph.text} /></h4>
-            : <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "field" ? "!mt-0 whitespace-pre-line" : paragraph.kind === "bullet" ? "!mt-0 pl-4 -indent-4" : undefined}>{paragraph.text}</p>
-          )}</div>
-          {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
-        </> : <div className="mt-2 space-y-1">
-          {blocks.map((block, index) => block.kind === "field"
-            ? <dl key={index}><SpecificationField label={block.label} value={block.text} emphasizeHeadings block={block.text.includes("\n")} /></dl>
-            : <p key={index} className={block.kind === "page" ? "!mt-3 border-t border-neutral-200 pt-2 text-xs text-neutral-600" : block.kind === "heading" ? "!mt-3 font-[700]" : block.kind === "bullet" ? "pl-4 -indent-4" : "break-words"}><SpecificationText value={block.text} /></p>)}
-          {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
-        </div>}
-        {(details.standardRefs.length > 0 || pdfArticleNumber) &&
-          <dl className="mt-4 space-y-1 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
-            {details.standardRefs.length > 0 && <SpecificationField label="Standarder" value={details.standardRefs.join(", ")} />}
-            {pdfArticleNumber && <SpecificationField label="NRF-nummer i PDF" value={pdfArticleNumber} />}
-          </dl>}
-      </div>
-      {columnLayout && <>
-        <div className="whitespace-pre-line border-l border-neutral-300 px-3 py-3" aria-label="Enhet">{details.pdfColumnValues?.unit ?? (["", "?"].includes(quantity.unit) ? "" : quantity.unit)}</div>
-        <div className="whitespace-pre-line border-l border-neutral-300 px-3 py-3 text-right tabular-nums" aria-label="Antall">{details.pdfColumnValues?.quantity ?? (quantity.quantity === null ? "" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity))}</div>
-        <div className="border-l border-neutral-300 px-3 py-3" aria-label="Pris" />
-        <div className="border-l border-neutral-300 px-3 py-3" aria-label="Sum" />
-      </>}
+      <PdfSourceDocument fileName={sourcePdfFileName??null} page={details.sourcePage} href={sourcePdfHref??null} pageLabel={projectRequirementPageLabel(details)} />
     </div>
+    {Boolean(details.sourceWarnings?.length)&&<div role="status" className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">
+      <p>Kontroller PDF-posten</p><ul className="list-disc pl-5">{details.sourceWarnings!.map(warning=><li key={warning}>{warning}</li>)}</ul>
+    </div>}
+    {Boolean(details.sourceReimportReadings?.length)&&<details className="border-b border-amber-300 bg-amber-50 px-3 py-2">
+      <summary className="cursor-pointer">Ny PDF-läsning att granska</summary>
+      <p className="my-2">Läsningen skiljer sig från den sparade texten. Jämför med original-PDF:n innan kraven ändras.</p>
+      {details.sourceReimportReadings!.map((reading,index)=><pre key={index} className="my-2 whitespace-pre-wrap break-words border-t border-amber-200 pt-2 font-sans font-normal">{reading}</pre>)}
+    </details>}
+    {sourcePdfHref&&details.sourcePage&&pages.length?<OriginalPdfPost key={`${id}:${sourcePdfHref}`} href={sourcePdfHref} postNumber={details.postNumber} sourcePage={details.sourcePage} pages={pages} fallback={savedText}/>
+      :<><p className="px-3 pt-3 text-xs text-neutral-600">Textutdrag · originalets layout är inte tillgänglig.</p>{savedText}</>}
+    {details.attributes.filter(([key])=>key==="pdf-kommentar").map(([key,value])=><div key={key} className="border-t border-neutral-200 p-3"><p>PDF-kommentar</p><p className="whitespace-pre-wrap">{value}</p></div>)}
+    {pdfArticleNumber&&<p className="border-t border-neutral-200 px-3 py-2 text-xs">NRF-nummer i PDF: {pdfArticleNumber}</p>}
   </div>;
-}
-
-function InformationSourceTable({ table }: { table: InformationTable }) {
-  return <div className="max-w-full overflow-x-auto">
-    <table className="w-full border-collapse text-left text-sm leading-5">
-      {table.caption && <caption className="pb-1 text-left text-xs italic">{table.caption}</caption>}
-      <colgroup>{table.columns.map((_, index) => <col key={index} style={{ width: table.columns.length === 2 ? index === 0 ? "88%" : "12%" : `${100 / table.columns.length}%` }} />)}</colgroup>
-      <thead className={table.continued ? "sr-only" : undefined}><tr>{table.columns.map((column, index) =>
-        <th key={index} scope="col" className="border border-neutral-500 px-2 py-1 font-bold">{column === "LwA" ? <>L<sub>wA</sub></> : column}</th>
-      )}</tr></thead>
-      <tbody>{table.rows.map((row, index) => <tr key={index}>{row.cells.map((cell, column) =>
-        <td key={column} className={`border border-neutral-500 px-2 py-1 align-top${row.heading ? " font-bold" : ""}${column > 0 ? " whitespace-nowrap tabular-nums" : ""}`}>{cell}</td>
-      )}</tr>)}</tbody>
-    </table>
-  </div>;
-}
-
-function SpecificationField({ label, value, block = false, emphasizeHeadings = false }: { label: string; value: string; block?: boolean; emphasizeHeadings?: boolean }) {
-  return <div className="break-words"><dt className={`${block ? "block" : "inline"} font-[700]`}>{label}: </dt><dd className={`${block ? "block" : "inline"} whitespace-pre-wrap`}>{emphasizeHeadings ? <SpecificationText value={value} /> : value}</dd></div>;
-}
-
-/** Emphasize section titles and short labels without changing extracted text. */
-function SpecificationText({ value }: { value: string }) {
-  return value.split(/(\r?\n)/).map((line, index) => {
-    const sectionHeading = /^\s*(?:[a-z]\)\s+\S.*|[-–—•]\s+[\p{L}\p{N}][^.!?:\r\n]{0,70})\s*$/iu.test(line);
-    if (sectionHeading) return <strong key={index}>{line}</strong>;
-    const label = line.match(/^(\s*(?:[\p{L}\p{N}][^\s:]*[ \t]+){0,3}[\p{L}\p{N}][^\s:]*[ \t]*:)(?=[ \t]|$)/u);
-    return label ? <span key={index}><strong>{label[1]}</strong>{line.slice(label[1].length)}</span> : line;
-  });
 }

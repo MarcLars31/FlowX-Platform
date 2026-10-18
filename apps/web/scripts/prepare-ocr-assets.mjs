@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, cp, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,3 +38,10 @@ await Promise.all(
 );
 
 console.log(`Prepared ${assets.length} browser OCR assets.`);
+
+// Original PDF previews use embedded fonts and the bundled PDF.js fallback
+// fonts, CMaps and image decoders. No third-party asset requests are needed.
+for (const directory of ["standard_fonts", "cmaps", "wasm"]) {
+  await cp(resolve(appRoot, "node_modules/pdfjs-dist", directory),
+    resolve(appRoot, "public/pdf-assets", directory), { recursive: true });
+}

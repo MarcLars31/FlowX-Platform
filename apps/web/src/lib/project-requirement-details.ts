@@ -14,6 +14,7 @@ export type ProjectRequirementDetail = {
   standardRefs: string[];
   attributes: Array<[string, string]>;
   sourcePage: number | null;
+  sourcePages?: number[];
   sourceExcerpt: string | null;
   additionalRequirements: string | null;
   chapterInformation?: boolean;
@@ -53,6 +54,7 @@ export function projectRequirementDetails(
       return valueText ? [[key, valueText] as [string, string]] : [];
     }),
     sourcePage: positiveInteger(requirement.source_page),
+    ...(Array.isArray(value.sourcePages) ? { sourcePages: value.sourcePages.map(positiveInteger).filter((page): page is number => page !== null) } : {}),
     sourceExcerpt,
     ...(text(value.pdfDescriptionText) ? { sourceLayout: "six-column" as const } : {}),
     ...(typeof columnValues.unit === "string" && typeof columnValues.quantity === "string"

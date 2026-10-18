@@ -63,10 +63,11 @@ test("Sprinkler2 marking scope on the next page is actually rendered in the prod
   const details = projectRequirementDetails({ source_page: 15, value_json: { postNumber: '30.332.27', sourceText: source, technicalSpecification: source } });
   const html = renderToStaticMarkup(createElement(ProjectPostSpecification, { id: 'r', details, description: 'Merking ventil (skilt)', quantity: { quantity: 1, unit: 'RS' } }));
   assert.match(html, /Omfang er skilt for 3stk DN25 dreneringsventiler/);
-  assert.match(html, /plassert over himling og 1 under nederste mellomrepos av trapp/);
+  assert.match(html, /plassert over himling og 1 under nederste mellomrepos av\ntrapp/);
   assert.match(html, /Drenering 33 Sprinkleranlegg/);
-  assert.match(html, /Side 16/);
-  assert.doesNotMatch(html, /FORTSETTELSE|Rund sum RS/);
+  assert.match(html, /Side 15–16/);
+  assert.match(html, /FORTSETTELSE SIDE 16/);
+  assert.equal(html.match(/Rund sum RS/g)?.length, 1);
   assert.equal(html.match(/Merking ventil \(skilt\)/g)?.length, 1);
 });
 
@@ -91,7 +92,7 @@ test("free clauses after an ordinary field survive even when its saved value is 
 });
 
 
-test("legacy sprinkler headers and OCR label variants render once without a false next page", async () => {
+test("plain fallback retains source spelling once without a false next page", async () => {
   const { createElement } = await import("react");
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { ProjectPostSpecification } = await import("../components/ProjectPostSpecification");
@@ -108,8 +109,9 @@ test("legacy sprinkler headers and OCR label variants render once without a fals
   assert.equal(html.match(/UE2\.11111232/g)?.length, 1);
   assert.equal(html.match(/SPRINKLER/g)?.length, 1);
   assert.equal(html.match(/68 °C/g)?.length, 1);
-  assert.equal(html.match(/Følsomhetsgrad/g)?.length, 1);
-  assert.doesNotMatch(html, /Rambøll|Side 2|Utlesningstemperatur|\|/);
+  assert.equal(html.match(/Felsomhetsgrad/g)?.length, 1);
+  assert.doesNotMatch(html, /Rambøll|Side 2/);
+  assert.equal(html.match(/Utlesningstemperatur/g)?.length, 1);
   assert.match(html, /Datablad skal følge med/);
   assert.equal(JSON.stringify(row), before);
 });

@@ -13,7 +13,7 @@ const numberToken = /^(?:[A-Z]\d*\.)?\.?\d+(?:\.\d+)*\.?$/i;
 /** Inventory the physical post column independently of product, NS-code and
  * quantity parsing. Description references and subsection numbers cannot enter
  * this inventory. No Sted, language-specific description or amount header is required. */
-export function pdfPostInventoryFromItems(input: readonly unknown[]): PostInventory | undefined {
+function pdfPostColumnLayout(input: readonly unknown[]) {
   const items: Item[] = input.flatMap(value => {
     const item = value as Partial<Item> | null;
     if (!item || typeof item.str !== "string" || !item.str.trim() || !Array.isArray(item.transform)) return [];
@@ -32,7 +32,7 @@ export function pdfPostInventoryFromItems(input: readonly unknown[]): PostInvent
   const column = body.filter(item => item.x >= header.x - header.height * 2 && item.x < right
     && numberToken.test(item.str) && !isTechnicalDescriptionDateHeader(item.str))
     .sort((a, b) => b.y - a.y || a.x - b.x);
-  const anchors: Array<{ postNumber: string; y: number; last: Item }> = [];
+  const anchors: Array<{ postNumber: string; y: number; first: Item; last: Item }> = [];
   for (const item of column) {
     const previous = anchors.at(-1);
     const stem = previous?.postNumber.replace(/\.$/, "").split(".")[0];
@@ -45,8 +45,34 @@ export function pdfPostInventoryFromItems(input: readonly unknown[]): PostInvent
       previous.postNumber = item.str.startsWith(".")
         ? previous.postNumber.replace(/\.$/, "") + item.str : previous.postNumber + item.str;
       previous.last = item;
-    } else anchors.push({ postNumber: item.str, y: item.y, last: item });
+    } else anchors.push({ postNumber: item.str, y: item.y, first: item, last: item });
   }
+  return { header, footer, body, column, anchors };
+}
+
+/** The viewer uses the same physical post-column anchors as the inventory.
+ * Coordinates stay in PDF user space; they never depend on OCR text or amount. */
+export function pdfPostColumnBounds(input: readonly unknown[]) {
+  const layout = pdfPostColumnLayout(input);
+  if (!layout) return undefined;
+  const { header, footer, anchors } = layout;
+  const headerBottom = header.y - Math.max(6, header.height);
+  return {
+    header: { top: header.y + header.height + 4, bottom: headerBottom },
+    bodyBottom: footer.length ? Math.max(...footer.map(item => item.y + item.height + 5)) : 0,
+    posts: anchors.map((anchor,index) => ({
+      postNumber: anchor.postNumber.replace(/\.$/, ""),
+      top: Math.min(headerBottom, anchor.y + anchor.first.height + 4),
+      bottom: index + 1 < anchors.length ? anchors[index + 1].y + anchors[index + 1].first.height + 4
+        : footer.length ? Math.max(...footer.map(item => item.y + item.height + 5)) : 0
+    }))
+  };
+}
+
+export function pdfPostInventoryFromItems(input: readonly unknown[]): PostInventory | undefined {
+  const layout = pdfPostColumnLayout(input);
+  if (!layout) return undefined;
+  const { body, column, anchors } = layout;
   const consumed = new Set(column);
   return { method: "column", posts: anchors.map((anchor, index) => {
     const block = body.filter(item => !consumed.has(item) && item.y <= anchor.y + 5
