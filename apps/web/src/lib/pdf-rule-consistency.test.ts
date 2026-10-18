@@ -54,7 +54,7 @@ test("ordinary view information never uses a demolition bucket", () => {
   const rows=[{id:"requirements",value_json:{reviewFlags:["project-information"]}},{id:"valve",value_json:{quantity:2,unit:"st"}}];
   const groups=groupProjectRequirementViews(rows);
   assert.equal("removal" in groups,false);assert.deepEqual(groups.information,[rows[0]]);
-  assert.deepEqual(visibleProjectRequirements(rows),rows);
+  assert.deepEqual(visibleProjectRequirements(rows),[rows[1]]);
 });
 
 test("extraction and navigation preserve a non-numeric source order", () => {

@@ -23,6 +23,7 @@ export type TechnicalDescriptionPage = {
   /** Independent inventory of physical post-number cells, before classification. */
   /** Original readings remain available for auditing mixed digital/OCR pages. */
   /** Amounts read from verified original columns, independent of OCR text order. */
+  sourcePostColumns?: import("./pdf-post-measurements").PdfPostMeasurementCells[];
   sourceColumnQuantities?: Array<{ postNumber: string; quantity: number; unit: string; text: string }>;
   sourceReadings?: { digital: string; ocr: string };
   sourceTextMerge?: boolean;

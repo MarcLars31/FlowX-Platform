@@ -3,7 +3,7 @@ import { PRODUCT_REQUIREMENT_CATEGORY_VERSION } from "./product-requirement-cate
 import { sortProjectRequirementsBySource } from "./project-requirement-order";
 
 // Bump when any derived overview classification, warning or heading logic changes.
-export const REQUIREMENT_OVERVIEW_VERSION = 103 + PRODUCT_REQUIREMENT_CATEGORY_VERSION;
+export const REQUIREMENT_OVERVIEW_VERSION = 104 + PRODUCT_REQUIREMENT_CATEGORY_VERSION;
 
 export function cachedRequirementOverview(row: OverviewRow): OverviewRow | null {
   const cache = record(Array.isArray(row.overview_cache) ? row.overview_cache[0] : row.overview_cache);

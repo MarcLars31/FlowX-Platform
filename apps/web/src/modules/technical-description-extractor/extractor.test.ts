@@ -1320,6 +1320,6 @@ for (const method of ["text", "ocr"] as const) test(`keeps unquantified building
   assert.equal(post.unit, undefined);
   assert.ok(post.reviewFlags.includes("project-information"));
   const groups = splitDistributorRequirementLines(result.materialLines.map(row => ({ id: row.id, value_text: row.description, value_json: row })));
-  assert.ok(visibleProjectRequirements([...groups.productRequirements, ...groups.workRequirements, ...groups.removalRequirements]).some(row => row.value_json.postNumber === "30.1.3"));
+  assert.equal(visibleProjectRequirements([...groups.productRequirements, ...groups.workRequirements, ...groups.removalRequirements]).some(row => row.value_json.postNumber === "30.1.3"), false);
   assert.equal(groups.removalRequirements.length, 0);
 });

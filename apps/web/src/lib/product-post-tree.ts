@@ -1,3 +1,4 @@
+import { productPostMeasurement } from "./project-requirement-views";
 import { groupProductRequirementsByPdfChapter, productChapterHeading, type ProductChapterGroup } from "./product-post-groups";
 import { sortProjectRequirementsBySource, projectRequirementOrderPostNumber } from "./project-requirement-order";
 
@@ -92,7 +93,15 @@ export function productPostNavigationGroups<T extends Requirement>(requirements:
   function retain(nodes: ProductPostNode<T>[]): ProductPostNode<T>[] {
     return nodes.flatMap(node => {
       const children = retain(node.children);
-      return (node.requirement && visible.has(node.requirement.id)) || children.length ? [{ ...node, children }] : [];
+      if (node.requirement && visible.has(node.requirement.id)) return [{ ...node, children }];
+      if (!children.length) return [];
+      if (!node.requirement) return [{ ...node, children }];
+      // Keep ancestor context without putting a hidden text row back in the
+      // selectable list, counts, or next/previous card navigation.
+      return [{ key: node.key, requirement: null, children, heading: {
+        postNumber: postNumber(node.requirement) ?? "",
+        description: String(node.requirement.value_text ?? node.requirement.display_name ?? "Hovedpost")
+      } }];
     });
   }
   return groupProductRequirementsByPdfChapter(allRequirements).flatMap(group => {
@@ -111,8 +120,9 @@ export function productChapterContents<T extends Requirement>(group: ProductPost
   const chapter = normalizedNumber(productChapterHeading(group.title).chapter);
   const chapterPosts: T[] = [];
   const posts = group.posts.flatMap(node => {
+    if (chapter && normalizedNumber(node.heading?.postNumber) === chapter) return node.children;
     if (!chapter || !node.requirement || postNumber(node.requirement) !== chapter) return [node];
-    if (record(node.requirement.value_json).chapterInformation === true) {
+    if (record(node.requirement.value_json).chapterInformation === true && !productPostMeasurement(node.requirement).visible) {
       chapterPosts.push(node.requirement);
       return node.children;
     }

@@ -1,3 +1,4 @@
+import { productPostMeasurement } from "./project-requirement-views";
 import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
 import { currentPostRequirement } from "./current-post-requirement";
 import { projectRequirementKFactorDisplayValue } from "./project-requirement-data-warnings";
@@ -36,8 +37,17 @@ export function projectRequirementDetails(
   const sourceKFactor = projectRequirementKFactorDisplayValue(requirement);
   if (sourceKFactor) attributes["k-faktor"] = sourceKFactor;
 
+  const sourceWarnings = requirementExtractionWarnings(requirement);
+  const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
+  if (productPostMeasurement({ ...requirement, id: String(requirement.id ?? "") }).missingQuantity
+    && !flags.includes("missing-quantity") && !flags.includes("unrecognized-quantity-columns")) {
+    sourceWarnings.push("PDF-postens mängd saknas i läsningen och behöver kontrolleras.");
+  }
+  if (typeof columnValues.unit === "string" && columnValues.unit.trim() && !/[\p{L}]/u.test(columnValues.unit)) {
+    sourceWarnings.push("PDF-postens enhet är oklar. Kontrollera enheten i original-PDF:n.");
+  }
   return {
-    sourceWarnings: requirementExtractionWarnings(requirement),
+    sourceWarnings,
     sourceReimportReadings: stringList(value.sourceReimportReadings),
     postNumber: text(value.postNumber) ?? postNumberFromSource(sourceExcerpt),
     chapterPost,

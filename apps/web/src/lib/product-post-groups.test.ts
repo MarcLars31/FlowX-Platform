@@ -120,12 +120,13 @@ test("post trees use nearest numbered ancestor, source pages and segment boundar
   assert.equal(roots[0].children[0].children[0].requirement?.id, "deep");
 });
 
-test("filtered product views retain ancestor information and expose the active branch", () => {
+test("filtered product views retain ancestor headings without selectable text cards", () => {
   const parent = post("parent", "30.332.7", 1), middle = post("middle", "30.332.7.2", 2), child = post("child", "30.332.7.2.1", 3);
   const groups = productPostNavigationGroups([child], [post("other", "30.332.8", 4), parent, middle, child]);
-  assert.deepEqual(groups[0].requirements.map(row => row.id), ["parent", "middle", "child"]);
+  assert.deepEqual(groups[0].requirements.map(row => row.id), ["child"]);
+  assert.equal(groups[0].posts[0].requirement, null);
   assert.deepEqual(productPostExpansionKeys(groups, "child"), [groups[0].key, "post:parent", "post:middle"]);
-  assert.deepEqual(productPostExpansionKeys(groups, "parent"), [groups[0].key]);
+  assert.deepEqual(productPostExpansionKeys(groups, "parent"), []);
 });
 
 test("a repeated number in another document or section never supplies a parent", () => {
@@ -215,8 +216,8 @@ test("subchapters open directly on their own posts without repeating the outer P
   });
   const filtered = productPostNavigationGroups([rows[1]], rows);
   assert.equal(filtered.length, 1);
-  assert.deepEqual(filtered[0].requirements.map(row => row.id), ["main0", "child0"]);
-  assert.equal(filtered[0].posts[0].requirement?.id, "main0");
+  assert.deepEqual(filtered[0].requirements.map(row => row.id), ["child0"]);
+  assert.equal(filtered[0].posts[0].requirement, null);
   assert.equal(JSON.stringify(rows), original);
 });
 
@@ -253,22 +254,22 @@ test("the chapter count excludes its repeated introduction and one expansion rev
   assert.doesNotMatch(closed, /id="product-post-row-sanitary-/);
   const open = render(new Set([groups[0].key]));
   for (const row of rows.slice(1)) assert.ok(open.includes(`id="product-post-row-${row.id}"`));
-  assert.match(open, /id="product-post-row-sanitary-intro"/);
-  assert.match(open, /Åpne kapitteltekst: 02.30.315 Utstyr for sanitærinstallasjoner/);
+  assert.doesNotMatch(open, /id="product-post-row-sanitary-intro"/);
+  assert.doesNotMatch(open, /Åpne kapitteltekst: 02.30.315 Utstyr for sanitærinstallasjoner/);
   assert.doesNotMatch(open, /Hovedpost · 28 underposter|product-post-parent-toggle/);
   assert.equal((open.match(/Utstyr for sanitærinstallasjoner<\/span>/g) ?? []).length, 1);
 });
 
-test("opening a filtered chapter shows parent and nested posts as separate rows without extra expansions", () => {
+test("opening a filtered chapter shows only selected nested posts without extra text cards", () => {
   const rows = sanitaryChapter();
   const nested = { ...post("nested", "02.30.315.2.1", 2, "02.30.315 Utstyr for sanitærinstallasjoner"), value_text: "Underpost" };
   const all = [...rows, nested];
   const [group] = productPostNavigationGroups([nested], all);
   const contents = productChapterContents(group);
-  assert.deepEqual(contents.posts.map(node => node.requirement?.id), ["sanitary-2"]);
+  assert.equal(contents.posts[0].requirement, null);
   assert.deepEqual(contents.posts[0].children.map(node => node.requirement?.id), ["nested"]);
-  assert.deepEqual(contents.requirements.map(row => row.id), ["sanitary-2", "nested"]);
-  assert.deepEqual(contents.chapterPosts.map(row => row.id), ["sanitary-intro"]);
+  assert.deepEqual(contents.requirements.map(row => row.id), ["nested"]);
+  assert.deepEqual(contents.chapterPosts, []);
   assert.equal(new Set(contents.requirements.map(row => row.id)).size, contents.requirements.length);
   const html = renderToStaticMarkup(createElement(ProductPostNavigation, {
     groups: [group], requirements: all, projectId: "test", resource: createProjectDeliveryResource("test"),
@@ -276,7 +277,7 @@ test("opening a filtered chapter shows parent and nested posts as separate rows 
     handledIds: new Set<string>(), disabled: false
   }));
   assert.match(html, /id="product-post-row-nested"/);
-  assert.match(html, /id="product-post-row-sanitary-2"/);
+  assert.doesNotMatch(html, /id="product-post-row-sanitary-2"/);
   assert.doesNotMatch(html, /product-post-parent-toggle|product-post-children|aria-expanded="false"/);
 });
 

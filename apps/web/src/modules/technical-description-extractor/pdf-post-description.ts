@@ -1,3 +1,4 @@
+import { measuredPostColumns } from "./pdf-post-measurements";
 import type { TechnicalDescriptionMaterialLine, TechnicalDescriptionPage } from "./types";
 
 type PdfPost = Pick<TechnicalDescriptionMaterialLine, "postNumber" | "sourcePage" | "sourcePages">;
@@ -29,6 +30,8 @@ export function pdfPostDescriptionText(
 /** Display the physical cells, preserving empty RS amounts and original units.
  * Calculation quantities continue to use the normalized extraction fields. */
 export function pdfPostColumnValues(pages: readonly TechnicalDescriptionPage[], post: PdfPost): TechnicalDescriptionMaterialLine["pdfColumnValues"] {
+  const physical = measuredPostColumns(pages, post);
+  if (physical) return physical;
   if (!pdfPostDescriptionText(pages, post)) return undefined;
   const units: string[] = [], amounts: string[] = [];
   for (const pageNumber of post.sourcePages ?? [post.sourcePage]) {

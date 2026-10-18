@@ -65,8 +65,9 @@ export function extractTechnicalDescriptionFromPages(
     const pdfDescriptionText = pdfPostDescriptionText(pages, line);
     if (pdfDescriptionText) {
       line.pdfDescriptionText = pdfDescriptionText;
-      line.pdfColumnValues = pdfPostColumnValues(pages, line);
+
     }
+    line.pdfColumnValues = pdfPostColumnValues(pages, line);
     let chapter = chapters.get(line.sourcePage);
     const nextChapter = chapters.get(line.sourcePage + 1);
     // A chapter can begin halfway down a page whose footer still names the

@@ -3,7 +3,7 @@ import test from "node:test";
 import { groupProjectRequirementViews, visibleProjectRequirements } from "./project-requirement-views";
 import { splitDistributorRequirementLines } from "./distributor-requirement-lines";
 
-test("the normal view keeps every current PDF post regardless of quantity, unit or operation", () => {
+test("the normal view shows only measured or RS posts without deleting text requirements", () => {
   const rows = [
     { id: "measured", value_json: { quantity: 5, unit: "st" } },
     { id: "armaturer", value_json: { postNumber: "33.332.7", quantity: null, unit: null } },
@@ -13,7 +13,7 @@ test("the normal view keeps every current PDF post regardless of quantity, unit 
     { id: "rejected", status: "rejected", value_json: {} },
     { id: "superseded", status: "superseded", value_json: {} }
   ];
-  assert.deepEqual(visibleProjectRequirements(rows), rows.slice(0, 5));
+  assert.deepEqual(visibleProjectRequirements(rows), [rows[0], rows[3]]);
 });
 
 test("RS takes priority and unquantified posts have their own information table", () => {

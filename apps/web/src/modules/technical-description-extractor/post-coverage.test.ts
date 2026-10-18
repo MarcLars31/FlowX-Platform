@@ -27,7 +27,7 @@ test("every explicit post survives without an amount, NS code, long title or pro
   assert.ok(result.materialLines[2].reviewFlags.includes("empty-post-body"));
   assert.equal(result.materialLines[4].quantity, 0);
   assert.equal(result.materialLines[5].quantity, 2);
-  assert.equal(visibleProjectRequirements(result.materialLines.map(line => ({id:line.id,value_json:line}))).length, 6);
+  assert.equal(visibleProjectRequirements(result.materialLines.map(line => ({id:line.id,value_json:line}))).length, 2);
   assert.deepEqual(result.postChecks?.[0].observedPostNumbers, result.materialLines.map(line => line.postNumber));
   assert.deepEqual(result.postChecks?.[0].unresolvedPostNumbers, []);
 });

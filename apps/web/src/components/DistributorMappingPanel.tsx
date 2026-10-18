@@ -36,7 +36,7 @@ import {
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
-import { groupProjectRequirementViews, visibleProjectRequirements } from "@/lib/project-requirement-views";
+import { visibleProjectRequirements } from "@/lib/project-requirement-views";
 import { ahlsellCatalogStatusFromPayload, type AhlsellCatalogMatchStatus } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { effectiveRequirements } from "@/lib/effective-requirements";
@@ -322,8 +322,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
             />
           </> : <div className="product-selection-empty">
             <FileText className="h-6 w-6" aria-hidden="true" />
-            <h3>Ingen poster å vise</h3>
-            <p>{requirements.length ? "Ingen poster finnes i denne visningen." : "Last opp en teknisk beskrivelse for å velge produkter."}</p>
+            <h3>Ingen produktposter å vise</h3>
+            <p>{requirements.length ? "Dokumentet har ingen poster med enhet, mengde eller RS." : "Last opp en teknisk beskrivelse for å velge produkter."}</p>
             {!requirements.length && <Button type="button" variant="secondary" onClick={onGoToDocuments}>Gå til dokument</Button>}
           </div>}
         </section>
@@ -353,8 +353,8 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
     });
     return () => controller.abort();
   }, [attempt, needsDetails, props.projectId, props.requirement.id]);
-  if (!needsDetails) return <ResolvedRequirementCard {...props} />;
-  if (detail) return <ResolvedRequirementCard {...props} requirement={detail.requirement}
+  if (!needsDetails) return <RequirementProductMappingCard {...props} />;
+  if (detail) return <RequirementProductMappingCard {...props} requirement={detail.requirement}
     assignment={detail.assignments.find(isUserApprovedProductAssignment)} memories={detail.mappingMemories.filter(memory =>
       ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes))} />;
   return <div className="space-y-4 p-6" aria-live="polite">
@@ -363,32 +363,6 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
       {loadError && <Button variant="secondary" onClick={() => { setLoadError(null); setAttempt(value => value + 1); }}>Försök igen</Button>}
     </div>
   </div>;
-}
-
-function ResolvedRequirementCard(props: ComponentProps<typeof RequirementProductMappingCard>) {
-  const [chooseProduct, setChooseProduct] = useState(false);
-  const informationOnly = groupProjectRequirementViews([props.requirement]).information.length > 0 && !props.assignment;
-  if (!informationOnly || chooseProduct) return <RequirementProductMappingCard {...props} />;
-  return <RequirementInformationCard {...props} onChooseProduct={() => setChooseProduct(true)} />;
-}
-
-function RequirementInformationCard({ projectId, requirement, sourcePdfHref, sourcePdfFileName, onDirtyChange, onSavingChange, onChooseProduct }: ComponentProps<typeof RequirementProductMappingCard> & { onChooseProduct: () => void }) {
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const details = projectRequirementDetails(requirement);
-  useEffect(() => { onSavingChange(saving); return () => onSavingChange(false); }, [saving, onSavingChange]);
-  useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
-  return <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber="" productName=""
-    disabled={requirement.can_edit === false} onDirtyChange={setDirty} onSavingChange={setSaving}>
-    {({ postComments }) => <article className="product-information-card">
-      <header className="product-panel-caption">Prosjektinformasjon<Button neutral variant="secondary" type="button" disabled={requirement.can_edit === false || saving || dirty} onClick={onChooseProduct}>Velg produkt</Button></header>
-      <div className="product-information-content"><ProjectPostSpecification id={requirement.id} details={details} informationOnly
-        description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
-        quantity={projectRequirementQuantity(requirement.value_json)} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} />
-        <details className="mt-3"><summary>Kommentarer til posten</summary>{postComments}</details>
-      </div>
-    </article>}
-  </ProductPostComments>;
 }
 
 function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {

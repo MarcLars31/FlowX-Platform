@@ -78,7 +78,7 @@ export function ProductPostNavigation({ groups, requirements, projectId, resourc
   return (
     <nav id="product-post-list" aria-label="Postliste" className="product-post-list">
       <header className="product-post-list-heading">
-        <div><h2>Poster</h2><p>Åpne et kapittel for å se alle postene som egne rader.</p></div>
+        <div><h2>Produktposter</h2><p>Viser poster med enhet, mengde eller RS.</p></div>
         <span>{displayGroups.reduce((total, group) => total + group.requirements.length, 0)} poster</span>
       </header>
       {error && <p role="alert" className="post-assignment-error">Ansvar kunne ikke hentes. <button type="button" disabled={refreshing} onClick={() => void resource.refresh()}>Prøv igjen</button></p>}
@@ -101,24 +101,6 @@ export function ProductPostNavigation({ groups, requirements, projectId, resourc
           </header>
           {editor(target)}
           <ol id={`product-post-group-${index}`} hidden={!expanded}>
-            {expanded && group.chapterPosts.map(requirement => {
-              const target: AssignmentTarget = { type: "post", value: requirement.id, label: group.title };
-              const assignment = assignmentByRow.get(requirement.id);
-              return <li key={requirement.id}>
-                <div className="product-post-assigned-row">
-                  <button id={`product-post-row-${requirement.id}`} type="button" className="product-post-list-row"
-                    aria-label={`Åpne kapitteltekst: ${group.title}`} aria-controls="product-post-detail"
-                    aria-current={activeRequirementId === requirement.id ? "true" : undefined}
-                    disabled={disabled} onClick={() => onSelect(requirement.id)}>
-                    <strong className="product-post-list-number">Kapitteltekst</strong>
-                    <span className="product-post-list-description">Felles krav for kapitlet</span>
-                    <span /><ChevronRight aria-hidden="true" />
-                  </button>
-                  {assignmentControl(target, assignment)}
-                </div>
-                {editor(target, assignment)}
-              </li>;
-            })}
             {expanded && group.requirements.map(renderPost)}
           </ol>
         </section>;

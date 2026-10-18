@@ -41,14 +41,14 @@ test("preserves user-edited text and unrelated or genuinely wrapped post numbers
   }
 });
 
-test("reload discards old overview cache and shows the corrected post in the normal list", async () => {
+test("reload discards old overview cache and retains the corrected text post as source data", async () => {
   const head = { ...saved, overview_cache: { version: -1, source_updated_at: saved.updated_at, source_revision: 0,
     summary: { ...saved, overview: {}, value_json: saved.value_json } } };
   const rows = await resolveRequirementOverviews([head], { loadDetails: async () => [saved], save: async () => {} });
   assert.equal((rows[0].value_json as Record<string, unknown>).postNumber, "33.332.7");
   assert.equal(rows[0].value_text, description);
   assert.equal((compactProjectRequirement(saved).value_json as Record<string, unknown>).postNumber, "33.332.7");
-  assert.deepEqual(visibleProjectRequirements(rows).map(row => row.id), [saved.id]);
+  assert.deepEqual(visibleProjectRequirements(rows), []);
 });
 
 test("new text and OCR imports keep the numbered heading and all three source requirements", () => {

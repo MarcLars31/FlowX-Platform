@@ -1,3 +1,4 @@
+import { productPostMeasurement } from "./project-requirement-views";
 import { distributorRequirementKind, isDistributorLumpSumRequirement } from "./distributor-requirement-lines";
 import { projectRequirementDetails } from "./project-requirement-details";
 import { productRequirementCategory, PRODUCT_REQUIREMENT_CATEGORY_VERSION } from "./product-requirement-category";
@@ -29,13 +30,16 @@ export function compactProjectRequirement(row: OverviewRow): OverviewRow {
   row = requirementSnapshot(row);
   const value = record(row.value_json);
   const details = projectRequirementDetails(row);
+  const measurement = productPostMeasurement(row);
   const overview = {
     sortPostNumber: projectRequirementOrderPostNumber(row),
     category: productRequirementCategory(row),
     categoryVersion: PRODUCT_REQUIREMENT_CATEGORY_VERSION,
     warnings: projectRequirementDataWarnings(row),
     kind: distributorRequirementKind(row),
-    lumpSum: isDistributorLumpSumRequirement(row)
+    lumpSum: isDistributorLumpSumRequirement(row),
+    productPost: measurement.visible,
+    productPostMissingQuantity: measurement.missingQuantity
   };
   const result: OverviewRow = { id: row.id };
   for (const key of rowFields.split(",")) if (key in row) result[key] = row[key];

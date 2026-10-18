@@ -1,3 +1,4 @@
+import { pdfPostMeasurementCells } from "./pdf-post-measurements";
 import {
   closePdfTextDocument,
   openPdfTextDocument,
@@ -67,6 +68,7 @@ export async function extractPagesFromDocument(
           text,
           ...(postTable && !ocrReason ? { postTable } : {}),
           postInventory: pdfPostInventoryFromItems(content.items),
+          sourcePostColumns: pdfPostMeasurementCells(content.items),
           ...(postTable?.quantityColumnsVerified ? { sourceColumnQuantities: postTable.posts.flatMap(post => post.quantity
             ? [{ postNumber: post.postNumber, quantity: post.quantity.quantity, unit: post.quantity.unit, text: post.quantity.text }] : []) } : {}),
           ...(ocrReason ? { ocrReason } : {}),
