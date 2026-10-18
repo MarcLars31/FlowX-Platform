@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { extractTechnicalDescriptionFromPages } from "./extractor";
 import { splitDistributorRequirementLines } from "@/lib/distributor-requirement-lines";
+import { visibleProjectRequirements } from "@/lib/project-requirement-views";
 
 test("preserves quantified alarm, valve, flowmeter and reserve cabinet posts without price columns", () => {
   const result = extractTechnicalDescriptionFromPages([
@@ -1302,4 +1303,23 @@ test("keeps an abbreviated orientation inside its active numbered chapter", asyn
   assert.equal(lines[0].chapterInformation, false);
   assert.equal(lines[1].sourceChapter, undefined);
   assert.equal(lines[2].sourceChapter, undefined);
+});
+
+for (const method of ["text", "ocr"] as const) test(`keeps unquantified building-work post 30.1.3 in the ordinary PDF list (${method})`, () => {
+  const source = ["30.1.3 Bygningsmessige arbeider.",
+    "Alle bygningsmessige arbeider i forbindelse med VVS-",
+    "anleggene skal være ikludert i tilbudet.under kap 25"].join("\n");
+  const result = extractTechnicalDescriptionFromPages([{ pageNumber: 6, method, confidence: .98,
+    text: ["Kapittel: 30 VVS-installasjoner, generelt", "Postnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum",
+      "30.1.2 Mengdekontroll.", "Det skal utføres mengdekontroll.", source,
+      "30.1.4 Igangkjøring.", "Ref krav i kap 01", "Sum denne side:"].join("\n") }]);
+  assert.deepEqual(result.materialLines.map(row => row.postNumber), ["30.1.2", "30.1.3", "30.1.4"]);
+  const post = result.materialLines.find(row => row.postNumber === "30.1.3")!;
+  assert.equal(post.sourceText, source);
+  assert.equal(post.quantity, undefined);
+  assert.equal(post.unit, undefined);
+  assert.ok(post.reviewFlags.includes("project-information"));
+  const groups = splitDistributorRequirementLines(result.materialLines.map(row => ({ id: row.id, value_text: row.description, value_json: row })));
+  assert.ok(visibleProjectRequirements([...groups.productRequirements, ...groups.workRequirements, ...groups.removalRequirements]).some(row => row.value_json.postNumber === "30.1.3"));
+  assert.equal(groups.removalRequirements.length, 0);
 });

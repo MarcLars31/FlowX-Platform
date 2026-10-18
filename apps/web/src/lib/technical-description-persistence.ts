@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 /** Bump when imported material-line semantics change. */
-export const TECHNICAL_IMPORT_VERSION = 2;
+export const TECHNICAL_IMPORT_VERSION = 3;
 
 type Row = Record<string, unknown> & { id?: string };
 

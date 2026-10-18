@@ -725,7 +725,6 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       if (!start.chapter && ((!quantity && operation !== "remove" && !hasMissingQuantityMarker && !nsCode && !hasUnquantifiedPostBody) || (quantity && quantity.quantity < 0))) {
         continue;
       }
-      if (!quantity && /^BYGNINGSMESSIGE ARBEIDER\b/i.test(description)) continue;
 
       if (seen.has(key)) {
         continue;
