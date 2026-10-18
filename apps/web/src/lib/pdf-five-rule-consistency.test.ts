@@ -87,6 +87,7 @@ test("OCR total-row borders are stripped without stripping prose",()=>{
   assert.equal(withoutPdfPageSumFooters("Krav før\n"+footer+"\nPublisher"),"Krav før");
  }
  assert.equal(withoutPdfPageSumFooters("Sum denne side: skal inkluderes."),"Sum denne side: skal inkluderes.");
+ assert.equal(withoutPdfPageSumFooters("Akkumulert driftstid: 12"),"Akkumulert driftstid: 12");
 });
 
 test("conflicting OCR preserves corrected layout and keeps the alternative separately without duplication",()=>{

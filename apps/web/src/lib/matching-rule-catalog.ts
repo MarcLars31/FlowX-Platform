@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-18.7";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-18.8";
 export const RULE_CATALOG_DATE = "18 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";

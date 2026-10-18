@@ -21,7 +21,7 @@ export function isPdfTableTotalFooter(line: string) {
   return isPdfPageSumFooter(value)
     || /^Sum\s*[:.;]\s*$/i.test(value)
     || /^Sum\s*[:.;]?\s*\d[\d\s.,]*(?:NOK|kr\.?)?\s*$/i.test(value)
-    || new RegExp(`^(?:Sum\\s+Kapittel|Akkumulert(?:\\s+(?:Sted|Kapittel))?)\\s+[^:]+:\\s*${pdfTotalAmount}\\s*$`, "i").test(value)
+    || new RegExp(`^(?:Sum\\s+Kapittel|Akkumulert\\s+(?:Sted|Kapittel))\\s+[^:]+:\\s*${pdfTotalAmount}\\s*$`, "i").test(value)
     || new RegExp(`^Akkumulert\\s*:\\s*${pdfTotalAmount}\\s*$`, "i").test(value);
 }
 

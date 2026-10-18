@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-18.7",
+  "version": "scipx-product-rules-2026-10-18.8",
   "sources": {
     "../components/ProjectPostSpecification.tsx": "a6001b864d50b13408109f533274668129f9b33a60113ae4f3f8a2da850aaf6d",
     "../modules/technical-description-extractor/extractor.ts": "cd6fbb89e12fdacd8d42e0ee63e3f911d3de6ada51c21768ccb663f2718b8adb",
@@ -42,7 +42,7 @@
     "inherited-product-requirements.ts": "acb530f489af1ad3a4ef2bf28bfcf37d5190e3431bce9c643eea545d33d38932",
     "ns3420-product-classification.ts": "4275a2b785a701bb1ee44b9dbf59a423180150d48f83736795da65e07e51d16d",
     "pdf-page-source-merge.ts": "caa994d0e1a7053b404a96c008034e2685ccfd97a685dd631ff4b281cb52abdd",
-    "pdf-post-text.ts": "6e3bac11cee5dec345dd5d522c4df59090f5933624af3eb00abcd1b4c5211713",
+    "pdf-post-text.ts": "49b299e68d5ed53a76135141cdb4549b1e7209a49a8bbcf79b6f03f41561f5b1",
     "pdf-runtime.ts": "fce976400821acc49ee22bfe01f406897a2919e8f4e375a879ce2e8b5024d9c9",
     "pdf-source-text-merge.ts": "8523832ef36cb8087f57c23b682dd343869a78961b450bbde2693735ce93d458",
     "pipe-matching-evidence.ts": "ade8e2998e1168acdaf22554140e63b0c90ded9959cc158d44fd629f748903cb",
