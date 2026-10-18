@@ -123,7 +123,7 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
       const unit = normalizeQuantityUnit(unitText);
       const label: Record<string, string> = { st: "Antall", m: "Lengde", m2: "Areal", m3: "Volum", kg: "Vekt", l: "Volum", RS: "Rund sum" };
       const quantity = { quantity: value!, unit, text: `${label[unit]} ${amountText || "1"} ${unitText}`,
-        lineIndex: lines.length, descriptionPrefix: "" };
+        lineIndex: lines.length, descriptionPrefix: "", sourceUnitText: unitText, sourceAmountText: amountText };
       quantities.push(quantity);
       lines.push(`${label[unit]} ${unit} ${amountText || "1"}`);
     }
@@ -132,7 +132,7 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
     const end = posts[index + 1]?.lineIndex ?? lines.length;
     post.quantity = quantities.find(quantity => quantity.lineIndex >= post.lineIndex && quantity.lineIndex < end);
   }
-  return { text: lines.join("\n"), siteTitle: `${siteMatch[1]} ${siteMatch[2]}`, posts, quantities,
+  return { text: lines.join("\n"), siteTitle: `${siteMatch[1]} ${siteMatch[2]}`, posts, quantities, quantityColumnsVerified: columnsVerified,
     ...(quantityColumnsUnrecognized ? { quantityColumnsUnrecognized: true } : {}) };
 }
 

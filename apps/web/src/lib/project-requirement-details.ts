@@ -14,6 +14,8 @@ export type ProjectRequirementDetail = {
   sourceExcerpt: string | null;
   additionalRequirements: string | null;
   chapterInformation?: boolean;
+  sourceLayout?: "six-column";
+  pdfColumnValues?: { unit: string; quantity: string };
 };
 
 export function projectRequirementDetails(
@@ -23,7 +25,8 @@ export function projectRequirementDetails(
   requirement = currentPostRequirement(requirement);
   const value = record(requirement.value_json);
   const sourceExcerpt =
-    text(value.technicalSpecification) ?? text(requirement.source_excerpt);
+    text(value.pdfDescriptionText) ?? text(value.technicalSpecification) ?? text(requirement.source_excerpt);
+  const columnValues = record(value.pdfColumnValues);
   const requirementKey = text(requirement.requirement_key);
   const attributes = normalizedAttributes(record(value.attributes));
   const sourceKFactor = projectRequirementKFactorDisplayValue(requirement);
@@ -46,6 +49,9 @@ export function projectRequirementDetails(
     }),
     sourcePage: positiveInteger(requirement.source_page),
     sourceExcerpt,
+    ...(text(value.pdfDescriptionText) ? { sourceLayout: "six-column" as const } : {}),
+    ...(typeof columnValues.unit === "string" && typeof columnValues.quantity === "string"
+      ? { pdfColumnValues: { unit: columnValues.unit, quantity: columnValues.quantity } } : {}),
     chapterInformation: value.chapterInformation === true || (Array.isArray(value.reviewFlags) && value.reviewFlags.includes("project-information")),
     additionalRequirements: additionalRequirementsFromSources(
       [text(value.technicalSpecification), text(value.sourceText), text(requirement.source_excerpt)],

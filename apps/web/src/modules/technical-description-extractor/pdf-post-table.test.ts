@@ -7,6 +7,7 @@ import { sitePostTableFromPdfItems } from "./pdf-post-table";
 import { extractTechnicalDescriptionFromPages } from "./extractor";
 import { projectRequirementDetails } from "@/lib/project-requirement-details";
 import { productPostNavigationGroups } from "@/lib/product-post-tree";
+import { pdfPostDescriptionText } from "./pdf-post-description";
 import type { TechnicalDescriptionPage } from "./types";
 
 const item = (str: string, x: number, y: number, width = str.length * 5, height = 10) =>
@@ -23,6 +24,45 @@ function page(items: ReturnType<typeof item>[], pageNumber = 1): TechnicalDescri
     postTable, method: "text", confidence: .98 };
 }
 const rows = (pages: TechnicalDescriptionPage[]) => extractTechnicalDescriptionFromPages(pages).materialLines;
+
+test("description quantities are preserved by column position, even when identical to the separate amount", async () => {
+  const pages = [page([...header(), ...post("32.1.1", "Lokalisering: Rom M3H1.02", 680),
+    item("stk", 365, 680), item("2", 420, 680), item("0,00", 475, 680), item("0,00", 540, 680),
+    item("Hulltaking for 28 varmerør MM med 30 mm isolasjon", 97, 650),
+    item("Antall", 97, 630), item("Antall st 2", 97, 610), item("Antall st 5", 97, 590)])];
+  const row = rows(pages)[0];
+  assert.equal(row.quantity, 2);
+  assert.equal(row.unit, "st");
+  assert.equal(row.pdfDescriptionText, "1201.30.332.1.1 Lokalisering: Rom M3H1.02\nHulltaking for 28 varmerør MM med 30 mm isolasjon\nAntall\nAntall st 2\nAntall st 5");
+  assert.equal(row.sourceText.split("Antall st 2").length - 1, 2);
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { ProjectPostSpecification } = await import("@/components/ProjectPostSpecification");
+  const details = projectRequirementDetails({ source_page: 1, source_excerpt: row.sourceText, value_text: row.description, value_json: row });
+  const html = renderToStaticMarkup(createElement(ProjectPostSpecification, { id: row.id, details, description: row.description,
+    quantity: { quantity: 2, unit: "st" }, quantityText: row.quantityText }));
+  assert.equal(html.split("Antall st 2").length - 1, 1);
+  assert.equal(html.split("Antall st 5").length - 1, 1);
+  assert.match(html, /aria-label="Enhet">stk<\/div>/);
+  assert.match(html, /aria-label="Antall">2<\/div>/);
+  assert.doesNotMatch(html, /<dt[^>]*>Antall:/);
+  assert.match(html, /aria-label="Pris"><\/div>/);
+  assert.match(html, /aria-label="Sum"><\/div>/);
+  assert.equal(html.split("Rom M3H1.02").length - 1, 1);
+  assert.match(html, /28 varmerør MM med 30 mm isolasjon/);
+});
+
+test("original description follows page continuation while separate amount columns stay separate", () => {
+  const pages = [page([...header(), ...post("32.1", "SF6.41A", 680), item("TETTING", 97, 660), item("Andre krav:", 97, 640)]),
+    page([...header(), item("Antall st 2 for reservedeler", 97, 680), item("stk", 365, 680), item("5", 420, 680),
+      ...post("32.2", "NESTE POST", 620)], 2)];
+  const row = rows(pages)[0];
+  assert.match(row.pdfDescriptionText ?? "", /FORTSETTELSE SIDE 2\nAntall st 2 for reservedeler$/);
+  assert.doesNotMatch(row.pdfDescriptionText ?? "", /Antall st 5|NESTE POST/);
+  assert.equal(row.quantity, 5);
+  assert.deepEqual(row.pdfColumnValues, { unit: "stk", quantity: "5" });
+  assert.equal(pdfPostDescriptionText([{ ...pages[0], postTable: undefined }], row), undefined);
+});
 
 test("site columns join a number broken inside a segment and preserve all headings", () => {
   const result = rows([page([...header(), item("1201", 44, 695), item("Teststasjon", 97, 695),
@@ -232,4 +272,21 @@ test("reads Enhet through actual PDF text extraction with the same result as Enh
   assert.ok(pages.every(page => page.postTable && !page.postTable.quantityColumnsUnrecognized));
   assert.deepEqual(result.materialLines.map(row => [row.postNumber, row.quantity, row.unit]),
     [["1201.30.311.1", 12, "m"], ["1201.30.311.2", 12, "m"]]);
+});
+
+test("source column display preserves empty RS amounts and original numeric formatting", async () => {
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { ProjectPostSpecification } = await import("@/components/ProjectPostSpecification");
+  for (const [unit, amount, expectedQuantity] of [["RS", "", 1], ["stk", "2,00", 2]] as const) {
+    const row = rows([page([...header(), ...post("32.1.1", "Arbeid", 680), item(unit, 365, 680),
+      ...(amount ? [item(amount, 420, 680)] : []), item("0,00", 475, 680), item("0,00", 540, 680)])])[0];
+    assert.equal(row.quantity, expectedQuantity);
+    assert.deepEqual(row.pdfColumnValues, { unit, quantity: amount });
+    const details = projectRequirementDetails({ source_page: 1, source_excerpt: row.sourceText, value_json: row });
+    const html = renderToStaticMarkup(createElement(ProjectPostSpecification, { id: row.id, details, description: row.description,
+      quantity: { quantity: row.quantity!, unit: row.unit! } }));
+    assert.ok(html.includes('aria-label="Antall">' + amount + '</div>'));
+    assert.ok(html.includes('aria-label="Enhet">' + unit + '</div>'));
+  }
 });

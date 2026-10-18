@@ -22,6 +22,7 @@ import { conflictingMaterialRequirement } from "@/lib/requirement-extraction-war
 import { attachNumberedChapters, numberedChaptersFromPages } from "./chapters";
 import { pdfChaptersByPage } from "./pdf-chapters";
 import { withSiteTableChapterHeadings } from "./pdf-post-table";
+import { pdfPostDescriptionText, pdfPostColumnValues } from "./pdf-post-description";
 
 type ExtractOptions = {
   fileName?: string;
@@ -50,6 +51,11 @@ export function extractTechnicalDescriptionFromPages(
     .filter(page => page.postTable?.quantityColumnsUnrecognized).map(page => page.pageNumber));
   const uncertainPages = new Map(pages.filter(page => page.method === "ocr" && page.confidence < 0.7).map(page => [page.pageNumber,page.confidence]));
   for (const [index, line] of materialLines.entries()) {
+    const pdfDescriptionText = pdfPostDescriptionText(pages, line);
+    if (pdfDescriptionText) {
+      line.pdfDescriptionText = pdfDescriptionText;
+      line.pdfColumnValues = pdfPostColumnValues(pages, line);
+    }
     let chapter = chapters.get(line.sourcePage);
     const nextChapter = chapters.get(line.sourcePage + 1);
     // A chapter can begin halfway down a page whose footer still names the

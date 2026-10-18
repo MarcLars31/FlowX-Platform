@@ -736,6 +736,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
           sourceOrder: line.sourceOrder ?? null,
           chapterInformation: line.chapterInformation ?? false,
           sourcePages: line.sourcePages ?? [line.sourcePage],
+          pdfDescriptionText: line.pdfDescriptionText ?? null,
+          pdfColumnValues: line.pdfColumnValues ?? null,
           postNumber: line.postNumber ?? null,
           postScope: line.postScope ?? null,
           parentPostNumber: line.parentPostNumber ?? null,
@@ -789,6 +791,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
           value_json: {
             extractionVersion: 1,
             sourceText: line.sourceText,
+            pdfDescriptionText: line.pdfDescriptionText ?? null,
+            pdfColumnValues: line.pdfColumnValues ?? null,
             sourceChapter: line.sourceChapter ?? null,
             sourceOrder: line.sourceOrder ?? null,
             chapterInformation: line.chapterInformation ?? false,

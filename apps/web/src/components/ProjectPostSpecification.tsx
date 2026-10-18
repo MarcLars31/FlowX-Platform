@@ -21,17 +21,20 @@ export function ProjectPostSpecification({ id, details: sourceDetails, descripti
   const current = projectRequirementSourceSections(sourceDetails.sourceExcerpt ?? "", sourceDetails.postNumber)
     .find(section => section.relation === "current");
   const details = current ? { ...sourceDetails, sourceExcerpt: current.text } : sourceDetails;
+  const columnLayout = details.sourceLayout === "six-column";
   const fields = orderedSpecificationAttributes(details);
   const blocks = structuredPostBlocks(details, description).filter(block => block.kind !== "quantity");
   const rs = quantity.unit === "RS";
   const amountLabel = rs ? "Rund sum" : quantityText?.match(/^(Antall|Antal|Lengde|Areal|Volum|Vekt|Tid)\b/i)?.[1] ?? "Mängd";
-  const showQuantity = rs || quantity.quantity !== null || !["", "?"].includes(quantity.unit);
+  const showQuantity = !columnLayout && (rs || quantity.quantity !== null || !["", "?"].includes(quantity.unit));
   // An unnumbered fragment often starts directly with a field, not a heading.
   const hasHeading = description && !fields.some(field => description.toLocaleLowerCase().startsWith(`${field.label.toLocaleLowerCase()}:`));
   const postLabel = details.postNumber ? `PDF-post ${details.postNumber}` : `PDF · sida ${details.sourcePage ?? "—"}`;
-  return <div className="border border-neutral-300 bg-white text-sm leading-6 text-neutral-950">
-    <div className="grid sm:grid-cols-[6.5rem_minmax(0,1fr)]">
-      <h3 id={`pdf-specification-${id}`} className="border-b border-neutral-300 px-3 py-3 font-[700] sm:border-b-0 sm:border-r">
+  return <div className="overflow-x-auto border border-neutral-300 bg-white text-sm leading-6 text-neutral-950">
+    {columnLayout && <div className="border-b border-neutral-300 px-3 py-2"><PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} /></div>}
+    <div className={columnLayout ? "grid min-w-[52rem] grid-cols-[6.5rem_minmax(18rem,1fr)_4rem_5rem_5rem_5rem]" : "grid sm:grid-cols-[6.5rem_minmax(0,1fr)]"}>
+      {columnLayout && ["Postnr.", "Beskrivelse", "Enh.", "Antall", "Pris", "Sum"].map(label => <div key={label} className="border-b border-r border-neutral-300 px-3 py-2 font-bold last:border-r-0">{label}</div>)}
+      <h3 id={`pdf-specification-${id}`} className="break-words border-b border-neutral-300 px-3 py-3 font-[700] sm:border-b-0 sm:border-r">
         {sourcePdfHref ? <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer"
           title={details.sourcePage ? `Öppna posten på sida ${details.sourcePage} i PDF` : "Öppna posten i PDF"}
           className="break-words underline decoration-neutral-400 underline-offset-4 hover:decoration-neutral-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600">
@@ -39,15 +42,15 @@ export function ProjectPostSpecification({ id, details: sourceDetails, descripti
         </a> : postLabel}
       </h3>
       <div className="min-w-0 px-3 py-3">
-        <PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} />
+        {!columnLayout && <PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} />}
         {details.nsCode && <p className="break-words font-[700]">{details.nsCode}</p>}
         {hasHeading && <p className="break-words font-[700] leading-5">{description}</p>}
         {showQuantity && <dl className="my-2 flex flex-wrap items-baseline gap-x-2">
           <dt className="font-[700]">{amountLabel}:</dt>
           <dd>{!rs && <>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)} </>}{quantity.unit === "?" ? "—" : quantity.unit}</dd>
         </dl>}
-        {(informationOnly || details.chapterInformation) && details.sourceExcerpt ? <>
-          <div className={`${details.nsCode ? "mt-2 space-y-0" : "mt-4 space-y-3"} break-words leading-6`}>{projectInformationBlocks(projectInformationBody(details, description)).map((paragraph, index) => paragraph.kind === "table"
+        {(columnLayout || informationOnly || details.chapterInformation) && details.sourceExcerpt ? <>
+          <div className={`${details.nsCode || columnLayout ? "mt-2 space-y-0" : "mt-4 space-y-3"} break-words leading-6`}>{projectInformationBlocks(projectInformationBody(details, hasHeading ? description : "")).map((paragraph, index) => paragraph.kind === "table"
             ? <InformationSourceTable key={index} table={paragraph} />
             : paragraph.kind === "heading" ? <h4 key={index} className={`${details.nsCode ? "" : "!mt-5 "}font-[700]`}><SpecificationText value={paragraph.text} /></h4>
             : <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "field" ? "!mt-0 whitespace-pre-line" : paragraph.kind === "bullet" ? "!mt-0 pl-4 -indent-4" : undefined}>{paragraph.text}</p>
@@ -65,6 +68,12 @@ export function ProjectPostSpecification({ id, details: sourceDetails, descripti
             {pdfArticleNumber && <SpecificationField label="NRF-nummer i PDF" value={pdfArticleNumber} />}
           </dl>}
       </div>
+      {columnLayout && <>
+        <div className="whitespace-pre-line border-l border-neutral-300 px-3 py-3" aria-label="Enhet">{details.pdfColumnValues?.unit ?? (["", "?"].includes(quantity.unit) ? "" : quantity.unit)}</div>
+        <div className="whitespace-pre-line border-l border-neutral-300 px-3 py-3 text-right tabular-nums" aria-label="Antall">{details.pdfColumnValues?.quantity ?? (quantity.quantity === null ? "" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity))}</div>
+        <div className="border-l border-neutral-300 px-3 py-3" aria-label="Pris" />
+        <div className="border-l border-neutral-300 px-3 py-3" aria-label="Sum" />
+      </>}
     </div>
   </div>;
 }

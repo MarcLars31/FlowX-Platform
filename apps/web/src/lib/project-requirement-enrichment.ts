@@ -112,6 +112,8 @@ export function enrichProjectRequirements(
           currentValue.technicalSpecification ??
           line.sourceText,
         sourceText: line.sourceText,
+        pdfDescriptionText: line.pdfDescriptionText ?? currentValue.pdfDescriptionText ?? null,
+        pdfColumnValues: line.pdfColumnValues ?? currentValue.pdfColumnValues ?? null,
         sourcePages: line.sourcePages ?? [line.sourcePage]
       },
       source_excerpt:

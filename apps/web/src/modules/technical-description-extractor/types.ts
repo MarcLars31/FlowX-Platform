@@ -23,13 +23,14 @@ export type TechnicalDescriptionPage = {
   postTable?: {
     text: string;
     siteTitle: string;
+    quantityColumnsVerified?: boolean;
     /** Extra columns exist, but their quantity/unit boundaries are not verified. */
     quantityColumnsUnrecognized?: boolean;
     posts: Array<{
       lineIndex: number; postNumber: string; description: string; chapter: boolean;
-      quantity?: { quantity: number; unit: string; text: string; lineIndex: number; descriptionPrefix: string };
+      quantity?: { quantity: number; unit: string; text: string; lineIndex: number; descriptionPrefix: string; sourceUnitText?: string; sourceAmountText?: string };
     }>;
-    quantities: Array<{ quantity: number; unit: string; text: string; lineIndex: number; descriptionPrefix: string }>;
+    quantities: Array<{ quantity: number; unit: string; text: string; lineIndex: number; descriptionPrefix: string; sourceUnitText?: string; sourceAmountText?: string }>;
   };
 };
 
@@ -77,6 +78,10 @@ export type TechnicalDescriptionMaterialLine = {
   chapterInformation?: boolean;
   sourcePages?: number[];
   sourceText: string;
+  /** Verified description column, without synthesized unit/quantity rows. */
+  pdfDescriptionText?: string;
+  /** Original column values for display; empty cells remain empty. */
+  pdfColumnValues?: { unit: string; quantity: string };
   confidence: number;
   reviewFlags: string[];
 };
