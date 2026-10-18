@@ -6,7 +6,7 @@ export function PdfSourceDocument({ fileName, page, href, pageLabel }: {
   href: string | null;
   pageLabel?: string;
 }) {
-  return <p className="px-2 pb-2 text-xs text-neutral-600 [overflow-wrap:anywhere]">
+  return <p className=" text-xs text-neutral-600 [overflow-wrap:anywhere]">
     Kildedokument: {fileName && href
       ? <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{fileName}</a>
       : fileName ?? "Ikke oppgitt"}
@@ -19,16 +19,17 @@ export function PdfInheritedRequirements({ specification, postNumber }: {
   postNumber: string | null;
 }) {
   const inherited = projectRequirementSourceSections(specification, postNumber)
-    .filter(section => section.relation === "inherited");
+    .filter(section => section.relation !== "current");
+  const unique = inherited.filter((section, index) => inherited.findIndex(other => other.postNumber === section.postNumber && other.text === section.text) === index);
   if (inherited.length === 0) return null;
 
-  return <section aria-label="Arvede krav" className="space-y-2 border-t border-neutral-200 px-2 py-2 text-[11px] [overflow-wrap:anywhere]">
-    <h4 className="font-semibold text-neutral-900">Arvede krav</h4>
-    <dl className="space-y-2">
-      {inherited.map((section, index) => <div key={index}>
-        <dt className="font-semibold text-neutral-600">Fra post {section.postNumber}</dt>
-        <dd className="whitespace-pre-wrap text-neutral-900">{section.text}</dd>
+  return <details aria-label="Felles krav" className="border-t border-neutral-200 p-3 text-sm [overflow-wrap:anywhere]">
+    <summary className="cursor-pointer">Felles krav</summary>
+    <dl className="mt-3 space-y-4">
+      {unique.map((section, index) => <div key={index}>
+        <dt className="font-normal text-neutral-600">{section.postNumber ? `Fra post ${section.postNumber}` : "Felles kildetekst"}</dt>
+        <dd className="mt-1 whitespace-pre-wrap font-normal leading-relaxed text-neutral-900">{section.text}</dd>
       </div>)}
     </dl>
-  </section>;
+  </details>;
 }

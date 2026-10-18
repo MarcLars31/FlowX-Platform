@@ -6,9 +6,8 @@ import { ProjectPostSpecification } from "../components/ProjectPostSpecification
 import { currentPostRequirement } from "./current-post-requirement";
 import { withEffectiveRequirements } from "./effective-requirements";
 import { requirementSnapshot } from "./requirement-snapshot";
-import { projectInformationBody, projectRequirementDetails } from "./project-requirement-details";
+import { projectRequirementDetails } from "./project-requirement-details";
 import { projectRequirementSourceSections } from "./project-requirement-source";
-import { projectInformationBlocks } from "./project-information-layout";
 
 const source = `100.30.300.1 30 VVS-INSTALLASJONER STASJON
 30.0 OMFANG
@@ -92,26 +91,11 @@ test("a stored exact identity preserves an internal numbered heading and exclude
   assert.equal(child.source_excerpt, "");
 });
 
-test("tables retain captions, empty room cells, numeric columns, wrapped rows and continuation pages", () => {
-  const blocks = projectInformationBlocks(source);
-  const tables = blocks.filter(b => b.kind === "table");
-  assert.deepEqual(tables.filter(t => t.caption).map(t => t.caption.match(/^Tabell \d/)?.[0]), ["Tabell 1", "Tabell 2", "Tabell 3", "Tabell 4", "Tabell 5"]);
-  assert.deepEqual(tables[0].columns, ["Romnavn", "Romnummer", "LAeq", "LAF,max"]);
-  const rows = tables.flatMap(t => t.rows.map(r => r.cells));
-  assert.ok(rows.some(r => JSON.stringify(r) === JSON.stringify(["Adkomst platform", "BP.01", "38", "40"])));
-  assert.ok(rows.some(r => JSON.stringify(r) === JSON.stringify(["Øvrige rømningsveier", "", "83"])));
-  assert.ok(rows.some(r => JSON.stringify(r) === JSON.stringify(["Inngang A - Inntak AHU 01", "60"])));
-  assert.ok(rows.some(r => JSON.stringify(r) === JSON.stringify(["sporvedlikehold", "", "", ""])));
-  assert.ok(rows.some(r => r[0] === "drift av røykvifter)"));
-  assert.equal(blocks.at(-2)?.kind, "heading");
-  assert.deepEqual(blocks.at(-1), { kind: "text", text: "Utstyret skal vibrasjonsisoleres." });
-});
-
-test("both card variants retain the complete plain fallback without reconstructing tables or headings", () => {
+test("one card retains complete source tables and numbered headings", () => {
   const row = requirementSnapshot(withEffectiveRequirements(requirementSnapshot(savedRow())));
-  for (const informationOnly of [false, true]) {
+  {
     const html = renderToStaticMarkup(createElement(ProjectPostSpecification, {
-      id: row.id, description: row.value_text, details: projectRequirementDetails(row), quantity: { quantity: null, unit: "?" }, informationOnly
+      id: row.id, description: row.value_text, details: projectRequirementDetails(row), quantity: { quantity: null, unit: "?" }
     }));
     assert.match(html, /30\.0 OMFANG/);
     assert.doesNotMatch(html, /<h4|<table|<strong|font-semibold/);
@@ -120,15 +104,8 @@ test("both card variants retain the complete plain fallback without reconstructi
     assert.ok(html.indexOf("NS8175:2012") < html.indexOf("Tabell 1:"));
     assert.ok(html.indexOf("Tabell 5 Krav") < html.indexOf("30.6.1 VIBRASJONER"));
     assert.equal((html.match(/Adkomst platform/g) ?? []).length, 1);
-    assert.doesNotMatch(html, /Flattened legacy|Legacy field|UNDERPOST|Tekniske bestemmelser/);
+    assert.doesNotMatch(html, /Flattened legacy|Legacy field|UNDERPOST/);
   }
-});
-
-test("unrecognized tables retain their text and are never assigned guessed columns", () => {
-  const blocks = projectInformationBlocks("Tabell 1: Se vedlegg.\nUkjent kolonneformat\nData 10 20\n30.6 LYDKRAV\nAlle krav gjelder.");
-  assert.equal(blocks.some(b => b.kind === "table"), false);
-  assert.ok(blocks.some(b => b.kind === "text" && b.text.includes("Data 10 20")));
-  assert.ok(blocks.some(b => b.kind === "heading" && b.text === "30.6 LYDKRAV"));
 });
 
 test("SF6.41A information posts keep separate PDF fields, wrapped values and every lettered clause", () => {
@@ -156,14 +133,10 @@ Avregnes etter medgåtte mengder`;
   const row = requirementSnapshot(withEffectiveRequirements(requirementSnapshot(raw)));
   const details = projectRequirementDetails(row);
   const own = projectRequirementSourceSections(details.sourceExcerpt ?? "", details.postNumber).find(section => section.relation === "current");
-  const blocks = projectInformationBlocks(projectInformationBody({ ...details, sourceExcerpt: own?.text ?? details.sourceExcerpt }, raw.value_text));
-  const fields = blocks.flatMap(b => b.kind === "field" ? [b.text] : []);
-  assert.deepEqual(fields.map(text => text.split(":")[0]), ["Produkt", "Lokalisering", "Konstruksjon", "Funksjonskrav", "Type gjennomføring", "Utsparingsmål", "Produktmål", "Utførelsesmetode", "Fyllingsgrad"]);
-  assert.equal(fields[2], "Konstruksjon: Utsparinger i lettklinker inntil 250 mm +\ntosidig puss");
-  assert.deepEqual(blocks.flatMap(b => b.kind === "heading" ? [b.text] : []), ["Andre krav:", "a) Omfang og prisgrunnlag", "x) Mengderegler"]);
-  for (const informationOnly of [false, true]) {
+  const fields = own!.text.split("\n").filter(line => /^[^:]+: .+/.test(line));
+  {
     const html = renderToStaticMarkup(createElement(ProjectPostSpecification, {
-      id: raw.id, description: raw.value_text, details, quantity: { quantity: null, unit: "?" }, informationOnly
+      id: raw.id, description: raw.value_text, details, quantity: { quantity: null, unit: "?" }
     }));
     assert.match(html, /Produkt: Brannekspanderende tetting\nLokalisering: Se modell/);
     assert.match(html, /<pre[^>]*whitespace-pre-wrap/);
@@ -175,12 +148,4 @@ Avregnes etter medgåtte mengder`;
     assert.ok(html.indexOf("Omfang og prisgrunnlag") < html.indexOf("Posten omfatter"));
     assert.ok(html.indexOf("Posten omfatter") < html.indexOf("x) Mengderegler"));
   }
-});
-
-test("inline standard references remain prose while a field keeps its own lines", () => {
-  const blocks = projectInformationBlocks("Kravene\ner basert på NS8175:2012 klasse C.\nTabell 1: Se vedlegg.\nProdukt: Tetting\nfor gjennomføringer\nAndre krav:\nAlle deler inngår.");
-  assert.deepEqual(blocks[0], { kind: "text", text: "Kravene er basert på NS8175:2012 klasse C." });
-  assert.deepEqual(blocks[1], { kind: "text", text: "Tabell 1: Se vedlegg." });
-  assert.deepEqual(blocks[2], { kind: "field", text: "Produkt: Tetting\nfor gjennomføringer" });
-  assert.deepEqual(blocks.at(-1), { kind: "text", text: "Alle deler inngår." });
 });

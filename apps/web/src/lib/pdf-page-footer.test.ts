@@ -3,7 +3,6 @@ import test from "node:test";
 import { extractTechnicalDescriptionFromPages } from "../modules/technical-description-extractor/extractor";
 import { currentPostRequirement } from "./current-post-requirement";
 import { projectRequirementDetails } from "./project-requirement-details";
-import { structuredPostBlocks } from "./structured-post-layout";
 
 const header = "Kapittel: 33 Brannslokking\nPostnr. NS-kode/Spesifikasjon Enhet Mengde Pris Sum\n";
 const post = "33.500.6 | UE6.1913\nHANDSLOKKER\nAntall stk 2\nKlassifisering av brann: 75F\nMengde slokkemedium: 6 liter\nAndre krav: Nei";
@@ -40,8 +39,7 @@ test("legacy card removes a separate total row without writing to the saved post
   } };
   const before = JSON.stringify(row);
   const details = projectRequirementDetails(row);
-  const blocks = structuredPostBlocks(details, "HANDSLOKKER");
-  assert.deepEqual(blocks.filter(block => block.kind === "field" && block.label === "Andre krav"), [{ kind: "field", label: "Andre krav", text: "Nei" }]);
+  assert.match(details.sourceExcerpt!, /Andre krav: Nei$/);
   assert.equal(details.additionalRequirements, "Nei");
   assert.doesNotMatch(JSON.stringify(details), /Sum denne side/);
   assert.equal(JSON.stringify(row), before);

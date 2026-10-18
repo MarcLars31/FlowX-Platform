@@ -1013,7 +1013,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
           <ProjectPostSpecification id={"full-" + requirement.id} details={details}
               description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
-              quantity={quantity} quantityText={String(record(requirement.value_json).quantityText ?? "")}
+              quantity={quantity}
               sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
 
           <div className="product-post-extras">

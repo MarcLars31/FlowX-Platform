@@ -40,7 +40,7 @@ test("description quantities are preserved by column position, even when identic
   const { ProjectPostSpecification } = await import("@/components/ProjectPostSpecification");
   const details = projectRequirementDetails({ source_page: 1, source_excerpt: row.sourceText, value_text: row.description, value_json: row });
   const html = renderToStaticMarkup(createElement(ProjectPostSpecification, { id: row.id, details, description: row.description,
-    quantity: { quantity: 2, unit: "st" }, quantityText: row.quantityText }));
+    quantity: { quantity: 2, unit: "st" } }));
   assert.equal(html.split("Antall st 2").length - 1, 1);
   assert.equal(html.split("Antall st 5").length - 1, 1);
   assert.match(html, /<span>Enh\.: stk<\/span>/);

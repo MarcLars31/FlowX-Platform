@@ -41,6 +41,14 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
     const ancestor = leadingPost(part);
     return ancestor && post.startsWith(ancestor + ".");
   }).join("\n\nUNDERPOST\n");
+  const sourceUnassignedReadings = [...new Set([
+    ...(Array.isArray(value.sourceUnassignedReadings) ? value.sourceUnassignedReadings.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : []),
+    ...[text(value.sourceText), text(requirement.source_excerpt), specification].flatMap(source => source.split(boundary))
+      .map(part => part.trim()).filter(part => {
+        const identity = leadingPost(part);
+        return identity && identity !== post && !post.startsWith(identity + ".");
+      })
+  ])];
   const ownLabels = labels(ownText);
   const ancestorLabels = labels(ancestors);
   const attributes = Object.fromEntries(Object.entries(record(value.attributes)).filter(([key, raw]) => {
@@ -75,6 +83,7 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
     source_excerpt: canonicalText(source || ownSpecification),
     value_json: {
       ...value, attributes: canonicalAttributes,
+      ...(sourceUnassignedReadings.length ? { sourceUnassignedReadings } : {}),
       ...(inheritedProductRequirements ? { inheritedProductRequirements } : {}),
       ...(inheritedSpecification ? { inheritedSpecification: canonicalText(inheritedSpecification) } : {}),
       ...(repairOcr && typeof value.description === "string" ? { description: canonicalText(value.description) } : {}),

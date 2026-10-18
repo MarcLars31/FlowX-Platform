@@ -104,7 +104,7 @@ test("conflicting OCR preserves corrected layout and keeps the alternative separ
 test("conflicting reimport text is accessible for review on the saved post card",()=>{
  const reading="Trykk: 16 bar\nEn ny kravtekst.";
  const details=projectRequirementDetails({source_page:1,source_excerpt:"30.1.1 Ventil\nTrykk: 12 bar",value_json:{postNumber:"30.1.1",sourceReimportReadings:[reading],reviewFlags:["reextracted-requirement-conflict"]}});
- const html=renderToStaticMarkup(createElement(ProjectPostSpecification,{id:"saved",details,description:"Ventil",quantity:{quantity:null,unit:"?"},informationOnly:true}));
+ const html=renderToStaticMarkup(createElement(ProjectPostSpecification,{id:"saved",details,description:"Ventil",quantity:{quantity:null,unit:"?"}}));
  assert.match(html,/Ny PDF-läsning att granska/);assert.match(html,/En ny kravtekst/);assert.equal(html.split("Trykk: 16 bar").length-1,1);
 });
 test("unchanged source order retains legacy positions, while a new physical occurrence gets current positions",()=>{

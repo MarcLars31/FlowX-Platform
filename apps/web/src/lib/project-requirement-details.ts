@@ -6,6 +6,7 @@ import { projectRequirementKFactorDisplayValue } from "./project-requirement-dat
 export type ProjectRequirementDetail = {
   sourceWarnings?: string[];
   sourceReimportReadings?: string[];
+  sourceUnassignedReadings?: string[];
   postNumber: string | null;
   chapterPost: string | null;
   parentPostNumber: string | null;
@@ -49,6 +50,7 @@ export function projectRequirementDetails(
   return {
     sourceWarnings,
     sourceReimportReadings: stringList(value.sourceReimportReadings),
+    sourceUnassignedReadings: stringList(value.sourceUnassignedReadings),
     postNumber: text(value.postNumber) ?? postNumberFromSource(sourceExcerpt),
     chapterPost,
     parentPostNumber: text(value.parentPostNumber),
@@ -79,54 +81,6 @@ export function projectRequirementDetails(
 
 export function isAdditionalRequirementAttribute(key: string) {
   return /^(?:omfatter også|andre krav|andra krav)$/i.test(key.replace(/[_-]+/g, " ").trim());
-}
-
-/** Information posts retain prose, bullets and lettered clauses in PDF order. */
-export function projectInformationBody(details: ProjectRequirementDetail, description: string) {
-  const lines = (details.sourceExcerpt ?? "").trim().split(/\r?\n/);
-  // These identifiers already appear in the card heading. Remove only an
-  // exact leading match, never post references or headings inside the body.
-  for (const heading of [details.postNumber, details.nsCode, description]) {
-    if (!heading) continue;
-    for (let count = 1; count <= Math.min(4, lines.length); count += 1) {
-      const prefix = lines.slice(0, count).join(" ").replace(/\s+/g, " ").trim();
-      if (prefix === heading || prefix.replace(/\s/g, "") === heading.replace(/\s/g, "")) {
-        lines.splice(0, count);
-        break;
-      }
-    }
-  }
-  return lines.join("\n").trim();
-}
-
-/** Reflow prose while keeping PDF fields, their wraps, sections and list items. */
-export function projectInformationParagraphs(source: string) {
-  const paragraphs: Array<{ text: string; kind: "text" | "heading" | "bullet" | "page" | "field" }> = [];
-  let pending = "";
-  let kind: "text" | "bullet" | "field" = "text";
-  const flush = () => { if (pending) paragraphs.push({ text: pending, kind }); pending = ""; kind = "text"; };
-  for (const raw of source.split(/\r?\n/)) {
-    const line = raw.trim().replace(/^\uF0B7[\uF020\s]*/, "• ");
-    if (!line) { flush(); continue; }
-    const page = line.match(/^FORTSETTELSE SIDE (\d+)$/);
-    if (page || /^[a-z]\)\s+\S/i.test(line) || (line.endsWith(":") && line.length < 100)
-      || (line.length < 160 && /[A-ZÆØÅ]{3}/.test(line) && line === line.toLocaleUpperCase())) {
-      flush();
-      paragraphs.push({ text: page ? `Side ${page[1]}` : line, kind: page ? "page" : "heading" });
-      continue;
-    }
-    if (/^Tabell\s+\d+\s*:/i.test(line)) { flush(); paragraphs.push({ text: line, kind: "text" }); continue; }
-    // A field remains a separate row even when the post has no quantity.
-    // Require whitespace after the colon so references such as NS8175:2012
-    // inside ordinary prose do not become fields.
-    if (/^[\p{L}][^:]{0,99}:[ \t]+\S/u.test(line)) { flush(); kind = "field"; pending = line; continue; }
-    if (/^(?:[•●▪·]|-\.?)\s+/.test(line)) { flush(); kind = "bullet"; }
-    if (kind === "field" && /^(?:Det skal|Alle|Tilbehør|Merket|Prisen)\b/i.test(line)) flush();
-    pending += `${pending ? kind === "field" ? "\n" : pending.endsWith("-") ? "" : " " : ""}${line}`;
-    if (/[.!?]$/.test(line) || /^[•●▪]\s*\d+(?:\.\d+)+$/.test(line)) flush();
-  }
-  flush();
-  return paragraphs;
 }
 
 function additionalRequirementsFromSources(

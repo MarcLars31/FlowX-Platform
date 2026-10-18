@@ -3,37 +3,9 @@ import test from "node:test";
 import { enrichProjectRequirements } from "./project-requirement-enrichment";
 import {
   postNumberFromSource,
-  projectInformationBody,
-  projectInformationParagraphs,
   projectRequirementSystemLabel,
   projectRequirementDetails
 } from "./project-requirement-details";
-
-test("information prose fills available width without losing PDF headings or bullet items", () => {
-  assert.deepEqual(projectInformationParagraphs("\uF0B7\uF020 1401.40.7\nI deler av anlegget skal kabelstiger monteres\ni felles oppheng."), [
-    { kind: "bullet", text: "• 1401.40.7" },
-    { kind: "text", text: "I deler av anlegget skal kabelstiger monteres i felles oppheng." }
-  ]);
-  assert.deepEqual(projectInformationParagraphs("a) Omfang\nTekniske bestemmelser for\nkabelføring.\nHenvisninger:\n\uF0B7\uF020 1401.40.4\n\uF0B7\uF020 Temperatur: AA5 - normale\nforhold\nFORTSETTELSE SIDE 9\nb) Materialer\nKabelstige-\nsystemet skal leveres."), [
-    { kind: "heading", text: "a) Omfang" },
-    { kind: "text", text: "Tekniske bestemmelser for kabelføring." },
-    { kind: "heading", text: "Henvisninger:" },
-    { kind: "bullet", text: "• 1401.40.4" },
-    { kind: "bullet", text: "• Temperatur: AA5 - normale forhold" },
-    { kind: "page", text: "Side 9" },
-    { kind: "heading", text: "b) Materialer" },
-    { kind: "text", text: "Kabelstige-systemet skal leveres." }
-  ]);
-});
-
-test("information cards keep all prose and internal references in source order", () => {
-  const details = projectRequirementDetails({ source_page: 8, value_json: {
-    postNumber: "1401.40.411.1", nsCode: "WZA", technicalSpecification:
-      "1401.40.411.\n1\nWZA\nInstallasjoner for elkraft og ekom\nAndre krav:\na) Omfang\nSe post 1401.40.411.1.\nFORTSETTELSE SIDE 9\nAE4 - Lett støv\nb) Materialer\nFORTSETTELSE SIDE 10\nAll tekst skal beholdes.\nFORTSETTELSE SIDE 11\nc) Utførelse\nSiste avsnitt."
-  } });
-  assert.equal(projectInformationBody(details, "Installasjoner for elkraft og ekom"),
-    "Andre krav:\na) Omfang\nSe post 1401.40.411.1.\nFORTSETTELSE SIDE 9\nAE4 - Lett støv\nb) Materialer\nFORTSETTELSE SIDE 10\nAll tekst skal beholdes.\nFORTSETTELSE SIDE 11\nc) Utførelse\nSiste avsnitt.");
-});
 
 test("reopening a project preserves source comments recovered from continuation pages", () => {
   const pages = [
