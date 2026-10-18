@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-18.1";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-18.2";
 export const RULE_CATALOG_DATE = "18 oktober 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -49,8 +49,9 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
   {
     id: "underlag", title: "PDF-postens underlag", appliesTo: "Alla produktposter", kind: "requirement",
     description: "Vilken text och vilka egenskaper som får styra produktvalet.",
-    sources: ["current-post-requirement.ts", "inherited-product-requirements.ts", "pdf-post-text.ts", "requirement-snapshot.ts", "requirement-text-storage.ts", "technical-description-quality.ts", "project-overview-cache.ts", "project-overview.ts", "pdf-runtime.ts", "ahlsell-requirement-context.ts", "ahlsell-requirement-intent.ts"],
+    sources: ["current-post-requirement.ts", "project-requirement-source.ts", "project-information-layout.ts", "inherited-product-requirements.ts", "pdf-post-text.ts", "requirement-snapshot.ts", "requirement-text-storage.ts", "technical-description-quality.ts", "project-overview-cache.ts", "project-overview.ts", "pdf-runtime.ts", "ahlsell-requirement-context.ts", "ahlsell-requirement-intent.ts"],
     rules: [
+      rule("pdf-sparad-identitet", "Behåll underrubriker i den sparade posten", "Källtexten börjar med postens fullständiga sparade nummer och fortsätter med en numrerad underrubrik.", "Låt den exakta sparade identiteten styra avgränsningen. En underrubrik som 30.0 OMFANG fogas inte till 100.30.300.1. Bevara hela den egna källtexten vid upprepade läsningar. Informationsposter visar rubriker, listor och stödda ljudkravstabeller i källordning, med tomma celler och sidfortsättningar. Utplattade attribut ersätter inte originalets tabeller. Databasen och sparade produktval ändras inte."),
       rule("pdf-sidsumma", "Sidsummor är inte postkrav", "PDF-sidans summeringsrad har kolon, punkt eller saknar skiljetecken.", "Fristående Sum denne side och Sum denna sida avgränsar sidans posttext vid import och läsning av äldre källtext. Riktiga fortsättningar på nästa sida behålls. Ett ogranskat OCR-fält rättas bara om källtexten visar samma fält följt av summeringsraden. Granskade fält, kommentarer och sparade produktval ändras inte. Ingen ny PDF-tolkning eller databasändring behövs."),
       rule("pdf-sidhuvud", "Sidhuvuden är inte postkrav", "Nästa sida börjar med konsultnamn och datum före tabellhuvudet.", "Konsultens sidhuvud läggs inte till föregående produktpost. Äldre sparade fortsättningar rensas från motsvarande inledande sidhuvud vid läsning; om inget annat innehåll finns tas även den tomma sidmarkeringen bort. Verklig fortsättningstext och sparade fältvärden behålls utan ny PDF-tolkning eller databasändring."),
       rule("ocr-bildinnehall", "Läs skannat innehåll även bredvid digital text", "En PDF-sida blandar läsbar text med större bildytor eller en skanning uppdelad i flera bildrutor.", "Bedöm text och bildytor i samma område. Lägg ihop bildrutornas täckning utan att räkna överlapp två gånger. Läsbar text i en annan kolumn döljer inte bildinnehållet. Kontrollera också täta bokstavsliknande konturer. Skicka sådana sidor till OCR i webbläsaren och använd OCR-resultatet för posten. Små logotyper utlöser inte OCR. Läsbara textsidor behåller direkt textläsning. Kontrollen gör inga databasfrågor och ändrar inte tidigare sparade poster."),

@@ -20,7 +20,7 @@ test("information prose fills available width without losing PDF headings or bul
     { kind: "heading", text: "Henvisninger:" },
     { kind: "bullet", text: "• 1401.40.4" },
     { kind: "bullet", text: "• Temperatur: AA5 - normale forhold" },
-    { kind: "page", text: "Sida 9" },
+    { kind: "page", text: "Side 9" },
     { kind: "heading", text: "b) Materialer" },
     { kind: "text", text: "Kabelstige-systemet skal leveres." }
   ]);

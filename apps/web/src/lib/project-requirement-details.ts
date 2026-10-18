@@ -13,6 +13,7 @@ export type ProjectRequirementDetail = {
   sourcePage: number | null;
   sourceExcerpt: string | null;
   additionalRequirements: string | null;
+  chapterInformation?: boolean;
 };
 
 export function projectRequirementDetails(
@@ -45,6 +46,7 @@ export function projectRequirementDetails(
     }),
     sourcePage: positiveInteger(requirement.source_page),
     sourceExcerpt,
+    chapterInformation: value.chapterInformation === true || (Array.isArray(value.reviewFlags) && value.reviewFlags.includes("project-information")),
     additionalRequirements: additionalRequirementsFromSources(
       [text(value.technicalSpecification), text(value.sourceText), text(requirement.source_excerpt)],
       attributes
@@ -84,12 +86,14 @@ export function projectInformationParagraphs(source: string) {
     const line = raw.trim().replace(/^\uF0B7[\uF020\s]*/, "• ");
     if (!line) { flush(); continue; }
     const page = line.match(/^FORTSETTELSE SIDE (\d+)$/);
-    if (page || /^[a-z]\)\s+\S/i.test(line) || (line.endsWith(":") && line.length < 100)) {
+    if (page || /^[a-z]\)\s+\S/i.test(line) || (line.endsWith(":") && line.length < 100)
+      || (line.length < 160 && /[A-ZÆØÅ]{3}/.test(line) && line === line.toLocaleUpperCase())) {
       flush();
-      paragraphs.push({ text: page ? `Sida ${page[1]}` : line, kind: page ? "page" : "heading" });
+      paragraphs.push({ text: page ? `Side ${page[1]}` : line, kind: page ? "page" : "heading" });
       continue;
     }
-    if (/^[•●▪]\s*/.test(line)) { flush(); kind = "bullet"; }
+    if (/^(?:[•●▪·]|-\.?)\s+/.test(line)) { flush(); kind = "bullet"; }
+    if (/^Tabell\s+\d+\s*:/i.test(line)) { flush(); paragraphs.push({ text: line, kind: "text" }); continue; }
     pending += `${pending && !pending.endsWith("-") ? " " : ""}${line}`;
     if (/[.!?]$/.test(line) || /^[•●▪]\s*\d+(?:\.\d+)+$/.test(line)) flush();
   }

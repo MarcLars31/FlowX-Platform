@@ -1,7 +1,8 @@
 import { PdfSourceDocument } from "./PdfRequirementSource";
 import { projectRequirementSourceSections } from "@/lib/project-requirement-source";
 import { FileText } from "lucide-react";
-import { projectInformationBody, projectInformationParagraphs, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
+import { projectInformationBody, projectRequirementPageLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
+import { projectInformationBlocks, type InformationTable } from "@/lib/project-information-layout";
 import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { structuredPostBlocks } from "@/lib/structured-post-layout";
 import { orderedSpecificationAttributes } from "@/lib/project-specification-layout";
@@ -38,16 +39,18 @@ export function ProjectPostSpecification({ id, details: sourceDetails, descripti
         </a> : postLabel}
       </h3>
       <div className="min-w-0 px-3 py-3">
-        <PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} />
+        <PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} />
         {details.nsCode && <p className="break-words font-[700]">{details.nsCode}</p>}
         {hasHeading && <p className="break-words font-[700] leading-5">{description}</p>}
         {showQuantity && <dl className="my-2 flex flex-wrap items-baseline gap-x-2">
           <dt className="font-[700]">{amountLabel}:</dt>
           <dd>{!rs && <>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)} </>}{quantity.unit === "?" ? "—" : quantity.unit}</dd>
         </dl>}
-        {informationOnly && details.sourceExcerpt ? <>
-          <div className="mt-4 space-y-3 break-words leading-6">{projectInformationParagraphs(projectInformationBody(details, description)).map((paragraph, index) =>
-            <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "heading" ? "font-[700]" : paragraph.kind === "bullet" ? "pl-4 -indent-4" : undefined}><SpecificationText value={paragraph.text} /></p>
+        {(informationOnly || details.chapterInformation) && details.sourceExcerpt ? <>
+          <div className="mt-4 space-y-3 break-words leading-6">{projectInformationBlocks(projectInformationBody(details, description)).map((paragraph, index) => paragraph.kind === "table"
+            ? <InformationSourceTable key={index} table={paragraph} />
+            : paragraph.kind === "heading" ? <h4 key={index} className="!mt-5 font-[700]"><SpecificationText value={paragraph.text} /></h4>
+            : <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "bullet" ? "!mt-0 pl-4 -indent-4" : undefined}>{paragraph.text}</p>
           )}</div>
           {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
         </> : <div className="mt-2 space-y-1">
@@ -63,6 +66,21 @@ export function ProjectPostSpecification({ id, details: sourceDetails, descripti
           </dl>}
       </div>
     </div>
+  </div>;
+}
+
+function InformationSourceTable({ table }: { table: InformationTable }) {
+  return <div className="max-w-full overflow-x-auto">
+    <table className="w-full border-collapse text-left text-sm leading-5">
+      {table.caption && <caption className="pb-1 text-left text-xs italic">{table.caption}</caption>}
+      <colgroup>{table.columns.map((_, index) => <col key={index} style={{ width: table.columns.length === 2 ? index === 0 ? "88%" : "12%" : `${100 / table.columns.length}%` }} />)}</colgroup>
+      <thead className={table.continued ? "sr-only" : undefined}><tr>{table.columns.map((column, index) =>
+        <th key={index} scope="col" className="border border-neutral-500 px-2 py-1 font-bold">{column === "LwA" ? <>L<sub>wA</sub></> : column}</th>
+      )}</tr></thead>
+      <tbody>{table.rows.map((row, index) => <tr key={index}>{row.cells.map((cell, column) =>
+        <td key={column} className={`border border-neutral-500 px-2 py-1 align-top${row.heading ? " font-bold" : ""}${column > 0 ? " whitespace-nowrap tabular-nums" : ""}`}>{cell}</td>
+      )}</tr>)}</tbody>
+    </table>
   </div>;
 }
 

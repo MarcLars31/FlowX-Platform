@@ -6,6 +6,16 @@ export type ProjectRequirementSourceSection = {
   text: string;
 };
 
+/** A saved post identity takes precedence over heuristics for wrapped PDF IDs.
+ * A following section such as 30.0 OMFANG belongs to 100.30.300.1's body. */
+export function projectPostSourceStart(lines: string[], postNumber: string | null) {
+  const first = lines[0] ?? "";
+  if (postNumber && (first === postNumber || first.startsWith(`${postNumber} `) || first.startsWith(`${postNumber}\t`))) {
+    return { lineIndex: 0, consumedLineCount: 1, postNumber, description: first.slice(postNumber.length).trim() };
+  }
+  return lines.length ? parseStructuredPostStart(lines, 0) : undefined;
+}
+
 /** Presentation only: retain the saved specification and every source clause. */
 export function projectRequirementSourceSections(
   specification: string,
@@ -15,7 +25,7 @@ export function projectRequirementSourceSections(
     const original = raw.trim();
     if (!original) return [];
     const lines = original.split(/\r?\n/).map(line => line.trim());
-    const start = parseStructuredPostStart(lines, 0);
+    const start = projectPostSourceStart(lines, currentPostNumber);
     const postNumber = start?.postNumber ?? null;
     const relation = postNumber && currentPostNumber
       ? postNumber === currentPostNumber ? "current"

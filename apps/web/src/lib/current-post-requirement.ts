@@ -1,4 +1,4 @@
-import { parseStructuredPostStart } from "@/modules/technical-description-extractor/document-parser";
+import { projectPostSourceStart } from "./project-requirement-source";
 import { captureInheritedProductRequirements } from "./inherited-product-requirements";
 import { normalizeOcrDnTokens, repairedOcrPostAttributes, withoutPdfHeaderContinuations, withoutPdfPageSumFooters } from "./pdf-post-text";
 
@@ -14,6 +14,7 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
   const inheritedProductRequirements = captureInheritedProductRequirements(requirement);
   const value = record(requirement.value_json);
   const post = text(value.postNumber);
+  const leadingPost = (source: string) => projectPostSourceStart(source.trim().split(/\r?\n/).map(line => line.trim()), post)?.postNumber;
   const origins = record(value.attributeSources);
   const specification = text(value.technicalSpecification);
   const parts = specification.split(boundary);
@@ -90,13 +91,6 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
 
 function labels(source: string) {
   return new Set([...source.matchAll(/^([^:\n]{1,100}):/gm)].map(match => normalized(match[1])));
-}
-function leadingPost(source: string) {
-  const lines = source.trim().split(/\r?\n/).map(line => line.trim());
-  const structured = parseStructuredPostStart(lines, 0);
-  if (structured) return structured.postNumber;
-  const split = source.trim().match(/^(\d+(?:\.\d+)+)\.\s+(\d+(?:\.\d+)*)\b/);
-  return split ? `${split[1]}.${split[2]}` : source.trim().match(/^(\d+(?:\.\d+)+)\b/)?.[1];
 }
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 function record(value: unknown): Row { return value && typeof value === "object" && !Array.isArray(value) ? value as Row : {}; }

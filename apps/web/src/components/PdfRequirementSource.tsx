@@ -1,15 +1,16 @@
 import { projectRequirementSourceSections } from "@/lib/project-requirement-source";
 
-export function PdfSourceDocument({ fileName, page, href }: {
+export function PdfSourceDocument({ fileName, page, href, pageLabel }: {
   fileName: string | null;
   page: number | null;
   href: string | null;
+  pageLabel?: string;
 }) {
   return <p className="px-2 pb-2 text-xs text-neutral-600 [overflow-wrap:anywhere]">
     Kildedokument: {fileName && href
       ? <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{fileName}</a>
       : fileName ?? "Ikke oppgitt"}
-    {page !== null && <span> · Side {page}</span>}
+    {page !== null && <span> · {pageLabel ?? `Side ${page}`}</span>}
   </p>;
 }
 

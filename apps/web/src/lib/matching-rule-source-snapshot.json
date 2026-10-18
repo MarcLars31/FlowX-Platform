@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-18.1",
+  "version": "scipx-product-rules-2026-10-18.2",
   "sources": {
     "ahlsell-accessory-suggestions.ts": "3f23823bbb3e5f772de20891f504d09f0fe167ce0ae2fe47c8aa81fb9eb14460",
     "ahlsell-cable-trunking.ts": "ff672cb6ea5a2e8005f35977800772eb513bf54c66439a1e4e666a4c0b2e966c",
@@ -27,7 +27,7 @@
     "assembly-component-lookup.ts": "41d597b7be276c279536bef12ad9060eec68f9e6288c6adfe9554df7d21d72b9",
     "assembly-component-matching.ts": "9de118786bc1b459e1f2ca8308bee5e87ddeb1c7023dc5d2f3515397a7532db8",
     "catalog-search.ts": "9585bd2536373e86de0a0265e9464ad8c1c1bc9f0a676a3c9a195a57e8827aba",
-    "current-post-requirement.ts": "b612abb91c03bea39b2ffb0a869febd16544929db64aa967c35702c1bafe7bdf",
+    "current-post-requirement.ts": "026305cd92339e37be1f4bd992978b6e393b019950d4d4fc915cd841a27b4f5b",
     "distributor-product-memory-match.ts": "3c4e8cb07b52efdbdd0a8f7930d980ae59d80a3ad263e32356c8ae7044af5c83",
     "distributor-product-memory.ts": "0bdeea40e0e250ec3aa9edd5099e4f138e32f95e0d092efb2ee54b53195db10f",
     "distributor-requirement-lines.ts": "19bc1584488f94520960edef5a9ba4ab0ed6490cbd455fa0959cc453c8bcfd47",
@@ -50,8 +50,10 @@
     "product-search-store.ts": "5d3fec94e5f880e140bfd70b390a81d531854c11cb34937e94d017ec8dd3cccb",
     "product-selection-review.ts": "7e704b14d9631953a3b50715a50bff4b059b6fdfffb9d902bf9eacceb6c8432d",
     "product-similarity.ts": "b38586108edc659569e074d97e1bdc44c01ebde06f04ad4b5acec09f3589a61a",
+    "project-information-layout.ts": "08bd0b67893a147b6dc7a5250e131fab9a0353462f4f8c25f73b43b7fb3b8bc3",
     "project-overview-cache.ts": "acb64a00dff0298007e19fab11e3826dd56c31db7e61764a61f09a4b3e192173",
     "project-overview.ts": "3b17678abe8f107ebc096d880d2d0141005233c462bf2d32a539cf1b2af22db9",
+    "project-requirement-source.ts": "29b22ba6e0b2fa79606afb96b7b9ec5571b755a1c3d2f64f12bafff2500eb535",
     "project-requirement-views.ts": "07dfae7d3adc627d1d1e33c47576cfa450d0071f2ea17d85ea78b23616c35d75",
     "public-sprsok.ts": "a9e60123bdd22440a92c69113d5cb71488b76fe923b8806cb7e2d9ee62fbac92",
     "requirement-discipline.ts": "2ccf468875fc23406b77500a39273b2a386eb3448209f760df5928c7eff8f28c",
