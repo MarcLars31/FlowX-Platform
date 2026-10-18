@@ -1,4 +1,5 @@
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
+import { numberedPostHeading } from "./numbered-post-heading";
 import { isPdfPageSumFooter, normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
 
 // Document syntax only; product classification belongs to consumers.
@@ -232,6 +233,11 @@ function completeStructuredStart({
     };
   }
 
+  const heading = numberedPostHeading(cleanPost, lines[lineIndex + 1] ?? "");
+  if (heading) {
+    return { lineIndex, consumedLineCount: 2, postNumber: heading.postNumber,
+      description: heading.description, quantity };
+  }
   const continuation = lines[lineIndex + 1]?.match(POST_CONTINUATION_PATTERN);
   if (!continuation || continuation[1].replace(/^\./, "").startsWith(`${cleanPost.split(".")[0]}.`)) {
     return {

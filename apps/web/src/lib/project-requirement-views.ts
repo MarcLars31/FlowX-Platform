@@ -1,13 +1,10 @@
 import { normalizeQuantityUnit, parseQuantityNumber } from "./quantity-value";
 import { isDistributorLumpSumRequirement, type DistributorRequirementRow } from "./distributor-requirement-lines";
 
-export const PROJECT_REQUIREMENT_VIEWS = [
-  { id: "products", label: "Produktposter" },
-  { id: "removal", label: "Prosjekt information" },
-  { id: "rs", label: "Rund Sum" }
-] as const;
-
-export type ProjectRequirementView = (typeof PROJECT_REQUIREMENT_VIEWS)[number]["id"];
+/** Every current PDF post is listed together, including text-only and RS posts. */
+export function visibleProjectRequirements<Row extends DistributorRequirementRow>(requirements: Row[]) {
+  return requirements.filter(row => !["rejected", "superseded"].includes(String(row.status ?? "")));
+}
 
 const quantityUnits = new Set(["st", "m", "m2", "m3", "kg", "l", "t", "tonn", "h", "time", "timer", "dag", "dager", "døgn", "sett", "par"]);
 

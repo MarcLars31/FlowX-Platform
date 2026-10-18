@@ -1,7 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { groupProjectRequirementViews } from "./project-requirement-views";
+import { groupProjectRequirementViews, visibleProjectRequirements } from "./project-requirement-views";
 import { splitDistributorRequirementLines } from "./distributor-requirement-lines";
+
+test("the normal view keeps every current PDF post regardless of quantity, unit or operation", () => {
+  const rows = [
+    { id: "measured", value_json: { quantity: 5, unit: "st" } },
+    { id: "armaturer", value_json: { postNumber: "33.332.7", quantity: null, unit: null } },
+    { id: "removal", value_json: { operation: "remove" } },
+    { id: "rs", value_json: { unit: "RS" } },
+    { id: "information", value_json: { reviewFlags: ["project-information"] } },
+    { id: "rejected", status: "rejected", value_json: {} },
+    { id: "superseded", status: "superseded", value_json: {} }
+  ];
+  assert.deepEqual(visibleProjectRequirements(rows), rows.slice(0, 5));
+});
 
 test("RS takes priority and unquantified posts have their own information table", () => {
   const requirements = [

@@ -36,7 +36,7 @@ import {
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import { projectRequirementDetails, projectRequirementSystemLabel, specificationLabel } from "@/lib/project-requirement-details";
 import { projectRequirementDataWarnings } from "@/lib/project-requirement-data-warnings";
-import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
+import { groupProjectRequirementViews, visibleProjectRequirements } from "@/lib/project-requirement-views";
 import { ahlsellCatalogStatusFromPayload, type AhlsellCatalogMatchStatus } from "@/lib/ahlsell-match-groups";
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { effectiveRequirements } from "@/lib/effective-requirements";
@@ -87,10 +87,9 @@ type RequirementAttachment = {
 };
 export type ProductEditState = { dirty: boolean; saving: boolean };
 
-export function DistributorMappingPanel({ view = "all", projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onEditStateChange, workspaceNavigation, onRequirementSaved, deliveryResource }: {
+export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onEditStateChange, workspaceNavigation, onRequirementSaved, deliveryResource }: {
   deliveryResource?: ProjectDeliveryResource;
   workspaceNavigation?: ReactNode;
-  view?: ProjectRequirementView | "all";
   onRequirementSaved?: (id: string) => Promise<void>;
   projectId: string;
   currency?: string;
@@ -106,8 +105,9 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
     ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes)), [allMemories]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { products: productRequirements, removal: removalRequirements, rs: rsRequirements } = useMemo(
-    () => groupProjectRequirementViews(requirements),
+  const view = "all";
+  const viewRequirements = useMemo(
+    () => visibleProjectRequirements(requirements),
     [requirements]
   );
   const approvedAssignments = useMemo(
@@ -141,8 +141,6 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
   );
   // Search only the opened post. Overview rows intentionally omit detailed specifications.
   const recordFullCatalogResult = useCallback(() => {}, []);
-  const viewRequirements = useMemo(() => view === "all" ? [...productRequirements, ...rsRequirements, ...removalRequirements]
-    : view === "products" ? productRequirements : view === "removal" ? removalRequirements : rsRequirements, [view, productRequirements, rsRequirements, removalRequirements]);
   const mainPostGroups = useMemo(() => productPostNavigationGroups(viewRequirements, requirements), [viewRequirements, requirements]);
   const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
   const listedRequirements = useMemo(() => mainPostGroups.flatMap(group => productChapterContents(group).requirements), [mainPostGroups]);
@@ -278,7 +276,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
   }
 
   return (
-    <section id="project-requirement-table" aria-label={view === "all" ? "Alle poster" : PROJECT_REQUIREMENT_VIEWS.find(item => item.id === view)?.label} className="product-selection-workspace" data-post-open={Boolean(activeRequirement)}>
+    <section id="project-requirement-table" aria-label="Alle PDF-poster" className="product-selection-workspace" data-post-open={Boolean(activeRequirement)}>
       <div className="product-selection-heading">
         <h2>Produktvalg</h2>
         <p>{listedRequirements.length} poster · {handledCount} håndtert</p>

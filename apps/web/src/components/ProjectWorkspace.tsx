@@ -20,7 +20,7 @@ import { DemoBadge } from "@/components/DemoBadge";
 import { createProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { ProjectDeliveryControl } from "@/components/ProjectDeliveryControl";
 import { DistributorMappingPanel, type ProductEditState } from "@/components/DistributorMappingPanel";
-import { groupProjectRequirementViews, PROJECT_REQUIREMENT_VIEWS, type ProjectRequirementView } from "@/lib/project-requirement-views";
+import { visibleProjectRequirements } from "@/lib/project-requirement-views";
 import { Input } from "@/components/Input";
 import { ProjectMaterialListExportButton } from "@/components/ProjectMaterialListExportButton";
 import { ProjectMaterialListPdfExportButton } from "@/components/ProjectMaterialListPdfExportButton";
@@ -96,7 +96,6 @@ export function ProjectWorkspace({
   const [managementStep, setManagementStep] = useState<"details" | "assignments">("details");
   const [projectDraft, setProjectDraft] = useState<Record<string, string> | null>(null);
   const [assignmentSaving, setAssignmentSaving] = useState(false);
-  const [requirementView, setRequirementView] = useState<ProjectRequirementView | "all">("all");
   const [productEditState, setProductEditState] = useState<ProductEditState>({dirty: false, saving: false});
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
@@ -393,7 +392,7 @@ export function ProjectWorkspace({
     }
   }
 
-  const requirementGroups = useMemo(() => groupProjectRequirementViews(data.requirements), [data.requirements]);
+  const visibleRequirements = useMemo(() => visibleProjectRequirements(data.requirements), [data.requirements]);
   const displayedDocuments = displayedProjectDocuments(data);
   const uniqueTechnicalDescriptions = displayedDocuments.technicalDescriptions;
   const distinctProjectDocuments = displayedDocuments.projectDocuments;
@@ -666,18 +665,11 @@ export function ProjectWorkspace({
       {tab === "products" && (
         <div className="product-workspace-body">
           <div className="product-workspace-tools">
-            <label htmlFor="product-post-filter">Vis poster
-              <select id="product-post-filter" value={requirementView} onChange={event => { if (canLeaveProductSelection()) setRequirementView(event.target.value as ProjectRequirementView | "all"); }}>
-                <option value="all">Alle poster ({data.requirements.length})</option>
-                {PROJECT_REQUIREMENT_VIEWS.map(view => <option key={view.id} value={view.id}>{view.label} ({requirementGroups[view.id].length})</option>)}
-              </select>
-            </label>
+            <p>Alle PDF-poster ({visibleRequirements.length})</p>
             <Button type="button" variant="secondary" disabled={finishing} title="Original-PDF tas bort när projektet avslutas. Poster och produktval sparas." onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" className="h-4 w-4" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button>
           </div>
           <DistributorMappingPanel
             deliveryResource={deliveryResource}
-            key={requirementView}
-            view={requirementView}
             onEditStateChange={setProductEditState}
             projectId={data.project.id}
             currency={data.project.currency ?? "NOK"}

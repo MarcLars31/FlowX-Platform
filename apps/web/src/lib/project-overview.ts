@@ -3,6 +3,7 @@ import { projectRequirementDetails } from "./project-requirement-details";
 import { productRequirementCategory, PRODUCT_REQUIREMENT_CATEGORY_VERSION } from "./product-requirement-category";
 import { projectRequirementDataWarnings } from "./project-requirement-data-warnings";
 import { projectRequirementOrderPostNumber } from "./project-requirement-order";
+import { requirementSnapshot } from "./requirement-snapshot";
 
 export type OverviewRow = Record<string, unknown> & { id: string };
 const valueFields = ["postNumber", "parentPostNumber", "parentDescription", "postScope", "nsCode", "sourceChapter", "sourceOrder", "chapterInformation", "quantity", "quantityText", "unit", "operation", "system", "reviewFlags", "productResolution"] as const;
@@ -25,6 +26,7 @@ export function expandOverviewProjection(row: OverviewRow): OverviewRow {
 }
 
 export function compactProjectRequirement(row: OverviewRow): OverviewRow {
+  row = requirementSnapshot(row);
   const value = record(row.value_json);
   const details = projectRequirementDetails(row);
   const overview = {
