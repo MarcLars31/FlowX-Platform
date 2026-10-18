@@ -14,7 +14,7 @@ import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox"
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { productChoiceSnapshots } from "@/lib/product-choice-collection";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
-import { productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
+import { productChapterContents, productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -145,6 +145,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
     : view === "products" ? productRequirements : view === "removal" ? removalRequirements : rsRequirements, [view, productRequirements, rsRequirements, removalRequirements]);
   const mainPostGroups = useMemo(() => productPostNavigationGroups(viewRequirements, requirements), [viewRequirements, requirements]);
   const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
+  const listedRequirements = useMemo(() => mainPostGroups.flatMap(group => productChapterContents(group).requirements), [mainPostGroups]);
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const [lastViewedRequirementId, setLastViewedRequirementId] = useState<string | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
@@ -157,7 +158,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
   const activeIndex = queueRequirements.findIndex(requirement => requirement.id === activeRequirementId);
   const activeRequirement = queueRequirements[activeIndex];
   const activeAssignment = activeRequirement ? approvedAssignmentByRequirementId.get(activeRequirement.id) : undefined;
-  const handledCount = queueRequirements.filter(requirement => handledRequirementIds.has(requirement.id)).length;
+  const handledCount = listedRequirements.filter(requirement => handledRequirementIds.has(requirement.id)).length;
   useEffect(() => {
     onEditStateChange?.({ dirty: productCardDirty, saving: productCardSaving });
     return () => onEditStateChange?.({ dirty: false, saving: false });
@@ -280,7 +281,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
     <section id="project-requirement-table" aria-label={view === "all" ? "Alle poster" : PROJECT_REQUIREMENT_VIEWS.find(item => item.id === view)?.label} className="product-selection-workspace" data-post-open={Boolean(activeRequirement)}>
       <div className="product-selection-heading">
         <h2>Produktvalg</h2>
-        <p>{queueRequirements.length} poster · {handledCount} håndtert</p>
+        <p>{listedRequirements.length} poster · {handledCount} håndtert</p>
       </div>
       <div className={`product-selection-layout${workspaceNavigation ? " has-project-navigation" : ""}`}>
         {workspaceNavigation && <aside className="product-project-navigation" aria-label="Prosjektvisninger"><h2 className="product-panel-caption">Prosjekt</h2>{workspaceNavigation}</aside>}
@@ -329,7 +330,7 @@ export function DistributorMappingPanel({ view = "all", projectId, currency = "N
           </div>}
         </section>
       </div>
-      <footer className="product-selection-footer"><span>{productCardSaving ? "Lagrer produktvalg…" : productCardDirty ? "Ulagrede endringer" : "Klar"}</span><span>{queueRequirements.length} poster · {mainPostGroups.length} {mainPostGroups.length === 1 ? "kapittel" : "kapitler"}</span></footer>
+      <footer className="product-selection-footer"><span>{productCardSaving ? "Lagrer produktvalg…" : productCardDirty ? "Ulagrede endringer" : "Klar"}</span><span>{listedRequirements.length} poster · {mainPostGroups.length} {mainPostGroups.length === 1 ? "kapittel" : "kapitler"}</span></footer>
     </section>
   );
 }

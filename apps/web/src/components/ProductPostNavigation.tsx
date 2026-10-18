@@ -7,7 +7,7 @@ import { groupProductRequirementsByPdfChapter } from "@/lib/product-post-groups"
 import { chapterAssignmentTarget, projectAssignmentIndex, type AssignmentTarget } from "@/lib/project-work-assignment";
 import type { ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { PostAssignmentPicker } from "./PostAssignmentPicker";
-import { flattenProductPostTree, type ProductPostNavigationGroup, type ProductPostNode } from "@/lib/product-post-tree";
+import { flattenProductPostTree, productChapterContents, type ProductPostNavigationGroup, type ProductPostNode } from "@/lib/product-post-tree";
 import { projectRequirementDetails } from "@/lib/project-requirement-details";
 import { productRequirementResolution } from "@/lib/product-requirement-resolution";
 
@@ -30,6 +30,7 @@ export function ProductPostNavigation({ groups, requirements, projectId, resourc
   useEffect(() => { if (!resource.getSnapshot().data) void resource.refresh(); }, [resource]);
   const assignmentByRow = useMemo(() => projectAssignmentIndex(requirements, data?.packages ?? []), [requirements, data]);
   const fullGroups = useMemo(() => new Map(groupProductRequirementsByPdfChapter(requirements).map(group => [group.key, group])), [requirements]);
+  const displayGroups = useMemo(() => groups.map(group => ({ ...group, ...productChapterContents(group) })), [groups]);
   const currentAssignment = (target: AssignmentTarget) => data?.packages.find(item => item.scope_type === target.type && (item.scope_value === target.value
     || target.type === "pdf_chapter" && [...fullGroups.values()].some(group => group.requirements.some(row => row.id === target.value) && group.requirements.some(row => row.id === item.scope_value))));
   const owner = (id: string) => data?.members.find(member => member.user_id === id)?.label ?? "Tidligere deltaker";
@@ -128,12 +129,12 @@ export function ProductPostNavigation({ groups, requirements, projectId, resourc
   return (
     <nav id="product-post-list" aria-label="Postliste" className="product-post-list">
       <header className="product-post-list-heading">
-        <div><h2>Poster</h2><p>Utvid et kapittel og en hovedpost for å se underpostene.</p></div>
-        <span>{groups.reduce((total, group) => total + group.requirements.length, 0)} poster</span>
+        <div><h2>Poster</h2><p>Åpne et kapittel for å se postene og underkapitlene.</p></div>
+        <span>{displayGroups.reduce((total, group) => total + group.requirements.length, 0)} poster</span>
       </header>
       {error && <p role="alert" className="post-assignment-error">Ansvar kunne ikke hentes. <button type="button" disabled={refreshing} onClick={() => void resource.refresh()}>Prøv igjen</button></p>}
       <div className="product-post-list-columns" aria-hidden="true"><span>Postnummer</span><span>Beskrivelse</span><span>Status</span><span>Ansvarlig</span></div>
-      {groups.map((group, index) => {
+      {displayGroups.map((group, index) => {
         const heading = productChapterHeading(group.title);
         const label = heading.chapter === "—" ? group.title : heading.chapter;
         const handled = group.requirements.filter(row => handledIds.has(row.id)).length;
@@ -144,13 +145,31 @@ export function ProductPostNavigation({ groups, requirements, projectId, resourc
             <h3 id={`product-post-group-heading-${index}`}><button type="button" aria-expanded={expanded} aria-controls={`product-post-group-${index}`}
               onClick={() => onToggle(group.key)} disabled={disabled}>
               {expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-              <span><strong>{label}</strong>{heading.description && <span>{heading.description}</span>}</span>
-              <small>{handled}/{group.requirements.length} håndtert</small>
+              <span><strong>{label}</strong>{heading.description && <span>{heading.description}</span>}<small>{group.requirements.length} poster</small></span>
+              <small>{handled} håndtert</small>
             </button></h3>
             {assignmentControl(target)}
           </header>
           {editor(target)}
           <ol id={`product-post-group-${index}`} hidden={!expanded}>
+            {expanded && group.chapterPosts.map(requirement => {
+              const target: AssignmentTarget = { type: "post", value: requirement.id, label: group.title };
+              const assignment = assignmentByRow.get(requirement.id);
+              return <li key={requirement.id}>
+                <div className="product-post-assigned-row">
+                  <button id={`product-post-row-${requirement.id}`} type="button" className="product-post-list-row"
+                    aria-label={`Åpne kapitteltekst: ${group.title}`} aria-controls="product-post-detail"
+                    aria-current={activeRequirementId === requirement.id ? "true" : undefined}
+                    disabled={disabled} onClick={() => onSelect(requirement.id)}>
+                    <strong className="product-post-list-number">Kapitteltekst</strong>
+                    <span className="product-post-list-description">Felles krav for kapitlet</span>
+                    <span /><ChevronRight aria-hidden="true" />
+                  </button>
+                  {assignmentControl(target, assignment)}
+                </div>
+                {editor(target, assignment)}
+              </li>;
+            })}
             {expanded && group.posts.map(renderPost)}
           </ol>
         </section>;

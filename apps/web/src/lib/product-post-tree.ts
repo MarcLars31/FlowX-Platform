@@ -99,6 +99,22 @@ export function flattenProductPostTree<T extends Requirement>(nodes: readonly Pr
   return nodes.flatMap(node => [...(node.requirement ? [node.requirement] : []), ...flattenProductPostTree(node.children)]);
 }
 
+/** The chapter itself is already the disclosure; show its contents on the first click. */
+export function productChapterContents<T extends Requirement>(group: ProductPostNavigationGroup<T>) {
+  const chapter = normalizedNumber(productChapterHeading(group.title).chapter);
+  const chapterPosts: T[] = [];
+  const posts = group.posts.flatMap(node => {
+    if (!chapter || !node.requirement || postNumber(node.requirement) !== chapter) return [node];
+    if (record(node.requirement.value_json).chapterInformation === true) {
+      chapterPosts.push(node.requirement);
+      return node.children;
+    }
+    // A priced chapter post remains selectable and counted, without hiding its children.
+    return [{ ...node, children: [] }, ...node.children];
+  });
+  return { posts, chapterPosts, requirements: flattenProductPostTree(posts) };
+}
+
 /** Reveal the selected post when next/previous navigation crosses a closed branch. */
 export function productPostExpansionKeys<T extends Requirement>(groups: readonly ProductPostNavigationGroup<T>[], id: string): string[] {
   function find(nodes: readonly ProductPostNode<T>[], path: string[]): string[] | undefined {

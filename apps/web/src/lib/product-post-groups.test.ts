@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import { buildProductPostTree, productPostNavigationGroups, productPostExpansionKeys } from "./product-post-tree";
+import { productChapterContents } from "./product-post-tree";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ProductPostNavigation } from "../components/ProductPostNavigation";
+import { createProjectDeliveryResource } from "./project-delivery-resource";
 import test from "node:test";
 import { groupProductRequirementsByPdfChapter } from "./product-post-groups";
 import { groupProjectRequirementViews } from "./project-requirement-views";
@@ -212,6 +217,90 @@ test("subchapters open directly on their own posts without repeating the outer P
   assert.deepEqual(filtered[0].requirements.map(row => row.id), ["main0", "child0"]);
   assert.equal(filtered[0].posts[0].requirement?.id, "main0");
   assert.equal(JSON.stringify(rows), original);
+});
+
+function sanitaryChapter() {
+  const chapter = "02.30.315 Utstyr for sanitærinstallasjoner";
+  const intro = { ...post("sanitary-intro", "02.30.315", 1, chapter), value_text: "Utstyr for sanitærinstallasjoner",
+    value_json: { postNumber: "02.30.315", chapterInformation: true, sourceChapter: { title: chapter } } };
+  const children = Array.from({ length: 28 }, (_, index) => ({
+    ...post(`sanitary-${index + 1}`, `02.30.315.${index + 1}`, 2, chapter), value_text: `Produkt ${index + 1}`
+  }));
+  return [intro, ...children];
+}
+
+test("the chapter count excludes its repeated introduction and one expansion reveals all 28 posts", () => {
+  const rows = sanitaryChapter();
+  const original = JSON.stringify(rows);
+  const groups = productPostNavigationGroups(rows);
+  const contents = productChapterContents(groups[0]);
+  assert.deepEqual(contents.posts.map(node => node.requirement?.id), rows.slice(1).map(row => row.id));
+  assert.equal(contents.requirements.length, 28);
+  assert.deepEqual(contents.chapterPosts.map(row => row.id), ["sanitary-intro"]);
+  // Keep the original row available to the product card, assignment and back/next navigation.
+  assert.equal(groups[0].requirements.length, 29);
+  assert.equal(JSON.stringify(rows), original);
+
+  const render = (expandedKeys: Set<string>) => renderToStaticMarkup(createElement(ProductPostNavigation, {
+    groups, requirements: rows, projectId: "test", resource: createProjectDeliveryResource("test"),
+    expandedKeys, onToggle: () => {}, onSelect: () => true, handledIds: new Set(["sanitary-intro", "sanitary-1"]), disabled: false
+  }));
+  const closed = render(new Set());
+  assert.match(closed, /aria-expanded="false"/);
+  assert.match(closed, /<small>28 poster<\/small>/);
+  assert.match(closed, /<small>1 håndtert<\/small>/);
+  assert.doesNotMatch(closed, /id="product-post-row-sanitary-/);
+  const open = render(new Set([groups[0].key]));
+  for (const row of rows.slice(1)) assert.ok(open.includes(`id="product-post-row-${row.id}"`));
+  assert.match(open, /id="product-post-row-sanitary-intro"/);
+  assert.match(open, /Åpne kapitteltekst: 02.30.315 Utstyr for sanitærinstallasjoner/);
+  assert.doesNotMatch(open, /Hovedpost · 28 underposter|product-post-parent-toggle/);
+  assert.equal((open.match(/Utstyr for sanitærinstallasjoner<\/span>/g) ?? []).length, 1);
+});
+
+test("opening a chapter preserves genuine subchapters and filtering without duplicating posts", () => {
+  const rows = sanitaryChapter();
+  const nested = { ...post("nested", "02.30.315.2.1", 3, "02.30.315 Utstyr for sanitærinstallasjoner"), value_text: "Underpost" };
+  const all = [...rows, nested];
+  const [group] = productPostNavigationGroups([nested], all);
+  const contents = productChapterContents(group);
+  assert.deepEqual(contents.posts.map(node => node.requirement?.id), ["sanitary-2"]);
+  assert.deepEqual(contents.posts[0].children.map(node => node.requirement?.id), ["nested"]);
+  assert.deepEqual(contents.requirements.map(row => row.id), ["sanitary-2", "nested"]);
+  assert.deepEqual(contents.chapterPosts.map(row => row.id), ["sanitary-intro"]);
+  assert.equal(new Set(contents.requirements.map(row => row.id)).size, contents.requirements.length);
+  const html = renderToStaticMarkup(createElement(ProductPostNavigation, {
+    groups: [group], requirements: all, projectId: "test", resource: createProjectDeliveryResource("test"),
+    expandedKeys: new Set(productPostExpansionKeys([group], "nested")), onToggle: () => {}, onSelect: () => true,
+    handledIds: new Set<string>(), disabled: false
+  }));
+  assert.match(html, /id="product-post-row-nested"/);
+});
+
+test("a priced chapter post stays selectable and counted while its children appear directly", () => {
+  const rows = sanitaryChapter();
+  const priced = { ...rows[0], value_json: { ...rows[0].value_json, chapterInformation: false, quantity: 1, unit: "st" } };
+  const [group] = productPostNavigationGroups([priced, ...rows.slice(1)]);
+  const contents = productChapterContents(group);
+  assert.equal(contents.chapterPosts.length, 0);
+  assert.equal(contents.requirements.length, 29);
+  assert.equal(contents.posts[0].requirement?.id, priced.id);
+  assert.equal(contents.posts[0].children.length, 0);
+  assert.equal(contents.posts.length, 29);
+  assert.equal(group.posts[0].children.length, 28);
+});
+
+test("chapter text alone remains accessible and unrelated chapter numbers keep their hierarchy", () => {
+  const [intro] = sanitaryChapter();
+  const [group] = productPostNavigationGroups([intro]);
+  assert.equal(productChapterContents(group).chapterPosts[0].id, intro.id);
+  assert.equal(productChapterContents(group).requirements.length, 0);
+  const rows = sanitaryChapter();
+  const [other] = productPostNavigationGroups(rows.map(row => ({ ...row,
+    value_json: { ...row.value_json, sourceChapter: { title: "02.30.3150 Et annet kapittel" } }
+  })));
+  assert.equal(productChapterContents(other).chapterPosts.length, 0);
+  assert.equal(productChapterContents(other).posts[0].children.length, 28);
 });
 
 test("redundant headings use complete chapter segments and allow trailing chapter dots", () => {

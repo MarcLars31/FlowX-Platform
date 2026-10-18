@@ -60,7 +60,7 @@ test("shows source filename and page with and without a downloadable original", 
   assert.match(unavailable, /03 Bygg 10 Rørhall.pdf/);
 });
 
-test("the production card shows wrapped parent and child posts once with ancestors beneath", () => {
+test("the production card only shows the selected PDF post without inherited requirements", () => {
   for (const child of [false, true]) {
     const postNumber = child ? "03.30.314.2.1" : "03.30.314.2";
     const specification = parentSpecification + (child ? "\n\nUNDERPOST\n03.30.314. DN15\n2.1\nAntall stk 10 0,00 0,00" : "");
@@ -78,12 +78,11 @@ test("the production card shows wrapped parent and child posts once with ancesto
         sourcePdfFileName: "03 Bygg 10 Rørhall.pdf"
       }));
       assert.doesNotMatch(html, /UNDERPOST|Denne posten|03\.30\.314\. UC|2 INNENDØRS/);
-      assert.equal(html.match(/Mengder avregnes/g)?.length, 1);
-      assert.equal(html.match(/UC1\.3121191A/g)?.length, 1);
+      assert.equal(html.match(/Mengder avregnes/g)?.length ?? 0, child ? 0 : 1);
+      assert.equal(html.match(/UC1\.3121191A/g)?.length ?? 0, child ? 0 : 1);
       assert.match(html, /03 Bygg 10 Rørhall.pdf/);
-      assert.ok(html.indexOf(row.value_text) < html.indexOf('aria-label="Arvede krav"'));
-      if (child) assert.ok(html.indexOf('aria-label="Arvede krav"') < html.indexOf('Mengder avregnes'));
-      else assert.ok(html.indexOf('Mengder avregnes') < html.indexOf('aria-label="Arvede krav"'));
+      assert.ok(html.includes(row.value_text));
+      assert.doesNotMatch(html, /Arvede krav|Fra post|VVS-installasjoner|Armaturer for sanitærinstallasjoner/);
     }
     assert.equal(JSON.stringify(row), before);
   }
