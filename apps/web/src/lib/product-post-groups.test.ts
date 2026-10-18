@@ -185,6 +185,59 @@ test("conflicting parent titles are not silently attributed to another post", ()
   assert.equal(buildProductPostTree(rows)[0].heading?.description, "Hovedpost");
 });
 
+test("subchapters open directly on their own posts without repeating the outer PDF chapter", () => {
+  const rows = ["02.30.300", "02.30.311"].flatMap((number, index) => {
+    const chapter = `${number} ${index ? "Bunnledninger" : "VVS-installasjoner, generelt"}`;
+    const parent = { ...post(`main${index}`, number, index + 1, chapter),
+      value_text: `Hovedpost ${number}`, value_json: { postNumber: number, parentPostNumber: "02.30",
+        parentDescription: "VVS-installasjoner", sourceChapter: { title: chapter }, chapterInformation: true } };
+    const child = { ...post(`child${index}`, `${number}.1`, index + 1, chapter),
+      value_json: { postNumber: `${number}.1`, parentPostNumber: number, sourceChapter: { title: chapter }, quantity: 12, unit: "m" } };
+    return [parent, child];
+  });
+  const original = JSON.stringify(rows);
+  const groups = productPostNavigationGroups(rows);
+  assert.deepEqual(groups.map(group => group.key), groupProductRequirementsByPdfChapter(rows).map(group => group.key));
+  assert.equal(groups.length, 2);
+  groups.forEach((group, index) => {
+    assert.equal(group.posts.length, 1);
+    assert.equal(group.posts[0].requirement?.id, `main${index}`);
+    assert.equal(group.posts[0].heading, undefined);
+    assert.equal(group.posts[0].children[0].requirement?.id, `child${index}`);
+    assert.deepEqual(group.requirements.map(row => row.id), [`main${index}`, `child${index}`]);
+    assert.deepEqual(productPostExpansionKeys(groups, `child${index}`), [group.key, `post:main${index}`]);
+  });
+  const filtered = productPostNavigationGroups([rows[1]], rows);
+  assert.equal(filtered.length, 1);
+  assert.deepEqual(filtered[0].requirements.map(row => row.id), ["main0", "child0"]);
+  assert.equal(filtered[0].posts[0].requirement?.id, "main0");
+  assert.equal(JSON.stringify(rows), original);
+});
+
+test("redundant headings use complete chapter segments and allow trailing chapter dots", () => {
+  const child = (parent: string) => ({ ...post("child", `${parent}.1`, 1),
+    value_json: { postNumber: `${parent}.1`, parentPostNumber: parent, parentDescription: "Overskrift" } });
+  for (const chapter of ["02.30.300", "02.30.300."]) {
+    for (const parent of ["02", "02.30", "02.30.300"]) {
+      assert.equal(buildProductPostTree([child(parent)], chapter)[0].heading, undefined);
+    }
+    for (const parent of ["02.30.300.2", "02.30.30"]) {
+      assert.equal(buildProductPostTree([child(parent)], chapter)[0].heading?.postNumber, parent);
+    }
+  }
+  assert.equal(buildProductPostTree([child("02.30")])[0].heading?.postNumber, "02.30");
+});
+
+test("real ancestor posts remain accessible even when their number is above the current chapter", () => {
+  const parent = post("real-parent", "02.30", 1, "02.30.300 VVS-installasjoner, generelt");
+  const child = { ...post("child", "02.30.300.1", 2, "02.30.300 VVS-installasjoner, generelt"),
+    value_json: { postNumber: "02.30.300.1", parentPostNumber: "02.30", parentDescription: "VVS-installasjoner" } };
+  const tree = buildProductPostTree([parent, child], "02.30.300");
+  assert.equal(tree.length, 1);
+  assert.equal(tree[0].requirement?.id, parent.id);
+  assert.equal(tree[0].children[0].requirement?.id, child.id);
+});
+
 test("Sprinkler PDF extraction preserves the subchapter even without a priced heading row", () => {
   const result = extractTechnicalDescriptionFromPages([{ pageNumber: 1, method: "text", confidence: .99,
     text: `Kapittel: 33 Brannslokking

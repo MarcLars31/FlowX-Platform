@@ -15,6 +15,7 @@ export type ProductPostNavigationGroup<T extends Requirement> = ProductChapterGr
 
 /** PDF headings can be preserved on children without being purchasable posts. */
 export function buildProductPostTree<T extends Requirement>(requirements: readonly T[], chapterNumber?: string): ProductPostNode<T>[] {
+  const chapter = normalizedNumber(chapterNumber);
   const nodes: ProductPostNode<T>[] = requirements.map(requirement => ({ key: `post:${requirement.id}`, requirement, children: [] }));
   const byNumber = new Map<string, ProductPostNode<T>[]>();
   const sources = new Map(nodes.map(node => [node, node.requirement!]));
@@ -32,7 +33,10 @@ export function buildProductPostTree<T extends Requirement>(requirements: readon
     const number = postNumber(requirement);
     // Only explicit ancestor metadata supplies a missing heading. Do not infer
     // titles from product text or merge separate documents/numbering scopes.
-    if (!parent || parent === chapterNumber || !number?.startsWith(`${parent}.`)) continue;
+    if (!parent || !number?.startsWith(`${parent}.`)) continue;
+    // The outer chapter already provides this context. Only headings below
+    // that chapter need another navigation level; real posts remain above.
+    if (chapter && (parent === chapter || chapter.startsWith(`${parent}.`))) continue;
     const key = identity(requirement, parent);
     if (byNumber.has(key)) continue;
     const heading = headings.get(key) ?? { number: parent, source: requirement, names: new Set<string>() };
