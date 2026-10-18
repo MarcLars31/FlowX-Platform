@@ -38,7 +38,7 @@ export function projectRequirementDetails(
   const sourceKFactor = projectRequirementKFactorDisplayValue(requirement);
   if (sourceKFactor) attributes["k-faktor"] = sourceKFactor;
 
-  const sourceWarnings = requirementExtractionWarnings(requirement);
+  const sourceWarnings = requirementExtractionWarnings(requirement, { includePostPlacement: false });
   const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
   if (productPostMeasurement({ ...requirement, id: String(requirement.id ?? "") }).missingQuantity
     && !flags.includes("missing-quantity") && !flags.includes("unrecognized-quantity-columns")) {

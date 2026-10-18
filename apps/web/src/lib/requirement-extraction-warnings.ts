@@ -1,14 +1,14 @@
 import { normalizeTechnicalText } from './ahlsell-requirement-context';
 import { isCableTrunkingProduct } from './ahlsell-cable-trunking';
 
-export function requirementExtractionWarnings(requirement: Record<string, unknown>): string[] {
+export function requirementExtractionWarnings(requirement: Record<string, unknown>, { includePostPlacement = true }: { includePostPlacement?: boolean } = {}): string[] {
   const value = record(requirement.value_json);
   const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
   const warnings: string[] = [];
   if (flags.includes("ambiguous-source-identity")) warnings.push("Upprepade postnummer har kopplats i källordning vid omläsning. Båda läsningarnas kravtext är bevarad; kontrollera vilken förekomst texten tillhör.");
   if (flags.includes('unassigned-source-text')) warnings.push('Text från PDF-sidan kunde inte säkert kopplas till en post. Den har behållits här för kontroll; inget postnummer eller någon mängd har gissats.');
   if (flags.includes('merged-source-text')) warnings.push('PDF-text och OCR har kompletterat varandra. Båda läsningarnas innehåll har bevarats; kontrollera eventuella dubbla eller motstridiga krav mot originalet.');
-  if (flags.includes('unverified-post-source')) warnings.push('Postens placering eller sidans fullständiga postkolumn kunde inte verifieras. Posten visas ändå; kontrollera postnummer och text mot original-PDF:n.');
+  if (includePostPlacement && flags.includes('unverified-post-source')) warnings.push('Postens placering eller sidans fullständiga postkolumn kunde inte verifieras. Posten visas ändå; kontrollera postnummer och text mot original-PDF:n.');
   if (flags.includes('recovered-source-post')) warnings.push('Posten har bevarats från PDF-källan efter postnummerkontrollen. Kontrollera beskrivning, postgräns och eventuell mängd mot originalet.');
   if (flags.includes('fallback-source-post')) warnings.push('Posten har bevarats med reservläsaren. Kontrollera postnummer, kravtext och eventuell mängd i PDF-filen.');
   if (flags.includes('duplicate-post-number')) warnings.push('Samma postnummer förekommer flera gånger. Alla förekomster har behållits; kontrollera vilken text och mängd som hör till varje post.');
