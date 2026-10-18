@@ -47,10 +47,10 @@ export function ProjectPostSpecification({ id, details: sourceDetails, descripti
           <dd>{!rs && <>{quantity.quantity === null ? "Saknas" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 3 }).format(quantity.quantity)} </>}{quantity.unit === "?" ? "—" : quantity.unit}</dd>
         </dl>}
         {(informationOnly || details.chapterInformation) && details.sourceExcerpt ? <>
-          <div className="mt-4 space-y-3 break-words leading-6">{projectInformationBlocks(projectInformationBody(details, description)).map((paragraph, index) => paragraph.kind === "table"
+          <div className={`${details.nsCode ? "mt-2 space-y-0" : "mt-4 space-y-3"} break-words leading-6`}>{projectInformationBlocks(projectInformationBody(details, description)).map((paragraph, index) => paragraph.kind === "table"
             ? <InformationSourceTable key={index} table={paragraph} />
-            : paragraph.kind === "heading" ? <h4 key={index} className="!mt-5 font-[700]"><SpecificationText value={paragraph.text} /></h4>
-            : <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "bullet" ? "!mt-0 pl-4 -indent-4" : undefined}>{paragraph.text}</p>
+            : paragraph.kind === "heading" ? <h4 key={index} className={`${details.nsCode ? "" : "!mt-5 "}font-[700]`}><SpecificationText value={paragraph.text} /></h4>
+            : <p key={index} className={paragraph.kind === "page" ? "border-t border-neutral-200 pt-3 text-xs text-neutral-600" : paragraph.kind === "field" ? "!mt-0 whitespace-pre-line" : paragraph.kind === "bullet" ? "!mt-0 pl-4 -indent-4" : undefined}>{paragraph.text}</p>
           )}</div>
           {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <dl key={key} className="mt-4"><SpecificationField label="PDF-kommentar" value={value} block /></dl>)}
         </> : <div className="mt-2 space-y-1">

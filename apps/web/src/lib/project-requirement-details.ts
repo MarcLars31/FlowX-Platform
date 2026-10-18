@@ -76,11 +76,11 @@ export function projectInformationBody(details: ProjectRequirementDetail, descri
   return lines.join("\n").trim();
 }
 
-/** Reflow PDF column wraps while keeping sections and individual list items. */
+/** Reflow prose while keeping PDF fields, their wraps, sections and list items. */
 export function projectInformationParagraphs(source: string) {
-  const paragraphs: Array<{ text: string; kind: "text" | "heading" | "bullet" | "page" }> = [];
+  const paragraphs: Array<{ text: string; kind: "text" | "heading" | "bullet" | "page" | "field" }> = [];
   let pending = "";
-  let kind: "text" | "bullet" = "text";
+  let kind: "text" | "bullet" | "field" = "text";
   const flush = () => { if (pending) paragraphs.push({ text: pending, kind }); pending = ""; kind = "text"; };
   for (const raw of source.split(/\r?\n/)) {
     const line = raw.trim().replace(/^\uF0B7[\uF020\s]*/, "• ");
@@ -92,9 +92,14 @@ export function projectInformationParagraphs(source: string) {
       paragraphs.push({ text: page ? `Side ${page[1]}` : line, kind: page ? "page" : "heading" });
       continue;
     }
-    if (/^(?:[•●▪·]|-\.?)\s+/.test(line)) { flush(); kind = "bullet"; }
     if (/^Tabell\s+\d+\s*:/i.test(line)) { flush(); paragraphs.push({ text: line, kind: "text" }); continue; }
-    pending += `${pending && !pending.endsWith("-") ? " " : ""}${line}`;
+    // A field remains a separate row even when the post has no quantity.
+    // Require whitespace after the colon so references such as NS8175:2012
+    // inside ordinary prose do not become fields.
+    if (/^[\p{L}][^:]{0,99}:[ \t]+\S/u.test(line)) { flush(); kind = "field"; pending = line; continue; }
+    if (/^(?:[•●▪·]|-\.?)\s+/.test(line)) { flush(); kind = "bullet"; }
+    if (kind === "field" && /^(?:Det skal|Alle|Tilbehør|Merket|Prisen)\b/i.test(line)) flush();
+    pending += `${pending ? kind === "field" ? "\n" : pending.endsWith("-") ? "" : " " : ""}${line}`;
     if (/[.!?]$/.test(line) || /^[•●▪]\s*\d+(?:\.\d+)+$/.test(line)) flush();
   }
   flush();

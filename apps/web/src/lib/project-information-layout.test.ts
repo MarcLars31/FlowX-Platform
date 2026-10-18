@@ -6,7 +6,7 @@ import { ProjectPostSpecification } from "../components/ProjectPostSpecification
 import { currentPostRequirement } from "./current-post-requirement";
 import { withEffectiveRequirements } from "./effective-requirements";
 import { requirementSnapshot } from "./requirement-snapshot";
-import { projectRequirementDetails } from "./project-requirement-details";
+import { projectInformationBody, projectRequirementDetails } from "./project-requirement-details";
 import { projectRequirementSourceSections } from "./project-requirement-source";
 import { projectInformationBlocks } from "./project-information-layout";
 
@@ -128,4 +128,57 @@ test("unrecognized tables retain their text and are never assigned guessed colum
   assert.equal(blocks.some(b => b.kind === "table"), false);
   assert.ok(blocks.some(b => b.kind === "text" && b.text.includes("Data 10 20")));
   assert.ok(blocks.some(b => b.kind === "heading" && b.text === "30.6 LYDKRAV"));
+});
+
+test("SF6.41A information posts keep separate PDF fields, wrapped values and every lettered clause", () => {
+  const source = `120000.25.242.8 SF6.41A
+TETTING MED FERDIG PRODUKT
+Produkt: Brannekspanderende tetting
+Lokalisering: Se modell
+Konstruksjon: Utsparinger i lettklinker inntil 250 mm +
+tosidig puss
+Funksjonskrav: Branntetting, EI 60 A2-s1,d0
+Type gjennomføring: Se i modell
+Utsparingsmål: Se underposter
+Produktmål: Valgfritt
+Utførelsesmetode: Valgfritt
+Fyllingsgrad: Valgfritt
+Andre krav:
+a) Omfang og prisgrunnlag
+Posten omfatter også krav gitt i Postnr. 100.27.200.1.
+x) Mengderegler
+Avregnes etter medgåtte mengder`;
+  const raw = { id: "field-post", source_page: 16, source_excerpt: source, value_text: "TETTING MED FERDIG PRODUKT", value_json: {
+    postNumber: "120000.25.242.8", nsCode: "SF6.41A", chapterInformation: false, reviewFlags: ["project-information", "unknown-category"],
+    sourceText: source, technicalSpecification: source, attributes: { konstruksjon: "Utsparinger i lettklinker inntil 250 mm + tosidig puss" }
+  } };
+  const row = requirementSnapshot(withEffectiveRequirements(requirementSnapshot(raw)));
+  const details = projectRequirementDetails(row);
+  const own = projectRequirementSourceSections(details.sourceExcerpt ?? "", details.postNumber).find(section => section.relation === "current");
+  const blocks = projectInformationBlocks(projectInformationBody({ ...details, sourceExcerpt: own?.text ?? details.sourceExcerpt }, raw.value_text));
+  const fields = blocks.flatMap(b => b.kind === "field" ? [b.text] : []);
+  assert.deepEqual(fields.map(text => text.split(":")[0]), ["Produkt", "Lokalisering", "Konstruksjon", "Funksjonskrav", "Type gjennomføring", "Utsparingsmål", "Produktmål", "Utførelsesmetode", "Fyllingsgrad"]);
+  assert.equal(fields[2], "Konstruksjon: Utsparinger i lettklinker inntil 250 mm +\ntosidig puss");
+  assert.deepEqual(blocks.flatMap(b => b.kind === "heading" ? [b.text] : []), ["Andre krav:", "a) Omfang og prisgrunnlag", "x) Mengderegler"]);
+  for (const informationOnly of [false, true]) {
+    const html = renderToStaticMarkup(createElement(ProjectPostSpecification, {
+      id: raw.id, description: raw.value_text, details, quantity: { quantity: null, unit: "?" }, informationOnly
+    }));
+    assert.match(html, /<p[^>]*whitespace-pre-line[^>]*>Produkt: Brannekspanderende tetting<\/p>/);
+    assert.match(html, /<p[^>]*whitespace-pre-line[^>]*>Konstruksjon: Utsparinger i lettklinker inntil 250 mm \+\ntosidig puss<\/p>/);
+    for (const text of ["SF6.41A", "TETTING MED FERDIG PRODUKT", ...fields, "Andre krav:", "a) Omfang og prisgrunnlag", "Posten omfatter også krav gitt i Postnr. 100.27.200.1.", "x) Mengderegler", "Avregnes etter medgåtte mengder"]) {
+      assert.equal(html.split(text).length - 1, 1, `Rendered once: ${text}`);
+    }
+    assert.ok(html.indexOf("Fyllingsgrad:") < html.indexOf("Andre krav:"));
+    assert.ok(html.indexOf("Omfang og prisgrunnlag") < html.indexOf("Posten omfatter"));
+    assert.ok(html.indexOf("Posten omfatter") < html.indexOf("x) Mengderegler"));
+  }
+});
+
+test("inline standard references remain prose while a field keeps its own lines", () => {
+  const blocks = projectInformationBlocks("Kravene\ner basert på NS8175:2012 klasse C.\nTabell 1: Se vedlegg.\nProdukt: Tetting\nfor gjennomføringer\nAndre krav:\nAlle deler inngår.");
+  assert.deepEqual(blocks[0], { kind: "text", text: "Kravene er basert på NS8175:2012 klasse C." });
+  assert.deepEqual(blocks[1], { kind: "text", text: "Tabell 1: Se vedlegg." });
+  assert.deepEqual(blocks[2], { kind: "field", text: "Produkt: Tetting\nfor gjennomføringer" });
+  assert.deepEqual(blocks.at(-1), { kind: "text", text: "Alle deler inngår." });
 });
