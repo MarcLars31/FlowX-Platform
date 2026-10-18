@@ -46,15 +46,17 @@ export function reconcileSourcePosts(pages: TechnicalDescriptionPage[], lines: T
     }
     // OCR tables and detached prose can have no readable post number. Retain
     // their uncovered text explicitly instead of silently losing the whole page.
-    if (page.method === "ocr") {
+    let unassigned = false;
+    if (page.method === "ocr" || inventory.method === "column") {
       const normalize = (text: string) => text.normalize("NFKC").replace(/\s+/g, "");
       const representedText = normalize(lines.filter(line => (line.sourcePages ?? [line.sourcePage]).includes(page.pageNumber))
         .map(line => line.sourceText).join("\n"));
-      const missing = pdfReadingBody(page.text).split("\n").filter(line => line.trim() && !representedText.includes(normalize(line)));
-      if (missing.length) lines.push({ id: `technical-unplaced-${page.pageNumber}`, description: `Uavklart tekst fra PDF – side ${page.pageNumber}`,
+      const missing = pdfReadingBody(page.postTable?.text ?? page.text).split("\n").filter(line => line.trim() && !representedText.includes(normalize(line)));
+      unassigned = missing.length > 0;
+      if (unassigned) lines.push({ id: `technical-unplaced-${page.pageNumber}`, description: `Uavklart tekst fra PDF – side ${page.pageNumber}`,
         category: "unknown", operation: "unknown", attributes: {}, standardRefs: [], sourcePage: page.pageNumber, sourcePages: [page.pageNumber],
         sourceText: missing.join("\n"), technicalSpecification: missing.join("\n"), confidence: Math.min(page.confidence, .5),
-        reviewFlags: ["project-information", "unassigned-source-text", "ocr-source", "unverified-post-source"] });
+        reviewFlags: ["project-information", "unassigned-source-text", ...(page.method === "ocr" ? ["ocr-source"] : []), "unverified-post-source"] });
     }
     const unverified = page.status === "partial" || page.status === "failed" || Boolean(page.ocrReason)
       || page.method === "ocr" || inventory.method === "text";
@@ -66,6 +68,7 @@ export function reconcileSourcePosts(pages: TechnicalDescriptionPage[], lines: T
     }
     if (recovered.length) warnings.push({ id: `recovered-posts-${page.pageNumber}`, code: "SOURCE_POSTS_RECOVERED", sourcePage: page.pageNumber,
       message: `Sida ${page.pageNumber}: ${recovered.length} post(er) återställdes från källan och visas för granskning: ${recovered.slice(0, 20).join(", ")}.`, severity: "warning" });
+    if (unassigned) warnings.push({ id: `unassigned-source-${page.pageNumber}`, code: "SOURCE_TEXT_UNASSIGNED", sourcePage: page.pageNumber, message: `Sida ${page.pageNumber}: kravtext utan säker postkoppling har bevarats för granskning.`, severity: "warning" });
     if (unverified || extra.length) warnings.push({ id: `post-inventory-${page.pageNumber}`, code: "POST_INVENTORY_UNVERIFIED", sourcePage: page.pageNumber,
       message: `Sida ${page.pageNumber}: identifierade postnummer har stämts av, men sidans fullständiga postkolumn kunde inte verifieras. Kontrollera original-PDF:n.`, severity: "warning" });
     const remaining = [...used];
@@ -76,7 +79,7 @@ export function reconcileSourcePosts(pages: TechnicalDescriptionPage[], lines: T
       remaining.splice(index, 1);
       return false;
     }).map(post => post.postNumber);
-    return { sourcePage: page.pageNumber, method: inventory.method, status: recovered.length || unverified || extra.length || unresolved.length ? "requires_review" : "checked",
+    return { sourcePage: page.pageNumber, method: inventory.method, status: unassigned || recovered.length || unverified || extra.length || unresolved.length ? "requires_review" : "checked",
       observedPostNumbers: inventory.posts.map(post => post.postNumber), representedPostNumbers: represented,
       recoveredPostNumbers: recovered, unresolvedPostNumbers: unresolved };
   });

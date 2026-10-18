@@ -67,8 +67,11 @@ test("an independently inventoried post omitted by the normal parser is recovere
   const input: TechnicalDescriptionPage = {...page(6,"Sprinkler report\nCalculation date\n30.1.3 Krav"),
     postInventory:{method:"column",posts:[{postNumber:"30.1.3",sourceText:"30.1.3\nBygningsmessige arbeider.\nAlt skal være inkludert."}]}};
   const result = extractTechnicalDescriptionFromPages([input]);
-  assert.equal(result.materialLines.length,1);
-  const line=result.materialLines[0];
+  assert.equal(result.materialLines.length,2);
+  const fragment=result.materialLines.find(line=>line.reviewFlags.includes("unassigned-source-text"))!;
+  assert.match(fragment.sourceText,/Sprinkler report/);
+  assert.ok(result.warnings.some(warning=>warning.code==="SOURCE_TEXT_UNASSIGNED"));
+  const line=result.materialLines.find(line=>line.postNumber==="30.1.3")!;
   assert.equal(line.postNumber,"30.1.3");
   assert.equal(line.sourceText,input.postInventory!.posts[0].sourceText);
   assert.equal(line.quantity,undefined);

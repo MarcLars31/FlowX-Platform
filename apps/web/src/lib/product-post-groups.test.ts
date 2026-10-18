@@ -100,23 +100,24 @@ test("retains unnumbered rows and keeps buildings and documents separate", () =>
   assert.equal(new Set(groups.flatMap(group => group.requirements.map(row => row.id))).size, rows.length);
 });
 
-test("numbered information headings follow PDF pages and own all their children", () => {
+test("numbered information headings cannot pull later children ahead of intervening PDF posts", () => {
   const parent = { ...post("parent", "30.332.7", 1), value_json: { postNumber: "30.332.7", sourceChapter: { title }, chapterInformation: true } };
   const children = [7, 2, 1, 6, 3, 5, 4].map(n => post(`child${n}`, `30.332.7.${n}`, n + 3));
   const rows = [parent, ...children, post("previous6", "30.332.6", 2), post("previous5", "30.332.5", 2), post("next", "30.332.8", 3)];
   const [group] = productPostNavigationGroups(rows);
-  assert.deepEqual(group.posts.map(node => node.requirement?.id), ["parent", "previous5", "previous6", "next"]);
-  assert.deepEqual(group.posts[0].children.map(node => node.requirement?.id), Array.from({ length: 7 }, (_, n) => `child${n + 1}`));
-  assert.deepEqual(group.requirements.map(row => row.id), ["parent", "child1", "child2", "child3", "child4", "child5", "child6", "child7", "previous5", "previous6", "next"]);
+  const expected = ["parent", "previous5", "previous6", "next", "child1", "child2", "child3", "child4", "child5", "child6", "child7"];
+  assert.deepEqual(group.posts.map(node => node.requirement?.id), expected);
+  assert.deepEqual(group.posts[0].children, []);
+  assert.deepEqual(group.requirements.map(row => row.id), expected);
 });
 
 test("post trees use nearest numbered ancestor, source pages and segment boundaries", () => {
-  const rows = [post("ten", "30.332.7.10", 1), post("deep", "30.332.7.2.1", 1), post("two", "30.332.7.2", 2),
-    post("parent", "30.332.7", 3), post("separate", "30.332.70.1", 1), post("missing-middle", "30.332.7.4.1", 1)];
+  const rows = [post("ten", "30.332.7.10", 4), post("deep", "30.332.7.2.1", 3), post("two", "30.332.7.2", 2),
+    post("parent", "30.332.7", 1), post("separate", "30.332.70.1", 5), post("missing-middle", "30.332.7.4.1", 4)];
   const roots = buildProductPostTree(rows);
-  assert.deepEqual(roots.map(node => node.requirement?.id), ["separate", "parent"]);
-  assert.deepEqual(roots[1].children.map(node => node.requirement?.id), ["missing-middle", "ten", "two"]);
-  assert.equal(roots[1].children[2].children[0].requirement?.id, "deep");
+  assert.deepEqual(roots.map(node => node.requirement?.id), ["parent", "separate"]);
+  assert.deepEqual(roots[0].children.map(node => node.requirement?.id), ["two", "missing-middle", "ten"]);
+  assert.equal(roots[0].children[0].children[0].requirement?.id, "deep");
 });
 
 test("filtered product views retain ancestor information and expose the active branch", () => {
@@ -260,7 +261,7 @@ test("the chapter count excludes its repeated introduction and one expansion rev
 
 test("opening a filtered chapter shows parent and nested posts as separate rows without extra expansions", () => {
   const rows = sanitaryChapter();
-  const nested = { ...post("nested", "02.30.315.2.1", 3, "02.30.315 Utstyr for sanitærinstallasjoner"), value_text: "Underpost" };
+  const nested = { ...post("nested", "02.30.315.2.1", 2, "02.30.315 Utstyr for sanitærinstallasjoner"), value_text: "Underpost" };
   const all = [...rows, nested];
   const [group] = productPostNavigationGroups([nested], all);
   const contents = productChapterContents(group);

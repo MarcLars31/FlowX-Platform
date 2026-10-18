@@ -1,6 +1,6 @@
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import { numberedPostHeading } from "./numbered-post-heading";
-import { isPdfPageSumFooter, normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
+import { isPdfTableTotalFooter, normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
 
 // Document syntax only; product classification belongs to consumers.
 export const ATTRIBUTE_PATTERN = /^\s*([^:]{2,60}):\s*(.*?)\s*$/;
@@ -428,8 +428,8 @@ export function extractChapterPost(lines: string[]) {
 }
 
 function isTableFooter(value: string) {
-  return isPdfPageSumFooter(value)
-    || /^(?:Sum(?: denne side| Kapittel[^:]*)?\s*:|Akkumulert\b|Prosjekt:|Postnr:|Kopi-)/i.test(value);
+  return isPdfTableTotalFooter(value)
+    || /^(?:Prosjekt:|Postnr:|Kopi-)/i.test(value);
 }
 
 export function findTableQuantity(lines: string[]) {

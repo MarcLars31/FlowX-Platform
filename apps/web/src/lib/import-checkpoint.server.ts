@@ -9,7 +9,7 @@ import type { ClientOcrPage } from "./technical-description-ocr-payload";
 
 export const IMPORT_CACHE_BUCKET = "pdf-import-cache";
 // Bump whenever digital extraction/layout/annotation semantics change.
-export const PDF_TEXT_CACHE_VERSION = "pdf-text-v5";
+export const PDF_TEXT_CACHE_VERSION = "pdf-text-v6";
 const MAX_OBJECT_BYTES = 4_000_000;
 export type Checkpoint = {id:string;job_id:string;kind:"text"|"ocr";source_sha256:string;cache_version:string;
   payload_sha256:string;storage_path:string;page_numbers:number[];ready:boolean};

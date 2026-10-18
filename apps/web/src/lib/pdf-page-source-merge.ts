@@ -1,4 +1,4 @@
-import { isPdfConsultantDateHeader } from "./pdf-post-text";
+import { isPdfConsultantDateHeader, isPdfTableTotalFooter } from "./pdf-post-text";
 import { normalizedPageLines, parseStructuredPostStart } from "@/modules/technical-description-extractor/document-parser";
 import { textPostInventory } from "@/modules/technical-description-extractor/post-inventory";
 import type { TechnicalDescriptionPage } from "@/modules/technical-description-extractor/types";
@@ -9,11 +9,11 @@ import { mergePdfSourceText } from "./pdf-source-text-merge";
  * in one reading as the end of the other reading's requirement body. */
 export function pdfReadingBody(text: string) {
   const lines = normalizedPageLines(text);
-  const end = lines.findIndex(line => /^(?:Sum(?: denne side| denna sida)?\s*:|Akkumulert)/i.test(line));
+  const end = lines.findIndex(isPdfTableTotalFooter);
   return (end < 0 ? lines : lines.slice(0, end)).filter(line => !isPdfConsultantDateHeader(line)
     && !/^(?:Multiconsult$|(?:Ramb[oø]ll|Multiconsult).*\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$)/i.test(line)
     && !/^(?:NS[-\s]*(?:3420\s*)?(?:kode|Spesifikasjon)|Enh\.?$|Enhet$|Mengde$|Enhetspris$|Pris$|Sum$|Side\s+\d)/i.test(line)
-    && !/^\d{2}\s+(?:VVS|Brannslokking|Sanitær)\b/i.test(line) && !/^(?:Prosjekt:|Kapittel:|Entreprise:|Sted:|Postnr(?:[.:]|\s|$)|Sum (?:denne side|denna sida)|Akkumulert|Kopi-)/i.test(line)
+    && !/^\d{2}\s+(?:VVS|Brannslokking|Sanitær)\b/i.test(line) && !/^(?:Prosjekt:|Kapittel:|Entreprise:|Sted:|Postnr(?:[.:]|\s|$)|Kopi-)/i.test(line)
     && !/^\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$/.test(line)
     && !/^Helse S[øo]r[øo]st\s+\d{1,2}\./i.test(line)).join("\n");
 }

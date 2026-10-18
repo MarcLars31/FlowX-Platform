@@ -84,7 +84,7 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
   const second = await processTechnicalDescription(request(),auth,db);
   assert.equal(second.status,201, JSON.stringify(await second.clone().json()));
   assert.equal(rows.project_requirements.length,2);
-  assert.ok(selections.every(read=>!/(source_excerpt|source_text|raw_text|extracted_text)/.test(read.columns ?? "")), "new-format retries fetch IDs and page hashes instead of source text");
+  assert.ok(selections.some(read=>read.table === "project_requirements" && /source_excerpt/.test(read.columns ?? "")), "retries compare raw saved source so OCR changes cannot create duplicates");
   assert.equal(new Set(rows.project_requirements.map(row=>row.id)).size,2);
   assert.equal(rows.project_documents.length,1); assert.equal(rows.extraction_runs.length,1);
   assert.equal(rows.document_pages.length,2);
@@ -116,15 +116,16 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
   assert.ok(workbook.worksheets.length>0);
   const content = JSON.stringify(workbook.worksheets.map(sheet=>sheet.getSheetValues()));
   assert.match(content,/1401\.40\.411\.35/); assert.match(content,/1234567/); assert.match(content,/71\.75/);
-  const third = await processTechnicalDescription(request(),auth,db,{extractPages:async()=>assert.fail("A completed duplicate must not parse the PDF again")});
-  assert.equal(third.status,200); assert.equal(rows.project_requirements.length,2);
+  const third = await processTechnicalDescription(request(),auth,db);
+  assert.equal(third.status,201, "A source requiring review is rechecked even when counts match"); assert.equal(rows.project_requirements.length,2);
   delete rows.project_documents[0].import_summary;
   const legacy = await processTechnicalDescription(request(),auth,db);
   assert.equal(legacy.status,201, "Older imports must reconcile source identities even when row counts match");
   assert.equal(rows.project_requirements.length,2);
   assert.ok(rows.project_documents[0].import_summary,"an older completed document receives a compact summary after verification");
-  const cachedLegacy = await processTechnicalDescription(request(),auth,db,{extractPages:async()=>assert.fail("Verified legacy duplicates must also reuse their summary")});
-  assert.equal(cachedLegacy.status,200);
+  const reviewedLegacy = await processTechnicalDescription(request(),auth,db);
+  assert.equal(reviewedLegacy.status,201);
+  assert.equal(rows.project_requirements.length,2);
 });
 
 test("import polling reports persisted completion and preserves retry status when the browser loses contact", async () => {

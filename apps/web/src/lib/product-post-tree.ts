@@ -52,6 +52,16 @@ export function buildProductPostTree<T extends Requirement>(requirements: readon
     sources.set(node, heading.source);
     byNumber.set(key, [node]);
   }
+  const sourceRows = sortProjectRequirementsBySource(requirements);
+  const sourceIndex = new Map(sourceRows.map((row, index) => [row.id, index]));
+  const position = (node: ProductPostNode<T>) => sourceIndex.get(sources.get(node)!.id)! - (node.heading ? .5 : 0);
+  const contiguousChild = (parent: ProductPostNode<T>, child: ProductPostNode<T>) => {
+    const start = position(parent), end = position(child), number = numberOf(parent)!;
+    // A tree is allowed only for a contiguous source interval. A later child
+    // stays at its printed position when another branch lies in between.
+    return start < end && sourceRows.slice(Math.floor(start) + 1, Math.ceil(end)).every(row =>
+      postNumber(row)?.startsWith(`${number}.`) && identity(row, number) === identity(sources.get(parent)!, number));
+  };
   const roots: ProductPostNode<T>[] = [];
   for (const node of nodes) {
     const parts = numberOf(node)?.split(".") ?? [];
@@ -61,7 +71,7 @@ export function buildProductPostTree<T extends Requirement>(requirements: readon
       const candidates = byNumber.get(identity(sources.get(node)!, parts.join(".")));
       // Repeated post numbers must never attach to an arbitrary heading.
       if (candidates?.length) {
-        if (candidates.length === 1) parent = candidates[0];
+        if (candidates.length === 1 && contiguousChild(candidates[0], node)) parent = candidates[0];
         break;
       }
     }

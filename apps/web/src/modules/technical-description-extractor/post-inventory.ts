@@ -1,3 +1,4 @@
+import { isPdfTableTotalFooter } from "@/lib/pdf-post-text";
 import { isTechnicalDescriptionDateHeader, normalizedPageLines, parseStructuredPostStart } from "./document-parser";
 import { layoutTextFromPdfItems } from "./pdf-layout";
 import { numberedPostHeading } from "./numbered-post-heading";
@@ -25,7 +26,7 @@ export function pdfPostInventoryFromItems(input: readonly unknown[]): PostInvent
   if (!header) return undefined;
   // The post header can be centred, but the post cells start farther left.
   const right = header.x + header.width + header.height * .5;
-  const footer = items.filter(item => item.y < header.y && /^(?:Sum (?:denne side|denna sida)|Akkumulert)\b/i.test(item.str));
+  const footer = items.filter(item => item.y < header.y && isPdfTableTotalFooter(item.str));
   const bottom = footer.length ? Math.max(...footer.map(item => item.y)) + 3 : -Infinity;
   const body = items.filter(item => item.y < header.y - 3 && item.y > bottom);
   const column = body.filter(item => item.x >= header.x - header.height * 2 && item.x < right
@@ -82,7 +83,7 @@ export function textPostInventory(text: string): PostInventory {
   }
   return { method: "text", posts: starts.map((start, index) => ({ postNumber: start.postNumber,
     sourceText: lines.slice(start.lineIndex, starts[index + 1]?.lineIndex)
-      .filter(line => !/^(?:Prosjekt:|Kapittel:|Postnr[.:]|Side\s+\d|Sum(?: denne side| denna sida)?\s*:|Akkumulert|Kopi-)/i.test(line)).join("\n") })) };
+      .filter(line => !isPdfTableTotalFooter(line) && !/^(?:Prosjekt:|Kapittel:|Postnr[.:]|Side\s+\d|Kopi-)/i.test(line)).join("\n") })) };
 }
 
 export function pagePostInventory(page: TechnicalDescriptionPage): PostInventory {

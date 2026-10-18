@@ -1,3 +1,4 @@
+import { isSourcePostTable, sourcePostSelect, planSourcePostRows, refreshSourcePostRows } from "./technical-description-source-persistence";
 import { importReviewFlagSelect, refreshImportedReviewFlags } from "./technical-description-review-flags";
 import { permanentPdfError } from "./technical-description-errors";
 import { compactRequirementText } from "./requirement-text-storage";
@@ -34,7 +35,6 @@ import {
 } from "@/lib/technical-description-ocr-payload";
 import {
   TECHNICAL_IMPORT_VERSION,
-  isCompleteTechnicalDescription,
   persistenceKey,
   persistTechnicalDescriptionBatches,
   planTechnicalDescriptionRows
@@ -171,7 +171,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
     }
     const fileSha256 = createHash("sha256").update(buffer).digest("hex");
     // A completed duplicate only needs identity/count checks, not another PDF/OCR pass.
-    if (projectId && clientResultOptions.summaryOnly) {
+    if (projectId && clientResultOptions.summaryOnly && !hasClientOcrPayload && !options.ocrPages?.length
+      && formData.get("ocrRetry") !== "true" && formData.get("reprocess") !== "true") {
       const [saved] = await selectUserRows<ProjectDocumentRow>("project_documents",{
         select:"id,upload_status,processing_status,storage_bucket,storage_path,import_summary",
         organization_id:`eq.${authorization.context.organization.id}`,project_id:`eq.${projectId}`,
@@ -180,7 +181,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
       const summary=saved?.import_summary;
       if (summary?.version===TECHNICAL_IMPORT_VERSION && Number.isInteger(summary.lineCount) && summary.lineCount>=0
         && Number.isInteger(summary.requirementCount) && summary.requirementCount>=0
-        && saved?.upload_status==="uploaded" && ["completed","requires_review"].includes(saved.processing_status)) {
+        && saved?.upload_status==="uploaded" && saved.processing_status === "completed") {
         const [source] = await selectUserRows<DocumentRow>("technical_description_documents",{
           select:"id,status",organization_id:`eq.${authorization.context.organization.id}`,project_id:`eq.${projectId}`,
           file_sha256:`eq.${fileSha256}`,id:`eq.${summary.documentId}`,limit:"1"
@@ -450,52 +451,6 @@ export async function processTechnicalDescription(request: Request, authorizatio
       // Restore missing originals on a duplicate import without replacing its posts.
       if (projectDocument && !projectDocument.storage_path) {
         await retainProjectPdf(db, {organizationId:authorization.context.organization.id,projectId,documentId:projectDocument.id},buffer);
-      }
-      const alreadyProcessed =
-        projectDocument?.upload_status === "uploaded" &&
-        ["completed", "requires_review"].includes(
-          projectDocument.processing_status
-        );
-
-      if (alreadyProcessed) {
-        const [persistedLines, persistedRequirements] = await Promise.all([
-          selectAllUserRows<{ id: string }>("technical_description_material_lines", {
-            select: "id",
-            organization_id: `eq.${authorization.context.organization.id}`,
-            document_id: `eq.${document.id}`,
-            order: "id.asc"
-          }),
-          selectAllUserRows<{ id: string }>("project_requirements", {
-            select: "id",
-            organization_id: `eq.${authorization.context.organization.id}`,
-            project_id: `eq.${projectId}`,
-            source_technical_description_document_id: `eq.${document.id}`,
-            deleted_at: "is.null",
-            order: "id.asc"
-          })
-        ]);
-        if (projectDocument?.import_summary?.version === TECHNICAL_IMPORT_VERSION && isCompleteTechnicalDescription(
-          projectDocument!.processing_status,
-          persistedLines.length,
-          persistedRequirements.length,
-          result.materialLines.length,
-          authorization.context.permissions.includes("project.requirement.create")
-        )) {
-          // Older completed imports gain the same compact shortcut after one verified read.
-          await updateUserRowsReturning("project_documents",{
-            id:`eq.${projectDocument!.id}`,organization_id:`eq.${authorization.context.organization.id}`,project_id:`eq.${projectId}`
-          },{import_summary:{version:TECHNICAL_IMPORT_VERSION,documentId:document.id,lineCount:result.materialLines.length,
-            requirementCount:persistedRequirements.length,result:clientTechnicalDescriptionResult(result,{summaryOnly:true})}});
-          return NextResponse.json({
-            projectId,
-            projectName: projects[0].name,
-            documentId: document.id,
-            persistedLineCount: persistedLines.length,
-            persistedRequirementCount: persistedRequirements.length,
-            duplicate: true,
-            ...clientTechnicalDescriptionResult(result, clientResultOptions)
-          });
-        }
       }
 
       if (!projectDocument) {
@@ -904,6 +859,16 @@ async function persistRows<T extends Record<string, unknown>>(
 ) {
   if (!payloads.length) return [] as Array<T & { id: string }>;
   try {
+    if (isSourcePostTable(table)) {
+      const existing = await db.selectAllUserRows<Record<string, unknown> & {id:string}>(table, {
+        ...scope, select: sourcePostSelect(table), order: "created_at.asc,id.asc"
+      });
+      const plan = planSourcePostRows(table, `${table}|${persistenceKey(scope)}`, payloads, existing);
+      await persistTechnicalDescriptionBatches(plan.missing, batch => db.insertUserRows(table, batch.map(row =>
+        table === "project_requirements" ? compactRequirementText(row) : table === "requirement_candidates" ? compactRequirementText(row, true) : row), {ignoreIdConflicts:true}));
+      await refreshSourcePostRows(table, scope, plan.rows, existing, db);
+      return plan.rows;
+    }
     const existingIds = await db.selectAllUserRows<Record<string, unknown> & { id: string }>(table, {...scope, select: importReviewFlagSelect(table), order: "id.asc"});
     const fresh = planTechnicalDescriptionRows(`${table}|${persistenceKey(scope)}`, payloads, [], key);
     const plannedIds = new Set(fresh.rows.map(row => row.id));

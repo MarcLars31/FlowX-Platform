@@ -1,3 +1,4 @@
+import { isPdfTableTotalFooter } from "@/lib/pdf-post-text";
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import type { TechnicalDescriptionPage } from "./types";
 
@@ -60,7 +61,7 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
   const unitHeader = columnsVerified ? unitCandidate : undefined;
   const amountHeader = columnsVerified ? amountCandidate : undefined;
   const priceHeader = columnsVerified ? priceCandidate : undefined;
-  const footer = items.filter(item => item.y < header.y && /^(?:Sum denne side|Akkumulert Sted)\s*:?/.test(item.text));
+  const footer = items.filter(item => item.y < header.y && isPdfTableTotalFooter(item.text));
   const bottom = footer.length ? Math.max(...footer.map(item => item.y)) + 3 : -Infinity;
   const body = items.filter(item => item.y < header.y - 4 && item.y > bottom);
   const postItems = body.filter(item => item.x < header.x + header.width && /^[\d.]+$/.test(item.text))

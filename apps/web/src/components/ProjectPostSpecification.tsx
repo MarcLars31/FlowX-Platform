@@ -35,6 +35,11 @@ export function ProjectPostSpecification({ id, details: sourceDetails, descripti
       <strong>Kontroller PDF-posten</strong>
       <ul className="list-disc pl-5">{details.sourceWarnings!.map(warning => <li key={warning}>{warning}</li>)}</ul>
     </div>}
+    {Boolean(details.sourceReimportReadings?.length) && <details className="border-b border-amber-300 bg-amber-50 px-3 py-2">
+      <summary className="cursor-pointer font-semibold">Ny PDF-läsning att granska</summary>
+      <p className="my-2">Läsningen skiljer sig från den sparade texten. Jämför med original-PDF:n innan kraven ändras.</p>
+      {details.sourceReimportReadings!.map((reading, index) => <pre key={index} className="my-2 whitespace-pre-wrap break-words border-t border-amber-200 pt-2 font-sans">{reading}</pre>)}
+    </details>}
     {columnLayout && <div className="border-b border-neutral-300 px-3 py-2"><PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} /></div>}
     <div className={columnLayout ? "grid min-w-[52rem] grid-cols-[6.5rem_minmax(18rem,1fr)_4rem_5rem_5rem_5rem]" : "grid sm:grid-cols-[6.5rem_minmax(0,1fr)]"}>
       {columnLayout && ["Postnr.", "Beskrivelse", "Enh.", "Antall", "Pris", "Sum"].map(label => <div key={label} className="border-b border-r border-neutral-300 px-3 py-2 font-bold last:border-r-0">{label}</div>)}

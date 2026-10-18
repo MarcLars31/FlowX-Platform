@@ -7,8 +7,22 @@ export function normalizeOcrDnTokens(text: string) {
 
 /** A page-total row can lose its colon during OCR. Require the whole row so
  * references to totals in ordinary requirement prose are not treated as footers. */
+const pdfTotalAmount = String.raw`[\dOoIlDd|()\[\]\s.,'’–—-]*(?:NOK|kr\.?)?`;
 export function isPdfPageSumFooter(line: string) {
-  return /^Sum\s+(?:denne\s+side|denna\s+sida)\s*[:.;]?(?:\s*\d[\d\s.,]*(?:NOK|kr\.?)?)?\s*$/i.test(line.trim());
+  // OCR may join vertical borders and misread zeroes in an otherwise numeric
+  // amount. Require a complete total label and a bounded numeric/OCR suffix.
+  return new RegExp(`^Sum\\s+(?:denne\\s+side|denna\\s+sida)\\s*[:.;]?${pdfTotalAmount}\\s*$`, "i").test(line.trim());
+}
+
+/** One shared, whole-row boundary for import, OCR and display. Ordinary
+ * requirement fields such as "Sum: Alle kostnader skal inngå" remain prose. */
+export function isPdfTableTotalFooter(line: string) {
+  const value = line.trim();
+  return isPdfPageSumFooter(value)
+    || /^Sum\s*[:.;]\s*$/i.test(value)
+    || /^Sum\s*[:.;]?\s*\d[\d\s.,]*(?:NOK|kr\.?)?\s*$/i.test(value)
+    || new RegExp(`^(?:Sum\\s+Kapittel|Akkumulert(?:\\s+(?:Sted|Kapittel))?)\\s+[^:]+:\\s*${pdfTotalAmount}\\s*$`, "i").test(value)
+    || new RegExp(`^Akkumulert\\s*:\\s*${pdfTotalAmount}\\s*$`, "i").test(value);
 }
 
 /** Saved source text may predate the footer filter. Bound cleanup to each page;
@@ -17,7 +31,7 @@ export function withoutPdfPageSumFooters(source: string) {
   const parts = source.split(/(\r?\n(?:[ \t]*\r?\n)*[ \t]*FORTSETTELSE SIDE \d+[ \t]*\r?\n)/);
   const cleanPage = (body: string) => {
     const lines = body.split(/\r?\n/);
-    const footer = lines.findIndex(isPdfPageSumFooter);
+    const footer = lines.findIndex(isPdfTableTotalFooter);
     return footer < 0 ? body : lines.slice(0, footer).join("\n").trimEnd();
   };
   let result = cleanPage(parts[0]);

@@ -552,9 +552,9 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const leading = leadingPageBody(pageLines, starts[0]?.lineIndex, projectHeading);
       // A fragment from a page omitted from this file has no trustworthy post
       // number or quantity. Preserve it without assigning it to the next post.
-      if (leading.length && !leading.some(line => NS3420_CODE_PATTERN.test(line))
+      if (leading.length && !(leading.length === 1 && leading[0] === chapterTitle) && !leading.some(line => NS3420_CODE_PATTERN.test(line))
         && (pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line)) || Boolean(chapterTitle))
-        && (leading.some(isTechnicalContinuationLine) || (leading.length > 1 && leading.join(" ").length > 80)
+        && (leading.some(isTechnicalContinuationLine) || (leading.some(line => /[\p{L}]{2}/u.test(line)) && pageLines.some(line => /^Postnr(?:[.:]|\s|$)/i.test(line))) || (leading.length > 1 && leading.join(" ").length > 80)
           || (chapters.get(page.pageNumber)?.sourcePage === page.pageNumber
             && leading[0] !== chapterTitle && /^\d+\s+\S/.test(leading[0])
             && Boolean(chapterTitle?.toLocaleLowerCase("nb-NO").replace(/[-–—]/g, "").replace(/\s+/g, " ")

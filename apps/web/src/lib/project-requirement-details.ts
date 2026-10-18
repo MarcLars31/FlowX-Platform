@@ -4,6 +4,7 @@ import { projectRequirementKFactorDisplayValue } from "./project-requirement-dat
 
 export type ProjectRequirementDetail = {
   sourceWarnings?: string[];
+  sourceReimportReadings?: string[];
   postNumber: string | null;
   chapterPost: string | null;
   parentPostNumber: string | null;
@@ -36,6 +37,7 @@ export function projectRequirementDetails(
 
   return {
     sourceWarnings: requirementExtractionWarnings(requirement),
+    sourceReimportReadings: stringList(value.sourceReimportReadings),
     postNumber: text(value.postNumber) ?? postNumberFromSource(sourceExcerpt),
     chapterPost,
     parentPostNumber: text(value.parentPostNumber),
