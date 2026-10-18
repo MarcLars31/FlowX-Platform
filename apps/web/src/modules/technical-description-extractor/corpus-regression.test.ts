@@ -7,14 +7,17 @@ const page=(pageNumber:number,text:string,method:'text'|'ocr'='text'):TechnicalD
 
 test('quantity-first single-number posts and lump sums are separate rows without double counting RS',()=>{
  const result=extractTechnicalDescriptionFromPages([page(1,'Kapittel: 33 Brannslokking\nstk 2 5 Trykkvakt med stengeventil\nstk 1 6 Nøkkelbryter\nstk 3 7 Nøkkelbryter\nRS 4.1 Ferdigbefaring\nx) Mengderegler\nRund sum\nRS 4.2 Overtakelsesforretning\nx) Mengderegler\nRund sum')]);
- assert.deepEqual(result.materialLines.map(l=>[l.postNumber,l.quantity,l.unit]),[['4.1',1,'RS'],['4.2',1,'RS'],['5',2,'st'],['6',1,'st'],['7',3,'st']]);
+ assert.deepEqual(result.materialLines.map(l=>[l.postNumber,l.quantity,l.unit]),[['5',2,'st'],['6',1,'st'],['7',3,'st'],['4.1',1,'RS'],['4.2',1,'RS']]);
  assert.equal(result.pageChecks?.[0].observedQuantityRows,5);
  assert.equal(result.pageChecks?.[0].unresolvedQuantityRows,0);
 });
 
 test('a referenced post is not invented as the identity of a row with unreadable post number',()=>{
  const result=extractTechnicalDescriptionFromPages([page(1,'33 Brannslokking\nGLYKOLLÅS\nGlykollås bygges opp som beskrevet under post\nD1.31.332.3323.5.\nDimensjon: DN40\nKontrollventilsett komplett som beskrevet. RS','ocr')]);
- assert.equal(result.materialLines.length,0);
+ assert.equal(result.materialLines.length,1);
+ assert.equal(result.materialLines[0].postNumber,undefined);
+ assert.ok(result.materialLines[0].reviewFlags.includes('unassigned-source-text'));
+ assert.match(result.materialLines[0].sourceText,/GLYKOLLÅS/);
  assert.equal(result.pageChecks?.[0].unresolvedQuantityRows,1);
  assert.ok(result.warnings.some(w=>w.code==='UNRESOLVED_QUANTITY_ROWS'));
 });

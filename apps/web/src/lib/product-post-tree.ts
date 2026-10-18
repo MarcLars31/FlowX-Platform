@@ -1,5 +1,5 @@
 import { groupProductRequirementsByPdfChapter, productChapterHeading, type ProductChapterGroup } from "./product-post-groups";
-import { comparePostNumbers, projectRequirementOrderPostNumber } from "./project-requirement-order";
+import { sortProjectRequirementsBySource, projectRequirementOrderPostNumber } from "./project-requirement-order";
 
 type Requirement = Record<string, unknown> & { id: string };
 export type ProductPostNode<T extends Requirement> = {
@@ -68,11 +68,8 @@ export function buildProductPostTree<T extends Requirement>(requirements: readon
     (parent?.children ?? roots).push(node);
   }
   function sortSiblings(siblings: ProductPostNode<T>[]) {
-    siblings.sort((a, b) => {
-      const left = numberOf(a), right = numberOf(b);
-      const intro = (node: ProductPostNode<T>, number: string | null) => !number && node.requirement && record(node.requirement.value_json).chapterInformation === true;
-      return Number(Boolean(intro(b, right))) - Number(Boolean(intro(a, left))) || comparePostNumbers(left, right);
-    });
+    const ordered = sortProjectRequirementsBySource(siblings.map(node => ({ ...sources.get(node)!, node })));
+    siblings.splice(0, siblings.length, ...ordered.map(row => row.node));
     siblings.forEach(node => sortSiblings(node.children));
   }
   sortSiblings(roots);

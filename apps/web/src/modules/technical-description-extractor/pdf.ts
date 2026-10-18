@@ -67,6 +67,8 @@ export async function extractPagesFromDocument(
           text,
           ...(postTable && !ocrReason ? { postTable } : {}),
           postInventory: pdfPostInventoryFromItems(content.items),
+          ...(postTable?.quantityColumnsVerified ? { sourceColumnQuantities: postTable.posts.flatMap(post => post.quantity
+            ? [{ postNumber: post.postNumber, quantity: post.quantity.quantity, unit: post.quantity.unit, text: post.quantity.text }] : []) } : {}),
           ...(ocrReason ? { ocrReason } : {}),
           method: "text",
           confidence: readable ? 0.98 : text ? 0.55 : 0,

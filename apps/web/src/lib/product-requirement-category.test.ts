@@ -135,7 +135,7 @@ test("product grouping keeps RS and project information placement and quantities
   ];
   const compact=rows.map(compactProjectRequirement);
   const groups=groupProjectRequirementViews(compact);
-  assert.deepEqual([groups.products[0].id,groups.rs[0].id,groups.removal[0].id],["product","rs","info"]);
+  assert.deepEqual([groups.products[0].id,groups.rs[0].id,groups.information[0].id],["product","rs","info"]);
   assert.equal((compact[0].value_json as Record<string,unknown>).quantity,71.75);
 });
 

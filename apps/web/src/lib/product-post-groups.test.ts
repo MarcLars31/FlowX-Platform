@@ -46,8 +46,8 @@ Postnr: NS 3420 kode/Spesifikasjon Enh. Mengde Pris Sum` }
   const rows = result.materialLines.map(line => ({ id: line.id, source_page: line.sourcePage,
     value_text: line.description, category: line.category, value_json: line }));
   const types = groupProjectRequirementViews(rows);
-  assert.deepEqual([types.products.length, types.rs.length, types.removal.length], [1, 1, 1]);
-  const chapters = groupProductRequirementsByPdfChapter([...types.products, ...types.rs, ...types.removal]);
+  assert.deepEqual([types.products.length, types.rs.length, types.information.length], [1, 1, 1]);
+  const chapters = groupProductRequirementsByPdfChapter([...types.products, ...types.rs, ...types.information]);
   assert.equal(chapters.length, 1);
   assert.equal(chapters[0].title, title);
   assert.deepEqual(chapters[0].requirements.map(row => row.value_json.postNumber),
@@ -100,23 +100,23 @@ test("retains unnumbered rows and keeps buildings and documents separate", () =>
   assert.equal(new Set(groups.flatMap(group => group.requirements.map(row => row.id))).size, rows.length);
 });
 
-test("numbered information headings stay in numeric order and own all their children", () => {
+test("numbered information headings follow PDF pages and own all their children", () => {
   const parent = { ...post("parent", "30.332.7", 1), value_json: { postNumber: "30.332.7", sourceChapter: { title }, chapterInformation: true } };
   const children = [7, 2, 1, 6, 3, 5, 4].map(n => post(`child${n}`, `30.332.7.${n}`, n + 3));
   const rows = [parent, ...children, post("previous6", "30.332.6", 2), post("previous5", "30.332.5", 2), post("next", "30.332.8", 3)];
   const [group] = productPostNavigationGroups(rows);
-  assert.deepEqual(group.posts.map(node => node.requirement?.id), ["previous5", "previous6", "parent", "next"]);
-  assert.deepEqual(group.posts[2].children.map(node => node.requirement?.id), Array.from({ length: 7 }, (_, n) => `child${n + 1}`));
-  assert.deepEqual(group.requirements.map(row => row.id), ["previous5", "previous6", "parent", "child1", "child2", "child3", "child4", "child5", "child6", "child7", "next"]);
+  assert.deepEqual(group.posts.map(node => node.requirement?.id), ["parent", "previous5", "previous6", "next"]);
+  assert.deepEqual(group.posts[0].children.map(node => node.requirement?.id), Array.from({ length: 7 }, (_, n) => `child${n + 1}`));
+  assert.deepEqual(group.requirements.map(row => row.id), ["parent", "child1", "child2", "child3", "child4", "child5", "child6", "child7", "previous5", "previous6", "next"]);
 });
 
-test("post trees use nearest numbered ancestor, numeric siblings and segment boundaries", () => {
+test("post trees use nearest numbered ancestor, source pages and segment boundaries", () => {
   const rows = [post("ten", "30.332.7.10", 1), post("deep", "30.332.7.2.1", 1), post("two", "30.332.7.2", 2),
     post("parent", "30.332.7", 3), post("separate", "30.332.70.1", 1), post("missing-middle", "30.332.7.4.1", 1)];
   const roots = buildProductPostTree(rows);
-  assert.deepEqual(roots.map(node => node.requirement?.id), ["parent", "separate"]);
-  assert.deepEqual(roots[0].children.map(node => node.requirement?.id), ["two", "missing-middle", "ten"]);
-  assert.equal(roots[0].children[0].children[0].requirement?.id, "deep");
+  assert.deepEqual(roots.map(node => node.requirement?.id), ["separate", "parent"]);
+  assert.deepEqual(roots[1].children.map(node => node.requirement?.id), ["missing-middle", "ten", "two"]);
+  assert.equal(roots[1].children[2].children[0].requirement?.id, "deep");
 });
 
 test("filtered product views retain ancestor information and expose the active branch", () => {

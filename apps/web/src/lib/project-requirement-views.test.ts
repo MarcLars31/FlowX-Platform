@@ -33,8 +33,7 @@ test("RS takes priority and unquantified posts have their own information table"
   ];
   const views = groupProjectRequirementViews(requirements);
   assert.deepEqual(views.products.map(row => row.id), ["hose", "drilling", "measured-removal"]);
-  assert.deepEqual(views.removal.map(row => row.id), ["missing", "empty", "invalid"]);
-  assert.deepEqual(views.work, []);
+  assert.deepEqual(views.information.map(row => row.id), ["missing", "empty", "invalid"]);
   assert.deepEqual(views.rs.map(row => row.id), ["demolition", "rs", "rund-sum", "inferred-rs"]);
   const ids = Object.values(views).flat().map(row => row.id);
   assert.equal(ids.length, 10);
@@ -48,7 +47,7 @@ test("a number without a purchasing unit and free technical text are project inf
   const text = { id: "leading-text", value_text: 'Lokalisering: Tilkobling til eksisterende anlegg, DN80, i "Gamlebygget" plan 1. Se tilbudstegning.', value_json: { attributes: { "dimensjon hovedledning": "DN80", trykk: "12 bar" } } };
   const measured = ["m", "M", "meter", "stk", "STK", "st", "m²", "m3", "kg", "liter"].map((unit, index) => ({ id: `measured-${index}`, value_json: { unit, quantity: "1,5" } }));
   const views = groupProjectRequirementViews([...information, text, ...measured]);
-  assert.deepEqual(views.removal.map(row => row.id), [...information, text].map(row => row.id));
+  assert.deepEqual(views.information.map(row => row.id), [...information, text].map(row => row.id));
   assert.deepEqual(views.products.map(row => row.id), measured.map(row => row.id));
   assert.equal(views.rs.length, 0);
 });
@@ -60,17 +59,16 @@ test("measured child posts do not inherit the parent's RS category", () => {
     { id: "missing", value_text: "Sprinkler", value_json: { technicalSpecification: "Komplett anlegg Rund sum" } }
   ]);
   assert.deepEqual(views.products.map(row => row.id), ["pipe", "work"]);
-  assert.deepEqual(views.work, []);
-  assert.deepEqual(views.removal.map(row => row.id), ["missing"]);
+  assert.deepEqual(views.information.map(row => row.id), ["missing"]);
   assert.deepEqual(views.rs, []);
-  assert.deepEqual(groupProjectRequirementViews([]), { products: [], removal: [], work: [], rs: [] });
+  assert.deepEqual(groupProjectRequirementViews([]), { products: [], information: [], rs: [] });
 });
 
 test("recovered information stays informational when an older extraction supplied a quantity", () => {
   const information = { id: "information", value_json: { quantity: 12, unit: "st", reviewFlags: ["project-information"] } };
   const rs = { id: "rs", value_json: { unit: "RS", reviewFlags: ["project-information"] } };
   const views = groupProjectRequirementViews([information, rs]);
-  assert.deepEqual(views.removal, [information]);
+  assert.deepEqual(views.information, [information]);
   assert.deepEqual(views.rs, [rs]);
   assert.deepEqual(views.products, []);
   assert.deepEqual(splitDistributorRequirementLines([information]).workRequirements, [information]);

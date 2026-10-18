@@ -127,8 +127,8 @@ test("retains wrapped numbered heads, guards, litres and lump-sum work without r
       "0.33.332.3", "327.4", "AOA", "Kvalitetssikrende tiltak", "x) Mengderegler", "Rund sum", "Sum denne side: 0"].join("\n")
   }]);
   assert.deepEqual(result.materialLines.map(line => [line.postNumber, line.quantity, line.unit]), [
-    ["0.33.332.3322.8.1", 1, "RS"], ["0.33.332.3322.9", 2650, "l"],
     ["0.33.332.3325.2.1", 27, "st"], ["0.33.332.3325.2.2", 188, "st"], ["0.33.332.3325.2.4", 10, "st"],
+    ["0.33.332.3322.9", 2650, "l"], ["0.33.332.3322.8.1", 1, "RS"],
     ["0.33.332.3327.3", 1, "RS"], ["0.33.332.3327.4", 1, "RS"]
   ]);
   assert.equal(result.materialLines[5].description, "TETTHETSPRØVING AV INNENDØRS TRYKKRØR");

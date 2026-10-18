@@ -1,3 +1,4 @@
+import { mergePdfPageSource } from "./pdf-page-source-merge";
 import { textPostInventory } from "@/modules/technical-description-extractor/post-inventory";
 import type { TechnicalDescriptionPage } from "@/modules/technical-description-extractor/types";
 
@@ -99,7 +100,8 @@ export function mergeClientOcrPages(
     const readable = clientPage.text.length >= minimumReadableLength && clientPage.confidence >= 0.7;
     // The OCR text can miss a number that was readable digitally. Keep those
     // independent source blocks too, without reusing obsolete table line indices.
-    const postInventory = textPostInventory(clientPage.text);
+    const merged = mergePdfPageSource(serverPage, clientPage.text);
+    const postInventory = textPostInventory(merged.text);
     const remaining = [...postInventory.posts];
     for (const post of serverPage.postInventory?.posts ?? []) {
       const index = remaining.findIndex(candidate => candidate.postNumber === post.postNumber);
@@ -109,7 +111,9 @@ export function mergeClientOcrPages(
     return {
       ...serverPage,
       pageNumber: serverPage.pageNumber,
-      text: clientPage.text,
+      text: merged.text,
+      sourceTextMerge: merged.supplemented,
+      sourceReadings: { digital: serverPage.text, ocr: clientPage.text },
       // Digital coordinates/line indices no longer describe the replacement OCR text.
       postTable: undefined,
       postInventory,

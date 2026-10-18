@@ -1,3 +1,4 @@
+import { importReviewFlagSelect, refreshImportedReviewFlags } from "./technical-description-review-flags";
 import { permanentPdfError } from "./technical-description-errors";
 import { compactRequirementText } from "./requirement-text-storage";
 import { extractionQualitySummary } from "./technical-description-quality";
@@ -609,7 +610,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
       const pageMetadata = (page: typeof result.pages[number]) => ({
         confidence: page.confidence,
         annotations: page.annotations ?? [],
-        annotation_read_failed: page.annotationReadFailed ?? false
+        annotation_read_failed: page.annotationReadFailed ?? false,
+        ...(page.sourceReadings ? { source_readings: page.sourceReadings, source_text_merged: page.sourceTextMerge ?? false } : {})
       });
       const pageHash = (page: typeof result.pages[number]) => createHash("sha256")
         .update(persistenceKey([page.text,page.method,pageMetadata(page)])).digest("hex");
@@ -902,7 +904,7 @@ async function persistRows<T extends Record<string, unknown>>(
 ) {
   if (!payloads.length) return [] as Array<T & { id: string }>;
   try {
-    const existingIds = await db.selectAllUserRows<{ id: string }>(table, {...scope, select: "id", order: "id.asc"});
+    const existingIds = await db.selectAllUserRows<Record<string, unknown> & { id: string }>(table, {...scope, select: importReviewFlagSelect(table), order: "id.asc"});
     const fresh = planTechnicalDescriptionRows(`${table}|${persistenceKey(scope)}`, payloads, [], key);
     const plannedIds = new Set(fresh.rows.map(row => row.id));
     const savedIds = new Set(existingIds.map(row => row.id));
@@ -915,6 +917,7 @@ async function persistRows<T extends Record<string, unknown>>(
       : {rows:fresh.rows,missing:fresh.rows.filter(row => !savedIds.has(row.id))};
     await persistTechnicalDescriptionBatches(plan.missing, batch =>
       db.insertUserRows(table, batch.map(row => table === "project_requirements" ? compactRequirementText(row) : table === "requirement_candidates" ? compactRequirementText(row, true) : row), { ignoreIdConflicts: true }));
+    await refreshImportedReviewFlags(table, scope, plan.rows, existingIds, db);
     return plan.rows;
   } catch (error) {
     console.error("Technical description persistence failed", {

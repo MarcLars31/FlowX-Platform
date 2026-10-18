@@ -38,7 +38,7 @@ export function groupProductRequirementsByPdfChapter<T extends Requirement>(
     group.requirements.push(requirement);
     groups.set(key, group);
   }
-  for (const group of groups.values()) {
+  for (const group of preserveRowOrder ? groups.values() : []) {
     // The chapter introduction stays first even when a user sorts product columns.
     group.requirements.sort((left, right) => Number(record(right.value_json).chapterInformation === true)
       - Number(record(left.value_json).chapterInformation === true));

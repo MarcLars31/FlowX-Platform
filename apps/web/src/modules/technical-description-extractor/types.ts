@@ -21,6 +21,11 @@ export type TechnicalDescriptionPage = {
   ocrReason?: "image-body" | "vector-body" | "body-check-failed";
   /** Verified digital table columns; indices refer to normalized text lines. */
   /** Independent inventory of physical post-number cells, before classification. */
+  /** Original readings remain available for auditing mixed digital/OCR pages. */
+  /** Amounts read from verified original columns, independent of OCR text order. */
+  sourceColumnQuantities?: Array<{ postNumber: string; quantity: number; unit: string; text: string }>;
+  sourceReadings?: { digital: string; ocr: string };
+  sourceTextMerge?: boolean;
   postInventory?: import("./post-inventory").PostInventory;
   postTable?: {
     text: string;

@@ -65,7 +65,8 @@ export function repairedOcrPostAttributes(attributes: Record<string, unknown>, s
 
 /** A consultant/date row is page furniture only at a known page-header boundary. */
 export function isPdfConsultantDateHeader(line: string) {
-  return /^[\p{L}\p{N}][\p{L}\p{N} .,&()/-]{0,100}\s+(?:AS|ASA|AB|A\/S)\s+\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$/u.test(line.trim());
+  return /^Helse S[øo]r[øo]st\s+\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$/iu.test(line.trim())
+    || /^[\p{L}\p{N}][\p{L}\p{N} .,&()/-]{0,100}\s+(?:AS|ASA|AB|A\/S)\s+\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$/u.test(line.trim());
 }
 
 /** Older snapshots can contain a continuation consisting solely of the next

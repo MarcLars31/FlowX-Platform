@@ -22,6 +22,7 @@ import { conflictingMaterialRequirement } from "@/lib/requirement-extraction-war
 import { attachNumberedChapters, numberedChaptersFromPages } from "./chapters";
 import { pdfChaptersByPage } from "./pdf-chapters";
 import { withSiteTableChapterHeadings } from "./pdf-post-table";
+import { sortMaterialLinesBySource } from "./post-source-order";
 import { reconcileSourcePosts } from "./post-coverage";
 import { pdfPostDescriptionText, pdfPostColumnValues } from "./pdf-post-description";
 
@@ -48,13 +49,19 @@ export function extractTechnicalDescriptionFromPages(
   if (!project.chapter && numberedChapters.length) project.chapter = numberedChapters[0].label;
   const materialLines = extractMaterialLines(pages, warnings);
   const postChecks = reconcileSourcePosts(pages, materialLines, warnings);
-  materialLines.sort((a, b) => a.sourcePage - b.sourcePage
-    || (a.postNumber ?? "").localeCompare(b.postNumber ?? "", "nb", { numeric: true }));
+  sortMaterialLinesBySource(pages, materialLines);
   const chapters = pdfChaptersByPage(pages);
   const unrecognizedQuantityPages = new Set(pages
     .filter(page => page.postTable?.quantityColumnsUnrecognized).map(page => page.pageNumber));
   const uncertainPages = new Map(pages.filter(page => page.method === "ocr" && page.confidence < 0.7).map(page => [page.pageNumber,page.confidence]));
   for (const [index, line] of materialLines.entries()) {
+    const originalColumns = pages.find(page => page.pageNumber === line.sourcePage && page.method === "ocr")?.sourceColumnQuantities
+      ?.filter(cell => cell.postNumber === line.postNumber);
+    if (originalColumns?.length === 1 && materialLines.filter(other => other.sourcePage === line.sourcePage && other.postNumber === line.postNumber).length === 1) {
+      const original = originalColumns[0];
+      line.quantity = original.quantity; line.unit = original.unit; line.quantityText = original.text; line.quantitySourcePage = line.sourcePage;
+      line.reviewFlags = line.reviewFlags.filter(flag => !["missing-quantity", "missing-unit", "project-information"].includes(flag));
+    }
     const pdfDescriptionText = pdfPostDescriptionText(pages, line);
     if (pdfDescriptionText) {
       line.pdfDescriptionText = pdfDescriptionText;
@@ -76,6 +83,9 @@ export function extractTechnicalDescriptionFromPages(
       line.reviewFlags = unique([...line.reviewFlags, "unrecognized-quantity-columns"]);
     }
     const uncertainSources = (line.sourcePages ?? [line.sourcePage]).flatMap(number => uncertainPages.has(number) ? [uncertainPages.get(number)!] : []);
+    if ((line.sourcePages ?? [line.sourcePage]).some(number => pages.find(page => page.pageNumber === number)?.sourceTextMerge)) {
+      line.reviewFlags = unique([...line.reviewFlags, "merged-source-text"]);
+    }
     if (uncertainSources.length) {
       line.reviewFlags = unique([...line.reviewFlags, "low-ocr-confidence"]);
       line.confidence = Math.min(line.confidence, ...uncertainSources);
@@ -586,7 +596,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       if (existing && existing === previousMaterialLine && startIndex === 0
         && (existing.sourcePages?.at(-1) ?? existing.sourcePage) === page.pageNumber - 1
         && !(existing.quantity !== undefined && quantity)
-        && (!start.description || !NS3420_CODE_PATTERN.test(start.description))) {
+        && isRepeatedPostContinuation(start.description, blockLines, existing)) {
         const context = parentContexts.get(fullPostNumber);
         appendPostContinuation(page, blockLines, existing, context);
         previousMaterialLine = existing;
@@ -832,6 +842,22 @@ function mergeLeadingPageContinuation({
   appendPostContinuation(page, continuation,
     !previousContext || previousMaterialLine?.postNumber === previousContext.postNumber ? previousMaterialLine : undefined,
     previousContext, true);
+  return true;
+}
+
+/** A repeated number alone never proves a continuation. A new heading,
+ * quantity or contradictory own field keeps a separate occurrence. */
+function isRepeatedPostContinuation(description: string, body: string[], previous: TechnicalDescriptionMaterialLine) {
+  const first = description || body.find(line => line.trim()) || "";
+  const explicit = /^(?:fortsettelse|forts[.:]|fortsättning|continued)\b/i.test(first);
+  const field = isTechnicalContinuationLine(first) || Boolean(findTableQuantity([first]));
+  if (!explicit && !field) return false;
+  if (NS3420_CODE_PATTERN.test(first)) return false;
+  const attributes = extractTableAttributes(body);
+  for (const [key, value] of Object.entries(attributes)) {
+    const prior = previous.attributes[key];
+    if (prior && prior.replace(/\s+/g, " ").trim() !== value.replace(/\s+/g, " ").trim()) return false;
+  }
   return true;
 }
 

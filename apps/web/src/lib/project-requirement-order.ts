@@ -10,12 +10,12 @@ export function sortProjectRequirementsBySource<
       const leftValue = record(left.requirement.value_json);
       const rightValue = record(right.requirement.value_json);
       const informationDifference = Number(rightValue.chapterInformation === true) - Number(leftValue.chapterInformation === true);
-      if (informationDifference !== 0) return informationDifference;
       const leftOrder = Number(leftValue.sourceOrder);
       const rightOrder = Number(rightValue.sourceOrder);
       if (leftOrder > 0 && rightOrder > 0 && Number.isFinite(leftOrder) && Number.isFinite(rightOrder)
         && leftOrder !== rightOrder) return leftOrder - rightOrder;
 
+      if (informationDifference !== 0) return informationDifference;
       const postDifference = comparePostNumbers(
         projectRequirementOrderPostNumber(left.requirement),
         projectRequirementOrderPostNumber(right.requirement)

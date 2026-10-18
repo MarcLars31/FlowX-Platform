@@ -1,3 +1,4 @@
+import { pdfReadingBody } from "@/lib/pdf-page-source-merge";
 import { extractPostScope, normalizedPageLines, tableDescription } from "./document-parser";
 import { pagePostInventory } from "./post-inventory";
 import type { TechnicalDescriptionMaterialLine, TechnicalDescriptionPage, TechnicalDescriptionWarning } from "./types";
@@ -42,6 +43,18 @@ export function reconcileSourcePosts(pages: TechnicalDescriptionPage[], lines: T
       }
       used.add(line);
       represented.push(post.postNumber);
+    }
+    // OCR tables and detached prose can have no readable post number. Retain
+    // their uncovered text explicitly instead of silently losing the whole page.
+    if (page.method === "ocr") {
+      const normalize = (text: string) => text.normalize("NFKC").replace(/\s+/g, "");
+      const representedText = normalize(lines.filter(line => (line.sourcePages ?? [line.sourcePage]).includes(page.pageNumber))
+        .map(line => line.sourceText).join("\n"));
+      const missing = pdfReadingBody(page.text).split("\n").filter(line => line.trim() && !representedText.includes(normalize(line)));
+      if (missing.length) lines.push({ id: `technical-unplaced-${page.pageNumber}`, description: `Uavklart tekst fra PDF – side ${page.pageNumber}`,
+        category: "unknown", operation: "unknown", attributes: {}, standardRefs: [], sourcePage: page.pageNumber, sourcePages: [page.pageNumber],
+        sourceText: missing.join("\n"), technicalSpecification: missing.join("\n"), confidence: Math.min(page.confidence, .5),
+        reviewFlags: ["project-information", "unassigned-source-text", "ocr-source", "unverified-post-source"] });
     }
     const unverified = page.status === "partial" || page.status === "failed" || Boolean(page.ocrReason)
       || page.method === "ocr" || inventory.method === "text";

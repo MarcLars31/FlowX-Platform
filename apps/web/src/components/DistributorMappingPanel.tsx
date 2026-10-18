@@ -367,7 +367,7 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
 
 function ResolvedRequirementCard(props: ComponentProps<typeof RequirementProductMappingCard>) {
   const [chooseProduct, setChooseProduct] = useState(false);
-  const informationOnly = groupProjectRequirementViews([props.requirement]).removal.length > 0 && !props.assignment;
+  const informationOnly = groupProjectRequirementViews([props.requirement]).information.length > 0 && !props.assignment;
   if (!informationOnly || chooseProduct) return <RequirementProductMappingCard {...props} />;
   return <RequirementInformationCard {...props} onChooseProduct={() => setChooseProduct(true)} />;
 }

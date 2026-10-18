@@ -21,7 +21,7 @@ test("non-sprinkler posts keep length and piece quantities, full post numbers an
     "17.284.2 PN8.5124211A", "PLATE", "Areal m² 12,50", "Andre krav:", "Maks avstand mellom festene: 2 m"
   ].join("\n"))]);
   assert.deepEqual(result.materialLines.map(r => [r.postNumber, r.quantity, r.unit]), [
-    ["17.284.1.5", 80, "m"], ["17.284.2", 12.5, "m2"], ["18.265.2", 180, "m"], ["18.265.4", 15, "st"]
+    ["18.265.2", 180, "m"], ["18.265.4", 15, "st"], ["17.284.1.5", 80, "m"], ["17.284.2", 12.5, "m2"]
   ]);
 });
 

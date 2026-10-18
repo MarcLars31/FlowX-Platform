@@ -160,6 +160,6 @@ test("OCR replacement cannot discard an independently readable digital post numb
     [{pageNumber:1,text:"30.1.4 Neste post\n"+"Andre krav gjelder ogsa. ".repeat(5),confidence:.9}]);
   const result=extractTechnicalDescriptionFromPages(pages);
   assert.deepEqual(result.materialLines.map(line=>line.postNumber),["30.1.3","30.1.4"]);
-  assert.ok(result.materialLines.find(line=>line.postNumber==="30.1.3")?.reviewFlags.includes("recovered-source-post"));
+  assert.ok(result.materialLines.find(line=>line.postNumber==="30.1.3")?.reviewFlags.includes("merged-source-text"));
   assert.equal(result.postChecks?.[0].status,"requires_review");
 });

@@ -5,6 +5,8 @@ export function requirementExtractionWarnings(requirement: Record<string, unknow
   const value = record(requirement.value_json);
   const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
   const warnings: string[] = [];
+  if (flags.includes('unassigned-source-text')) warnings.push('Text från PDF-sidan kunde inte säkert kopplas till en post. Den har behållits här för kontroll; inget postnummer eller någon mängd har gissats.');
+  if (flags.includes('merged-source-text')) warnings.push('PDF-text och OCR har kompletterat varandra. Båda läsningarnas innehåll har bevarats; kontrollera eventuella dubbla eller motstridiga krav mot originalet.');
   if (flags.includes('unverified-post-source')) warnings.push('Postens placering eller sidans fullständiga postkolumn kunde inte verifieras. Posten visas ändå; kontrollera postnummer och text mot original-PDF:n.');
   if (flags.includes('recovered-source-post')) warnings.push('Posten har bevarats från PDF-källan efter postnummerkontrollen. Kontrollera beskrivning, postgräns och eventuell mängd mot originalet.');
   if (flags.includes('fallback-source-post')) warnings.push('Posten har bevarats med reservläsaren. Kontrollera postnummer, kravtext och eventuell mängd i PDF-filen.');

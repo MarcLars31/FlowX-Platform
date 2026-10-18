@@ -49,7 +49,7 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
   if (!descriptionHeader) return undefined;
   const columnItems = headerItems.filter(item => item.x >= descriptionHeader.x + descriptionHeader.width);
   const unitCandidate = findColumnHeader(columnItems, ["enh", "enhet", "enhed"]);
-  const amountCandidate = findColumnHeader(columnItems, ["mengde", "mengd", "mängd"]);
+  const amountCandidate = findColumnHeader(columnItems, ["mengde", "mengd", "mängd", "antall", "antal"]);
   const priceCandidate = findColumnHeader(columnItems, ["pris", "enhetspris"]);
   const columnsVerified = Boolean(unitCandidate && amountCandidate && priceCandidate
     && unitCandidate.x + unitCandidate.width < amountCandidate.x
@@ -78,6 +78,16 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
     }
   }
   if (anchors.some(anchor => !/^\d+(?:\.\d+)*$/.test(anchor.postNumber))) return undefined;
+  // A raised exponent can sit above the normal row tolerance. Attach only
+  // a small 2/3 glyph immediately after its own m, before grouping rows.
+  for (const exponent of body) {
+    if (!unitHeader || !amountHeader || exponent.x < unitHeader.x - unitHeader.height
+      || exponent.x >= amountHeader.x || !/^[23]$/.test(exponent.text)) continue;
+    const metre = body.find(item => /m$/.test(item.text) && exponent.height < item.height * .85
+      && exponent.y > item.y && exponent.y - item.y < item.height
+      && exponent.x >= item.x + item.width - 1 && exponent.x - item.x - item.width < item.height * .6);
+    if (metre) exponent.y = metre.y;
+  }
   const consumed = new Set(postItems);
   const rows: Row[] = [];
   for (const item of body.filter(item => !consumed.has(item)).sort((a, b) => b.y - a.y || a.x - b.x)) {
