@@ -209,7 +209,7 @@ test("carries extraction review flags into enriched project requirements", () =>
   }]);
   const value = requirement.value_json as Record<string, unknown>;
 
-  assert.deepEqual(value.reviewFlags, ["ocr-source", "implausible-k-factor"]);
+  assert.deepEqual(value.reviewFlags, ["ocr-source", "unverified-post-source", "implausible-k-factor"]);
   assert.equal((value.attributes as Record<string, unknown>)["k-faktor"], "560");
 });
 

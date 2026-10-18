@@ -69,7 +69,7 @@ test("site columns join a number broken inside a segment and preserve all headin
     item("1201.30", 44, 670), item("VVS", 97, 670), ...post("11", "Bunnledninger", 640),
     ...post("11.2", "UB2.111A", 605), item("AVLØPSLEDNING", 97, 590),
     ...post("11.2.1", "PVC DN110", 550), item("m", 368, 550), item("29,16", 410, 550)])]);
-  assert.deepEqual(result.map(row => row.postNumber), ["1201.30", "1201.30.311", "1201.30.311.2", "1201.30.311.2.1"]);
+  assert.deepEqual(result.map(row => row.postNumber), ["1201", "1201.30", "1201.30.311", "1201.30.311.2", "1201.30.311.2.1"]);
   const child = result.at(-1)!;
   assert.equal(child.parentPostNumber, "1201.30.311.2");
   assert.equal(child.quantity, 29.16);
@@ -78,7 +78,7 @@ test("site columns join a number broken inside a segment and preserve all headin
   assert.ok(projectRequirementDetails(view).sourceExcerpt?.startsWith("1201.30.311.2.1 PVC"));
   const tree = productPostNavigationGroups(result.map(row => ({ id: row.id, value_json: row })));
   assert.equal(tree[0].title, "1201 Teststasjon");
-  assert.equal(tree[0].posts[0].children[0].children[0].children[0].requirement?.id, child.id);
+  assert.equal(tree[0].posts[0].children[0].children[0].children[0].children[0].requirement?.id, child.id);
 });
 
 for (const amount of ["201,0", "85,4", "1,3", "2 100,5"]) test(`raised m² stays in its unit column for ${amount}`, () => {

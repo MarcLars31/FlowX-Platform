@@ -22,6 +22,7 @@ import { conflictingMaterialRequirement } from "@/lib/requirement-extraction-war
 import { attachNumberedChapters, numberedChaptersFromPages } from "./chapters";
 import { pdfChaptersByPage } from "./pdf-chapters";
 import { withSiteTableChapterHeadings } from "./pdf-post-table";
+import { reconcileSourcePosts } from "./post-coverage";
 import { pdfPostDescriptionText, pdfPostColumnValues } from "./pdf-post-description";
 
 type ExtractOptions = {
@@ -46,6 +47,9 @@ export function extractTechnicalDescriptionFromPages(
   const project = extractProject(pages);
   if (!project.chapter && numberedChapters.length) project.chapter = numberedChapters[0].label;
   const materialLines = extractMaterialLines(pages, warnings);
+  const postChecks = reconcileSourcePosts(pages, materialLines, warnings);
+  materialLines.sort((a, b) => a.sourcePage - b.sourcePage
+    || (a.postNumber ?? "").localeCompare(b.postNumber ?? "", "nb", { numeric: true }));
   const chapters = pdfChaptersByPage(pages);
   const unrecognizedQuantityPages = new Set(pages
     .filter(page => page.postTable?.quantityColumnsUnrecognized).map(page => page.pageNumber));
@@ -171,6 +175,7 @@ export function extractTechnicalDescriptionFromPages(
     structure: { version: documentStructure.version, fileName: documentStructure.fileName,
       pageCount: documentStructure.pageCount, chapters: documentStructure.chapters },
     pageChecks,
+    postChecks,
     document: {
       fileName: options.fileName,
       pageCount: pages.length,
@@ -310,48 +315,23 @@ function extractMaterialLines(
   const legacyWarnings: TechnicalDescriptionWarning[] = [];
   const legacyLines = extractLegacyMaterialLines(pages.filter(page => !page.postTable), legacyWarnings);
 
-  if (structuredLines.length === 0) {
-    warnings.push(...legacyWarnings);
-    return legacyLines;
+  const retained = legacyLines.filter(line => (!structuredLines.length
+    || (line.postNumber && !line.reviewFlags.includes("inferred-post-number"))) && !structuredLines.some(item =>
+    (item.sourcePages ?? [item.sourcePage]).includes(line.sourcePage) && (
+      item.postNumber === line.postNumber
+      || (line.postNumber && item.postNumber?.startsWith(`${line.postNumber}.`))
+      || (line.postNumber && item.postNumber?.startsWith(line.postNumber) && item.nsCode === line.nsCode
+        && (line.quantity === undefined || item.quantity === line.quantity))
+      || item.sourceText.replace(/\s+/g, " ").includes(line.sourceText.replace(/\s+/g, " "))
+    )));
+  for (const line of retained) {
+    line.reviewFlags = unique([...line.reviewFlags, "fallback-source-post",
+      ...(line.quantity === undefined ? ["project-information"] : [])]);
   }
-
-  const structuredUsable = usableMaterialLineCount(structuredLines);
-  const legacyUsable = usableMaterialLineCount(legacyLines);
-  if (
-    // Keeping additional unquantified posts must not switch the whole document
-    // back to the fallback reader and discard structured continuations.
-    structuredUsable >= 2 ||
-    (structuredLines.length >= 2 && structuredUsable === structuredLines.length) ||
-    structuredUsable >= legacyUsable ||
-    materialLineQuality(structuredLines) >= materialLineQuality(legacyLines)
-  ) {
-    // The structured parser can find complete table rows while a neighbouring
-    // legacy row has lost its quantity during OCR. Never silently drop that row.
-    const retained = legacyLines.filter((line) =>
-      line.postNumber
-      && !line.reviewFlags.includes("inferred-post-number")
-      && !structuredLines.some((item) => (item.sourcePages ?? [item.sourcePage]).includes(line.sourcePage) && (
-        item.postNumber === line.postNumber
-        || item.postNumber?.startsWith(`${line.postNumber}.`)
-        // A wrapped post's left-column fragment is not another material row.
-        || (item.postNumber?.startsWith(line.postNumber!) && item.nsCode === line.nsCode
-          && (line.quantity === undefined || item.quantity === line.quantity))
-        || item.sourceText.replace(/\s+/g, " ").includes(line.sourceText.replace(/\s+/g, " "))
-      ))
-      && ((line.quantity !== undefined && line.quantity > 0)
-        || (line.quantity === undefined && /\b(?:Antall|Lengde)\b/i.test(line.sourceText)))
-    );
-    const merged = [...structuredLines, ...retained].sort((left, right) =>
-      left.sourcePage - right.sourcePage
-      || (left.postNumber ?? "").localeCompare(right.postNumber ?? "", "nb", { numeric: true })
-    );
-    warnings.push(...structuredExtractionWarnings(merged));
-    return merged;
-  }
-
-  warnings.push(...legacyWarnings);
-  return [...legacyLines, ...structuredLines.filter(line => line.reviewFlags.includes("project-information")
-    && !legacyLines.some(existing => existing.sourcePage === line.sourcePage && existing.postNumber === line.postNumber))];
+  const merged = [...structuredLines, ...retained].sort((a, b) => a.sourcePage - b.sourcePage
+    || (a.postNumber ?? "").localeCompare(b.postNumber ?? "", "nb", { numeric: true }));
+  warnings.push(...structuredExtractionWarnings(merged));
+  return merged;
 }
 
 function structuredExtractionWarnings(lines: TechnicalDescriptionMaterialLine[]) {
@@ -365,24 +345,6 @@ function structuredExtractionWarnings(lines: TechnicalDescriptionMaterialLine[])
       sourceText: line.sourceText,
       severity: "warning"
     }));
-}
-
-function usableMaterialLineCount(lines: TechnicalDescriptionMaterialLine[]) {
-  return lines.filter(
-    (line) => line.quantity !== undefined || line.operation === "remove"
-  ).length;
-}
-
-function materialLineQuality(lines: TechnicalDescriptionMaterialLine[]) {
-  return lines.filter(line => !line.reviewFlags.includes("project-information")).reduce(
-    (score, line) =>
-      score +
-      (line.postNumber ? 2 : -2) +
-      (line.quantity !== undefined ? 3 : line.operation === "remove" ? 1 : -1) +
-      (line.category === "unknown" ? -0.5 : 1) -
-      (line.reviewFlags.includes("inferred-post-number") ? 3 : 0),
-    0
-  );
 }
 
 function extractLegacyMaterialLines(
@@ -502,7 +464,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
   const materialLines: TechnicalDescriptionMaterialLine[] = [];
   const chapters = pdfChaptersByPage(pages);
   const projectHeading = extractProject(pages).name?.replace(/\s+/g, " ").trim();
-  const seen = new Set<string>();
+  const occurrences = new Map<string, number>();
   const parentContexts = new Map<string, TableParentContext>();
   const prepared = recoverMissingStructuredPostNumbers(
     pages.map((page) => page.method === "ocr"
@@ -608,7 +570,6 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
 
     for (let startIndex = 0; startIndex < starts.length; startIndex += 1) {
       const start = starts[startIndex];
-      if (page.postTable && !start.postNumber.includes(".")) continue;
       const blockEnd = Math.min(
         starts[startIndex + 1]?.lineIndex ?? pageLines.length,
         footerIndex(pageLines, start.lineIndex)
@@ -622,7 +583,10 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       const fullPostNumber = start.postNumber;
       const key = `${postScope}|${fullPostNumber}`;
       const existing = materialLines.find(line => line.postScope === (postScope || undefined) && line.postNumber === fullPostNumber);
-      if (existing && (existing.sourcePages?.at(-1) ?? existing.sourcePage) === page.pageNumber - 1) {
+      if (existing && existing === previousMaterialLine && startIndex === 0
+        && (existing.sourcePages?.at(-1) ?? existing.sourcePage) === page.pageNumber - 1
+        && !(existing.quantity !== undefined && quantity)
+        && (!start.description || !NS3420_CODE_PATTERN.test(start.description))) {
         const context = parentContexts.get(fullPostNumber);
         appendPostContinuation(page, blockLines, existing, context);
         previousMaterialLine = existing;
@@ -720,15 +684,10 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         && blockLines.some(line => new RegExp(
         String.raw`^(?:Antall|Lengde)(?:\s+${QUANTITY_UNIT_SOURCE}\.?)?\s*$`, "i"
       ).test(line.trim()));
-      const hasUnquantifiedPostBody = fullPostNumber.split(".").length >= 3 && description.length > 5
-        && (Boolean(start.description) || Object.keys(ownAttributes).some(key => key !== "kapittelpost"));
-      if (!start.chapter && ((!quantity && operation !== "remove" && !hasMissingQuantityMarker && !nsCode && !hasUnquantifiedPostBody) || (quantity && quantity.quantity < 0))) {
-        continue;
-      }
-
-      if (seen.has(key)) {
-        continue;
-      }
+      // Identity and source position determine inclusion, never amount or title length.
+      // Repeated identifiers remain separate occurrences unless a continuation was proven above.
+      const occurrence = (occurrences.get(key) ?? 0) + 1;
+      occurrences.set(key, occurrence);
       const attributes: Record<string, string> = {
         ...(parent?.attributes ?? {}),
         ...ownAttributes
@@ -741,6 +700,14 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
         attributes["pdf-kommentar"] = `${parent.attributes["pdf-kommentar"]}\n\n${ownAttributes["pdf-kommentar"]}`;
       }
       const reviewFlags: string[] = [];
+      if (!description && !nsCode && !Object.keys(ownAttributes).some(key => key !== "kapittelpost")) reviewFlags.push("empty-post-body");
+      if (quantity && quantity.quantity < 0) reviewFlags.push("invalid-source-quantity");
+      if (occurrence > 1) {
+        reviewFlags.push("duplicate-post-number");
+        for (const earlier of materialLines.filter(line => line.postScope === (postScope || undefined) && line.postNumber === fullPostNumber)) {
+          earlier.reviewFlags = unique([...earlier.reviewFlags, "duplicate-post-number"]);
+        }
+      }
       if (!quantity || quantity.unit === "?") reviewFlags.push("project-information");
       if (missingParent) reviewFlags.push("missing-parent-context");
       if (adjacentPipeParent) reviewFlags.push("inferred-parent-context");
@@ -751,7 +718,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       if (prepared.inferredPostNumbers.has(fullPostNumber)) {
         reviewFlags.push("inferred-post-number");
       }
-      if (!quantity && operation !== "remove" && !start.chapter) reviewFlags.push("missing-quantity");
+      if (!quantity && operation !== "remove" && !start.chapter && (hasMissingQuantityMarker || nsCode || (page.postTable && category !== "unknown"))) reviewFlags.push("missing-quantity");
       if (
         category === "pipe"
         && quantity
@@ -762,7 +729,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       }
 
       const materialLine: TechnicalDescriptionMaterialLine = {
-        id: `technical-material-${page.pageNumber}-${fullPostNumber.replace(/[^a-zA-Z0-9]+/g, "-")}`,
+        id: `technical-material-${page.pageNumber}-${fullPostNumber.replace(/[^a-zA-Z0-9]+/g, "-")}${occurrence > 1 ? `-${occurrence}` : ""}`,
         postNumber: fullPostNumber,
         parentPostNumber: parent?.postNumber,
         parentDescription: parent?.description,
@@ -805,7 +772,6 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       };
       materialLines.push(materialLine);
       previousMaterialLine = materialLine;
-      seen.add(key);
     }
   }
 
@@ -817,8 +783,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       line.reviewFlags = line.reviewFlags.filter(flag => flag !== "missing-quantity");
     }
   }
-  return materialLines.filter(line => !pages.find(page => page.pageNumber === line.sourcePage)?.postTable
-    || line.postNumber?.includes("."));
+  return materialLines;
 }
 
 function mergeLeadingPageContinuation({
@@ -1184,7 +1149,8 @@ function resolveStructuredCategory(
 }
 
 function inferOperation(text: string, hasQuantity: boolean) {
-  if (/demontering|demontere|frakobling|fjerne|riving/.test(text)) {
+  const affirmative = text.replace(/\b(?:skal\s+ikke|ikke|skal\s+inte|inte|not)\s+(?:(?:bli|blive|vara|være|be)\s+)?(?:demonter\w*|fjern\w*|frakobl\w*|riv\w*)/g, "");
+  if (/demontering|demontere|frakobling|fjerne|riving/.test(affirmative)) {
     return "remove" as const;
   }
   if (/montering|installasjon|levering/.test(text) || hasQuantity) {

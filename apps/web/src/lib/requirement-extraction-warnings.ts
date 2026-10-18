@@ -5,6 +5,12 @@ export function requirementExtractionWarnings(requirement: Record<string, unknow
   const value = record(requirement.value_json);
   const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
   const warnings: string[] = [];
+  if (flags.includes('unverified-post-source')) warnings.push('Postens placering eller sidans fullständiga postkolumn kunde inte verifieras. Posten visas ändå; kontrollera postnummer och text mot original-PDF:n.');
+  if (flags.includes('recovered-source-post')) warnings.push('Posten har bevarats från PDF-källan efter postnummerkontrollen. Kontrollera beskrivning, postgräns och eventuell mängd mot originalet.');
+  if (flags.includes('fallback-source-post')) warnings.push('Posten har bevarats med reservläsaren. Kontrollera postnummer, kravtext och eventuell mängd i PDF-filen.');
+  if (flags.includes('duplicate-post-number')) warnings.push('Samma postnummer förekommer flera gånger. Alla förekomster har behållits; kontrollera vilken text och mängd som hör till varje post.');
+  if (flags.includes('empty-post-body')) warnings.push('Postnumret är läst men beskrivningen är tom eller otydlig. Posten har behållits för kontroll.');
+  if (flags.includes('invalid-source-quantity')) warnings.push('Mängdvärdet i källan behöver kontrolleras. Posten har behållits.');
   if (flags.includes('low-ocr-confidence')) warnings.push('OCR-texten har låg säkerhet. Kontrollera postnummer, mängd, dimension och övriga krav mot original-PDF:n.');
   if (flags.includes('missing-parent-context')) warnings.push('Underpostens huvudpost och gemensamma krav har inte kunnat identifieras. Kontrollera material, anslutning och övriga krav i PDF-filen.');
   if (flags.includes('unknown-category') && !isCableTrunkingProduct(String(requirement.value_text ?? requirement.display_name ?? ''))) warnings.push('PDF-postens huvudprodukt har inte kunnat identifieras säkert. Kontrollera produktgruppen före produktval.');

@@ -31,6 +31,10 @@ export function ProjectPostSpecification({ id, details: sourceDetails, descripti
   const hasHeading = description && !fields.some(field => description.toLocaleLowerCase().startsWith(`${field.label.toLocaleLowerCase()}:`));
   const postLabel = details.postNumber ? `PDF-post ${details.postNumber}` : `PDF · sida ${details.sourcePage ?? "—"}`;
   return <div className="overflow-x-auto border border-neutral-300 bg-white text-sm leading-6 text-neutral-950">
+    {Boolean(details.sourceWarnings?.length) && <div role="status" className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">
+      <strong>Kontroller PDF-posten</strong>
+      <ul className="list-disc pl-5">{details.sourceWarnings!.map(warning => <li key={warning}>{warning}</li>)}</ul>
+    </div>}
     {columnLayout && <div className="border-b border-neutral-300 px-3 py-2"><PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} /></div>}
     <div className={columnLayout ? "grid min-w-[52rem] grid-cols-[6.5rem_minmax(18rem,1fr)_4rem_5rem_5rem_5rem]" : "grid sm:grid-cols-[6.5rem_minmax(0,1fr)]"}>
       {columnLayout && ["Postnr.", "Beskrivelse", "Enh.", "Antall", "Pris", "Sum"].map(label => <div key={label} className="border-b border-r border-neutral-300 px-3 py-2 font-bold last:border-r-0">{label}</div>)}

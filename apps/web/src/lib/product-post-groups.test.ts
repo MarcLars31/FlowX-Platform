@@ -370,9 +370,11 @@ Sprinkleranlegg: Våtanlegg
 SPRINKLER
 Antall stk 67
 Sprinkleranlegg: Våtanlegg` }]);
-  assert.equal(result.materialLines.length, 2);
-  assert.equal(result.materialLines[0].parentPostNumber, "33.500");
-  assert.equal(result.materialLines[0].parentDescription, "Utstyr for brannslokking med sprinkler");
+  assert.equal(result.materialLines.length, 3);
+  assert.equal(result.materialLines[0].postNumber, "33.500");
+  assert.equal(result.materialLines[0].quantity, undefined);
+  assert.equal(result.materialLines[1].parentPostNumber, "33.500");
+  assert.equal(result.materialLines[1].parentDescription, "Utstyr for brannslokking med sprinkler");
   const rows = result.materialLines.map(line => ({ id: line.id, value_json: line }));
-  assert.equal(productPostNavigationGroups(rows)[0].posts[0].heading?.postNumber, "33.500");
+  assert.equal(productPostNavigationGroups(rows)[0].posts[0].requirement?.value_json.postNumber, "33.500");
 });

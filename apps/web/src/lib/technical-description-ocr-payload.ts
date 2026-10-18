@@ -1,3 +1,4 @@
+import { textPostInventory } from "@/modules/technical-description-extractor/post-inventory";
 import type { TechnicalDescriptionPage } from "@/modules/technical-description-extractor/types";
 
 import { pageRequiresOcr, MIN_TEXT_PAGE_LENGTH } from "@/modules/technical-description-extractor/pdf-ocr-detection";
@@ -96,12 +97,22 @@ export function mergeClientOcrPages(
     // Reading only the same digital header has not recovered the image body.
     if (serverPage.ocrReason && clientPage.text.replace(/\s+/g, "") === serverPage.text.replace(/\s+/g, "")) return serverPage;
     const readable = clientPage.text.length >= minimumReadableLength && clientPage.confidence >= 0.7;
+    // The OCR text can miss a number that was readable digitally. Keep those
+    // independent source blocks too, without reusing obsolete table line indices.
+    const postInventory = textPostInventory(clientPage.text);
+    const remaining = [...postInventory.posts];
+    for (const post of serverPage.postInventory?.posts ?? []) {
+      const index = remaining.findIndex(candidate => candidate.postNumber === post.postNumber);
+      if (index >= 0) remaining.splice(index, 1);
+      else postInventory.posts.push(post);
+    }
     return {
       ...serverPage,
       pageNumber: serverPage.pageNumber,
       text: clientPage.text,
       // Digital coordinates/line indices no longer describe the replacement OCR text.
       postTable: undefined,
+      postInventory,
       ocrReason: readable ? undefined : serverPage.ocrReason,
       method: "ocr",
       confidence: Math.min(Math.max(clientPage.confidence, 0), 1),

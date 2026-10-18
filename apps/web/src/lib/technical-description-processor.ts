@@ -436,7 +436,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
       const existingProjectDocuments = await selectUserRows<ProjectDocumentRow>(
         "project_documents",
         {
-          select: "id,upload_status,processing_status,storage_bucket,storage_path",
+          select: "id,upload_status,processing_status,storage_bucket,storage_path,import_summary",
           organization_id: `eq.${authorization.context.organization.id}`,
           project_id: `eq.${projectId}`,
           checksum: `eq.${fileSha256}`,
@@ -473,7 +473,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
             order: "id.asc"
           })
         ]);
-        if (isCompleteTechnicalDescription(
+        if (projectDocument?.import_summary?.version === TECHNICAL_IMPORT_VERSION && isCompleteTechnicalDescription(
           projectDocument!.processing_status,
           persistedLines.length,
           persistedRequirements.length,
@@ -564,7 +564,9 @@ export async function processTechnicalDescription(request: Request, authorizatio
           document: result.document,
           project: result.project,
           standards: result.standards,
-          warnings: result.warnings
+          warnings: result.warnings,
+          postChecks: result.postChecks,
+          pageChecks: result.pageChecks
         },
         created_by: authorization.user.id
       };

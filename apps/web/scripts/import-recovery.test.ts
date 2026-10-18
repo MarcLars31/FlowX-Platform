@@ -120,7 +120,8 @@ test("interrupted PDF persistence resumes without duplicates and preserves chapt
   assert.equal(third.status,200); assert.equal(rows.project_requirements.length,2);
   delete rows.project_documents[0].import_summary;
   const legacy = await processTechnicalDescription(request(),auth,db);
-  assert.equal(legacy.status,200);
+  assert.equal(legacy.status,201, "Older imports must reconcile source identities even when row counts match");
+  assert.equal(rows.project_requirements.length,2);
   assert.ok(rows.project_documents[0].import_summary,"an older completed document receives a compact summary after verification");
   const cachedLegacy = await processTechnicalDescription(request(),auth,db,{extractPages:async()=>assert.fail("Verified legacy duplicates must also reuse their summary")});
   assert.equal(cachedLegacy.status,200);

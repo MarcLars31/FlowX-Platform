@@ -174,7 +174,7 @@ test('existing rows recover a uniquely identified post without overwriting a sav
  const value = enriched.value_json as Record<string, unknown>;
  assert.equal(value.postNumber, 'B2.30.33.332.2.2');
  assert.equal(value.nsCode, 'UB1.1199999932A');
- assert.deepEqual(value.reviewFlags, []);
+ assert.deepEqual(value.reviewFlags, ["unverified-post-source"]);
  assert.equal((value.attributes as Record<string, string>).materiale, 'Stålrør');
  const [corrected] = enrichProjectRequirements([{...stored, value_json: {...stored.value_json, attributes: {dimensjon: 'DN40'}}}], [{id: 'doc', source_pages: pages}]);
  const correctedValue = corrected.value_json as Record<string, unknown>;

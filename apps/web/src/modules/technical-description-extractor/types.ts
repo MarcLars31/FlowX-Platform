@@ -20,6 +20,8 @@ export type TechnicalDescriptionPage = {
   /** The body needs OCR despite a readable digital header/footer. */
   ocrReason?: "image-body" | "vector-body" | "body-check-failed";
   /** Verified digital table columns; indices refer to normalized text lines. */
+  /** Independent inventory of physical post-number cells, before classification. */
+  postInventory?: import("./post-inventory").PostInventory;
   postTable?: {
     text: string;
     siteTitle: string;
@@ -113,6 +115,7 @@ export type TechnicalDescriptionWarning = {
 
 export type TechnicalDescriptionExtractionResult = {
   structure?: Omit<import("./document-structure").PdfDocumentStructure, "pages">;
+  postChecks?: import("./post-coverage").PostCoverageCheck[];
   pageChecks?: Array<{
     sourcePage: number;
     observedQuantityRows: number;

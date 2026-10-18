@@ -1,7 +1,9 @@
+import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
 import { currentPostRequirement } from "./current-post-requirement";
 import { projectRequirementKFactorDisplayValue } from "./project-requirement-data-warnings";
 
 export type ProjectRequirementDetail = {
+  sourceWarnings?: string[];
   postNumber: string | null;
   chapterPost: string | null;
   parentPostNumber: string | null;
@@ -33,6 +35,7 @@ export function projectRequirementDetails(
   if (sourceKFactor) attributes["k-faktor"] = sourceKFactor;
 
   return {
+    sourceWarnings: requirementExtractionWarnings(requirement),
     postNumber: text(value.postNumber) ?? postNumberFromSource(sourceExcerpt),
     chapterPost,
     parentPostNumber: text(value.parentPostNumber),

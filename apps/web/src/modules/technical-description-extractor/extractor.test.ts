@@ -476,7 +476,7 @@ test("extracts GAB rows where quantity precedes a wrapped post number", () => {
     ]
   );
   assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes.trykk, "12 bar");
-  assert.equal(result.warnings.length, 0);
+  assert.deepEqual(result.warnings.map(warning => warning.code), ["POST_INVENTORY_UNVERIFIED"]);
 });
 
 test("keeps all quantified rows when full and split post formats are mixed", () => {
@@ -525,7 +525,7 @@ test("keeps all quantified rows when full and split post formats are mixed", () 
     ]
   );
   assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].attributes["k-faktor"], "80");
-  assert.equal(result.warnings.length, 0);
+  assert.deepEqual(result.warnings.map(warning => warning.code), ["POST_INVENTORY_UNVERIFIED"]);
 });
 
 test("uses UB1.3311 to classify a sprinkler hose instead of rigid pipe", () => {
@@ -595,7 +595,7 @@ test("joins project-prefixed post numbers split across lines", () => {
   assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].parentPostNumber, "120000.30.331.2");
   assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].quantity, 35.4);
   assert.equal(result.materialLines.filter(line => line.quantity !== undefined)[0].unit, "m");
-  assert.equal(result.warnings.length, 0);
+  assert.deepEqual(result.warnings.map(warning => warning.code), ["POST_INVENTORY_UNVERIFIED"]);
 });
 
 test("keeps full wrapped E04 post numbers after references in the specification", () => {

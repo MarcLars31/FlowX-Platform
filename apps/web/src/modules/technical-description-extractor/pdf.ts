@@ -11,6 +11,7 @@ import {
   shouldPreferPdfLayoutText
 } from "./pdf-layout";
 
+import { pdfPostInventoryFromItems } from "./post-inventory";
 import { sitePostTableFromPdfItems } from "./pdf-post-table";
 
 import { nonTextBodyOcrReason, pageRequiresOcr, MIN_TEXT_PAGE_LENGTH } from "./pdf-ocr-detection";
@@ -65,6 +66,7 @@ export async function extractPagesFromDocument(
           pageNumber,
           text,
           ...(postTable && !ocrReason ? { postTable } : {}),
+          postInventory: pdfPostInventoryFromItems(content.items),
           ...(ocrReason ? { ocrReason } : {}),
           method: "text",
           confidence: readable ? 0.98 : text ? 0.55 : 0,

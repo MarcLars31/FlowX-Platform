@@ -11,6 +11,7 @@ export function clientTechnicalDescriptionResult(
     project: result.project,
     structure: options.summaryOnly ? undefined : result.structure,
     pageChecks: options.summaryOnly ? undefined : result.pageChecks,
+    postChecks: options.summaryOnly ? undefined : result.postChecks,
     materialLines: (options.summaryOnly ? [] : result.materialLines).map((line) => {
       const clientLine = { ...line };
       delete clientLine.technicalSpecification;
