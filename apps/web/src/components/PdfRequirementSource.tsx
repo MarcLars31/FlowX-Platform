@@ -14,16 +14,17 @@ export function PdfSourceDocument({ fileName, page, href, pageLabel }: {
   </p>;
 }
 
-export function PdfInheritedRequirements({ specification, postNumber }: {
+export function PdfInheritedRequirements({ specification, postNumber, defaultOpen = false }: {
   specification: string;
   postNumber: string | null;
+  defaultOpen?: boolean;
 }) {
   const inherited = projectRequirementSourceSections(specification, postNumber)
     .filter(section => section.relation !== "current");
   const unique = inherited.filter((section, index) => inherited.findIndex(other => other.postNumber === section.postNumber && other.text === section.text) === index);
   if (inherited.length === 0) return null;
 
-  return <details aria-label="Felles krav" className="border-t border-neutral-200 p-3 text-sm [overflow-wrap:anywhere]">
+  return <details open={defaultOpen || undefined} aria-label="Felles krav" className="border-t border-neutral-200 p-3 text-sm [overflow-wrap:anywhere]">
     <summary className="cursor-pointer">Felles krav</summary>
     <dl className="mt-3 space-y-4">
       {unique.map((section, index) => <div key={index}>

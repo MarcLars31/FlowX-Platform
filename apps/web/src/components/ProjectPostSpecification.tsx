@@ -2,10 +2,12 @@ import { PdfInheritedRequirements, PdfSourceDocument } from "./PdfRequirementSou
 import { projectRequirementSourceSections } from "@/lib/project-requirement-source";
 import { projectRequirementPageLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
 import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
+import type { ReactNode } from "react";
+import { pdfPostDisplayText } from "@/lib/pdf-post-display-text";
 
 /** One saved product post. Related requirements and uncertain source readings
  * remain accessible separately; the original PDF opens outside the card. */
-export function ProjectPostSpecification({ id, details, description, quantity, sourcePdfHref, sourcePdfFileName, pdfArticleNumber }: {
+export function ProjectPostSpecification({ id, details, description, quantity, sourcePdfHref, sourcePdfFileName, pdfArticleNumber, relatedPosts }: {
   id: string;
   details: ProjectRequirementDetail;
   description: string;
@@ -13,6 +15,7 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
   sourcePdfHref?: string | null;
   sourcePdfFileName?: string | null;
   pdfArticleNumber?: string | null;
+  relatedPosts?: ReactNode;
 }) {
   const sections = projectRequirementSourceSections(details.sourceExcerpt ?? "", details.postNumber);
   const own = sections.filter(section => section.relation === "current" || (!section.postNumber && sections.length === 1));
@@ -42,8 +45,9 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
     {warnings.length > 0 && <div role="status" className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">
       <p>Kontroller PDF-posten</p><ul className="list-disc pl-5">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
     </div>}
+    {relatedPosts && <><PdfInheritedRequirements specification={inherited} postNumber={details.postNumber} defaultOpen />{relatedPosts}</>}
     <div aria-label="Produktpost" className="p-3">
-      <pre className="m-0 whitespace-pre-wrap break-words font-sans text-sm font-normal leading-relaxed">{body}</pre>
+      <pre className="m-0 whitespace-pre-wrap break-words font-sans text-sm font-normal leading-relaxed">{pdfPostDisplayText(body)}</pre>
       {/* Verified description text excludes the physical quantity cells. Legacy
           text retains its quantity row verbatim; never add a second copy or
           delete a matching amount that may describe something else. */}
@@ -52,7 +56,7 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
         <span>Antall: {details.pdfColumnValues?.quantity ?? quantity.quantity ?? ""}</span>
       </div>}
     </div>
-    <PdfInheritedRequirements specification={inherited} postNumber={details.postNumber} />
+    {!relatedPosts && <PdfInheritedRequirements specification={inherited} postNumber={details.postNumber} />}
     {uncertain.length > 0 && <details className="border-t border-amber-300 bg-amber-50 p-3">
       <summary className="cursor-pointer">Kildetekst med usikker postgrense</summary>
       {uncertain.map((reading, index) => <pre key={index} className="mt-3 whitespace-pre-wrap break-words font-sans font-normal">{reading}</pre>)}

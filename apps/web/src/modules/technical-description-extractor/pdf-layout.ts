@@ -34,11 +34,7 @@ export function layoutTextFromPdfItems(items: readonly unknown[]) {
     }
   }
 
-  return lines
-    .sort((left, right) => right.y - left.y)
-    .map((line) => renderLine(line.items))
-    .filter(Boolean)
-    .join("\n");
+  return renderColumnLines(lines.sort((left, right) => right.y - left.y), LINE_TOLERANCE);
 }
 
 /**
@@ -71,9 +67,32 @@ export function layoutTextFromOcrBlocks(blocks: readonly unknown[] | null | unde
     }
   }
 
+  return renderColumnLines(lines.sort((left, right) => left.y - right.y), tolerance);
+}
+
+function renderColumnLines(lines: LayoutLine[], tolerance: number) {
+  let columns: { unitLeft: number; unitRight: number; amountRight: number } | undefined;
   return lines
-    .sort((left, right) => left.y - right.y)
-    .map((line) => renderLine(line.items))
+    .map((line) => {
+      const unit = line.items.find(item => /^(?:Enh|Enhet|Enhed)[.:]?$/i.test(item.str));
+      const amount = line.items.find(item => /^(?:Mengde|Mengd|Mängd|Antall|Antal)[.:]?$/i.test(item.str));
+      const price = line.items.find(item => /^(?:Pris|Enhetspris)[.:]?$/i.test(item.str));
+      if (unit && amount && price && unit.x + unit.width < amount.x && amount.x + amount.width < price.x) {
+        columns = { unitLeft: unit.x - tolerance * 3, unitRight: (unit.x + unit.width + amount.x) / 2,
+          amountRight: (amount.x + amount.width + price.x) / 2 };
+      } else if (columns) {
+        const { unitLeft, unitRight, amountRight } = columns;
+        const unitItems = line.items.filter(item => item.x >= unitLeft && item.x < unitRight);
+        if (/^(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|liter|l)\.?$/i.test(renderLine(unitItems))) {
+          // Explicitly retain an empty amount cell. A large visual gap alone
+          // would otherwise place the price directly after the unit.
+          return [renderLine(line.items.filter(item => item.x < unitLeft)), renderLine(unitItems),
+            renderLine(line.items.filter(item => item.x >= unitRight && item.x < amountRight)).replace(/\t/g, " "),
+            renderLine(line.items.filter(item => item.x >= amountRight))].join("\t").trimEnd();
+        }
+      }
+      return renderLine(line.items);
+    })
     .filter(Boolean)
     .join("\n");
 }
@@ -84,7 +103,17 @@ export function shouldPreferPdfLayoutText(plainText: string, layoutText: string)
   const hasTableHeader = /postnr\.?/i.test(combined)
     && /(?:mengde|enhet|enhetspris|sum)/i.test(combined);
   const hasStructuredRows = /^\s*\d+(?:\.\d+)+\s+.+\s+(?:stk|st|m|lm|meter|kg|l)\.?\s+\d/im.test(layoutText);
-  return hasTableHeader && hasStructuredRows;
+  return hasTableHeader && (hasStructuredRows || hasAmbiguousQuantityCells(layoutText));
+}
+
+function hasAmbiguousQuantityCells(text: string) {
+  return text.split("\n").some(line => {
+    const cells = line.match(/(?:^|\t)(?:stk|st|m|lm|m²|m³|kg|l)\.?\t([^\t\n]*)\t([^\t\n]*)/i);
+    // Keep the existing text stream for other layouts (including wrapped post
+    // numbers). Prefer coordinates when a blank amount or integer price could
+    // be mistaken for the quantity or its thousands-separated suffix.
+    return cells && (!cells[1].trim() || /^\d+$/.test(cells[2].trim()));
+  });
 }
 
 export function shouldPreferOcrLayoutText(plainText: string, layoutText: string) {
@@ -92,7 +121,8 @@ export function shouldPreferOcrLayoutText(plainText: string, layoutText: string)
   const plain = ocrTableSignals(plainText);
   const layout = ocrTableSignals(layoutText);
 
-  return layout.quantities > plain.quantities
+  return (hasAmbiguousQuantityCells(layoutText) && layout.posts >= plain.posts && layout.codes >= plain.codes)
+    || layout.quantities > plain.quantities
     || layout.posts > plain.posts + 1
     || (layout.quantities === plain.quantities
       && layout.posts > plain.posts

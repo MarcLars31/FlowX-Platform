@@ -372,10 +372,7 @@ function extractLegacyMaterialLines(
 
   for (const page of pages) {
     if (isNonMaterialReferencePage(page.text)) continue;
-    const pageLines = page.text
-      .split(/\r?\n/)
-      .map((line) => line.replace(/\s+/g, " ").trim())
-      .filter(Boolean);
+    const pageLines = normalizedPageLines(page.text);
     let current: ParsedBlock | undefined;
     let pendingPostNumber: string | undefined;
 

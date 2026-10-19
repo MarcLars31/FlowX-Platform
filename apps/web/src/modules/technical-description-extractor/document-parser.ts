@@ -76,7 +76,7 @@ export function parseStructuredPostStart(
   lines: string[],
   lineIndex: number
 ): StructuredPostStart | undefined {
-  const line = lines[lineIndex];
+  const line = withoutPriceColumns(lines[lineIndex]);
   if (isTechnicalDescriptionDateHeader(line.split(/\s+/)[0])) return undefined;
   // Wrapped IO-list identifiers are references inside a specification, not
   // rows in the post-number column.
@@ -394,8 +394,18 @@ export function footerIndex(lines: string[], afterIndex: number) {
 export function normalizedPageLines(text: string) {
   return text
     .split(/\r?\n/)
-    .map((line) => normalizeOcrArtifacts(line.replace(/\s+/g, " ").trim()))
+    .map((line) => normalizeOcrArtifacts(withoutPriceColumns(line).replace(/\s+/g, " ").trim()))
     .filter(Boolean);
+}
+
+/** Tabs are physical cell boundaries. Consume exactly the cell after the unit,
+ * including an empty cell; prices must not become a quantity or its suffix.
+ * Spaces inside one quantity cell (e.g. 1 234,50) remain significant. */
+function withoutPriceColumns(line: string) {
+  if (!line.includes("\t")) return line;
+  const cells = line.split("\t");
+  const unitCell = cells.findIndex(cell => new RegExp(`(?:^|\\s)${QUANTITY_UNIT_SOURCE}\\.?$`, "i").test(cell.trim()));
+  return unitCell < 0 || unitCell + 1 >= cells.length ? line : cells.slice(0, unitCell + 2).join(" ");
 }
 
 export function extractPostScope(lines: string[]) {
@@ -434,7 +444,7 @@ function isTableFooter(value: string) {
 
 export function findTableQuantity(lines: string[]) {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    let line = lines[lineIndex];
+    let line = withoutPriceColumns(lines[lineIndex]);
     // PDF text streams can place a row's label, unit and amount on separate
     // consecutive lines. Join only a complete quantity, never the next post.
     const label = String.raw`(?:(?:Samlet\s+)?Lengde|Antall|Areal|Volum|Vekt|Masse)`;

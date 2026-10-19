@@ -7,6 +7,8 @@ import { type ComponentProps, type ReactNode, useCallback, useEffect, useEffectE
 import { createProjectDeliveryResource, type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
+import { ProductPostRequirements } from "@/components/ProductPostRequirements";
+import { productPostSelectionGroup, type ProductPostSelectionGroup } from "@/lib/product-post-selection";
 import { ProductPostNavigation } from "@/components/ProductPostNavigation";
 import { Button } from "@/components/Button";
 import { ManualProductCard, type ManualProductChoice } from "@/components/ManualProductCard";
@@ -155,6 +157,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const [productCardDirty, setProductCardDirty] = useState(false);
   const activeIndex = queueRequirements.findIndex(requirement => requirement.id === activeRequirementId);
   const activeRequirement = queueRequirements[activeIndex];
+  const activePostGroup = useMemo(() => activeRequirementId ? productPostSelectionGroup(mainPostGroups, activeRequirementId) : undefined, [mainPostGroups, activeRequirementId]);
   const activeAssignment = activeRequirement ? approvedAssignmentByRequirementId.get(activeRequirement.id) : undefined;
   const handledCount = listedRequirements.filter(requirement => handledRequirementIds.has(requirement.id)).length;
   useEffect(() => {
@@ -306,6 +309,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
             <LazyRequirementProductMappingCard
               key={`${activeRequirement.id}:${String(activeRequirement.edit_revision ?? "")}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
               projectId={projectId} currency={currency} requirement={activeRequirement} assignment={activeAssignment}
+              postGroup={activePostGroup} onSelectPost={showRequirement}
               sourcePdfHref={projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup)}
               sourcePdfFileName={projectRequirementSourcePdfFileName(activeRequirement, sourcePdfLookup)}
               position={activeIndex + 1}
@@ -365,7 +369,7 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
   </div>;
 }
 
-function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, postGroup, onSelectPost, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   currency: string;
   requirement: Row;
@@ -374,6 +378,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   sourcePdfFileName: string | null;
   position: number;
   memories: Row[];
+  postGroup?: ProductPostSelectionGroup;
+  onSelectPost: (id: string) => boolean;
   onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onSavingChange: (saving: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -988,7 +994,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       {({ postComments, productComments }) => <>
       {requirement.can_edit === false && <p className="product-readonly-notice">Läsläge: posten är tilldelad en annan person. Projektansvarig kan ändra tilldelningen.</p>}
       <article id={`post-${requirement.id}`} className="product-mapping-card">
-      <fieldset disabled={requirement.can_edit === false} className="contents">
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
         <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{projectRequirementPageLabel(details)}</span></div>
         <div className="product-requirement-content">
@@ -1012,6 +1017,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           ))}
 
           <ProjectPostSpecification id={"full-" + requirement.id} details={details}
+              relatedPosts={postGroup && <ProductPostRequirements group={postGroup} activeRequirementId={requirement.id}
+                disabled={saving || attachmentSaving || commentsSaving} onSelect={onSelectPost} />}
               description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
               quantity={quantity}
               sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
@@ -1025,6 +1032,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         </div>
       </section>
 
+      <fieldset disabled={requirement.can_edit === false} className="contents">
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="product-mapping-fields">
         <div id={`product-selection-header-${requirement.id}`} className="product-action-bar">
           <nav id={`product-post-actions-${requirement.id}`} aria-label="Handlinger for produktposten" className="product-post-actions">
