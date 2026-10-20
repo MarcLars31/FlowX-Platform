@@ -15,23 +15,29 @@ export function PdfSourceDocument({ fileName, page, href, pageLabel }: {
   </p>;
 }
 
-export function PdfInheritedRequirements({ specification, postNumber, defaultOpen = false }: {
+export function PdfInheritedRequirements({ specification, postNumber, defaultOpen = false, alwaysVisible = false }: {
   specification: string;
   postNumber: string | null;
   defaultOpen?: boolean;
+  alwaysVisible?: boolean;
 }) {
   const inherited = projectRequirementSourceSections(specification, postNumber)
     .filter(section => section.relation !== "current");
   const unique = inherited.filter((section, index) => inherited.findIndex(other => other.postNumber === section.postNumber && other.text === section.text) === index);
   if (inherited.length === 0) return null;
 
-  return <details open={defaultOpen || undefined} aria-label="Felles krav" className="border-t border-neutral-200 p-3 text-sm [overflow-wrap:anywhere]">
-    <summary className="cursor-pointer">Felles krav</summary>
-    <dl className="mt-3 space-y-4">
+  const content = <dl className="mt-3 space-y-4">
       {unique.map((section, index) => <div key={index}>
         <dt className="font-normal text-neutral-600">{section.postNumber ? `Fra post ${section.postNumber}` : "Felles kildetekst"}</dt>
         <dd className="mt-1 whitespace-pre-wrap font-normal leading-relaxed text-neutral-900">{pdfPostDisplayText(section.text)}</dd>
       </div>)}
-    </dl>
+    </dl>;
+  if (alwaysVisible) return <section aria-label="Felles krav" className="border-t border-neutral-200 p-3 text-sm [overflow-wrap:anywhere]">
+    <h3>Felles krav</h3>
+    {content}
+  </section>;
+  return <details open={defaultOpen || undefined} aria-label="Felles krav" className="border-t border-neutral-200 p-3 text-sm [overflow-wrap:anywhere]">
+    <summary className="cursor-pointer">Felles krav</summary>
+    {content}
   </details>;
 }

@@ -433,6 +433,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [attachmentMessage, setAttachmentMessage] = useState<string | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const details = projectRequirementDetails(requirement);
+  const currentPostIsHeading = !postGroup || postGroup.postNumber === details.postNumber;
   const dataWarnings = projectRequirementDataWarnings(requirement);
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
@@ -997,6 +998,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
         <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{projectRequirementPageLabel(details)}</span></div>
         <div className="product-requirement-content">
+          <section aria-label="Kapittelpost" className="mb-4">
+            <ProjectPostSpecification id={"heading-" + requirement.id} details={details} section="heading"
+              currentPostIsHeading={currentPostIsHeading}
+              description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
+              quantity={quantity}
+              sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
+          </section>
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
               <summary className="cursor-pointer text-sm font-bold text-neutral-800">Lagrede merknader til PDF-grunnlaget</summary>
@@ -1016,12 +1024,13 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </div>
           ))}
 
-          <ProjectPostSpecification id={"full-" + requirement.id} details={details}
-              relatedPosts={postGroup && <ProductPostRequirements group={postGroup} activeRequirementId={requirement.id}
+          {postGroup && <ProjectPostSpecification id={"full-" + requirement.id} details={details} section="detail"
+              currentPostIsHeading={currentPostIsHeading}
+              relatedPosts={<ProductPostRequirements group={postGroup} activeRequirementId={requirement.id}
                 disabled={saving || attachmentSaving || commentsSaving} onSelect={onSelectPost} />}
               description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
               quantity={quantity}
-              sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
+              sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />}
 
           <div className="product-post-extras">
           <details>

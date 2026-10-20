@@ -1,12 +1,12 @@
 {
-  "version": "scipx-product-rules-2026-10-20.1",
+  "version": "scipx-product-rules-2026-10-20.2",
   "sources": {
-    "../components/DistributorMappingPanel.tsx": "3294c628fadbcfe4c59a40af8313b50b9a0ccddb5b5b37537b4f62091893b867",
+    "../components/DistributorMappingPanel.tsx": "3fa652c8c39789dce5907e04b57a19fed3c5a958bbef1372336e91cca19acf4d",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
-    "../components/PdfRequirementSource.tsx": "dbb5c49ffc7cbbd3f734a91751b863f841c0b65f32fdbfd0f0102b54accabf6b",
+    "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",
     "../components/ProductPostNavigation.tsx": "7d651d7d9ff8541d9058fbcd5fa4e9ddf9b7e0332147bb570a7a339add8c46d7",
     "../components/ProductPostRequirements.tsx": "86947787cc690bbab7ae81c7cdc30b6c46ca45579e6fb185258e4b4315284bdc",
-    "../components/ProjectPostSpecification.tsx": "4c0d225dcf3d4178398b81bc0e9d75b5c86a384357200c505b177137b63396d6",
+    "../components/ProjectPostSpecification.tsx": "238c0b556e2c8e5adc7352a3b97ecbb079483360b776c4ff3aff103062371159",
     "../modules/technical-description-extractor/document-parser.ts": "132535367e9da5c380ec90a67439c6585d35e4dd155f7eabd121cb5a4fac8b44",
     "../modules/technical-description-extractor/extractor.ts": "c9d0efa89ec86184466fdeaefdb1556cee48901ad4048fd7d40d3b2673166c04",
     "../modules/technical-description-extractor/pdf-layout.ts": "c9a2feee5b26917fbce84d962457630cfce27adfd32a2c342fa4cb765c0a7b52",
