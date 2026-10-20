@@ -1,4 +1,5 @@
 import { projectRequirementSourceSections } from "@/lib/project-requirement-source";
+import { pdfPostDisplayText } from "@/lib/pdf-post-display-text";
 
 export function PdfSourceDocument({ fileName, page, href, pageLabel }: {
   fileName: string | null;
@@ -29,7 +30,7 @@ export function PdfInheritedRequirements({ specification, postNumber, defaultOpe
     <dl className="mt-3 space-y-4">
       {unique.map((section, index) => <div key={index}>
         <dt className="font-normal text-neutral-600">{section.postNumber ? `Fra post ${section.postNumber}` : "Felles kildetekst"}</dt>
-        <dd className="mt-1 whitespace-pre-wrap font-normal leading-relaxed text-neutral-900">{section.text}</dd>
+        <dd className="mt-1 whitespace-pre-wrap font-normal leading-relaxed text-neutral-900">{pdfPostDisplayText(section.text)}</dd>
       </div>)}
     </dl>
   </details>;

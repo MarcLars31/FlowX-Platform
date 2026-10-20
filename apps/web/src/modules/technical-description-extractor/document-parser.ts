@@ -1,4 +1,5 @@
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
+import { normalizePdfMeasurementUnit } from "@/lib/pdf-measurement-unit";
 import { numberedPostHeading } from "./numbered-post-heading";
 import { isPdfTableTotalFooter, normalizeOcrDnTokens, pdfLumpSumLine } from "@/lib/pdf-post-text";
 
@@ -402,6 +403,7 @@ export function normalizedPageLines(text: string) {
  * including an empty cell; prices must not become a quantity or its suffix.
  * Spaces inside one quantity cell (e.g. 1 234,50) remain significant. */
 function withoutPriceColumns(line: string) {
+  line = normalizePdfMeasurementUnit(line);
   if (!line.includes("\t")) return line;
   const cells = line.split("\t");
   const unitCell = cells.findIndex(cell => new RegExp(`(?:^|\\s)${QUANTITY_UNIT_SOURCE}\\.?$`, "i").test(cell.trim()));
@@ -450,7 +452,7 @@ export function findTableQuantity(lines: string[]) {
     const label = String.raw`(?:(?:Samlet\s+)?Lengde|Antall|Areal|Volum|Vekt|Masse)`;
     if (new RegExp(String.raw`^(?:${label}(?:\s+${QUANTITY_UNIT_SOURCE})?|${QUANTITY_UNIT_SOURCE})\.?$`, "i").test(line)) {
       for (let count = 2; count <= 3; count++) {
-        const candidate = lines.slice(lineIndex, lineIndex + count).join(" ");
+        const candidate = withoutPriceColumns(lines.slice(lineIndex, lineIndex + count).join(" "));
         if (new RegExp(String.raw`^(?:${label}\s+)?${QUANTITY_UNIT_SOURCE}\.?\s+${QUANTITY_NUMBER_SOURCE}(?:\s+${QUANTITY_NUMBER_SOURCE}){0,3}$`, "i").test(candidate)) {
           line = candidate;
           break;

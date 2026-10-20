@@ -60,3 +60,27 @@ test("unrecognized section identities stay separate and marked, with no discarde
   assert.match(html, /Kildetekst med usikker postgrense/);
   assert.match(html, /Dokumentasjon kreves/);
 });
+
+test("area prices are hidden in own, inherited, uncertain and reimport source text without changing saved data", () => {
+  const source = "Areal m 2 2300,00 0,00 0,00\n\n22.25.2 TH2.121\nHALVHARDT BELEGG PÅ GULV\nAreal m2 2300,00 0,00 0,00";
+  const details = {
+    ...projectRequirementDetails({ value_json: { postNumber: "22.25.2",
+      technicalSpecification: "22.25.2 TH2.121\nHALVHARDT BELEGG PÅ GULV\nAreal m 2 2300,00 0,00 0,00" } }),
+    inheritedSpecification: "22.25 GULV\nAreal m2 2300,00 0,00 0,00",
+    sourceUnassignedReadings: [source],
+    sourceReimportReadings: [source],
+  };
+  const before = structuredClone(details);
+  const html = renderToStaticMarkup(createElement(ProjectPostSpecification, {
+    id: "area", details, description: "HALVHARDT BELEGG PÅ GULV",
+    quantity: { quantity: 2300, unit: "m2" },
+  }));
+  assert.equal(html.split("Areal m² 2300,00").length - 1, 6);
+  assert.doesNotMatch(html, /0,00 0,00/);
+  assert.match(html, /TH2\.121/);
+  assert.match(html, /HALVHARDT BELEGG PÅ GULV/);
+  assert.match(html, /Felles krav/);
+  assert.match(html, /Kildetekst med usikker postgrense/);
+  assert.match(html, /Ny PDF-läsning att granska/);
+  assert.deepEqual(details, before);
+});

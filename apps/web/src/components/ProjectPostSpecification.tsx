@@ -49,7 +49,7 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
     <div aria-label="Produktpost" className="p-3">
       <pre className="m-0 whitespace-pre-wrap break-words font-sans text-sm font-normal leading-relaxed">{pdfPostDisplayText(body)}</pre>
       {/* Verified description text excludes the physical quantity cells. Legacy
-          text retains its quantity row verbatim; never add a second copy or
+          text displays its quantity row without price/sum; never add a second copy or
           delete a matching amount that may describe something else. */}
       {(details.sourceLayout === "six-column" || !ownText) && <div className="mt-4 flex flex-wrap gap-6 border-t border-neutral-200 pt-3 text-sm">
         <span>Enh.: {details.pdfColumnValues?.unit ?? (quantity.unit === "?" ? "" : quantity.unit)}</span>
@@ -59,12 +59,12 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
     {!relatedPosts && <PdfInheritedRequirements specification={inherited} postNumber={details.postNumber} />}
     {uncertain.length > 0 && <details className="border-t border-amber-300 bg-amber-50 p-3">
       <summary className="cursor-pointer">Kildetekst med usikker postgrense</summary>
-      {uncertain.map((reading, index) => <pre key={index} className="mt-3 whitespace-pre-wrap break-words font-sans font-normal">{reading}</pre>)}
+      {uncertain.map((reading, index) => <pre key={index} className="mt-3 whitespace-pre-wrap break-words font-sans font-normal">{pdfPostDisplayText(reading)}</pre>)}
     </details>}
     {Boolean(details.sourceReimportReadings?.length) && <details className="border-t border-amber-300 bg-amber-50 p-3">
       <summary className="cursor-pointer">Ny PDF-läsning att granska</summary>
       <p className="my-2">Läsningen skiljer sig från den sparade texten. Jämför med original-PDF:n innan kraven ändras.</p>
-      {details.sourceReimportReadings!.map((reading, index) => <pre key={index} className="my-2 whitespace-pre-wrap break-words border-t border-amber-200 pt-2 font-sans font-normal">{reading}</pre>)}
+      {details.sourceReimportReadings!.map((reading, index) => <pre key={index} className="my-2 whitespace-pre-wrap break-words border-t border-amber-200 pt-2 font-sans font-normal">{pdfPostDisplayText(reading)}</pre>)}
     </details>}
     {details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <div key={key} className="border-t border-neutral-200 p-3">
       <p>PDF-kommentar</p><p className="whitespace-pre-wrap">{value}</p>

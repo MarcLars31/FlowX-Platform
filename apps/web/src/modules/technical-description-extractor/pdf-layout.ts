@@ -1,3 +1,5 @@
+import { normalizePdfUnitCell } from "@/lib/pdf-measurement-unit";
+
 type PositionedTextItem = {
   str: string;
   x: number;
@@ -83,10 +85,11 @@ function renderColumnLines(lines: LayoutLine[], tolerance: number) {
       } else if (columns) {
         const { unitLeft, unitRight, amountRight } = columns;
         const unitItems = line.items.filter(item => item.x >= unitLeft && item.x < unitRight);
-        if (/^(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|liter|l)\.?$/i.test(renderLine(unitItems))) {
+        const unitText = normalizePdfUnitCell(renderLine(unitItems));
+        if (/^(?:stk|st|pcs?|m|lm|[i1]m|meter|løpemeter|m2|m²|m3|m³|kg|liter|l)\.?$/i.test(unitText)) {
           // Explicitly retain an empty amount cell. A large visual gap alone
           // would otherwise place the price directly after the unit.
-          return [renderLine(line.items.filter(item => item.x < unitLeft)), renderLine(unitItems),
+          return [renderLine(line.items.filter(item => item.x < unitLeft)), unitText,
             renderLine(line.items.filter(item => item.x >= unitRight && item.x < amountRight)).replace(/\t/g, " "),
             renderLine(line.items.filter(item => item.x >= amountRight))].join("\t").trimEnd();
         }
