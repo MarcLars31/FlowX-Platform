@@ -14,18 +14,18 @@ test("a 3560-post import resumes after a failed batch without duplicating posts 
   let writes = 0;
   const initial = planTechnicalDescriptionRows("document-a", input, saved, key);
   await assert.rejects(persistTechnicalDescriptionBatches(initial.missing, async batch => {
-    if (++writes === 12) throw new Error("database interruption");
+    if (++writes === 3) throw new Error("database interruption");
     saved.push(...batch);
   }), /interruption/);
-  assert.equal(saved.length, 1100);
+  assert.equal(saved.length, 1000);
   const priorIds = saved.map(row => row.id);
   const retry = planTechnicalDescriptionRows("document-a", input, saved, key);
-  assert.equal(retry.missing.length, 2460);
+  assert.equal(retry.missing.length, 2560);
   assert.deepEqual(retry.rows.map(row => row.id), initial.rows.map(row => row.id));
   await persistTechnicalDescriptionBatches(retry.missing, async batch => { saved.push(...batch); });
   assert.equal(saved.length, 3560);
   assert.equal(new Set(saved.map(row => row.id)).size, 3560);
-  assert.deepEqual(saved.slice(0, 1100).map(row => row.id), priorIds);
+  assert.deepEqual(saved.slice(0, 1000).map(row => row.id), priorIds);
   assert.equal(planTechnicalDescriptionRows("document-a", input, saved, key).missing.length, 0);
 });
 
@@ -33,7 +33,7 @@ test("batches bound row count and UTF-8 size while preserving every row and orde
   const rows = Array.from({ length: 2236 }, (_, page) => ({ page, text: "å".repeat(page % 2 ? 12000 : 20) }));
   const saved: typeof rows = [];
   await persistTechnicalDescriptionBatches(rows, async batch => {
-    assert.ok(batch.length <= 100);
+    assert.ok(batch.length <= 500);
     assert.ok(Buffer.byteLength(JSON.stringify(batch)) <= 512_000);
     saved.push(...batch);
   });

@@ -18,7 +18,10 @@ export async function waitForImportJob(response: Response, fetcher: typeof fetch
     if (job.status==="awaiting_ocr") return Response.json({...job.result,jobId},{status:422});
     if (job.status==="failed" || job.status==="cancelled") return Response.json({error:typeof job.result?.error === "string" ? job.result.error : "Importen kunde inte slutföras. Öppna Importstatus för att försöka igen.",jobId},{status:503});
     const phase = `${job.status}:${job.phase}`;
-    delayMs = phase === previousPhase ? Math.min(8000, delayMs * 2) : 2000;
+    // The final database updates are brief. Do not leave a completed import
+    // hidden behind the long backoff used during parsing or queueing.
+    delayMs = job.status === "running" && job.phase === "finalizing" ? 1000
+      : phase === previousPhase ? Math.min(8000, delayMs * 2) : 2000;
     previousPhase = phase;
     report?.(job.status==="queued" ? "Importen står i kö. Du kan lämna sidan." : "Importen bearbetas. Du kan lämna sidan.");
   }

@@ -864,8 +864,10 @@ async function persistRows<T extends Record<string, unknown>>(
         ...scope, select: sourcePostSelect(table), order: "created_at.asc,id.asc"
       });
       const plan = planSourcePostRows(table, `${table}|${persistenceKey(scope)}`, payloads, existing);
-      await persistTechnicalDescriptionBatches(plan.missing, batch => db.insertUserRows(table, batch.map(row =>
-        table === "project_requirements" ? compactRequirementText(row) : table === "requirement_candidates" ? compactRequirementText(row, true) : row), {ignoreIdConflicts:true}));
+      // Size the actual stored payload, not the repeated source text before compaction.
+      const missing = plan.missing.map(row => table === "project_requirements" ? compactRequirementText(row)
+        : table === "requirement_candidates" ? compactRequirementText(row, true) : row);
+      await persistTechnicalDescriptionBatches(missing, batch => db.insertUserRows(table, batch, {ignoreIdConflicts:true}));
       await refreshSourcePostRows(table, scope, plan.rows, existing, db);
       return plan.rows;
     }
@@ -881,7 +883,7 @@ async function persistRows<T extends Record<string, unknown>>(
           }), key)
       : {rows:fresh.rows,missing:fresh.rows.filter(row => !savedIds.has(row.id))};
     await persistTechnicalDescriptionBatches(plan.missing, batch =>
-      db.insertUserRows(table, batch.map(row => table === "project_requirements" ? compactRequirementText(row) : table === "requirement_candidates" ? compactRequirementText(row, true) : row), { ignoreIdConflicts: true }));
+      db.insertUserRows(table, batch, { ignoreIdConflicts: true }));
     await refreshImportedReviewFlags(table, scope, plan.rows, existingIds, db);
     return plan.rows;
   } catch (error) {

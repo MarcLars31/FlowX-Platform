@@ -150,3 +150,16 @@ test("unchanged import phases back off, while progress restores fast polling", a
   assert.equal(result.status,201);
   assert.deepEqual(delays,[2000,2000,4000,8000,8000,2000,4000]);
 });
+
+test("finishing an import restores one-second completion checks after a long parsing phase",async()=>{
+  const delays:number[]=[],jobId=randomUUID();
+  const phases=["extracting","extracting","extracting","finalizing","finalizing","completed"];
+  let index=0;
+  const result=await waitForImportJob(Response.json({jobId},{status:202}),(async()=>{
+    const phase=phases[index++];
+    return Response.json({jobs:[{id:jobId,project_id:randomUUID(),status:phase==="completed"?"completed":"running",phase,result:{persistedRequirementCount:1041}}]});
+  }) as typeof fetch,undefined,async delay=>{delays.push(delay);});
+  assert.equal(result.status,201);
+  assert.equal((await result.json()).persistedRequirementCount,1041);
+  assert.deepEqual(delays,[2000,2000,4000,8000,1000,1000]);
+});

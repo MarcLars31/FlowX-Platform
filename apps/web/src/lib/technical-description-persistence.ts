@@ -52,7 +52,8 @@ function stableRowId(key: string) {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/** Bound both database work per transaction and the UTF-8 request body size. */
+/** Fill small-row batches without extra round trips, retaining the 512 KB body
+ * ceiling and sequential writes so only one import transaction runs at a time. */
 export async function persistTechnicalDescriptionBatches<T>(
   rows: T[],
   write: (batch: T[]) => Promise<unknown>
@@ -61,7 +62,7 @@ export async function persistTechnicalDescriptionBatches<T>(
   let bytes = 2;
   for (const row of rows) {
     const rowBytes = Buffer.byteLength(JSON.stringify(row), "utf8") + 1;
-    if (batch.length && (batch.length >= 100 || bytes + rowBytes > 512_000)) {
+    if (batch.length && (batch.length >= 500 || bytes + rowBytes > 512_000)) {
       await write(batch);
       batch = [];
       bytes = 2;

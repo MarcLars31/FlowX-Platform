@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-20.2",
+  "version": "scipx-product-rules-2026-10-20.3",
   "sources": {
     "../components/DistributorMappingPanel.tsx": "3fa652c8c39789dce5907e04b57a19fed3c5a958bbef1372336e91cca19acf4d",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
@@ -88,7 +88,7 @@
     "sprsok-search.ts": "d0e9c876b07f24a6863a8bb9cc2e9cb48cff70027ad330539f205099a99d94c9",
     "supplier-article-identity.ts": "a85b69c73210a681337bc868d2932349c8f101a63e64ae5446f7b5745981764d",
     "technical-description-ocr-payload.ts": "9e3bc6307e24496e0580d4aad09e270820ca2d887bcac0056e31928bb17c7a64",
-    "technical-description-processor.ts": "b78dd0c969e383cb84e6fde9a97a463dd3d09b650076ad13da0da21ddd65040b",
+    "technical-description-processor.ts": "42c118cba468136df6b9686495f6960c5c898b6e699b58828b92ba57c3f1ea0b",
     "technical-description-quality.ts": "671259170340351927f64c613a0acc49ada2dc0a65224ae09ab7b250532c0390",
     "technical-description-review-flags.ts": "6a5a59a3f2c58e96496a9d13ce277f12a22a22dc91e87d58b7f34aa8d98f9874",
     "technical-description-source-persistence.ts": "c0883871e3cc462080779f9b0d4361e6aebf73d2198327948e74a1de80bc3c86",

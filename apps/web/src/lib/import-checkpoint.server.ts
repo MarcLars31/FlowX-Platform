@@ -58,12 +58,31 @@ export async function storeCheckpointObject(row: Checkpoint, bytes: Uint8Array) 
 /** Oversized individual pages remain readable; caching must not reject an otherwise valid PDF. */
 export function textCheckpointWriter(write: (pages: TechnicalDescriptionPage[]) => Promise<void>) {
   let pending: TechnicalDescriptionPage[]=[];
-  const flush=async()=>{if(pending.length){await write(pending);pending=[];}};
+  let pendingBytes=2;
+  let writing: Promise<void> | undefined;
+  let failure: {error: unknown} | undefined;
+  const waitForWrite=async()=>{
+    await writing;
+    if(failure)throw failure.error;
+  };
+  // One write in flight and at most one bounded batch waiting. PDF parsing may
+  // continue during network I/O; persistence/finalization must await flush().
+  const queue=async()=>{
+    await waitForWrite();
+    if(!pending.length)return;
+    const batch=pending;
+    pending=[];pendingBytes=2;
+    writing=Promise.resolve().then(()=>write(batch)).catch(error=>{failure={error};});
+  };
+  const flush=async()=>{await queue();await waitForWrite();};
   return {flush,async add(page: TechnicalDescriptionPage){
-    const bytes=Buffer.byteLength(JSON.stringify([page]));
-    if (bytes>3_500_000){await flush();return;}
-    if(pending.length && (pending.length>=100 || Buffer.byteLength(JSON.stringify([...pending,page]))>3_500_000))await flush();
-    pending.push(page);if(pending.length>=100)await flush();
+    if(failure)throw failure.error;
+    const bytes=Buffer.byteLength(JSON.stringify(page));
+    if (bytes+2>3_500_000){await flush();return;}
+    const separator=pending.length ? 1 : 0;
+    if(pending.length && (pending.length>=100 || pendingBytes+separator+bytes>3_500_000))await queue();
+    pendingBytes+=bytes+(pending.length ? 1 : 0);
+    pending.push(page);if(pending.length>=100)await queue();
   }};
 }
 export async function saveTextCheckpoint(job: CheckpointJob, hash: string, pages: TechnicalDescriptionPage[]) {
