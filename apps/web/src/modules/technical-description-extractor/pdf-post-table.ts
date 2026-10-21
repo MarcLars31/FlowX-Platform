@@ -1,3 +1,4 @@
+import { priceColumnsFromPdfItems, type PriceTable } from "./pdf-price-columns";
 import { isPdfTableTotalFooter } from "@/lib/pdf-post-text";
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import type { TechnicalDescriptionPage } from "./types";
@@ -33,8 +34,10 @@ function findColumnHeader(items: Item[], labels: readonly string[]): Item | unde
  * Only that column establishes posts; numbers in the description remain prose.
  * Other digital layouts and OCR continue to use their existing readers.
  */
-export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalDescriptionPage["postTable"] {
-  const items: Item[] = input.flatMap(value => {
+export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSeparated = false, tables?: readonly PriceTable[]): TechnicalDescriptionPage["postTable"] {
+  const separated = cellsSeparated ? undefined : priceColumnsFromPdfItems(input);
+  const source = separated?.items ?? input;
+  const items: Item[] = source.flatMap(value => {
     if (!value || typeof value !== "object") return [];
     const item = value as { str?: string; transform?: number[]; width?: number; height?: number };
     if (!item.str?.trim() || !item.transform || item.transform.length < 6) return [];
@@ -51,10 +54,14 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
   const columnItems = headerItems.filter(item => item.x >= descriptionHeader.x + descriptionHeader.width);
   const unitCandidate = findColumnHeader(columnItems, ["enh", "enhet", "enhed"]);
   const amountCandidate = findColumnHeader(columnItems, ["mengde", "mengd", "mängd", "antall", "antal"]);
-  const priceCandidate = findColumnHeader(columnItems, ["pris", "enhetspris"]);
-  const columnsVerified = Boolean(unitCandidate && amountCandidate && priceCandidate
+  const priceCandidate = findColumnHeader(columnItems, ["pris", "enhetspris", "à-pris", "àpris", "á-pris", "apris"]);
+  const tableLayout = (tables ?? separated?.audit.tables)?.find(table => Math.abs(table.bounds.y0 + header.y) < header.height * 2);
+  const unitColumn = tableLayout?.columns.find(column => column.role === "unit");
+  const amountColumn = tableLayout?.columns.find(column => column.role === "quantity");
+  const verifiedFinancialBoundary = amountColumn && tableLayout?.columns.some(column => ["price", "sum"].includes(column.role) && column.left >= amountColumn.right);
+  const columnsVerified = Boolean(unitCandidate && amountCandidate
     && unitCandidate.x + unitCandidate.width < amountCandidate.x
-    && amountCandidate.x + amountCandidate.width < priceCandidate.x);
+    && ((priceCandidate && amountCandidate.x + amountCandidate.width < priceCandidate.x) || verifiedFinancialBoundary));
   const quantityColumnsUnrecognized = columnItems.length > 0 && !columnsVerified;
   // Keep the post and its source text if a header is ambiguous, but do not
   // infer amounts from prices or report an unverified table as complete.
@@ -102,20 +109,23 @@ export function sitePostTableFromPdfItems(input: readonly unknown[]): TechnicalD
   const lines: string[] = [];
   const posts: NonNullable<TechnicalDescriptionPage["postTable"]>["posts"] = [];
   const quantities: NonNullable<TechnicalDescriptionPage["postTable"]>["quantities"] = [];
-  const unitRight = unitHeader && amountHeader ? (unitHeader.x + unitHeader.width + amountHeader.x) / 2 : Infinity;
-  const amountRight = amountHeader && priceHeader ? (amountHeader.x + amountHeader.width + priceHeader.x) / 2 : Infinity;
+  const unitLeft = unitColumn?.left ?? (unitHeader ? unitHeader.x - unitHeader.height : Infinity);
+  const unitRight = unitColumn?.right ?? (unitHeader && amountHeader ? (unitHeader.x + unitHeader.width + amountHeader.x) / 2 : Infinity);
+  const amountRight = amountColumn?.right ?? (amountHeader && priceHeader ? (amountHeader.x + amountHeader.width + priceHeader.x) / 2 : Infinity);
   for (const row of rows) {
     const sorted = row.items.sort((a, b) => a.x - b.x);
     // Unit text is inside its own column, including raised ²/³ glyphs. Never
     // concatenate those glyphs with a quantity from the next column.
-    const unitItems = unitHeader ? sorted.filter(item => item.x >= unitHeader.x - unitHeader.height && item.x < unitRight) : [];
+    const unitItems = unitHeader ? sorted.filter(item => item.x >= unitLeft && item.x < unitRight) : [];
     const amountItems = amountHeader ? sorted.filter(item => item.x >= unitRight && item.x < amountRight) : [];
     const unitText = unitItems.map(item => item.text).join("").replace(/m2/i, "m²").replace(/m3/i, "m³");
     const amountText = amountItems.map(item => item.text).join("");
     const value = /^RS$/i.test(unitText) ? 1 : parseQuantityNumber(amountText);
     const isQuantity = /^(?:RS|stk\.?|st|m|lm|m²|m³|kg|l)$/i.test(unitText)
       && value !== null;
-    const descriptionItems = isQuantity ? sorted.filter(item => item.x < unitHeader!.x - unitHeader!.height) : sorted;
+    // Financial cells have already been classified. Preserve every other
+    // item, including uncertain cells; never discard the rest of a row.
+    const descriptionItems = isQuantity ? sorted.filter(item => !unitItems.includes(item) && !amountItems.includes(item)) : sorted;
     const description = descriptionItems.reduce((text, item, index) => {
       const previous = descriptionItems[index - 1];
       if (previous && /m$/.test(previous.text) && /^[23]$/.test(item.text)

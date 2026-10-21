@@ -49,6 +49,8 @@ test("only the failed page is transmitted; checkpoints resume without duplicate 
   assert.equal(calls, 1); assert.equal(result[0], data.pages[0]);
   assert.equal(result[1].ocrFallback?.status, "accepted");
   assert.match(result[1].text, /Lengde m 12,5/);
+  assert.doesNotMatch(result[1].text, /0,00/);
+  assert.equal(result[1].priceColumns?.excludedCells.length, 2);
   const extracted = extractTechnicalDescriptionFromPages(result);
   assert.equal(extracted.materialLines.find(line => line.postNumber === "30.1.2")?.quantity, 12.5);
   assert.ok(extracted.materialLines.find(line => line.postNumber === "30.1.2")?.reviewFlags.includes("ocr-source"));

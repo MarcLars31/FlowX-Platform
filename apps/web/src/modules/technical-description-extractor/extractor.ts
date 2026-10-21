@@ -83,6 +83,9 @@ export function extractTechnicalDescriptionFromPages(
     if ((line.sourcePages ?? [line.sourcePage]).some(pageNumber => unrecognizedQuantityPages.has(pageNumber))) {
       line.reviewFlags = unique([...line.reviewFlags, "unrecognized-quantity-columns"]);
     }
+    if ((line.sourcePages ?? [line.sourcePage]).some(number => pages.find(page => page.pageNumber === number)?.priceColumns?.status === "review")) {
+      line.reviewFlags = unique([...line.reviewFlags, "unverified-price-columns"]);
+    }
     const uncertainSources = (line.sourcePages ?? [line.sourcePage]).flatMap(number => uncertainPages.has(number) ? [uncertainPages.get(number)!] : []);
     if ((line.sourcePages ?? [line.sourcePage]).some(number => pages.find(page => page.pageNumber === number)?.sourceTextMerge)) {
       line.reviewFlags = unique([...line.reviewFlags, "merged-source-text"]);
@@ -109,6 +112,11 @@ export function extractTechnicalDescriptionFromPages(
   const extractionMethod = getExtractionMethod(pages);
 
   for (const page of pages) {
+    if (page.priceColumns?.status === "review") {
+      warnings.push({ id: `price-columns-${page.pageNumber}`, code: "PDF_PRICE_COLUMNS_UNVERIFIED",
+        message: `Sida ${page.pageNumber}: pris- och summaceller kunde inte skiljas från all kravtext med säkerhet. Osäkert innehåll har bevarats; kontrollera original-PDF:n.`,
+        sourcePage: page.pageNumber, severity: "warning" });
+    }
     if (page.postTable?.quantityColumnsUnrecognized) {
       warnings.push({
         id: `quantity-columns-${page.pageNumber}`,

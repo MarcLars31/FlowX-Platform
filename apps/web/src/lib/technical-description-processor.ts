@@ -570,6 +570,8 @@ export async function processTechnicalDescription(request: Request, authorizatio
         confidence: page.confidence,
         annotations: page.annotations ?? [],
         annotation_read_failed: page.annotationReadFailed ?? false,
+        ...(page.priceColumns ? { price_columns: page.priceColumns } : {}),
+        ...(page.priceColumnReadings ? { price_column_readings: page.priceColumnReadings } : {}),
         ...(page.sourceReadings ? { source_readings: page.sourceReadings, source_text_merged: page.sourceTextMerge ?? false } : {})
       });
       const pageHash = (page: typeof result.pages[number]) => createHash("sha256")

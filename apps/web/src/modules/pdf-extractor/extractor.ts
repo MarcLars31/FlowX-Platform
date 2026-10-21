@@ -124,7 +124,10 @@ export function extractTechnicalSpecificationFromPages(
   options: ExtractOptions = {}
 ): PdfExtractionResult {
   const pages = normalizePages(rawPages);
-  const warnings: ExtractionWarning[] = [];
+  const warnings: ExtractionWarning[] = pages.filter(page => page.priceColumns?.status === "review").map(page => ({
+    id: `price-columns-${page.pageNumber}`, code: "PDF_PRICE_COLUMNS_UNVERIFIED", sourcePage: page.pageNumber,
+    message: "Pris- och summaceller kunde inte identifieras säkert. Innehållet har bevarats för kontroll.", severity: "warning"
+  }));
   const standards = extractStandards(pages);
   const systems = extractSystems(pages);
   const sections = extractSections(pages);
@@ -234,6 +237,7 @@ export function normalizeExtractionText(value: string): string {
 
 function normalizePages(pages: ExtractedPageText[]): ExtractedPageText[] {
   return pages.map((page, index) => ({
+    priceColumns: page.priceColumns,
     pageNumber: page.pageNumber || index + 1,
     text: normalizeExtractionText(page.text)
   }));

@@ -1,3 +1,5 @@
+import { separateOcrPriceText } from "@/modules/technical-description-extractor/pdf-ocr-columns";
+import type { PositionedWord } from "@/modules/technical-description-extractor/pdf-price-columns";
 import { mergePdfPageSource } from "./pdf-page-source-merge";
 import { textPostInventory } from "@/modules/technical-description-extractor/post-inventory";
 import type { TechnicalDescriptionPage } from "@/modules/technical-description-extractor/types";
@@ -12,6 +14,7 @@ export type ClientOcrPage = {
   pageNumber: number;
   text: string;
   confidence: number;
+  words?: PositionedWord[];
 };
 
 export class ClientOcrPayloadError extends Error {}
@@ -68,6 +71,21 @@ export function parseClientOcrPages(
       throw new ClientOcrPayloadError("OCR-resultatet saknar giltig konfidens.");
     }
 
+    let words: PositionedWord[] | undefined;
+    if (page.words !== undefined) {
+      if (!Array.isArray(page.words) || page.words.length > 10_000) throw new ClientOcrPayloadError("OCR-positionerna är ogiltiga eller för många.");
+      let wordCharacters = 0;
+      words = page.words.map(value => {
+        const word = value as PositionedWord | null;
+        if (!word || typeof word.text !== "string" || word.text.length > 10_000 || !word.bbox
+          || ![word.bbox.x0, word.bbox.y0, word.bbox.x1, word.bbox.y1].every(n => Number.isFinite(n) && n >= 0 && n <= 20_000)
+          || word.bbox.x1 < word.bbox.x0 || word.bbox.y1 < word.bbox.y0) throw new ClientOcrPayloadError("OCR-positionerna är ogiltiga.");
+        wordCharacters += word.text.length;
+        if (wordCharacters > MAX_CLIENT_OCR_PAGE_CHARACTERS) throw new ClientOcrPayloadError("OCR-positionerna är för stora.");
+        return { text: word.text.replace(/\0/g, "").trim(), bbox: { x0: word.bbox.x0, y0: word.bbox.y0, x1: word.bbox.x1, y1: word.bbox.y1 } };
+      });
+      totalCharacters += wordCharacters;
+    }
     seen.add(pageNumber);
     totalCharacters += text.length;
     if (totalCharacters > MAX_CLIENT_OCR_TOTAL_CHARACTERS) {
@@ -75,6 +93,7 @@ export function parseClientOcrPages(
     }
     return {
       pageNumber,
+      ...(words ? { words } : {}),
       text: text.replace(/\0/g, "").trim(),
       confidence: Math.min(Math.max(confidence, 0), 1)
     };
@@ -93,14 +112,20 @@ export function mergeClientOcrPages(
 
   return serverPages.map((serverPage) => {
     if (!pageRequiresOcr(serverPage, minimumReadableLength)) return serverPage;
-    const clientPage = clientByPage.get(serverPage.pageNumber);
-    if (!clientPage?.text.trim()) return serverPage;
+    const rawClientPage = clientByPage.get(serverPage.pageNumber);
+    if (!rawClientPage?.text.trim()) return serverPage;
+    const separated = separateOcrPriceText(rawClientPage.text, rawClientPage.words);
+    const clientPage = { ...rawClientPage, text: separated.text };
     // Reading only the same digital header has not recovered the image body.
     if (serverPage.ocrReason && clientPage.text.replace(/\s+/g, "") === serverPage.text.replace(/\s+/g, "")) return serverPage;
     const readable = clientPage.text.length >= minimumReadableLength && clientPage.confidence >= 0.7;
     // The OCR text can miss a number that was readable digitally. Keep those
     // independent source blocks too, without reusing obsolete table line indices.
     const merged = mergePdfPageSource(serverPage, clientPage.text);
+    const retainedDigitalIssues = merged.supplemented && serverPage.priceColumns?.status === "review"
+      ? serverPage.priceColumns.issues.map(issue => `digital:${issue}`) : [];
+    const priceColumns = { ...separated.priceColumns,
+      ...(retainedDigitalIssues.length ? { status: "review" as const, issues: [...separated.priceColumns.issues, ...retainedDigitalIssues] } : {}) };
     const postInventory = textPostInventory(merged.text);
     const remaining = [...postInventory.posts];
     for (const post of serverPage.postInventory?.posts ?? []) {
@@ -112,6 +137,8 @@ export function mergeClientOcrPages(
       ...serverPage,
       pageNumber: serverPage.pageNumber,
       text: merged.text,
+      priceColumns,
+      priceColumnReadings: { digital: serverPage.priceColumns, ocr: separated.priceColumns },
       sourceTextMerge: merged.supplemented,
       sourceReadings: { digital: serverPage.text, ocr: clientPage.text },
       // Digital coordinates/line indices no longer describe the replacement OCR text.

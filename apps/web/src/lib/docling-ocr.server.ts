@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { PDFDocument } from "pdf-lib";
 import type { TechnicalDescriptionPage } from "@/modules/technical-description-extractor/types";
+import { PRICE_COLUMN_VERSION } from "@/modules/technical-description-extractor/pdf-price-columns";
 import { layoutTextFromOcrBlocks } from "@/modules/technical-description-extractor/pdf-layout";
 import type { ClientOcrPage } from "./technical-description-ocr-payload";
 import { applyDoclingOcr, DOCLING_OCR_VERSION, failedOcrPageNumbers } from "./docling-ocr-fallback";
@@ -66,7 +67,7 @@ export async function readDoclingPage(pdf: Uint8Array, pageNumber: number, confi
   const text = layoutTextFromOcrBlocks([{ paragraphs: [{ lines: [{ words: cells }] }] }]);
   const weight = cells.reduce((sum, cell) => sum + cell.text.length, 0);
   const confidence = weight ? cells.reduce((sum, cell) => sum + cell.confidence * cell.text.length, 0) / weight : 0;
-  return { pageNumber, text, confidence };
+  return { pageNumber, text, confidence, words: cells.map(cell => ({ text: cell.text, bbox: cell.bbox })) };
 }
 
 export async function recoverFailedOcr(input: DoclingInput, dependencies: {
@@ -88,7 +89,7 @@ export async function recoverFailedOcr(input: DoclingInput, dependencies: {
   let serviceUnavailable = false;
   for (const pageNumber of numbers) {
     const saved = cached.get(pageNumber);
-    if (saved?.ocrFallback?.version === DOCLING_OCR_VERSION) { pages.set(pageNumber, saved); continue; }
+    if (saved?.ocrFallback?.version === DOCLING_OCR_VERSION && saved.priceColumns?.version === PRICE_COLUMN_VERSION) { pages.set(pageNumber, saved); continue; }
     if (serviceUnavailable) continue; // Do not multiply timeouts during a service outage.
     await dependencies.beforePage(config.timeoutMs);
     const original = input.original.find(page => page.pageNumber === pageNumber)!;

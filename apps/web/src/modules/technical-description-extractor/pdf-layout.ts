@@ -78,7 +78,7 @@ function renderColumnLines(lines: LayoutLine[], tolerance: number) {
     .map((line) => {
       const unit = line.items.find(item => /^(?:Enh|Enhet|Enhed)[.:]?$/i.test(item.str));
       const amount = line.items.find(item => /^(?:Mengde|Mengd|Mängd|Antall|Antal)[.:]?$/i.test(item.str));
-      const price = line.items.find(item => /^(?:Pris|Enhetspris)[.:]?$/i.test(item.str));
+      const price = line.items.find(item => /^(?:Pris|Enhetspris|[ÀÁA][ -]?pris)[.:]?$/i.test(item.str));
       if (unit && amount && price && unit.x + unit.width < amount.x && amount.x + amount.width < price.x) {
         columns = { unitLeft: unit.x - tolerance * 3, unitRight: (unit.x + unit.width + amount.x) / 2,
           amountRight: (amount.x + amount.width + price.x) / 2 };

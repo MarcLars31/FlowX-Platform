@@ -7,6 +7,7 @@ import {
   shouldPreferOcrLayoutText
 } from "@/modules/technical-description-extractor/pdf-layout";
 import { mergeQuantityOcrReadings, parseQuantityOcrText, quantityOcrRegions, removeQuantityCellRules } from "./pdf-quantity-ocr";
+import { positionedWordsFromOcrBlocks } from "@/modules/technical-description-extractor/pdf-price-columns";
 import type { ClientOcrPage } from "./technical-description-ocr-payload";
 import type { PDFPageProxy } from "pdfjs-dist";
 import type { Worker } from "tesseract.js";
@@ -176,14 +177,17 @@ export async function extractPdfPagesWithBrowserOcr(
             crop.height = 0;
           }
         }
+        let words = positionedWordsFromOcrBlocks(result.data.blocks);
         if (readings.length) {
-          const recoveredText = layoutTextFromOcrBlocks(mergeQuantityOcrReadings(result.data.blocks, readings));
-          if (isBetterOcrText(recoveredText, text)) text = recoveredText;
+          const blocks = mergeQuantityOcrReadings(result.data.blocks, readings);
+          const recoveredText = layoutTextFromOcrBlocks(blocks);
+          if (isBetterOcrText(recoveredText, text)) { text = recoveredText; words = positionedWordsFromOcrBlocks(blocks); }
         }
 
         const extractedPage: ClientOcrPage = {
           pageNumber,
           text,
+          words,
           confidence: normalizeOcrConfidence(result.data.confidence)
         };
         if (onPage) await onPage(extractedPage);

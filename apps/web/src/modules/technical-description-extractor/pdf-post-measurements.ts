@@ -1,3 +1,4 @@
+import type { PriceTable } from "./pdf-price-columns";
 import { pdfPostColumnBounds } from "./post-inventory";
 import type { TechnicalDescriptionPage } from "./types";
 
@@ -6,7 +7,7 @@ export type PdfPostMeasurementCells = { postNumber: string | null; unit: string;
 /** Read actual cells independently of the list of recognized purchasing units.
  * A readable header and ordered column boundaries are required. Description,
  * price and sum never count as quantity evidence. Null post means continuation. */
-export function pdfPostMeasurementCells(input: readonly unknown[]): PdfPostMeasurementCells[] | undefined {
+export function pdfPostMeasurementCells(input: readonly unknown[], tables?: readonly PriceTable[]): PdfPostMeasurementCells[] | undefined {
   const bounds = pdfPostColumnBounds(input);
   if (!bounds) return undefined;
   const items = input.flatMap(raw => {
@@ -20,11 +21,15 @@ export function pdfPostMeasurementCells(input: readonly unknown[]): PdfPostMeasu
   const headers = items.filter(item => Math.abs(item.y - header.y) < 3);
   const unit = headers.find(item => /^(?:Enh|Enhet|Enhed)[.:]?$/i.test(item.text));
   const amount = headers.find(item => /^(?:Mengde|Mengd|Mängd|Antall|Antal)[.:]?$/i.test(item.text));
-  const price = headers.find(item => /^(?:Pris|Enhetspris)[.:]?$/i.test(item.text));
-  if (!unit || !amount || !price || unit.x + unit.width >= amount.x || amount.x + amount.width >= price.x) return undefined;
-  const unitRight = (unit.x + unit.width + amount.x) / 2;
-  const amountRight = (amount.x + amount.width + price.x) / 2;
-  const cells = items.filter(item => item.x >= unit.x - unit.height && item.x < amountRight
+  const price = headers.find(item => /^(?:Pris|Enhetspris|[ÀÁA][ -]?pris)[.:]?$/i.test(item.text));
+  const tableLayout = tables?.find(table => Math.abs(table.bounds.y0 + header.y) < header.height * 2);
+  const unitColumn = tableLayout?.columns.find(column => column.role === "unit");
+  const amountColumn = tableLayout?.columns.find(column => column.role === "quantity");
+  const verifiedFinancialBoundary = amountColumn && tableLayout?.columns.some(column => ["price", "sum"].includes(column.role) && column.left >= amountColumn.right);
+  if (!unit || !amount || unit.x + unit.width >= amount.x || (!verifiedFinancialBoundary && (!price || amount.x + amount.width >= price.x))) return undefined;
+  const unitRight = unitColumn?.right ?? (unit.x + unit.width + amount.x) / 2;
+  const amountRight = amountColumn?.right ?? (amount.x + amount.width + price!.x) / 2;
+  const cells = items.filter(item => item.x >= (unitColumn?.left ?? unit.x - unit.height) && item.x < amountRight
     && item.y < bounds.header.bottom && item.y > bounds.bodyBottom);
   const bands = [{ postNumber: null, top: bounds.header.bottom, bottom: bounds.posts[0]?.top ?? bounds.bodyBottom }, ...bounds.posts];
   return bands.map(band => {

@@ -1,3 +1,5 @@
+import { PRICE_COLUMN_VERSION, priceColumnsFromPdfItems, type PriceTable } from "./pdf-price-columns";
+import { readPdfTableRules } from "./pdf-table-rules";
 import { pdfPostMeasurementCells } from "./pdf-post-measurements";
 import {
   closePdfTextDocument,
@@ -37,18 +39,23 @@ export async function extractPagesFromDocument(
   options: { cachedPages?: TechnicalDescriptionPage[]; onPage?: (page: TechnicalDescriptionPage) => Promise<void>; beforePage?: () => void } = {}
 ): Promise<TechnicalDescriptionPage[]> {
     const pages: TechnicalDescriptionPage[] = [];
+    let previousTables: PriceTable[] = [];
     const cached = new Map(options.cachedPages?.map(page => [page.pageNumber,page]));
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       options.beforePage?.();
       const saved = cached.get(pageNumber);
-      if (saved) { pages.push(saved); continue; }
+      if (saved?.priceColumns?.version === PRICE_COLUMN_VERSION) { pages.push(saved); previousTables = saved.priceColumns.tables; continue; }
       let page: Awaited<ReturnType<typeof document.getPage>> | undefined;
       try {
         page = await document.getPage(pageNumber);
         const content = await page.getTextContent();
-        const plainText = plainTextFromPdfItems(content.items);
-        const layoutText = layoutTextFromPdfItems(content.items);
-        const postTable = sitePostTableFromPdfItems(content.items);
+        const rules = await readPdfTableRules(page).catch(() => []);
+        const separated = priceColumnsFromPdfItems(content.items, rules, previousTables);
+        previousTables = separated.audit.tables;
+        const cleanItems = separated.items;
+        const plainText = plainTextFromPdfItems(cleanItems);
+        const layoutText = layoutTextFromPdfItems(cleanItems);
+        const postTable = sitePostTableFromPdfItems(cleanItems, true, separated.audit.tables);
         const text = shouldPreferPdfLayoutText(plainText, layoutText)
           ? layoutText
           : plainText;
@@ -66,9 +73,10 @@ export async function extractPagesFromDocument(
         pages.push({
           pageNumber,
           text,
+          priceColumns: separated.audit,
           ...(postTable && !ocrReason ? { postTable } : {}),
-          postInventory: pdfPostInventoryFromItems(content.items),
-          sourcePostColumns: pdfPostMeasurementCells(content.items),
+          postInventory: pdfPostInventoryFromItems(cleanItems),
+          sourcePostColumns: pdfPostMeasurementCells(content.items, separated.audit.tables),
           ...(postTable?.quantityColumnsVerified ? { sourceColumnQuantities: postTable.posts.flatMap(post => post.quantity
             ? [{ postNumber: post.postNumber, quantity: post.quantity.quantity, unit: post.quantity.unit, text: post.quantity.text }] : []) } : {}),
           ...(ocrReason ? { ocrReason } : {}),
@@ -87,6 +95,7 @@ export async function extractPagesFromDocument(
           ...(annotationReadFailed ? { annotationReadFailed } : {})
         });
       } catch {
+        previousTables = [];
         pages.push({pageNumber,text:"",method:"text",confidence:0,status:"failed",errorCode:"text_extraction_failed",
           errorMessage:"Sidans text kunde inte läsas. Sidan behöver OCR eller manuell granskning."});
       } finally {

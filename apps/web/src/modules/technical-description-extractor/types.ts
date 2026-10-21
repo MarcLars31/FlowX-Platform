@@ -10,6 +10,9 @@ export type TechnicalDescriptionAnnotation = {
 export type TechnicalDescriptionPage = {
   pageNumber: number;
   text: string;
+  /** Financial cells remain auditable but are excluded before building requirements. */
+  priceColumns?: import("./pdf-price-columns").PriceColumnAudit;
+  priceColumnReadings?: { digital?: import("./pdf-price-columns").PriceColumnAudit; ocr: import("./pdf-price-columns").PriceColumnAudit };
   method: "text" | "ocr";
   confidence: number;
   status?: "success" | "partial" | "failed";
