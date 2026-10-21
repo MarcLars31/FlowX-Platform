@@ -38,9 +38,9 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
       <article key={candidate.articleNumber} className="product-candidate-card" data-selected={selected}>
         <div className="product-candidate-card-heading">
           <a href={candidate.productUrl} target="_blank" rel="noreferrer" aria-label={`Åpne artikkel ${candidate.articleNumber}`}>Art. {candidate.articleNumber}</a>
-          <label className="product-candidate-choice"><input type="checkbox" checked={selected} disabled={disabled || (!selected && selectionLimitReached)}
-            aria-label={`${selected ? "Fjern valget av" : "Velg"} ${candidate.productName}, NRF-nummer ${candidate.articleNumber}`}
-            onChange={() => onSelect(candidate)} /><span>{selected ? "Valgt" : "Velg"}</span></label>
+          <button type="button" className="chapter-select-product" aria-pressed={selected} disabled={disabled || (!selected && selectionLimitReached)}
+            aria-label={`${selected ? "Ta bort" : "Välj produkt"}: ${candidate.productName}, artikelnummer ${candidate.articleNumber}`}
+            onClick={() => onSelect(candidate)}>{selected ? "Vald · ta bort" : "Välj produkt"}</button>
         </div>
         <h4 className="product-candidate-name">{candidate.productName}</h4>
         {candidate.description && candidate.description !== candidate.productName && <p className="product-candidate-description">{candidate.description}</p>}

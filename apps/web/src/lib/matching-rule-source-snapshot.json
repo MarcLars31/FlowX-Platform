@@ -1,7 +1,9 @@
 {
-  "version": "scipx-product-rules-2026-10-21.1",
+  "version": "scipx-product-rules-2026-10-21.2",
   "sources": {
-    "../components/DistributorMappingPanel.tsx": "3fa652c8c39789dce5907e04b57a19fed3c5a958bbef1372336e91cca19acf4d",
+    "../components/AhlsellCandidateList.tsx": "6647dbfb579d6bfd2c8fa1da8e8e3056434678d7cc94005f61cb89248f6e04f0",
+    "../components/ChapterWorkspaceNavigation.tsx": "47b136de30696da3f86a611e7f9011fbcd98b3a6be49d1eef7610f4abb3264ec",
+    "../components/DistributorMappingPanel.tsx": "c8263ef47b35f0328612574371db203a29c54cd4b51bbcfccdfdd5f745e24e2d",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
     "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",
     "../components/ProductPostNavigation.tsx": "7d651d7d9ff8541d9058fbcd5fa4e9ddf9b7e0332147bb570a7a339add8c46d7",
@@ -75,6 +77,8 @@
     "product-search-store.ts": "5d3fec94e5f880e140bfd70b390a81d531854c11cb34937e94d017ec8dd3cccb",
     "product-selection-review.ts": "7e704b14d9631953a3b50715a50bff4b059b6fdfffb9d902bf9eacceb6c8432d",
     "product-similarity.ts": "b38586108edc659569e074d97e1bdc44c01ebde06f04ad4b5acec09f3589a61a",
+    "product-workspace-resource.ts": "4ea35ec3f9f94ed4c213ae0e398f23deb3f19a68579377ce73aa5368ab9974bd",
+    "project-chapter-workspace.ts": "aa8f92ccc83f2c7032ae521562863b816263f5fc66a16f58e9c881a01662a53e",
     "project-overview-cache.ts": "b348d1c62b57a37a5fa890da26abb08a2dd7030e54e4b06a70de7bb54b2a2300",
     "project-overview.ts": "fe23bbcfcba278e54842d69acc817b6a519209cc4017fafa4c9fa2f897e851a4",
     "project-requirement-details.ts": "b735580b5174793e4b64d75e6185d53bda6991ed736711e5a5df54b6bf1e967c",

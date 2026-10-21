@@ -4,19 +4,18 @@ import { projectRequirementPageLabel } from "@/lib/project-requirement-details";
 
 
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { createProjectDeliveryResource, type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
+import { type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
-import { ProductPostRequirements } from "@/components/ProductPostRequirements";
-import { productPostSelectionGroup, type ProductPostSelectionGroup } from "@/lib/product-post-selection";
-import { ProductPostNavigation } from "@/components/ProductPostNavigation";
+import { ChapterOverview, ChapterRequirements, OtherSectionPosts } from "@/components/ChapterWorkspaceNavigation";
+import { initialSectionPost, type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
+import { createProductWorkspaceResource, type ProductWorkspaceResource } from "@/lib/product-workspace-resource";
 import { Button } from "@/components/Button";
 import { ManualProductCard, type ManualProductChoice } from "@/components/ManualProductCard";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { productChoiceSnapshots } from "@/lib/product-choice-collection";
 import { parseProductOrderQuantity } from "@/lib/product-order-quantity";
-import { productChapterContents, productPostNavigationGroups, productPostExpansionKeys } from "@/lib/product-post-tree";
 import { ProductPostComments } from "@/components/ProductPostComments";
 import { AccessoryProductPicker } from "@/components/AccessoryProductPicker";
 import { assemblyComponentSearch, productAssemblyPlan, type AssemblyComponent } from "@/lib/product-assembly-plan";
@@ -31,7 +30,6 @@ import {
   validateManualDistributorProduct
 } from "@/lib/distributor-product-mapping";
 import {
-  isProductRequirementResolvedWithoutProduct,
   productRequirementResolution,
   type ProductRequirementResolutionStatus
 } from "@/lib/product-requirement-resolution";
@@ -89,253 +87,146 @@ type RequirementAttachment = {
 };
 export type ProductEditState = { dirty: boolean; saving: boolean };
 
-export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onEditStateChange, workspaceNavigation, onRequirementSaved, deliveryResource }: {
+export function DistributorMappingPanel({ projectId, currency = "NOK", requirements, assignments, memories: allMemories, sourcePdfLookup, onReload, onGoToDocuments, onEditStateChange, workspaceNavigation, onRequirementSaved }: {
   deliveryResource?: ProjectDeliveryResource;
   workspaceNavigation?: ReactNode;
   onRequirementSaved?: (id: string) => Promise<void>;
-  projectId: string;
-  currency?: string;
-  requirements: Row[];
-  assignments: Row[];
-  memories: Row[];
+  projectId: string; currency?: string; requirements: Row[]; assignments: Row[]; memories: Row[];
   sourcePdfLookup: ProjectSourcePdfLookup;
-  onReload: () => Promise<unknown>;
-  onGoToDocuments: () => void;
+  onReload: () => Promise<unknown>; onGoToDocuments: () => void;
   onEditStateChange?: (state: ProductEditState) => void;
 }) {
-  const memories = useMemo(() => allMemories.filter(memory =>
-    ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes)), [allMemories]);
+  const resource = useMemo(() => ({ projectId, ...createProductWorkspaceResource() }), [projectId]);
+  const [workspace, setWorkspace] = useState<ChapterWorkspace | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const view = "all";
-  const viewRequirements = useMemo(
-    () => visibleProjectRequirements(requirements),
-    [requirements]
-  );
-  const approvedAssignments = useMemo(
-    () => assignments.filter(isUserApprovedProductAssignment),
-    [assignments]
-  );
-  const approvedAssignmentByRequirementId = useMemo(
-    () => {
-      const assignmentsByRequirement = new Map<string, Row>();
-      for (const assignment of approvedAssignments) {
-        const requirementId = String(assignment.requirement_id);
-        if (!assignmentsByRequirement.has(requirementId)) assignmentsByRequirement.set(requirementId, assignment);
-      }
-      return assignmentsByRequirement;
-    },
-    [approvedAssignments]
-  );
-  const approvedRequirementIds = useMemo(
-    () => new Set(approvedAssignments.map((assignment) => String(assignment.requirement_id))),
-    [approvedAssignments]
-  );
-  const resolvedRequirementIds = useMemo(
-    () => new Set(requirements
-      .filter(isProductRequirementResolvedWithoutProduct)
-      .map((requirement) => requirement.id)),
-    [requirements]
-  );
-  const handledRequirementIds = useMemo(
-    () => new Set([...approvedRequirementIds, ...resolvedRequirementIds]),
-    [approvedRequirementIds, resolvedRequirementIds]
-  );
-  // Search only the opened post. Overview rows intentionally omit detailed specifications.
-  const recordFullCatalogResult = useCallback(() => {}, []);
-  const mainPostGroups = useMemo(() => productPostNavigationGroups(viewRequirements, requirements), [viewRequirements, requirements]);
-  const queueRequirements = useMemo(() => mainPostGroups.flatMap(group => group.requirements), [mainPostGroups]);
-  const listedRequirements = useMemo(() => mainPostGroups.flatMap(group => productChapterContents(group).requirements), [mainPostGroups]);
+  const [expandedChapter, setExpandedChapter] = useState<string | null>(null);
+  const [sectionId, setSectionId] = useState<string | null>(null);
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
-  const [lastViewedRequirementId, setLastViewedRequirementId] = useState<string | null>(null);
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
-  const assignmentResource = useMemo(() => deliveryResource ?? createProjectDeliveryResource(projectId), [deliveryResource, projectId]);
-  const historyRestore = useRef(false);
-  const historyBackApproved = useRef(false);
-  const listPosition = useRef({ requirementId: "", scrollY: 0 });
   const [productCardSaving, setProductCardSaving] = useState(false);
   const [productCardDirty, setProductCardDirty] = useState(false);
-  const activeIndex = queueRequirements.findIndex(requirement => requirement.id === activeRequirementId);
-  const activeRequirement = queueRequirements[activeIndex];
-  const activePostGroup = useMemo(() => activeRequirementId ? productPostSelectionGroup(mainPostGroups, activeRequirementId) : undefined, [mainPostGroups, activeRequirementId]);
-  const activeAssignment = activeRequirement ? approvedAssignmentByRequirementId.get(activeRequirement.id) : undefined;
-  const handledCount = listedRequirements.filter(requirement => handledRequirementIds.has(requirement.id)).length;
+  const listPosition = useRef(0);
+  const rememberedPosts = useRef(new Map<string, string>());
+  const historyRestore = useRef(false);
+  const approvedAssignments = useMemo(() => assignments.filter(isUserApprovedProductAssignment), [assignments]);
+  const approvedAssignmentByRequirementId = useMemo(() => new Map(approvedAssignments.map(row => [String(row.requirement_id), row])), [approvedAssignments]);
+  const approvedRequirementIds = useMemo(() => new Set(approvedAssignments.map(row => String(row.requirement_id))), [approvedAssignments]);
+  const visible = useMemo(() => visibleProjectRequirements(requirements), [requirements]);
+  const rowsById = useMemo(() => new Map(visible.map(row => [row.id, row])), [visible]);
+  const chapter = workspace?.chapters.find(item => item.sections.some(section => section.id === sectionId));
+  const section = chapter?.sections.find(item => item.id === sectionId);
+  const sectionRows = useMemo(() => section?.requirementIds.flatMap(id => rowsById.get(id) ? [rowsById.get(id)!] : []) ?? [], [section, rowsById]);
+  const activeRequirement = activeRequirementId ? rowsById.get(activeRequirementId) : undefined;
+  const activeAssignment = activeRequirementId ? approvedAssignmentByRequirementId.get(activeRequirementId) : undefined;
+  const activeIndex = sectionRows.findIndex(row => row.id === activeRequirementId);
+  const memories = useMemo(() => allMemories.filter(memory => ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes)), [allMemories]);
+  const recordFullCatalogResult = useCallback(() => {}, []);
+
+  useEffect(() => {
+    let current = true;
+    resource.load<ChapterWorkspace>(`/api/projects/${projectId}/chapters`).then(data => {
+      if (current) { setWorkspace(data); setLoadError(null); }
+    }).catch(error => { if (current) setLoadError(error instanceof Error ? error.message : "Kapitlen kunde inte hämtas."); });
+    return () => { current = false; };
+  }, [resource, projectId, loadAttempt]);
   useEffect(() => {
     onEditStateChange?.({ dirty: productCardDirty, saving: productCardSaving });
     return () => onEditStateChange?.({ dirty: false, saving: false });
   }, [onEditStateChange, productCardDirty, productCardSaving]);
-
   useEffect(() => {
     if (!productCardDirty && !productCardSaving) return;
-    const protectUnsavedProduct = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    // The main navigation remains usable while the product is open. Protect
-    // drafts when Next.js handles a link without a browser page unload.
-    const protectNavigation = (event: MouseEvent) => {
+    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    const navigate = (event: MouseEvent) => {
       if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
       if (!(anchor instanceof HTMLAnchorElement) || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
       const destination = new URL(anchor.href, window.location.href);
-      if (!["http:", "https:"].includes(destination.protocol)) return;
-      if (destination.origin === window.location.origin && destination.pathname === window.location.pathname && destination.search === window.location.search) return;
-      if (productCardSaving || !window.confirm("Du har ulagrede endringer i produktvalget. Vil du forlate siden uten å lagre?")) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      if (!["http:", "https:"].includes(destination.protocol) || destination.href === window.location.href) return;
+      if (productCardSaving || !window.confirm("Du har osparade ändringar. Lämna sidan utan att spara?")) { event.preventDefault(); event.stopPropagation(); }
     };
-    window.addEventListener("beforeunload", protectUnsavedProduct);
-    document.addEventListener("click", protectNavigation, true);
-    return () => {
-      window.removeEventListener("beforeunload", protectUnsavedProduct);
-      document.removeEventListener("click", protectNavigation, true);
-    };
+    window.addEventListener("beforeunload", unload); document.addEventListener("click", navigate, true);
+    return () => { window.removeEventListener("beforeunload", unload); document.removeEventListener("click", navigate, true); };
   }, [productCardDirty, productCardSaving]);
-
-  // One card history entry per visit: changing cards replaces it, so Back always
-  // returns to the post list rather than stepping through previously opened posts.
-  const handlePostHistory = useEffectEvent((event: PopStateEvent) => {
-    if (historyRestore.current) { historyRestore.current = false; return; }
-    const target = event.state?.scipxPost;
-    if (!target || target.projectId !== projectId || target.view !== view) return;
-    const nextId = queueRequirements.some(row => row.id === target.id) ? target.id as string : null;
-    if (nextId === activeRequirementId) return;
-    const approved = historyBackApproved.current;
-    historyBackApproved.current = false;
-    if (productCardSaving || (!approved && productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du gå tilbake til postlisten uten å lagre?"))) {
-      historyRestore.current = true;
-      window.history.forward();
-      return;
-    }
-    if (nextId) {
-      setLastViewedRequirementId(nextId);
-      setProductCardDirty(false);
-      setActiveRequirementId(nextId);
-      setMessage(null); setError(null);
-      focusPostCard();
-    } else returnToPostList();
-  });
-  useEffect(() => {
-    const onPopState = (event: PopStateEvent) => handlePostHistory(event);
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
-
-  function focusPostCard() {
-    window.requestAnimationFrame(() => {
-      const detail = document.getElementById("product-post-detail");
-      detail?.scrollIntoView({ block: "start", behavior: "instant" });
-      detail?.focus({ preventScroll: true });
+  function canNavigate() { return !productCardSaving && (!productCardDirty || window.confirm("Du har osparade ändringar. Byt vy utan att spara?")); }
+  function focusWorkspace() { requestAnimationFrame(() => document.getElementById("product-post-detail")?.focus({ preventScroll: true })); }
+  function remember(id: string, targetSection = sectionId) {
+    if (!targetSection) return;
+    rememberedPosts.current.set(targetSection, id);
+    try { sessionStorage.setItem(`scipx-post:${projectId}:${targetSection}`, id); } catch { /* Navigation works without browser storage. */ }
+  }
+  function returnToOverview() {
+    setSectionId(null); setActiveRequirementId(null); setProductCardDirty(false); setMessage(null); setError(null);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: listPosition.current, behavior: "instant" });
+      document.getElementById(`chapter-section-${encodeURIComponent(sectionId ?? "")}`)?.focus({ preventScroll: true });
     });
   }
-
-  function showRequirement(requirementId: string) {
-    if (productCardSaving) return false;
-    if (requirementId === activeRequirement?.id) return true;
-    if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du bytte post uten å lagre?")) return false;
-    if (!activeRequirement) {
-      listPosition.current = { requirementId, scrollY: window.scrollY };
-      window.history.replaceState({ ...window.history.state, scipxPost: { projectId, view, id: null } }, "");
-      window.history.pushState({ ...window.history.state, scipxPost: { projectId, view, id: requirementId } }, "");
-    } else {
-      window.history.replaceState({ ...window.history.state, scipxPost: { projectId, view, id: requirementId } }, "");
-    }
-    setLastViewedRequirementId(requirementId);
-    setProductCardDirty(false);
-    setActiveRequirementId(requirementId);
-    setMessage(null);
-    setError(null);
-    focusPostCard();
+  const handleHistory = useEffectEvent((event: PopStateEvent) => {
+    if (historyRestore.current) { historyRestore.current = false; return; }
+    const target = event.state?.scipxChapter;
+    if (target?.projectId !== projectId) return;
+    if (!canNavigate()) { historyRestore.current = true; window.history.forward(); return; }
+    if (!target.sectionId) { returnToOverview(); return; }
+    const nextSection = workspace?.chapters.flatMap(item => item.sections).find(item => item.id === target.sectionId);
+    if (!nextSection) return;
+    setSectionId(nextSection.id); setActiveRequirementId(initialSectionPost(nextSection, approvedRequirementIds, target.id));
+    setProductCardDirty(false); setMessage(null); setError(null); focusWorkspace();
+  });
+  useEffect(() => { const listen = (event: PopStateEvent) => handleHistory(event); window.addEventListener("popstate", listen); return () => window.removeEventListener("popstate", listen); }, []);
+  function openSection(nextChapter: WorkspaceChapter, nextSection: ChapterSection) {
+    if (!canNavigate()) return;
+    let remembered = rememberedPosts.current.get(nextSection.id);
+    try { remembered ??= sessionStorage.getItem(`scipx-post:${projectId}:${nextSection.id}`) ?? undefined; } catch { /* Optional. */ }
+    const id = initialSectionPost(nextSection, approvedRequirementIds, remembered);
+    listPosition.current = window.scrollY;
+    setExpandedChapter(nextChapter.id); setSectionId(nextSection.id); setActiveRequirementId(id);
+    if (id) remember(id, nextSection.id);
+    setProductCardDirty(false); setMessage(null); setError(null);
+    window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId: null } }, "");
+    window.history.pushState({ ...window.history.state, scipxChapter: { projectId, sectionId: nextSection.id, id } }, "");
+    requestAnimationFrame(() => { document.getElementById("product-post-detail")?.scrollIntoView({ block: "start", behavior: "instant" }); focusWorkspace(); });
+  }
+  function showRequirement(id: string) {
+    if (!section?.requirementIds.includes(id) || !canNavigate()) return false;
+    remember(id); setActiveRequirementId(id); setProductCardDirty(false); setMessage(null); setError(null);
+    window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId, id } }, "");
+    requestAnimationFrame(() => { const anchor = document.getElementById("chapter-active-anchor"); anchor?.scrollIntoView({ block: "start", behavior: "instant" }); anchor?.focus({ preventScroll: true }); });
     return true;
   }
-
-  function showPostList() {
-    if (productCardSaving || historyBackApproved.current) return;
-    if (productCardDirty && !window.confirm("Du har ulagrede endringer i produktvalget. Vil du gå tilbake til postlisten uten å lagre?")) return;
-    const entry = window.history.state?.scipxPost;
-    if (entry?.projectId === projectId && entry.view === view && entry.id) {
-      historyBackApproved.current = true;
-      window.history.back();
-    } else returnToPostList();
-  }
-
-  function returnToPostList() {
-    setProductCardDirty(false);
-    setActiveRequirementId(null);
-    setMessage(null);
-    setError(null);
-    const path = productPostExpansionKeys(mainPostGroups, lastViewedRequirementId ?? "");
-    if (path.length) setExpandedKeys(current => new Set([...current, ...path]));
-    window.requestAnimationFrame(() => {
-      const row = document.getElementById(`product-post-row-${lastViewedRequirementId}`);
-      if (lastViewedRequirementId === listPosition.current.requirementId) {
-        window.scrollTo({ top: listPosition.current.scrollY, behavior: "instant" });
-      } else {
-        row?.scrollIntoView({ block: "center", behavior: "instant" });
-      }
-      row?.focus({ preventScroll: true });
-    });
-  }
-
-  return (
-    <section id="project-requirement-table" aria-label="Alle PDF-poster" className="product-selection-workspace" data-post-open={Boolean(activeRequirement)}>
-      <div className="product-selection-heading">
-        <h2>Produktvalg</h2>
-        <p>{listedRequirements.length} poster · {handledCount} håndtert</p>
-      </div>
-      <div className={`product-selection-layout${workspaceNavigation ? " has-project-navigation" : ""}`}>
-        {workspaceNavigation && <aside className="product-project-navigation" aria-label="Prosjektvisninger"><h2 className="product-panel-caption">Prosjekt</h2>{workspaceNavigation}</aside>}
-        {!activeRequirement && queueRequirements.length > 0 && <ProductPostNavigation groups={mainPostGroups}
-          requirements={requirements} projectId={projectId} resource={assignmentResource}
-          expandedKeys={expandedKeys} onToggle={key => setExpandedKeys(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; })}
-          activeRequirementId={lastViewedRequirementId ?? undefined} handledIds={handledRequirementIds}
-          disabled={productCardSaving} onSelect={showRequirement} />}
-        <section id="product-post-detail" hidden={!activeRequirement && queueRequirements.length > 0} tabIndex={-1} aria-label="Valgt post og produktvalg" className="product-post-detail">
-          {activeRequirement ? <>
-            <header className="product-post-toolbar">
-              <Button type="button" variant="secondary" disabled={productCardSaving} onClick={showPostList}>
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />Tilbake til postlisten
-              </Button>
-              <p aria-live="polite" className="sr-only">Post {projectRequirementDetails(activeRequirement).postNumber ?? activeIndex + 1}<span> · {activeIndex + 1} av {queueRequirements.length}</span></p>
-              <div>
-                <Button type="button" variant="secondary" disabled={productCardSaving || activeIndex === 0}
-                  onClick={() => showRequirement(queueRequirements[activeIndex - 1].id)}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Forrige post</Button>
-                <Button type="button" variant="secondary" disabled={productCardSaving || activeIndex === queueRequirements.length - 1}
-                  onClick={() => showRequirement(queueRequirements[activeIndex + 1].id)}>Neste post<ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
-              </div>
-            </header>
-            {(message || error) && <p role={error ? "alert" : "status"} aria-live="polite" className="product-selection-feedback">{error ?? message}</p>}
-            <LazyRequirementProductMappingCard
-              key={`${activeRequirement.id}:${String(activeRequirement.edit_revision ?? "")}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
-              projectId={projectId} currency={currency} requirement={activeRequirement} assignment={activeAssignment}
-              postGroup={activePostGroup} onSelectPost={showRequirement}
-              sourcePdfHref={projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup)}
-              sourcePdfFileName={projectRequirementSourcePdfFileName(activeRequirement, sourcePdfLookup)}
-              position={activeIndex + 1}
-              memories={memories.filter(memory => memory.requirement_fingerprint === activeRequirement.mapping_fingerprint)}
-              onCatalogResult={recordFullCatalogResult} onSavingChange={setProductCardSaving} onDirtyChange={setProductCardDirty}
-              onSaved={async successMessage => {
-                setProductCardDirty(false);
-                setError(null);
-                if (onRequirementSaved) await onRequirementSaved(activeRequirement.id);
-                else await onReload();
-                setMessage(successMessage);
-              }}
-              onError={errorMessage => { setMessage(null); setError(errorMessage || null); }}
-            />
-          </> : <div className="product-selection-empty">
-            <FileText className="h-6 w-6" aria-hidden="true" />
-            <h3>Ingen produktposter å vise</h3>
-            <p>{requirements.length ? "Dokumentet har ingen poster med enhet, mengde eller RS." : "Last opp en teknisk beskrivelse for å velge produkter."}</p>
-            {!requirements.length && <Button type="button" variant="secondary" onClick={onGoToDocuments}>Gå til dokument</Button>}
-          </div>}
-        </section>
-      </div>
-      <footer className="product-selection-footer"><span>{productCardSaving ? "Lagrer produktvalg…" : productCardDirty ? "Ulagrede endringer" : "Klar"}</span><span>{listedRequirements.length} poster · {mainPostGroups.length} {mainPostGroups.length === 1 ? "kapittel" : "kapitler"}</span></footer>
-    </section>
-  );
+  return <section id="project-requirement-table" aria-label="Produktöversikt" className="product-selection-workspace chapter-workspace" data-post-open={Boolean(section)}>
+    {!section && <div className="product-selection-heading"><h2>Kapitelöversikt</h2><p>{visible.length} poster · {visible.filter(row => approvedRequirementIds.has(row.id)).length} valda</p></div>}
+    {workspaceNavigation}
+    {!workspace && <div className="product-selection-empty" role={loadError ? "alert" : "status"}>
+      <p>{loadError ?? "Laddar PDF-filens kapitel…"}</p>{loadError && <Button variant="secondary" onClick={() => setLoadAttempt(value => value + 1)}>Försök igen</Button>}
+    </div>}
+    {workspace && !section && <ChapterOverview workspace={workspace} selected={approvedRequirementIds} expanded={expandedChapter} onToggle={id => setExpandedChapter(current => current === id ? null : id)} onOpen={openSection} />}
+    {workspace && chapter && section && <section id="product-post-detail" tabIndex={-1} className="product-post-detail" aria-label="Arbetsvy för underkapitel">
+      <header className="chapter-workspace-header">
+        <Button variant="secondary" disabled={productCardSaving} onClick={() => { if (canNavigate()) { window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId: null } }, ""); returnToOverview(); } }}><ChevronLeft aria-hidden="true" className="h-4 w-4" />Tillbaka till kapitelöversikten</Button>
+        <nav aria-label="Navigeringsspår">{chapter.number} {chapter.title}<ChevronRight aria-hidden="true" /><span aria-current="page">{section.number} {section.title}</span></nav>
+        <h2>{section.number} {section.title}</h2><p>{sectionRows.length} poster · {sectionRows.filter(row => approvedRequirementIds.has(row.id)).length} av {sectionRows.length} valda</p>
+      </header>
+      <ChapterRequirements workspace={workspace} chapter={chapter} section={section} activeId={activeRequirementId} />
+      {(message || error) && <p role={error ? "alert" : "status"} className="product-selection-feedback">{error ?? message}</p>}
+      <div id="chapter-active-anchor" className="scroll-mt-24" tabIndex={-1} aria-label="Aktiv produktpost" />
+      {activeRequirement ? <LazyRequirementProductMappingCard
+        key={`${activeRequirement.id}:${String(activeRequirement.edit_revision ?? "")}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
+        projectId={projectId} currency={currency} requirement={activeRequirement} assignment={activeAssignment} resource={resource}
+        relatedPosts={<OtherSectionPosts rows={sectionRows} activeId={activeRequirement.id} assignments={approvedAssignmentByRequirementId} disabled={productCardSaving} onSelect={showRequirement} />}
+        sourcePdfHref={projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup)} sourcePdfFileName={projectRequirementSourcePdfFileName(activeRequirement, sourcePdfLookup)}
+        position={activeIndex + 1} memories={memories.filter(memory => memory.requirement_fingerprint === activeRequirement.mapping_fingerprint)}
+        onCatalogResult={recordFullCatalogResult} onSavingChange={setProductCardSaving} onDirtyChange={setProductCardDirty}
+        onSaved={async success => { resource.invalidate(`/api/projects/${projectId}/requirements/${activeRequirement.id}`); if (onRequirementSaved) await onRequirementSaved(activeRequirement.id); else await onReload(); setProductCardDirty(false); setError(null); setMessage(success); }}
+        onError={errorMessage => { setMessage(null); setError(errorMessage || null); }}
+      /> : <p className="product-selection-empty">Underkapitlet innehåller inga produktposter.</p>}
+    </section>}
+    {workspace && !workspace.chapters.length && <div className="product-selection-empty"><p>Inga produktposter att visa.</p>{!requirements.length && <Button variant="secondary" onClick={onGoToDocuments}>Gå till dokument</Button>}</div>}
+    <footer className="product-selection-footer"><span>{productCardSaving ? "Sparar produktval…" : productCardDirty ? "Osparade ändringar" : "Klar"}</span></footer>
+  </section>;
 }
+
 
 function LazyRequirementProductMappingCard(props: ComponentProps<typeof RequirementProductMappingCard>) {
   const [detail, setDetail] = useState<{ requirement: Row; assignments: Row[]; mappingMemories: Row[] } | null>(null);
@@ -344,19 +235,16 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
   const needsDetails = Boolean(props.requirement.overview);
   useEffect(() => {
     if (!needsDetails) return;
-    const controller = new AbortController();
-    void fetch(`/api/projects/${props.projectId}/requirements/${props.requirement.id}`, {
-      cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)])
-    }).then(async response => {
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "Produktposten kunde inte laddas.");
+    let current = true;
+    void props.resource.load<{ requirement: Row; assignments: Row[]; mappingMemories: Row[] }>(`/api/projects/${props.projectId}/requirements/${props.requirement.id}`, String(props.requirement.edit_revision ?? "")).then(payload => {
       if (!payload.requirement || !Array.isArray(payload.assignments) || !Array.isArray(payload.mappingMemories)) throw new Error("Produktpostens svar var ofullständigt.");
-      if (!controller.signal.aborted) setDetail(payload);
+      if (payload.requirement.id !== props.requirement.id) throw new Error("Fel produktpost i svaret.");
+      if (current) setDetail(payload);
     }).catch(error => {
-      if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Produktposten kunde inte laddas.");
+      if (current) setLoadError(error instanceof Error ? error.message : "Produktposten kunde inte laddas.");
     });
-    return () => controller.abort();
-  }, [attempt, needsDetails, props.projectId, props.requirement.id]);
+    return () => { current = false; };
+  }, [attempt, needsDetails, props.projectId, props.requirement.id, props.requirement.edit_revision, props.resource]);
   if (!needsDetails) return <RequirementProductMappingCard {...props} />;
   if (detail) return <RequirementProductMappingCard {...props} requirement={detail.requirement}
     assignment={detail.assignments.find(isUserApprovedProductAssignment)} memories={detail.mappingMemories.filter(memory =>
@@ -364,12 +252,12 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
   return <div className="space-y-4 p-6" aria-live="polite">
     <p role={loadError ? "alert" : "status"}>{loadError ?? "Laddar produktpostens krav och produktval…"}</p>
     <div className="flex gap-3">
-      {loadError && <Button variant="secondary" onClick={() => { setLoadError(null); setAttempt(value => value + 1); }}>Försök igen</Button>}
+      {loadError && <Button variant="secondary" onClick={() => { props.resource.invalidate(`/api/projects/${props.projectId}/requirements/${props.requirement.id}`); setLoadError(null); setAttempt(value => value + 1); }}>Försök igen</Button>}
     </div>
   </div>;
 }
 
-function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, postGroup, onSelectPost, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, resource, relatedPosts, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
   projectId: string;
   currency: string;
   requirement: Row;
@@ -378,8 +266,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   sourcePdfFileName: string | null;
   position: number;
   memories: Row[];
-  postGroup?: ProductPostSelectionGroup;
-  onSelectPost: (id: string) => boolean;
+  resource: ProductWorkspaceResource;
+  relatedPosts: ReactNode;
   onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onSavingChange: (saving: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -433,7 +321,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   const [attachmentMessage, setAttachmentMessage] = useState<string | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const details = projectRequirementDetails(requirement);
-  const currentPostIsHeading = !postGroup || postGroup.postNumber === details.postNumber;
   const dataWarnings = projectRequirementDataWarnings(requirement);
   const resolution = productRequirementResolution(requirement);
   const hasAttachmentDraft = Boolean(attachmentFile || attachmentComment.trim());
@@ -531,14 +418,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   function showSelection(selection: ProductSelection, review: ProductSelectionReview | null, suggestions: AhlsellAccessorySuggestion[] = [], amount?: { quantity: string; unit: string }) {
     const existing = choices.find(choice => normalizeNrfNumber(choice.product.productNumber) === normalizeNrfNumber(selection.productNumber));
     if (existing) { activateChoice(existing.id); return; }
-    if (choices.length >= 20) { onError("Du kan velge inntil 20 produkter per post."); return; }
     const choice = { ...emptyChoice(), id: crypto.randomUUID(), product: selection, manual: false, review, suggestions,
       quantity: amount ?? emptyChoice().quantity };
-    setChoices(current => [...current, choice]);
-    activateChoice(choice.id);
-    setHasUnapprovedChanges(true);
-    setDraftNotice("Produktet er lagt til. Lagre produktvalget for å bekrefte posten.");
-    onError("");
+    // Replacing a proposal preserves other explicitly added products. The new
+    // choice is shown as saved only after the existing save endpoint succeeds.
+    const next = choices.length ? choices.map(item => item.id === activeChoice.id ? choice : item) : [choice];
+    void save(next);
   }
 
   function applyMemory(memory: Row, resolved?: { productName?: string; productSubtitle?: string; candidate?: AhlsellPublicCandidate }) {
@@ -554,10 +439,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
   function removeProduct(id: string) {
     const remaining = choices.filter(choice => choice.id !== id);
-    setChoices(remaining);
-    if (activeChoice.id === id) activateChoice(remaining[0]?.id ?? "");
-    setHasUnapprovedChanges(true);
-    onError("");
+    void save(remaining);
   }
 
   function clearSelectedProduct() { removeProduct(activeChoice.id); }
@@ -686,8 +568,10 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     if (!attachmentSaving) setAttachmentExpanded(false);
   }
 
-  async function save() {
-    for (const choice of choices) {
+  async function save(nextChoices = choices) {
+    if (saving || requirement.can_edit === false) return;
+    const removingSelection = Boolean(assignment) && nextChoices.length === 0;
+    for (const choice of nextChoices) {
       if (choice.quantity.quantity.trim() && !parseProductOrderQuantity(choice.quantity)) {
         onError(`Angi gyldig mengde og enhet for ${choice.product.productName}.`); return;
       }
@@ -716,12 +600,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       onError(accessoryError);
       return;
     }
-    if (!productNumber.trim() && !clearingSavedSelection) return;
+    if (!nextChoices.length && !removingSelection) { setChoices([]); setHasUnapprovedChanges(false); return; }
     setSaving(true);
     onSavingChange(true);
     onError("");
     try {
-      if (clearingSavedSelection) {
+      if (removingSelection) {
         const response = await fetch(`/api/projects/${projectId}/product-mappings`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -733,7 +617,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         setHasUnapprovedChanges(false);
         return;
       }
-      const products = choices.map(choice => ({
+      const products = nextChoices.map(choice => ({
         ...choice.product, entryMethod: choice.manual ? "manual" : "catalog", userApproved: true,
         productName: resolveDistributorProductName({ productName: choice.product.productName, productNumber: choice.product.productNumber }),
         notes: productSelectionReviewNotes(choice.review, choice.notes), accessories: productAccessoryPayload(choice.accessories),
@@ -746,8 +630,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Produktvalet kunde inte sparas.");
-      setHasUnapprovedChanges(false);
       await onSaved(`Produktvalet för post ${details.postNumber ?? position} är godkänt och sparat.`);
+      setChoices(nextChoices); activateChoice(nextChoices[0]?.id ?? ""); setHasUnapprovedChanges(false);
     } catch (saveError) {
       onError(saveError instanceof Error ? saveError.message : "Produktvalet kunde inte sparas.");
     } finally {
@@ -998,12 +882,15 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
         <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{projectRequirementPageLabel(details)}</span></div>
         <div className="product-requirement-content">
-          <section aria-label="Kapittelpost" className="mb-4">
-            <ProjectPostSpecification id={"heading-" + requirement.id} details={details} section="heading"
-              currentPostIsHeading={currentPostIsHeading}
-              description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
-              quantity={quantity}
-              sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
+          <h3 className="chapter-active-post-title">{details.postNumber} {String(requirement.value_text ?? "Produktpost")}</h3>
+          <ProjectPostSpecification id={requirement.id} details={details} section="detail" description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")} quantity={quantity} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
+          <section className="chapter-active-selection" aria-label="Vald produkt">
+            <h3>Vald produkt</h3>
+            {!choices.length && <p>Ingen produkt vald</p>}
+            {choices.map(choice => <div key={choice.id}><strong>{choice.product.productName}</strong><p>Art. {choice.product.productNumber}</p>
+              <div className="chapter-selection-actions"><Button variant="secondary" disabled={saving || requirement.can_edit === false} onClick={() => document.getElementById(`ahlsell-products-${requirement.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" })}>Byt produkt</Button>
+              <Button variant="secondary" disabled={saving || requirement.can_edit === false} onClick={() => removeProduct(choice.id)}>Ta bort produkt</Button></div></div>)}
+            {hasUnapprovedChanges && <p role="status">Ändringar är inte sparade.</p>}
           </section>
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
@@ -1024,13 +911,6 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             </div>
           ))}
 
-          {postGroup && <ProjectPostSpecification id={"full-" + requirement.id} details={details} section="detail"
-              currentPostIsHeading={currentPostIsHeading}
-              relatedPosts={<ProductPostRequirements group={postGroup} activeRequirementId={requirement.id}
-                disabled={saving || attachmentSaving || commentsSaving} onSelect={onSelectPost} />}
-              description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")}
-              quantity={quantity}
-              sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />}
 
           <div className="product-post-extras">
           <details>
@@ -1041,6 +921,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         </div>
       </section>
 
+      {relatedPosts}
       <fieldset disabled={requirement.can_edit === false} className="contents">
       <fieldset disabled={saving || attachmentSaving || commentsSaving} aria-busy={saving || attachmentSaving || commentsSaving} className="product-mapping-fields">
         <div id={`product-selection-header-${requirement.id}`} className="product-action-bar">
@@ -1075,7 +956,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
             onApply={applyManualProduct} onCancel={closeManualProductCard} onDirtyChange={setManualProductDraftDirty} />}
 
           <div id={`ahlsell-products-${requirement.id}`} className={`product-catalog-panel${productNumber.trim() ? " product-selected-panel" : ""}`}>
-            <h3 className="product-panel-caption">{choices.length ? `Valgte produkter (${choices.length})` : "Produktforslag"}{productNumber.trim() && <span>{isApproved ? "Lagret" : "Ikke lagret"}</span>}</h3>
+            <h3 className="product-panel-caption">Produktförslag<span>Post {details.postNumber ?? position}</span></h3>
             <div className="product-catalog-scroll">
             <details open className="product-catalog-search">
               <summary>Søk etter produkt eller lim inn produktlenke</summary>
@@ -1090,6 +971,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                 onQuantityChange={(candidate, amount) => { const choice = choices.find(item => normalizeNrfNumber(item.product.productNumber) === normalizeNrfNumber(candidate.articleNumber)); if (choice) updateChoice(choice.id, item => ({ ...item, quantity: amount })); }} />
             </details>
             <AhlsellPublicMatchPanel
+              resource={resource}
               projectId={projectId}
               requirementId={requirement.id}
               requirementRevision={effectiveRequirements(requirement).revision}
@@ -1153,11 +1035,11 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
 
         <div className="product-save-footer">
           <span role="status" className="text-sm text-neutral-600">{clearingSavedSelection ? "Produkt og tilbehør fjernes når du lagrer" : isApproved ? "Produktvalget er lagret" : productNumber.trim() ? `${choices.length} produkter valgt · ikke lagret` : "Velg et produkt for å lagre posten"}</span>
-          <Button type="button" onClick={() => void save()}
+          {hasUnsavedChanges && <Button type="button" onClick={() => void save()}
             disabled={(!productNumber.trim() && !clearingSavedSelection) || (isApproved && !hasUnsavedChanges) || saving || attachmentSaving || commentsSaving || commentDraftDirty || manualProductDraftDirty || hasAttachmentDraft || Boolean(accessoryError)}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
             {saving ? "Lagrer…" : clearingSavedSelection ? "Lagre uten produkt" : isApproved && !hasUnsavedChanges ? "Produktvalg lagret" : "Lagre produktvalg"}
-          </Button>
+          </Button>}
         </div>
 
       </fieldset>
@@ -1166,7 +1048,8 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   );
 }
 
-function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, pipeMainProduct, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory, renderSelected }: {
+function AhlsellPublicMatchPanel({ resource, projectId, requirementId, requirementRevision, guide, disabled, selectedArticleNumber, memories, memoriesAreExact, pipeMainProduct, onCatalogResult, onClearSelection, onUseCandidate, onUseMemory, renderSelected }: {
+  resource: ProductWorkspaceResource;
   projectId: string;
   requirementId: string;
   requirementRevision: string;
@@ -1185,34 +1068,21 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    void fetch(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates`, {
-      signal: controller.signal,
-      headers: { Accept: "application/json" }
-    })
-      .then(async (response) => {
-        const payload = (await response.json().catch(() => null)) as (AhlsellCatalogResult & { error?: string; effectiveRequirements?: { revision: string } }) | null;
-        if (!response.ok) throw new Error(payload?.error ?? "Produktsøket mislyktes.");
-        if (!payload) throw new Error("Produktsøket gav ingen lesbart svar.");
+    let current = true;
+    resource.load<AhlsellCatalogResult & { effectiveRequirements?: { revision: string } }>(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates`, requirementRevision)
+      .then(payload => {
+        if (!current) return;
         if (payload.effectiveRequirements?.revision !== requirementRevision) throw new Error("Kravgrunnlaget er endret. Last inn prosjektet på nytt.");
-        if (controller.signal.aborted) return;
         setCatalogResult(payload);
         const status = ahlsellCatalogStatusFromPayload(payload);
         if (status) onCatalogResult(requirementId, status);
-      })
-      .catch((error) => {
-        if (error instanceof Error && error.name === "AbortError") return;
-        setCatalogError(error instanceof Error ? error.message : "Produktsøket mislyktes.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoadingCatalog(false);
-      });
-
-    return () => controller.abort();
-  }, [onCatalogResult, projectId, requirementId, requirementRevision]);
+      }).catch(error => { if (current) setCatalogError(error instanceof Error ? error.message : "Produktsøket mislyktes."); })
+      .finally(() => { if (current) setLoadingCatalog(false); });
+    return () => { current = false; };
+  }, [resource, onCatalogResult, projectId, requirementId, requirementRevision, catalogAttempt]);
 
   const usableMemoriesByArticle = new Map<string, Row>();
   for (const memory of memories) {
@@ -1252,12 +1122,10 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
   }
 
   // Keep the catalog mounted so clearing a choice restores the current results.
-  if (selectedArticleNumber.trim()) {
-    return renderSelected(number => candidatesByArticle.get(normalizeNrfNumber(number)));
-  }
 
   return (
     <section aria-label="Produkter">
+      {selectedArticleNumber.trim() && <details className="chapter-selected-details"><summary>Vald produkt: mängd, tillbehör och kommentarer</summary>{renderSelected(number => candidatesByArticle.get(normalizeNrfNumber(number)))}</details>}
       {loadingCatalog && (
         <div className="flex min-h-16 items-center justify-center gap-2 border-t border-neutral-200 bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-800" role="status">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Søker automatisk på leverandørens nettsted…
@@ -1268,6 +1136,7 @@ function AhlsellPublicMatchPanel({ projectId, requirementId, requirementRevision
         <div className="border-t border-neutral-300 bg-neutral-50 px-3 py-3 text-xs leading-5 text-neutral-950 sm:px-4" role="alert">
           <p className="font-bold">Produktlisten kunne ikke hentes.</p>
           <p>{catalogError}  Du kan søke manuelt via ”Legg til produkt”.</p>
+          <Button variant="secondary" onClick={() => { resource.invalidate(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates`); setCatalogError(null); setLoadingCatalog(true); setCatalogAttempt(value => value + 1); }}>Försök igen</Button>
         </div>
       )}
 
