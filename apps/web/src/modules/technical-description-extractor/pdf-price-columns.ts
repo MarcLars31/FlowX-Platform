@@ -135,7 +135,7 @@ function alignedTable(headers: Header[], body: Word[][]): { table: PriceTable; r
     if (rightEdge-leftEdge < size*.3) return;
     columns[i-1].right=columns[i].left=(leftEdge+rightEdge)/2;
   }
-  const right = Math.max(headers.at(-1)!.bbox.x1,...samples.flatMap(row=>row.map(w=>w.bbox.x1)))+size*.5;
+  const right = Math.max(headers.at(-1)!.bbox.x1,...observed.at(-1)!.map(w=>w.bbox.x1))+size*.5;
   columns.at(-1)!.right=right;
   return {table:{bounds:{x0:columns[0].left,x1:right,y0:Math.max(...headers.map(h=>h.bbox.y1))+1,
     y1:Math.max(...samples.flatMap(row=>row.map(w=>w.bbox.y1)))+size*.5},columns,evidence:"aligned-rows"},rows:samples};
@@ -175,7 +175,7 @@ export function separatePriceColumns(input: readonly PositionedWord[], rules: re
     const headers=candidate.headers;
     const roles=headers.map(h=>h.role);
     const hasDescription=roles.includes("description");
-    const unknownHeader=rows[candidate.index].some(w=>w.bbox.x0>=headers[0].bbox.x0 && w.bbox.x1<=headers.at(-1)!.bbox.x1
+    const unknownHeader=rows[candidate.index].some(w=>w.bbox.x0>=headers[0].bbox.x0
       && !/^[|¦]+$/.test(w.text) && !headers.some(h=>inside(w,h.bbox.x0,h.bbox.x1)));
     const ordered=headers.every((h,i)=>!i || h.bbox.x0>headers[i-1].bbox.x1-Math.min(height(h),height(headers[i-1]))*.2)
       && roles.lastIndexOf("description")<roles.findIndex(financial)
@@ -197,6 +197,7 @@ export function separatePriceColumns(input: readonly PositionedWord[], rules: re
     // Without drawn borders only structurally verified rows are safe. Keep
     // prose and other cells on continuation lines instead of cropping a strip.
     apply(aligned.table,aligned.rows);
+    if (aligned.rows.some(row=>row.some(w=>w.bbox.x0>=aligned.table.bounds.x1))) issue("unclassified-cells-after-financial-columns");
     const chosen=new Set(aligned.rows.flat());
     if (body.some(row=>row.some(w=>!chosen.has(w) && aligned.table.columns.some(c=>financial(c.role)
       && w.bbox.x1>c.left && w.bbox.x0<c.right)) && !/^(?:Sum|Akkumulert)\b/i.test(row.map(w=>w.text).join(" ")))) issue("unverified-cells-outside-data-rows");

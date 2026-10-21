@@ -60,6 +60,21 @@ test("unknown or blank intervening columns cannot be swallowed by a neighbouring
   }
 });
 
+test("borderless tables never extend Sum to trailing technical text or an unknown trailing column",()=>{
+  const noHeading=[...headers(),...row(),word("68 °C",620,70),word("0,5 bar",690,70)];
+  const result=separatePriceColumns(noHeading);
+  assert.equal(result.audit.excludedCells.length,2);
+  assert.match(kept(noHeading,result.kept),/68 °C\n0,5 bar/);
+  assert.equal(result.audit.status,"review");
+  for(const x of [560,620]) {
+    const extraColumn=[...headers(),word("Kontroll",x,40,45),...row(),word("68 °C",x,70,25)];
+    const unknown=separatePriceColumns(extraColumn);
+    assert.equal(unknown.audit.excludedCells.length,0);
+    assert.equal(unknown.audit.status,"review");
+    assert.deepEqual(unknown.kept,extraColumn.map((_,i)=>i));
+  }
+});
+
 test("aligned OCR cells require a real unit/amount row and retain unverifiable continuation prose",()=>{
   const input=[...headers(),...row(),word("Krav: 68 °C",450,110,100)];
   const result=separatePriceColumns(input);

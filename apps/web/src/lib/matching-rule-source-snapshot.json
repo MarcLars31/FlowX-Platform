@@ -18,7 +18,7 @@
     "../modules/technical-description-extractor/pdf-post-description.ts": "54e706c93f5f4504f865e43d734fb5ba190676429206db029b2d4b782a9709e5",
     "../modules/technical-description-extractor/pdf-post-measurements.ts": "8b217432470b0303c68153e4f8180bdf79b358a077da0bd789d36ae1e40ba7f1",
     "../modules/technical-description-extractor/pdf-post-table.ts": "d76ef3331d90ee1302c5f17f202e30646d2ad4280051b0c7c4c0021262271058",
-    "../modules/technical-description-extractor/pdf-price-columns.ts": "6146dbc96198c6596619880f0096dca424c78bb91a05e3186fd30e6608060655",
+    "../modules/technical-description-extractor/pdf-price-columns.ts": "53a3ed582957e4114d907226c703d817ce84743127084bae29d1cbaf297ed445",
     "../modules/technical-description-extractor/pdf-table-rules.ts": "52a239a9d3423915ee272f84c7e3535256e4dc9b48830bdcf3ae2af27989793e",
     "../modules/technical-description-extractor/pdf.ts": "0a1867a6443e12f7c3b60803bf100ef3f58b00838da23ce9500c63d8b0f080c7",
     "../modules/technical-description-extractor/post-coverage.ts": "95982b2bc4f5d7075c9a2d1b7dec42ac164b3fccd53860cf49cfa2819212d525",
