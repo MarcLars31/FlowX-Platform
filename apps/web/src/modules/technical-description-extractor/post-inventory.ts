@@ -98,7 +98,9 @@ export function textPostInventory(text: string): PostInventory {
       || /\bSide\s+\d+(?:-\d+)?\s*$/i.test(line)) continue;
     if (/(?:beskrevet\s+under|se|henvises\s+til|bestemmelser,?)\s+post(?:\s*(?:nr\.?|nummer))?\s*:?\s*$/i.test(previous)
       || /(?:^|[_\s])IO[- ]liste(?:\s+fordeling)?\s*$/i.test(previous)) continue;
-    if (numberedPostHeading(previous, line)) continue;
+    if (numberedPostHeading(previous, line)
+      || /^\d+(?:\.\d+)+\s+(?:og|och|and|eller)\s+\d/i.test(line)
+      || /\b(?:krav\s+i|henvisning\s+til|i)\s+post\s*$/i.test(previous)) continue;
     const explicit = line.match(/^((?:[A-Z]\d*\.)?\d+(?:\.\d+)+)\.?(?=\s|[|)]|$)/i);
     const short = table ? line.match(/^(\d{1,6})\s+[A-ZÆØÅa-zæøå]/) : null;
     const parsed = parseStructuredPostStart(lines, index);

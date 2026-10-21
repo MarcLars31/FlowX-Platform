@@ -7,7 +7,7 @@ import { projectRequirementOrderPostNumber } from "./project-requirement-order";
 import { requirementSnapshot } from "./requirement-snapshot";
 
 export type OverviewRow = Record<string, unknown> & { id: string };
-const valueFields = ["postNumber", "parentPostNumber", "parentDescription", "postScope", "nsCode", "sourceChapter", "sourceOrder", "chapterInformation", "quantity", "quantityText", "unit", "operation", "system", "reviewFlags", "productResolution"] as const;
+const valueFields = ["title", "postNumber", "parentPostNumber", "parentDescription", "postScope", "nsCode", "sourceChapter", "sourceOrder", "chapterInformation", "quantity", "quantityText", "unit", "operation", "system", "reviewFlags", "productResolution"] as const;
 const rowFields = "id,project_id,category,requirement_key,display_name,value_text,status,source_page,source_document_id,source_technical_description_document_id,created_at,updated_at,edit_revision";
 
 // JSON projections keep specification text and page arrays out of overview queries.

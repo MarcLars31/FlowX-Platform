@@ -1,3 +1,4 @@
+import { splitPostHeading, type HeadingLayout } from "./post-heading";
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import { normalizePdfMeasurementUnit } from "@/lib/pdf-measurement-unit";
 import { numberedPostHeading } from "./numbered-post-heading";
@@ -86,6 +87,8 @@ export function parseStructuredPostStart(
   // immediately before the next row. Keep that number in the specification;
   // treating it as a row would consume the next row's wrapped prefix.
   if (/(?:beskrevet\s+under|se|henvises\s+til|bestemmelser,?)\s+post(?:\s*(?:nr\.?|nummer))?\s*:?\s*$/i.test(lines[lineIndex - 1] ?? "")) return undefined;
+  if (/^(?:\d+(?:\.\d+)+)\s+(?:og|och|and|eller)\s+\d/i.test(line)
+    || /\b(?:krav\s+i|henvisning\s+til|i)\s+post\s*$/i.test(lines[lineIndex - 1] ?? "")) return undefined;
   const wrapped = parseWrappedVisualPostStart(lines, lineIndex);
   if (wrapped) return wrapped;
 
@@ -515,7 +518,7 @@ export function findTableQuantity(lines: string[]) {
   return undefined;
 }
 
-export function tableDescription(parts: string[]) {
+export function tableDescription(parts: string[], layout?: HeadingLayout) {
   const cleaned = parts
     .map((part) => part.trim().replace(/^[|)]{1,2}\s*/, ""))
     .filter((part) => Boolean(part) && !/^(?:Antall(?: prøver)?|Lengde|Mengde|Rund sum)$/i.test(part));
@@ -532,16 +535,8 @@ export function tableDescription(parts: string[]) {
     break;
   }
 
-  const descriptionParts: string[] = [];
-  for (const part of cleaned) {
-    if (ATTRIBUTE_PATTERN.test(part) || /^(?:Andre krav|[a-z]\))/i.test(part)) break;
-    descriptionParts.push(part);
-  }
-
-  return {
-    nsCode,
-    description: descriptionParts.join(" ").replace(/\s+/g, " ").trim()
-  };
+  const headingSplit = splitPostHeading(cleaned.join("\n"), layout);
+  return { nsCode, description: headingSplit.title, requirementText: headingSplit.requirementText, headingSplit };
 }
 
 export function extractTableAttributes(lines: string[]) {

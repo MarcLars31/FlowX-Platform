@@ -11,6 +11,8 @@ export type TechnicalDescriptionPage = {
   pageNumber: number;
   text: string;
   /** Financial cells remain auditable but are excluded before building requirements. */
+  headingLayout?: import("./post-heading").HeadingLayout;
+  headingSources?: Array<{ postNumber: string; text: string; layout: import("./post-heading").HeadingLayout }>;
   priceColumns?: import("./pdf-price-columns").PriceColumnAudit;
   priceColumnReadings?: { digital?: import("./pdf-price-columns").PriceColumnAudit; ocr: import("./pdf-price-columns").PriceColumnAudit };
   method: "text" | "ocr";
@@ -72,6 +74,10 @@ export type TechnicalDescriptionMaterialLine = {
   nsCode?: string;
   category: TechnicalDescriptionCategory;
   description: string;
+  /** Dedicated own heading and requirement body; description remains the legacy title alias. */
+  title?: string;
+  requirementText?: string;
+  headingSplit?: import("./post-heading").HeadingSplit;
   operation: "install" | "remove" | "unknown";
   quantity?: number;
   quantityText?: string;

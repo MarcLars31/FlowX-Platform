@@ -40,7 +40,7 @@ export function buildChapterWorkspace(requirements: Row[]): ChapterWorkspace {
     const own = currentPostRequirement(row), value = record(own.value_json);
     const pages = [...new Set([Number(row.source_page), ...(Array.isArray(value.sourcePages) ? value.sourcePages.map(Number) : [])])].filter(page => Number.isSafeInteger(page) && page > 0);
     sources[row.id] = { id: row.id, number: projectRequirementOrderPostNumber(row) ?? "", title: String(row.value_text ?? row.display_name ?? "Rubrik saknas"),
-      text: String(value.pdfDescriptionText ?? value.sourceText ?? value.technicalSpecification ?? own.source_excerpt ?? ""), pages, parentId: parentById.get(row.id) };
+      text: String((record(value.headingSplit).status === "separated" ? record(value.headingSplit).requirementText : null) ?? value.pdfDescriptionText ?? value.sourceText ?? value.technicalSpecification ?? own.source_excerpt ?? ""), pages, parentId: parentById.get(row.id) };
     const path: string[] = [];
     let parent = parentById.get(row.id);
     while (parent) { path.unshift(parent); parent = parentById.get(parent); }

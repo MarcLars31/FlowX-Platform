@@ -1,3 +1,5 @@
+import { pdfHeadingLayout, pdfPostHeadingSources } from "./pdf-heading-layout";
+import { POST_HEADING_VERSION } from "./post-heading";
 import { PRICE_COLUMN_VERSION, priceColumnsFromPdfItems, type PriceTable } from "./pdf-price-columns";
 import { readPdfTableRules } from "./pdf-table-rules";
 import { pdfPostMeasurementCells } from "./pdf-post-measurements";
@@ -44,7 +46,7 @@ export async function extractPagesFromDocument(
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       options.beforePage?.();
       const saved = cached.get(pageNumber);
-      if (saved?.priceColumns?.version === PRICE_COLUMN_VERSION) { pages.push(saved); previousTables = saved.priceColumns.tables; continue; }
+      if (saved?.priceColumns?.version === PRICE_COLUMN_VERSION && saved.headingLayout?.version === POST_HEADING_VERSION) { pages.push(saved); previousTables = saved.priceColumns.tables; continue; }
       let page: Awaited<ReturnType<typeof document.getPage>> | undefined;
       try {
         page = await document.getPage(pageNumber);
@@ -74,6 +76,8 @@ export async function extractPagesFromDocument(
           pageNumber,
           text,
           priceColumns: separated.audit,
+          headingLayout: pdfHeadingLayout(cleanItems, separated.audit.tables),
+          headingSources: pdfPostHeadingSources(cleanItems, separated.audit.tables),
           ...(postTable && !ocrReason ? { postTable } : {}),
           postInventory: pdfPostInventoryFromItems(cleanItems),
           sourcePostColumns: pdfPostMeasurementCells(content.items, separated.audit.tables),

@@ -1,3 +1,4 @@
+import { ocrHeadingLayout } from "@/modules/technical-description-extractor/pdf-heading-layout";
 import { separateOcrPriceText } from "@/modules/technical-description-extractor/pdf-ocr-columns";
 import type { PositionedWord } from "@/modules/technical-description-extractor/pdf-price-columns";
 import { mergePdfPageSource } from "./pdf-page-source-merge";
@@ -138,6 +139,8 @@ export function mergeClientOcrPages(
       pageNumber: serverPage.pageNumber,
       text: merged.text,
       priceColumns,
+      headingLayout: rawClientPage.words ? ocrHeadingLayout(rawClientPage.words, separated.priceColumns.tables) : undefined,
+      headingSources: undefined,
       priceColumnReadings: { digital: serverPage.priceColumns, ocr: separated.priceColumns },
       sourceTextMerge: merged.supplemented,
       sourceReadings: { digital: serverPage.text, ocr: clientPage.text },

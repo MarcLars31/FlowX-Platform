@@ -5,6 +5,7 @@ export function requirementExtractionWarnings(requirement: Record<string, unknow
   const value = record(requirement.value_json);
   const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
   const warnings: string[] = [];
+  if (flags.includes("unverified-heading-boundary")) warnings.push("Rubrik och kravtext kunde inte skiljas åt säkert. Originaltexten är bevarad; kontrollera uppdelningen mot PDF:n.");
   if (flags.includes("ambiguous-source-identity")) warnings.push("Upprepade postnummer har kopplats i källordning vid omläsning. Båda läsningarnas kravtext är bevarad; kontrollera vilken förekomst texten tillhör.");
   if (flags.includes('unassigned-source-text')) warnings.push('Text från PDF-sidan kunde inte säkert kopplas till en post. Den har behållits här för kontroll; inget postnummer eller någon mängd har gissats.');
   if (flags.includes('merged-source-text')) warnings.push('PDF-text och OCR har kompletterat varandra. Båda läsningarnas innehåll har bevarats; kontrollera eventuella dubbla eller motstridiga krav mot originalet.');

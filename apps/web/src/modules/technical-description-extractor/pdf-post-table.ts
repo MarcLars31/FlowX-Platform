@@ -152,6 +152,7 @@ export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSepara
   for (const [index, post] of posts.entries()) {
     const end = posts[index + 1]?.lineIndex ?? lines.length;
     post.quantity = quantities.find(quantity => quantity.lineIndex >= post.lineIndex && quantity.lineIndex < end);
+    if (post.quantity) post.chapter = false;
   }
   return { text: lines.join("\n"), siteTitle: `${siteMatch[1]} ${siteMatch[2]}`, posts, quantities, quantityColumnsVerified: columnsVerified,
     ...(quantityColumnsUnrecognized ? { quantityColumnsUnrecognized: true } : {}) };

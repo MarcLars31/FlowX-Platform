@@ -77,7 +77,8 @@ test('33.332.4.1 keeps DN20, K160 and own fields while chapter pipe dimensions c
   assert.equal(details.attributes.some(([key]) => key === 'dimensjon' || key === 'materiale'), false);
   assert.deepEqual(details.standardRefs, []);
   assert.equal(details.additionalRequirements, 'Nei');
-  assert.equal(details.sourceExcerpt, line.sourceText);
+  assert.equal(details.sourceExcerpt, line.requirementText);
+  assert.match(details.sourceExcerpt!, /Gjengedimensjon \(DN\): DN20/);
   assert.equal(scoped.value_json.parentPostNumber, line.parentPostNumber, 'Keep navigation hierarchy');
   assert.ok(scoped.effectiveRequirements.requirements.every(item => item.source.kind === 'post'));
   assert.doesNotMatch(JSON.stringify(scoped.effectiveRequirements), /DN50|DN65|5587|5582|LEDNINGSNETT/);

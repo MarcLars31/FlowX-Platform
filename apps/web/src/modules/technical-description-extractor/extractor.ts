@@ -1,3 +1,4 @@
+import { ownPostHeadingSource, splitPostHeading } from "./post-heading";
 import { hasSprinklerContext, hasSprinklerHeadEvidence, hasSprinklerText } from "@/lib/sprinkler-requirement-context";
 import { productExtractionCategory } from "@/lib/product-classification";
 import { ATTRIBUTE_PATTERN, NS3420_CODE_PATTERN, QUANTITY_UNIT_SOURCE, type StructuredPostStart, STRUCTURED_POST_SOURCE, parseStructuredPostStart, recoverDisplacedOcrPostNumbers, recoverMissingStructuredPostNumbers, footerIndex, normalizedPageLines, extractPostScope, extractChapterPost, findTableQuantity, tableDescription, extractTableAttributes, extractInlineAttributes, normalizeAttributeKey, normalizeAttributeValue } from "./document-parser";
@@ -68,6 +69,24 @@ export function extractTechnicalDescriptionFromPages(
 
     }
     line.pdfColumnValues = pdfPostColumnValues(pages, line);
+    const page = pages.find(page => page.pageNumber === line.sourcePage);
+    const source = page?.headingSources?.filter(source => source.postNumber === line.postNumber);
+    const physicalSource = source?.length === 1 && (line.sourcePages?.length ?? 1) === 1 ? source[0] : undefined;
+    const savedLines = normalizedPageLines(line.sourceText);
+    const ownStart = parseStructuredPostStart(savedLines, 0);
+    const ownBody = ownStart && ownStart.postNumber === line.postNumber
+      ? [ownStart.description, ...savedLines.slice(ownStart.consumedLineCount)].filter(Boolean).join("\n") : line.sourceText;
+    const headingSource = ownPostHeadingSource(physicalSource?.text ?? pdfDescriptionText ?? ownBody, line.postNumber, line.nsCode);
+    const split = splitPostHeading(headingSource, physicalSource?.layout ?? page?.headingLayout);
+    line.headingSplit = split;
+    line.requirementText = split.requirementText;
+    if (split.status === "separated" && split.title) line.description = split.title;
+    line.title = line.description;
+    if (split.status === "review") {
+      line.reviewFlags = unique([...line.reviewFlags, "unverified-heading-boundary"]);
+      warnings.push({ id: `heading-${line.id}`, code: "PDF_HEADING_UNVERIFIED", severity: "warning", sourcePage: line.sourcePage,
+        message: "Rubrikens gräns kunde inte verifieras. Hela originaltexten är bevarad för kontroll.", sourceText: headingSource });
+    }
     let chapter = chapters.get(line.sourcePage);
     const nextChapter = chapters.get(line.sourcePage + 1);
     // A chapter can begin halfway down a page whose footer still names the
@@ -619,20 +638,15 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       if (!start.quantity && quantity?.descriptionPrefix) {
         descriptionParts.push(quantity.descriptionPrefix);
       }
-      const parsedDescription = tableDescription(descriptionParts);
+      const parsedDescription = tableDescription(page.postTable && /^[A-Z]{3}$/.test(start.description) ? descriptionParts.slice(1) : descriptionParts, page.headingLayout);
       const nsCode = parsedDescription.nsCode ?? (page.postTable && /^[A-Z]{3}$/.test(start.description) ? start.description : undefined);
-      const description = page.postTable && !NS3420_CODE_PATTERN.test(start.description) && !/^[A-Z]{3}$/.test(start.description)
-        ? [start.description, ...(start.description === start.description.toLocaleUpperCase()
-          ? blockLines.slice(1).filter((part, index, all) => all.slice(0, index + 1).every(line => /^[A-ZÆØÅ][A-ZÆØÅ /–—-]+$/.test(line))) : [])].join(" ")
-        : page.postTable && /^[A-Z]{3}$/.test(start.description)
-          ? blockLines[1] ?? start.description : parsedDescription.description
-        || (start.description && !NS3420_CODE_PATTERN.test(start.description)
-          ? start.description.trim().replace(/:$/, "") : "");
+      const description = parsedDescription.description
+        || (start.description && !NS3420_CODE_PATTERN.test(start.description) ? start.description.trim().replace(/:$/, "") : "");
       const sourceText = pageLines.slice(start.lineIndex, blockEnd).filter(line => page.postTable || !isPageFurniture(line)).join("\n");
       const ownAttributes: Record<string, string> = {
         ...(chapterPost ? { kapittelpost: chapterPost } : {}),
         ...extractTableAttributes(blockLines),
-        ...extractInlineAttributes(description)
+        ...extractInlineAttributes(descriptionParts.join(" "))
       };
       const comments = (page.annotations ?? []).filter(comment => comment.postNumber === fullPostNumber);
       if (comments.length) ownAttributes["pdf-kommentar"] = comments.map(comment => comment.text).join("\n\n");

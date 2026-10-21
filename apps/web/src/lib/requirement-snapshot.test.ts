@@ -7,6 +7,8 @@ import { extractTechnicalDescriptionFromPages } from "@/modules/technical-descri
 import { visibleProjectRequirements } from "./project-requirement-views";
 
 const source = "33.332.7\n1.1.1. ARMATURER\nDet skal medtas soneventiler for hver etasje.\nDet skal medtas beskyttelseskurver i områder hvor dyser\ner utsatt for ytre påkjenning.\nDet skal være tilstrekkelig kapasitet på sluk for testing og\nnedtapping.";
+const title = "1.1.1. ARMATURER";
+const body = source.split("\n").slice(2).join("\n");
 const description = source.split("\n").slice(1).join(" ");
 const saved = {
   id: "saved-armaturer", status: "inferred_unreviewed", source_page: 77, source_excerpt: source,
@@ -20,8 +22,9 @@ const saved = {
 test("repairs the stored ARMATURER identity without reimporting or changing saved work", () => {
   const row = requirementSnapshot(saved);
   assert.equal(row.value_json.postNumber, "33.332.7");
-  assert.equal(row.value_text, description);
-  assert.equal(row.display_name, description);
+  assert.equal(row.value_text, title);
+  assert.equal((row.value_json as Record<string,unknown>).description, body);
+  assert.equal(row.display_name, title);
   assert.equal(row.id, saved.id);
   assert.equal(row.source_excerpt, source);
   assert.equal(row.reviewer_comment, saved.reviewer_comment);
@@ -46,7 +49,7 @@ test("reload discards old overview cache and retains the corrected text post as 
     summary: { ...saved, overview: {}, value_json: saved.value_json } } };
   const rows = await resolveRequirementOverviews([head], { loadDetails: async () => [saved], save: async () => {} });
   assert.equal((rows[0].value_json as Record<string, unknown>).postNumber, "33.332.7");
-  assert.equal(rows[0].value_text, description);
+  assert.equal(rows[0].value_text, title);
   assert.equal((compactProjectRequirement(saved).value_json as Record<string, unknown>).postNumber, "33.332.7");
   assert.deepEqual(visibleProjectRequirements(rows), []);
 });
@@ -59,7 +62,8 @@ test("new text and OCR imports keep the numbered heading and all three source re
     const line = result.materialLines.find(row => row.postNumber === "33.332.7");
     assert.ok(line);
     assert.equal(line.sourceText, source);
-    assert.equal(line.description, description);
+    assert.equal(line.description, title);
+    assert.equal(line.requirementText, body);
     assert.equal(line.quantity, undefined);
     assert.equal(result.materialLines.some(row => row.postNumber === "33.332.71.1.1"), false);
   }

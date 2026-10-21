@@ -12,6 +12,8 @@ export type PdfDocumentNode = {
   kind: "chapter" | "post";
   number: string;
   title: string;
+  description?: string;
+  headingSplit?: import("./post-heading").HeadingSplit;
   code?: string;
   parentId?: string;
   sourcePages: number[];
@@ -79,7 +81,7 @@ export function buildPdfDocumentStructure(
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
       const chapter = headings.find(heading => heading.sourcePage === page.pageNumber
-        && line.replace(/\s/g, "") === heading.label.replace(/\s/g, ""));
+        && (line.replace(/\s/g, "") === heading.label.replace(/\s/g, "") || heading.label.replace(/\s/g, "").startsWith(line.replace(/\s/g, ""))));
       const singleHeading = line.match(/^(\d{1,6})\s+([A-ZÆØÅÄÖ][^\n]+)$/);
       const parsed = parseStructuredPostStart(lines, index);
       const hasDescendants = (number: string) => postNumbers.some(post => post.startsWith(`${number}.`));
@@ -94,7 +96,7 @@ export function buildPdfDocumentStructure(
         && ![...contexts.values()].some(node => parsed.postNumber.startsWith(`${node.number}.`));
       if (chapter) {
         starts.push({ lineIndex: index, consumedLineCount: 1, postNumber: chapter.number,
-          description: chapter.label.slice(chapter.number.length).trim(), chapter: true });
+          description: line.slice(chapter.number.length).trim(), chapter: true });
       } else if (isSupportedStart && !unrelatedSystemReference) {
         starts.push(parsed);
         index += parsed.consumedLineCount - 1;
@@ -119,9 +121,8 @@ export function buildPdfDocumentStructure(
       const body = [start.description, ...lines.slice(start.lineIndex + start.consumedLineCount, end)]
         .filter(line => line && !isDocumentFurniture(line));
       const quantity = start.quantity ?? findTableQuantity(body);
-      const titleParts = quantity && !start.quantity ? body.slice(0, quantity.lineIndex) : body;
-      if (!start.quantity && quantity?.descriptionPrefix) titleParts.push(quantity.descriptionPrefix);
-      const parsed = tableDescription(titleParts);
+      const physical = page.headingSources?.filter(source => source.postNumber === start.postNumber);
+      const parsed = tableDescription(physical?.length === 1 ? physical[0].text.split("\n") : body, physical?.length === 1 ? physical[0].layout : page.headingLayout);
       const text = lines.slice(start.lineIndex, end).filter(line => !isDocumentFurniture(line)).join("\n");
       const existing = contexts.get(start.postNumber);
       if (existing && existing.sourcePages.at(-1) === page.pageNumber - 1) {
@@ -134,7 +135,8 @@ export function buildPdfDocumentStructure(
       const node: PdfDocumentNode = {
         id: `pdf-node-${page.pageNumber}-${start.lineIndex}-${start.postNumber}`,
         kind: start.chapter ? "chapter" : "post", number: start.postNumber,
-        title: start.chapter ? start.description : parsed.description || start.description, code: parsed.nsCode,
+        title: parsed.description || start.description, code: parsed.nsCode,
+        description: parsed.requirementText, headingSplit: parsed.headingSplit,
         parentId: parent?.id, sourcePages: [page.pageNumber], text,
         quantity: quantity?.quantity, unit: quantity?.unit,
         attributes: { ...extractTableAttributes(body), ...extractInlineAttributes(parsed.description) },
@@ -161,6 +163,7 @@ export function buildPdfDocumentStructure(
 
 function appendText(node: PdfDocumentNode, text: string, page: number) {
   node.text += `\n\n${text}`;
+  node.description = [node.description, text].filter(Boolean).join("\n\n");
   node.sourcePages.push(page);
   node.attributes = { ...node.attributes, ...extractTableAttributes(node.text.split("\n")) };
   const quantity = findTableQuantity(text.split("\n"));

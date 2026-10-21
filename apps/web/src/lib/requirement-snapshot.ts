@@ -1,3 +1,4 @@
+import { separateSavedRequirementHeading } from "./requirement-heading";
 import { expandRequirementText } from "./requirement-text-storage";
 import { numberedPostHeading } from "@/modules/technical-description-extractor/numbered-post-heading";
 export const REQUIREMENT_SNAPSHOT_VERSION = 1;
@@ -19,9 +20,9 @@ export function requirementSnapshot<T extends Record<string, unknown>>(row: T): 
   const description = lines.slice(1).join(" ");
   const fields = repaired ? Object.fromEntries(["value_text", "display_name"].flatMap(key =>
     normalize(row[key]) === normalize(oldDescription) ? [[key, description]] : [])) : {};
-  return { ...row, ...fields, value_json: { ...value,
+  return separateSavedRequirementHeading({ ...row, ...fields, value_json: { ...value,
     ...(repaired ? { postNumber: heading.postNumber } : {}),
     extractionVersion: value.extractionVersion ?? 0,
     sourceText: source
-  } };
+  } });
 }

@@ -31,7 +31,7 @@ export function projectRequirementDetails(
   requirement = currentPostRequirement(requirement);
   const value = record(requirement.value_json);
   const sourceExcerpt =
-    text(value.pdfDescriptionText) ?? text(value.technicalSpecification) ?? text(requirement.source_excerpt);
+    (record(value.headingSplit).status === "separated" ? text(record(value.headingSplit).requirementText) : null) ?? text(value.pdfDescriptionText) ?? text(value.technicalSpecification) ?? text(requirement.source_excerpt);
   const columnValues = record(value.pdfColumnValues);
   const requirementKey = text(requirement.requirement_key);
   const attributes = normalizedAttributes(record(value.attributes));

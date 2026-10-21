@@ -1,3 +1,5 @@
+import { splitPostHeading } from "./post-heading";
+import { findTableQuantity, parseStructuredPostStart } from "./document-parser";
 import type {
   TechnicalDescriptionMaterialLine,
   TechnicalDescriptionPage
@@ -30,7 +32,13 @@ export function numberedChaptersFromPages(pages: readonly TechnicalDescriptionPa
         || /\b(?:stk|st|m|lm|m2|m²|m3|m³|kg|l|RS)\s*\d+(?:[.,]\d+)?(?:\s|$)/i.test(title)
         || /\.{2,}\s*\d+\s*$/.test(title)
         || /^(?:Antall|Lengde|Rund sum)\b/i.test(lines[index + 1] ?? "")) return [];
-      return [{ number, label: `${number} ${title}`, sourcePage: page.pageNumber }];
+      const next = lines.findIndex((_, next) => next > index && Boolean(parseStructuredPostStart(lines, next)));
+      const body = lines.slice(index + 1, next < 0 ? undefined : next);
+      const measured = page.sourcePostColumns?.find(post => post.postNumber === number);
+      if (measured?.unit || measured?.quantity || findTableQuantity(body)) return [];
+      const split = splitPostHeading([title, ...body].join("\n"), page.headingLayout);
+      const headingTitle = split.status === "separated" || split.status === "heading-only" ? split.title : title;
+      return [{ number, label: `${number} ${headingTitle}`, sourcePage: page.pageNumber }];
     }));
 }
 

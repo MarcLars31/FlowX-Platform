@@ -188,7 +188,7 @@ test("keeps a new chapter's orientation as information instead of appending it t
   assert.doesNotMatch(lines[0].sourceText, /Orientering/);
   assert.equal(lines[1].postNumber, undefined);
   assert.equal(lines[1].sourceChapter?.title, nextTitle);
-  assert.deepEqual(lines[1].reviewFlags, ["project-information"]);
+  assert.deepEqual(lines[1].reviewFlags, ["project-information", "unverified-heading-boundary"]);
   assert.match(lines[1].sourceText, /komplett med kabler og festemateriell/);
 });
 

@@ -570,6 +570,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
         confidence: page.confidence,
         annotations: page.annotations ?? [],
         annotation_read_failed: page.annotationReadFailed ?? false,
+        ...(page.headingLayout ? { heading_layout: page.headingLayout, heading_sources: page.headingSources } : {}),
         ...(page.priceColumns ? { price_columns: page.priceColumns } : {}),
         ...(page.priceColumnReadings ? { price_column_readings: page.priceColumnReadings } : {}),
         ...(page.sourceReadings ? { source_readings: page.sourceReadings, source_text_merged: page.sourceTextMerge ?? false } : {})
@@ -701,6 +702,9 @@ export async function processTechnicalDescription(request: Request, authorizatio
           sourceOrder: line.sourceOrder ?? null,
           chapterInformation: line.chapterInformation ?? false,
           sourcePages: line.sourcePages ?? [line.sourcePage],
+          title: line.title ?? line.description,
+          description: line.requirementText ?? null,
+          headingSplit: line.headingSplit ?? null,
           pdfDescriptionText: line.pdfDescriptionText ?? null,
           pdfColumnValues: line.pdfColumnValues ?? null,
           postNumber: line.postNumber ?? null,
@@ -755,6 +759,9 @@ export async function processTechnicalDescription(request: Request, authorizatio
           value_text: line.description,
           value_json: {
             extractionVersion: 1,
+            title: line.title ?? line.description,
+            description: line.requirementText ?? null,
+            headingSplit: line.headingSplit ?? null,
             sourceText: line.sourceText,
             pdfDescriptionText: line.pdfDescriptionText ?? null,
             pdfColumnValues: line.pdfColumnValues ?? null,
