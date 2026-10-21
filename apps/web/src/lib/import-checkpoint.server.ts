@@ -20,11 +20,11 @@ export function checkpointPrefix(job: CheckpointJob) {
   if (![job.id,job.organization_id,job.project_id].every(id => /^[a-f0-9-]{36}$/i.test(id))) throw new Error("IMPORT_CACHE_SCOPE");
   return `${job.organization_id}/${job.project_id}/${job.id}/`;
 }
-export async function checkpointRows(job: CheckpointJob, kind: "text"|"ocr", hash?: string) {
+export async function checkpointRows(job: CheckpointJob, kind: "text"|"ocr", hash?: string, cacheVersion = PDF_TEXT_CACHE_VERSION) {
   checkpointPrefix(job);
   return collectAllRows(({limit,offset}) => selectSupabaseRows<Checkpoint>("technical_description_checkpoints",{
     job_id:`eq.${job.id}`,kind:`eq.${kind}`,ready:"eq.true",
-    ...(hash ? {source_sha256:`eq.${hash}`,cache_version:`eq.${PDF_TEXT_CACHE_VERSION}`} : {}),
+    ...(hash ? {source_sha256:`eq.${hash}`,cache_version:`eq.${cacheVersion}`} : {}),
     select:"id,job_id,kind,source_sha256,cache_version,payload_sha256,storage_path,page_numbers,ready",order:"created_at.asc,id.asc",limit:String(limit),offset:String(offset)
   }));
 }
@@ -36,9 +36,9 @@ export function decodeCheckpoint<T extends {pageNumber:number}>(job: CheckpointJ
     || pages.some((page,index) => page.pageNumber !== row.page_numbers[index])) throw new Error("IMPORT_CACHE_PAGE_MISMATCH");
   return pages;
 }
-export async function readCheckpoints<T extends {pageNumber:number}>(job: CheckpointJob, kind:"text"|"ocr", hash?:string) {
+export async function readCheckpoints<T extends {pageNumber:number}>(job: CheckpointJob, kind:"text"|"ocr", hash?:string, cacheVersion = PDF_TEXT_CACHE_VERSION) {
   const pages = new Map<number,T>();
-  for (const row of await checkpointRows(job,kind,hash)) {
+  for (const row of await checkpointRows(job,kind,hash,cacheVersion)) {
     const bytes = await downloadAdminStorageObject(IMPORT_CACHE_BUCKET,row.storage_path,{maxBytes:MAX_OBJECT_BYTES});
     // First completed read wins if two browser sessions submitted overlapping pages.
     for (const page of decodeCheckpoint<T>(job,row,bytes)) if (!pages.has(page.pageNumber)) pages.set(page.pageNumber,page);
@@ -85,15 +85,16 @@ export function textCheckpointWriter(write: (pages: TechnicalDescriptionPage[]) 
     pending.push(page);if(pending.length>=100)await queue();
   }};
 }
-export async function saveTextCheckpoint(job: CheckpointJob, hash: string, pages: TechnicalDescriptionPage[]) {
+export async function saveTextCheckpoint(job: CheckpointJob, hash: string, pages: TechnicalDescriptionPage[], cacheVersion = PDF_TEXT_CACHE_VERSION) {
   const bytes=Buffer.from(JSON.stringify(pages)); const contentHash=payloadHash(bytes);
   if (!pages.length || pages.length>100 || bytes.length>MAX_OBJECT_BYTES) throw new Error("IMPORT_CACHE_BATCH_SIZE");
   if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error("IMPORT_CACHE_HASH");
-  const scope={job_id:`eq.${job.id}`,kind:"eq.text",source_sha256:`eq.${hash}`,cache_version:`eq.${PDF_TEXT_CACHE_VERSION}`,payload_sha256:`eq.${contentHash}`};
+  if (!/^[a-z0-9-]{1,80}$/.test(cacheVersion)) throw new Error("IMPORT_CACHE_VERSION");
+  const scope={job_id:`eq.${job.id}`,kind:"eq.text",source_sha256:`eq.${hash}`,cache_version:`eq.${cacheVersion}`,payload_sha256:`eq.${contentHash}`};
   const [previous]=await selectSupabaseRows<Checkpoint>("technical_description_checkpoints",{...scope,select:"*",limit:"1"});
   const row=previous ?? await insertSupabaseRowReturning<Checkpoint>("technical_description_checkpoints",{
-    job_id:job.id,kind:"text",source_sha256:hash,cache_version:PDF_TEXT_CACHE_VERSION,payload_sha256:contentHash,
-    storage_path:`${checkpointPrefix(job)}text/${PDF_TEXT_CACHE_VERSION}/${hash}/${contentHash}.json`,page_numbers:pages.map(page=>page.pageNumber)
+    job_id:job.id,kind:"text",source_sha256:hash,cache_version:cacheVersion,payload_sha256:contentHash,
+    storage_path:`${checkpointPrefix(job)}text/${cacheVersion}/${hash}/${contentHash}.json`,page_numbers:pages.map(page=>page.pageNumber)
   });
   await storeCheckpointObject(row,bytes);
   if (!row.ready) await updateSupabaseRowsReturning("technical_description_checkpoints",{id:`eq.${row.id}`,job_id:`eq.${job.id}`,select:"id"},{ready:true});

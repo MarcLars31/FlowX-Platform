@@ -102,9 +102,10 @@ test("OCR retries reuse the stored PDF and preserve project context with monoton
   assert.deepEqual(progress, [...progress].sort((a, b) => a - b));
 });
 
-test("failed OCR cleans up only its upload even when cleanup itself fails", async () => {
+test("failed primary OCR is submitted for reserve reading; a final failure still cleans up only its upload", async () => {
   let deleted = false;
-  await assert.rejects(uploadTechnicalDescription(new FormData(), pdf(), {
+  let submitted = false;
+  const response = await uploadTechnicalDescription(new FormData(), pdf(), {
     fetch: async (url, options) => {
       if (options?.method === "DELETE") {
         deleted = true;
@@ -113,10 +114,18 @@ test("failed OCR cleans up only its upload even when cleanup itself fails", asyn
       }
       if (url === signedUrl) return Response.json({});
       if (url === "/api/technical-descriptions/upload") return Response.json({ uploadId, signedUrl });
+      const form = options?.body as FormData;
+      if (form.get("ocrRetry") === "true") {
+        submitted = true;
+        assert.deepEqual(JSON.parse(form.get("ocrPages") as string), [{ pageNumber: 1, text: "", confidence: 0 }]);
+        return Response.json({ code: "OCR_FAILED", error: "Both readers failed" }, { status: 422 });
+      }
       return Response.json({ code: "OCR_REQUIRED", pageNumbers: [1] }, { status: 422 });
     },
     extractOcr: async () => { throw new Error("OCR worker failed"); }
-  }), /OCR worker failed/);
+  });
+  assert.equal(response.status, 422);
+  assert.equal(submitted, true);
   assert.equal(deleted, true);
 });
 

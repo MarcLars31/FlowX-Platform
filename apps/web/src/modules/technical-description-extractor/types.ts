@@ -25,7 +25,8 @@ export type TechnicalDescriptionPage = {
   /** Amounts read from verified original columns, independent of OCR text order. */
   sourcePostColumns?: import("./pdf-post-measurements").PdfPostMeasurementCells[];
   sourceColumnQuantities?: Array<{ postNumber: string; quantity: number; unit: string; text: string }>;
-  sourceReadings?: { digital: string; ocr: string };
+  sourceReadings?: { digital: string; ocr: string; primaryOcr?: string; docling?: string };
+  ocrFallback?: import("@/lib/docling-ocr-fallback").DoclingAttempt;
   sourceTextMerge?: boolean;
   postInventory?: import("./post-inventory").PostInventory;
   postTable?: {

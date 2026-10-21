@@ -63,6 +63,7 @@ type ExistingSourceDocumentRow = {
 export async function processTechnicalDescription(request: Request, authorization: ImportAuthorization, db = userPersistence,
   options: { preserveStaged?: boolean; createdProject?: boolean; onPhase?: (phase: string) => Promise<void>;
     ocrPages?: import("./technical-description-ocr-payload").ClientOcrPage[];
+    recoverOcr?: (input: import("./docling-ocr.server").DoclingInput) => Promise<TechnicalDescriptionPage[]>;
     extractPages?: (buffer: Buffer, hash: string) => Promise<TechnicalDescriptionPage[]> } = {}) {
   const { callUserRpc, insertUserRowReturning, selectAllUserRows, selectUserRows, updateUserRowsReturning } = db;
   let stagedPath: string | undefined;
@@ -201,7 +202,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
       }
     }
     const serverPages = options.extractPages ? await options.extractPages(buffer, fileSha256) : await extractTechnicalDescriptionPages(buffer);
-    let clientOcrPages;
+    let clientOcrPages: import("./technical-description-ocr-payload").ClientOcrPage[] | undefined = undefined;
     try {
       clientOcrPages = options.ocrPages?.length ? options.ocrPages : parseClientOcrPages(
         formData.get("ocrPages"),
@@ -213,7 +214,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
       }
       throw error;
     }
-    const pages = mergeClientOcrPages(serverPages, clientOcrPages);
+    let pages = mergeClientOcrPages(serverPages, clientOcrPages);
     const suppliedOcr = new Set(clientOcrPages?.map(page => page.pageNumber));
     const unreadablePageNumbers = pagesRequiringOcr(serverPages).filter(page => !suppliedOcr.has(page));
     if (unreadablePageNumbers.length > 0) {
@@ -228,6 +229,9 @@ export async function processTechnicalDescription(request: Request, authorizatio
         },
         { status: 422 }
       );
+    }
+    if (clientOcrPages?.length && options.recoverOcr) {
+      pages = await options.recoverOcr({ buffer, hash: fileSha256, original: serverPages, pages, attempted: clientOcrPages });
     }
     if (clientOcrPages && pages.every((page) => page.text.trim().length === 0)) {
       return NextResponse.json(

@@ -2,6 +2,7 @@ import { validateTechnicalDescriptionFile } from "./technical-description-file";
 import type { ClientOcrPage } from "./technical-description-ocr-payload";
 import { resumeOcrImport } from "./ocr-batches";
 import { waitForImportJob } from "./import-job-client";
+import { extractOcrWithFailurePages } from "./ocr-failure-pages";
 
 export type PdfUploadProgress = { label: string; percent: number };
 
@@ -81,13 +82,10 @@ export async function uploadTechnicalDescription(
         response = await resumeOcrImport(file,payload.jobId,payload.pageNumbers,dependencies.extractOcr,dependencies.fetch,
           progress => reportProgress(30 + (progress.progress ?? 0) * 65));
       } else {
-        const ocrPages = await dependencies.extractOcr(
+        const ocrPages = await extractOcrWithFailurePages(dependencies.extractOcr,
           file, payload.pageNumbers,
           progress => reportProgress(30 + (progress.progress ?? 0) * 65)
         );
-        if (!ocrPages.some(page => page.text.trim().length > 0)) {
-          throw new Error("PDF-filen kunne ikke leses. Kontroller at sidene er tydelige og prøv igjen.");
-        }
         analysis.set("ocrPages", JSON.stringify(ocrPages));
         analysis.set("ocrRetry", "true");
         reportProgress(99);

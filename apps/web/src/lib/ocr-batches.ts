@@ -1,4 +1,5 @@
 import { ClientOcrPayloadError, type ClientOcrPage } from "./technical-description-ocr-payload";
+import { extractOcrWithFailurePages } from "./ocr-failure-pages";
 export const OCR_BATCH_PAGES = 10;
 export const OCR_BATCH_BYTES = 2_000_000;
 export const OCR_REQUEST_BYTES = OCR_BATCH_BYTES + 100_000;
@@ -26,7 +27,7 @@ export async function resumeOcrImport(file: File, jobId: string, pageNumbers: nu
     if (!response.ok) throw new Error((await response.json()).error ?? "OCR-resultatet kunde inte sparas. Fortsätt under Importstatus.");
   });
   // Real browser OCR streams pages; simple adapters/tests may return an array instead.
-  const remaining = await extract(file,pageNumbers,progress,page => writer.add(page));
+  const remaining = await extractOcrWithFailurePages(extract,file,pageNumbers,progress,page => writer.add(page));
   for (const page of remaining) await writer.add(page);
   await writer.flush();
   return Response.json({jobId},{status:202});

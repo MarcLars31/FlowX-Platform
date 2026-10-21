@@ -20,3 +20,23 @@ Fysiska Storage-filer är privata och kräver både autentisering, aktivt
 organisationsmedlemskap och projektåtkomst. Utan `projectId` sparas en teknisk
 beskrivning fortfarande i den befintliga importtabellen men kan inte kopplas
 till en projektkörning.
+
+## Reservläsning efter misslyckad OCR
+
+Browser-OCR sparar även tomma/felaktiga försök som sidresultat. Importjobbet
+använder Docling-reserven endast för försök som fortfarande har för lite text,
+låg säkerhet eller en oläst bildkropp. Lyckad digital läsning och lyckad OCR
+fortsätter som tidigare.
+
+`DOCLING_OCR_URL` och `DOCLING_OCR_TOKEN` aktiverar den separata tjänsten i
+`apps/docling-ocr`. Endast den berörda sidan skickas dit. Källhash, storlek,
+koordinater och resultatversion kontrolleras; kända postnummer och NS-koder får
+inte försvinna. Ursprunglig text och båda OCR-läsningarna bevaras. Resultatet
+behåller befintliga OCR-granskningsmarkeringar.
+
+Reservresultat använder den befintliga checkpoint-tabellen med separat
+`docling-rapidocr-v1`-version och dokumentets SHA-256. Varje färdig sida sparas
+innan nästa börjar. När tidsbudgeten tar slut återupptas jobbet utan att använda
+ett felåterförsök. Reservtjänstens fel lämnar befintlig läsning och varningar kvar.
+Inga databasmigreringar eller designändringar behövs. Driftinstruktioner finns
+i `apps/docling-ocr/README.md`.

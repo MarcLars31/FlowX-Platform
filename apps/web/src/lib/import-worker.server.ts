@@ -2,6 +2,8 @@ import "server-only";
 import { readCheckpoints, saveTextCheckpoint, textCheckpointWriter } from "./import-checkpoint.server";
 import type { TechnicalDescriptionPage } from "../modules/technical-description-extractor/types";
 import type { ClientOcrPage } from "./technical-description-ocr-payload";
+import { doclingConfig, DoclingBusyError, recoverFailedOcr } from "./docling-ocr.server";
+import { DOCLING_OCR_VERSION } from "./docling-ocr-fallback";
 import { importFailure } from "./technical-description-errors";
 import { callSupabaseRpc, updateSupabaseRowsReturning } from "./supabase-rest";
 import { importJobPersistence } from "./import-job-persistence.server";
@@ -25,6 +27,8 @@ export async function runImportWorker(jobId: string | null = null) {
     if (!allowed) throw new Error("IMPORT_ACCESS_REVOKED");
   };
   let writerBusy = false;
+  let fallbackYield = false;
+  let fallbackBusy = false;
   let failure: ReturnType<typeof importFailure> | undefined;
   try {
     await authorize();
@@ -35,6 +39,22 @@ export async function runImportWorker(jobId: string | null = null) {
     const response = await processTechnicalDescription(new Request("http://import.internal/process",{method:"POST",body:form}), {
       user:{id:job.created_by}, context:{organization:{id:job.organization_id,name:""},permissions:["technical_description.create","project.requirement.create"]}
     }, importJobPersistence(job,started+275_000), {preserveStaged:true,createdProject:job.created_project,ocrPages,
+      recoverOcr: async input => {
+        try { return await recoverFailedOcr(input, {
+        config: doclingConfig,
+        cached: () => readCheckpoints<TechnicalDescriptionPage>(job, "text", input.hash, DOCLING_OCR_VERSION),
+        save: async page => { await authorize(); await saveTextCheckpoint(job, input.hash, [page], DOCLING_OCR_VERSION); },
+        beforePage: async timeoutMs => {
+          await authorize();
+          if (Date.now() + timeoutMs > started + 220_000) {
+            fallbackYield = true; throw new Error("DOCLING_TIME_BUDGET");
+          }
+        }
+        }); } catch (error) {
+          if (error instanceof DoclingBusyError) fallbackBusy = true;
+          throw error;
+        }
+      },
       extractPages: async (buffer,hash) => {
         const {extractTechnicalDescriptionPages}=await import("../modules/technical-description-extractor/pdf");
         const cachedPages=await readCheckpoints<TechnicalDescriptionPage>(job,"text",hash);
@@ -61,6 +81,11 @@ export async function runImportWorker(jobId: string | null = null) {
     if (error instanceof Error && error.message === "IMPORT_LEASE_LOST") return;
     if (error instanceof Error && error.message === "IMPORT_ACCESS_REVOKED") {
       await update({status:"failed",error_code:"ACCESS_REVOKED",lease_until:null}); return;
+    }
+    if (fallbackYield || fallbackBusy) {
+      await update({status:"queued",phase:"extracting",attempts:Math.max(0,job.attempts-1),lease_until:null,
+        next_attempt_at:new Date(Date.now()+(fallbackBusy ? 15_000 : 1000)).toISOString()});
+      return;
     }
     if (writerBusy) {
       await update({status:"queued",phase:"waiting_for_writer",attempts:Math.max(0,job.attempts-1),lease_until:null,next_attempt_at:new Date(Date.now()+15_000).toISOString()});
