@@ -166,3 +166,33 @@ test("OCR replacement cannot discard an independently readable digital post numb
   assert.ok(result.materialLines.find(line=>line.postNumber==="30.1.3")?.reviewFlags.includes("merged-source-text"));
   assert.equal(result.postChecks?.[0].status,"requires_review");
 });
+
+test("Terningmoen page metadata cannot create unassigned requirement chapters", () => {
+  const result=extractTechnicalDescriptionFromPages([{...page(13,[
+    "04.06.2026", "Prosjekt: Terningmoen Messebygg Side 30-8", "Område: 30 VVS-installasjoner",
+    "Postnr NS-kode/Spesifikasjon Enh. Mengde Pris Sum", "30.31.311.7.2 Overvannsledning", "Lengde m 100,00",
+    "Område: 30 VVS-installasjoner", "Trykk: 0,5 bar", "Temperatur: 68 °C"
+  ].join("\n")),postInventory:{method:"column",posts:[{postNumber:"30.31.311.7.2",sourceText:
+    "30.31.311.7.2 Overvannsledning\nLengde m 100,00\nOmråde: 30 VVS-installasjoner\nTrykk: 0,5 bar\nTemperatur: 68 °C"}]}}]);
+  assert.equal(result.materialLines.filter(line=>line.reviewFlags.includes("unassigned-source-text")).length,0);
+  const line=result.materialLines.find(line=>line.postNumber==="30.31.311.7.2")!;
+  assert.equal(line.quantity,100);
+  assert.match(line.sourceText,/Område: 30 VVS-installasjoner/);
+  assert.match(line.sourceText,/0,5 bar/);
+  assert.match(line.sourceText,/68 °C/);
+});
+
+test("unassigned real prose remains available after a verified area header is removed", () => {
+  const lines: TechnicalDescriptionMaterialLine[]=[], warnings:TechnicalDescriptionWarning[]=[];
+  reconcileSourcePosts([{...page(8,"Prosjekt: Messebygg Side 30-3\nOmråde: 30 VVS-installasjoner\nPostnr Beskrivelse\nAlt utstyr skal merkes."),
+    postInventory:{method:"column",posts:[]}}],lines,warnings);
+  assert.equal(lines.length,1);
+  assert.equal(lines[0].sourceText,"Alt utstyr skal merkes.");
+  assert.ok(warnings.some(w=>w.code==="SOURCE_TEXT_UNASSIGNED"));
+});
+
+test("an area field without page-header and table evidence is preserved", async () => {
+  const {pdfReadingBody}=await import("@/lib/pdf-page-source-merge");
+  assert.equal(pdfReadingBody("Område: 30 VVS-installasjoner\nAlt utstyr skal merkes."),"Område: 30 VVS-installasjoner\nAlt utstyr skal merkes.");
+  assert.match(pdfReadingBody("Postnr Beskrivelse\n30.1 Krav\nOmråde: 30 VVS-installasjoner"),/Område: 30/);
+});

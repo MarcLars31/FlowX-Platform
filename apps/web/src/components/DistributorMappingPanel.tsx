@@ -7,7 +7,7 @@ import { type ComponentProps, type ReactNode, useCallback, useEffect, useEffectE
 import { type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
-import { ChapterOverview, ChapterRequirements, OtherSectionPosts } from "@/components/ChapterWorkspaceNavigation";
+import { ChapterOverview, ChapterRequirements, ChapterSectionProgress, OtherSectionPosts } from "@/components/ChapterWorkspaceNavigation";
 import { initialSectionPost, type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
 import { createProductWorkspaceResource, type ProductWorkspaceResource } from "@/lib/product-workspace-resource";
 import { Button } from "@/components/Button";
@@ -206,7 +206,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       <header className="chapter-workspace-header">
         <Button variant="secondary" disabled={productCardSaving} onClick={() => { if (canNavigate()) { window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId: null } }, ""); returnToOverview(); } }}><ChevronLeft aria-hidden="true" className="h-4 w-4" />Tillbaka till kapitelöversikten</Button>
         <nav aria-label="Navigeringsspår">{chapter.number} {chapter.title}<ChevronRight aria-hidden="true" /><span aria-current="page">{section.number} {section.title}</span></nav>
-        <h2>{section.number} {section.title}</h2><p>{sectionRows.length} poster · {sectionRows.filter(row => approvedRequirementIds.has(row.id)).length} av {sectionRows.length} valda</p>
+        <h2>{section.number} {section.title}</h2><ChapterSectionProgress chapter={chapter} section={section} selected={approvedRequirementIds} />
       </header>
       <ChapterRequirements workspace={workspace} chapter={chapter} section={section} activeId={activeRequirementId} />
       {(message || error) && <p role={error ? "alert" : "status"} className="product-selection-feedback">{error ?? message}</p>}
@@ -220,7 +220,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
         onCatalogResult={recordFullCatalogResult} onSavingChange={setProductCardSaving} onDirtyChange={setProductCardDirty}
         onSaved={async success => { resource.invalidate(`/api/projects/${projectId}/requirements/${activeRequirement.id}`); if (onRequirementSaved) await onRequirementSaved(activeRequirement.id); else await onReload(); setProductCardDirty(false); setError(null); setMessage(success); }}
         onError={errorMessage => { setMessage(null); setError(errorMessage || null); }}
-      /> : <p className="product-selection-empty">Underkapitlet innehåller inga produktposter.</p>}
+      /> : chapter.kind !== "review" && <p className="product-selection-empty">Detta avsnitt innehåller kravtext och har inga egna produktval.</p>}
     </section>}
     {workspace && !workspace.chapters.length && <div className="product-selection-empty"><p>Inga produktposter att visa.</p>{!requirements.length && <Button variant="secondary" onClick={onGoToDocuments}>Gå till dokument</Button>}</div>}
     <footer className="product-selection-footer"><span>{productCardSaving ? "Sparar produktval…" : productCardDirty ? "Osparade ändringar" : "Klar"}</span></footer>

@@ -39,3 +39,43 @@ test("first visit opens the first unselected post; revisits and all-selected sec
   assert.equal(initialSectionPost(section, new Set(["one"]), "foreign"), "two");
   assert.equal(initialSectionPost({ ...section, requirementIds: [] }, new Set()), null);
 });
+
+const fragment = (id: string, text: string, document="pdf-a") => ({ id, value_text:"Uavklart tekst fra PDF – side 2", source_document_id:document,source_page:2,
+  value_json:{sourceText:text,reviewFlags:["project-information","unassigned-source-text","unverified-post-source"]} });
+
+test("old header-only preservation rows are not chapters; real uncertain prose stays reviewable", () => {
+  const main={...row("main","30"),value_text:"VVS-installasjoner"};
+  const rows=[main,row("product","30.1","30",true,"pdf-a",1),
+    fragment("header","Område: 30 VVS-installasjoner"),fragment("mixed","Område: 30 VVS-installasjoner\nKrav utan säker postkoppling"),
+    fragment("foreign","Område: 30 VVS-installasjoner","pdf-b"),fragment("different","Område: 30 Ett annat område")];
+  const original=structuredClone(rows),workspace=buildChapterWorkspace(rows);
+  assert.deepEqual(rows,original,"saved source records must remain unchanged");
+  assert.deepEqual(workspace.chapters.map(chapter=>chapter.id),["main","source-review"]);
+  assert.deepEqual(workspace.chapters[0].sections[0].requirementIds,["product"]);
+  assert.equal(workspace.sources.header,undefined);
+  assert.equal(workspace.sources.mixed.text,rows[3].value_json.sourceText);
+  assert.deepEqual(new Set(workspace.chapters[1].sections.map(section=>section.sourceId)),new Set(["mixed","foreign","different"]));
+  assert.equal(workspace.chapters[1].kind,"review");
+  assert.ok(workspace.chapters[1].sections.every(section=>section.warning));
+});
+
+test("technical identifiers and incomplete recovered numbers do not become main chapters", () => {
+  const system={...row("system","320.005"),value_text:"Pumpen skal leveres komplett",value_json:{...row("system","320.005").value_json,
+    reviewFlags:["project-information","unverified-post-source"],sourceText:"320.005\nPumpen skal leveres komplett."}};
+  const code={...row("code","30.31.315"),value_json:{...row("code","30.31.315").value_json,
+    nsCode:"UF1.114261A",sourceText:"30.31.315\nUF1.114261A",reviewFlags:["project-information","recovered-source-post"]}};
+  const verified={...row("chapter","30.2"),value_json:{...row("chapter","30.2").value_json,
+    chapterInformation:true,reviewFlags:["project-information","unverified-post-source"]}};
+  const workspace=buildChapterWorkspace([system,code,verified]);
+  assert.deepEqual(workspace.chapters.map(c=>c.id),["chapter","source-review"]);
+  assert.equal(workspace.sources.system.text,system.value_json.sourceText);
+  assert.equal(workspace.sources.code.text,code.value_json.sourceText);
+});
+
+test("only exact same-page duplicate chapter readings are suppressed", () => {
+  const numbered={...row("numbered","02"),value_text:"Regningsarbeid",value_json:{...row("numbered","02").value_json,sourceText:"02\nRegningsarbeid"}};
+  const duplicate={id:"duplicate",source_page:1,source_document_id:"pdf-a",value_text:"02 Regningsarbeid",
+    value_json:{sourceText:"02 Regningsarbeid",reviewFlags:["project-information"]}};
+  const extra={...duplicate,id:"extra",value_json:{...duplicate.value_json,sourceText:"02 Regningsarbeid\nEkstra krav."}};
+  assert.deepEqual(buildChapterWorkspace([numbered,duplicate,extra]).chapters.map(c=>c.id),["numbered","extra"]);
+});

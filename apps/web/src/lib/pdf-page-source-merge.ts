@@ -10,7 +10,13 @@ import { mergePdfSourceText } from "./pdf-source-text-merge";
 export function pdfReadingBody(text: string) {
   const lines = normalizedPageLines(text);
   const end = lines.findIndex(isPdfTableTotalFooter);
-  return (end < 0 ? lines : lines.slice(0, end)).filter(line => !isPdfConsultantDateHeader(line)
+  const tableHeader = lines.findIndex(line => /^Post\s*(?:nr|nummer)(?:[.:]|\s|$)/i.test(line));
+  const pageHeader = tableHeader >= 0 && lines.slice(0, tableHeader).some(line => /^(?:Prosjekt:|Kapittel:)|\bSide\s+\d/i.test(line));
+  return (end < 0 ? lines : lines.slice(0, end)).filter((line, index) =>
+    // Område in the proven page header is page metadata. The same field in a
+    // specification, or without a table/header boundary, remains requirement text.
+    !(pageHeader && index < tableHeader && /^Område:\s*\d+(?:\.\d+)*\s+\S/i.test(line))
+    && !isPdfConsultantDateHeader(line)
     && !/^(?:Multiconsult$|(?:Ramb[oø]ll|Multiconsult).*\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}$)/i.test(line)
     && !/^(?:NS[-\s]*(?:3420\s*)?(?:kode|Spesifikasjon)|Enh\.?$|Enhet$|Mengde$|Enhetspris$|Pris$|Sum$|Side\s+\d)/i.test(line)
     && !/^\d{2}\s+(?:VVS|Brannslokking|Sanitær)\b/i.test(line) && !/^(?:Prosjekt:|Kapittel:|Entreprise:|Sted:|Postnr(?:[.:]|\s|$)|Kopi-)/i.test(line)
