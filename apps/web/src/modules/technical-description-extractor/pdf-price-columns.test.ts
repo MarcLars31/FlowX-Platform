@@ -3,7 +3,7 @@ import test from "node:test";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { extractTechnicalDescriptionPages } from "./pdf";
 import { extractTechnicalDescriptionFromPages } from "./extractor";
-import { priceColumnsFromPdfItems, separatePriceColumns, type PositionedWord, type TableRule } from "./pdf-price-columns";
+import { PRICE_COLUMN_VERSION, priceColumnsFromPdfItems, separatePriceColumns, type PositionedWord, type TableRule } from "./pdf-price-columns";
 import { separateOcrPriceText } from "./pdf-ocr-columns";
 import { mergeClientOcrPages, parseClientOcrPages, ClientOcrPayloadError } from "@/lib/technical-description-ocr-payload";
 import { layoutTextFromOcrBlocks } from "./pdf-layout";
@@ -190,7 +190,7 @@ test("a hybrid page retains the digital audit and flags uncertain text supplemen
   const words=[...headers(),...row(),word("Materiale: Vinyl på rull",110,110,180)];
   const text=layoutTextFromOcrBlocks([{paragraphs:[{lines:[{words}]}]}]);
   const original="22.25.2 TH2.121\nHALVHARDT BELEGG\nKrav: Eget digitalt tillegg 100,00 m\nAreal m2 2300,00 00,00 13 750,25";
-  const digitalAudit={version:1 as const,status:"review" as const,tables:[],excludedCells:[],issues:["unverified-table-boundaries"]};
+  const digitalAudit={version:PRICE_COLUMN_VERSION as typeof PRICE_COLUMN_VERSION,status:"review" as const,tables:[],excludedCells:[],issues:["unverified-table-boundaries"]};
   const [page]=mergeClientOcrPages([{pageNumber:1,text:original,method:"text",confidence:.55,ocrReason:"image-body",priceColumns:digitalAudit}],
     [{pageNumber:1,text,words,confidence:.95}]);
   assert.match(page.text,/Eget digitalt tillegg 100,00 m/);

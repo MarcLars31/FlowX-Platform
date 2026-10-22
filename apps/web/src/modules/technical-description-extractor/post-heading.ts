@@ -74,7 +74,10 @@ export function splitPostHeading(text: string, layout?: HeadingLayout): HeadingS
     if ((fontChange || smaller) && (sentence || (aligned && !upper(lines[index]))))
       return result(index,"separated",[fontChange?"font-transition":"size-transition","body-layout"]);
     if (gap && aligned && (sentence || caseTransition)) return result(index,"separated",["paragraph-gap","body-transition"]);
-    const followingClause=lines.slice(index).some(prose);
+    // A clause below a requirement field cannot prove that the preceding
+    // mixed-case heading continuation was already body text.
+    const nextField=lines.findIndex((line,next)=>next>=index && field(line));
+    const followingClause=lines.slice(index,nextField<0?undefined:nextField).some(prose);
     if (caseTransition && followingClause) return result(index,"separated",["numbered-block","case-transition","body-clause"]);
   }
   // An unresolved boundary must not silently throw any part of the source away.

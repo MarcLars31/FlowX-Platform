@@ -74,10 +74,17 @@ const POST_CONTINUATION_PATTERN = /^(\.?\d+(?:\.\d+)*)\s*(.*)$/;
 
 const EXPLICIT_POST_AT_START_PATTERN = new RegExp(String.raw`^(${STRUCTURED_POST_SOURCE})(?=\s|[|)])`, "i");
 
+/** A line-wrap in a reference list cannot create a new post or chapter. */
+export function continuesPostReference(lines: readonly string[], index: number): boolean {
+  return /^\d+(?:\.\d+)+/.test(lines[index] ?? "")
+    && /\bpost(?:ene|er)?\s+\d+(?:\.\d+)+\.?\s+(?:og|och|and|eller)\s*$/i.test(lines[index - 1] ?? "");
+}
+
 export function parseStructuredPostStart(
   lines: string[],
   lineIndex: number
 ): StructuredPostStart | undefined {
+  if (continuesPostReference(lines, lineIndex)) return undefined;
   const line = withoutPriceColumns(lines[lineIndex]);
   if (isTechnicalDescriptionDateHeader(line.split(/\s+/)[0])) return undefined;
   // Wrapped IO-list identifiers are references inside a specification, not

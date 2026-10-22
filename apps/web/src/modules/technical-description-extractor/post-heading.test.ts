@@ -10,8 +10,8 @@ import { buildChapterWorkspace } from "@/lib/project-chapter-workspace";
 import { compactProjectRequirement } from "@/lib/project-overview";
 
 const title="KONTROLL AV FERDIGSTILT ANLEGG";
-// Synthetic middle sentence; the first and last clauses are the user's regression case.
-const body="Uavhengig 3. partskontroll utføres av\net uavhengig kontrollforetak.\nPrisen inkluderer oppfyllelse av krav i post 30.1 og 30.2.";
+// Actual requirement text from Terningmoen Messebygg, PDF page 223.
+const body="Uavhengig 3. partskontroll utføres av\ngodkjentsprinklerfirma og engasjeres av byggherre.\nAll montasjekontroll skal være utført før\nsprinkleranleggetfylles med vann.\nRørlegger skal delta på befaring for\nførstegangskontroll.Det forventes at rørlegger\ngjennomfører vannmengdemåling og testing av ventil\nsammen medkontrollør.\nPrisen inkluderer oppfyllelse av krav i post 30.1 og 30.2.";
 const source=title+"\n"+body;
 test("separates the complete control heading while retaining every requirement and reference",()=>{
   for(const input of [source,source.replaceAll("\n"," ")]){
@@ -57,7 +57,7 @@ test("corrected data is shared by navigation, workspace and detail without chang
   assert.equal(requirementSnapshot({...saved,value_text:"Min granskade rubrik",display_name:"Egen rubrik"}).value_text,"Min granskade rubrik");
 });
 test("post references, including a wrapped 30.1 og 30.2, cannot create new nodes",()=>{
-  for(const text of [source,source.replace("post 30.1", "post\n30.1")]) {
+  for(const text of [source,source.replace("post 30.1", "post\n30.1"),source.replace("og 30.2", "og\n30.2")]) {
     const result=extractTechnicalDescriptionFromPages([{pageNumber:1,method:"text",confidence:.99,text:"30.3 "+text+"\nRund sum RS\n30.4 NESTE POST\nAntall stk 1"}]);
     const control=result.materialLines.find(line=>line.postNumber==="30.3")!;
     assert.equal(control.description,title);
@@ -71,11 +71,11 @@ test("a real PDF separates multiline heading, complete body, RS, price and sum b
   const pdf=await PDFDocument.create(),page=pdf.addPage([700,800]);
   const regular=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
   const draw=(text:string,x:number,y:number,heading=false)=>page.drawText(text,{x,y,size:10,font:heading?bold:regular});
-  for(const [text,x] of [["Postnr.",30],["Beskrivelse",120],["Enh.",465],["Mengde",510],["Pris",565],["Sum",625]] as const)draw(text,x,740);
-  for(const x of [25,110,455,500,555,615,685])page.drawLine({start:{x,y:750},end:{x,y:480},thickness:.5});
+  for(const [text,x] of [["Postnr.",30],["NS-kode/Spesifikasjon",120],["Enh.",465],["Mengde",510],["Pris",565],["Sum",625]] as const)draw(text,x,740);
+  for(const x of [25,110,455,500,555,615,685])page.drawLine({start:{x,y:750},end:{x,y:450},thickness:.5});
   draw("30.3",30,710);draw("KONTROLL AV FERDIGSTILT",120,710,true);draw("ANLEGG",120,696,true);
   for(const [i,line] of body.split("\n").entries())draw(line,120,670-i*14);
-  draw("RS",465,610);draw("150,00",565,610);draw("150,00",625,610);
+  draw("RS",465,520);draw("150,00",565,520);draw("150,00",625,520);
   const pages=await extractTechnicalDescriptionPages(await pdf.save());
   const result=extractTechnicalDescriptionFromPages(pages);
   const line=result.materialLines.find(line=>line.postNumber==="30.3")!;
@@ -116,4 +116,44 @@ test("repairing a derived legacy heading never overwrites an independently edite
     value_json:{postNumber:"30.3",description:"Min sparade korrigerade kravtext"}});
   assert.equal(row.value_json.description,"Min sparade korrigerade kravtext");
   assert.equal(row.value_text,source.replaceAll("\n"," "));
+});
+
+test("wrapped post identifiers beside heading/body lines retain physical boundaries", async () => {
+  const pdf=await PDFDocument.create(),page=pdf.addPage([700,800]);
+  const font=await pdf.embedFont(StandardFonts.Helvetica);
+  const draw=(text:string,x:number,y:number)=>page.drawText(text,{x,y,size:10,font});
+  for(const [text,x] of [["Postnr",30],["NS-kode/Spesifikasjon",120],["Enh.",465],["Mengde",510],["Pris",565],["Sum",625]] as const) draw(text,x,740);
+  for(const x of [25,110,455,500,555,615,685]) page.drawLine({start:{x,y:750},end:{x,y:250},thickness:.5});
+  draw("30.33.332.",30,710);draw("18.15",30,696);
+  draw("GITTERBUR",120,710);
+  const cageBody=["Det medtas gitterbur for sprinklerhoder i forbindelse med","el-fordelinger og IKT-rom.","Prisen inkluderer oppfyllelse av krav i post 30.1 og 30.2."];
+  cageBody.forEach((line,i)=>draw(line,120,696-i*14));
+  draw("stk",465,654);draw("50",510,654);draw("1 250,00",565,654);draw("62 500,00",625,654);
+  draw("30.33.332.",30,600);draw("24",30,586);draw(title,120,600);
+  body.split("\n").forEach((line,i)=>draw(line,120,586-i*14));
+  draw("RS",465,446);draw("0,00",565,446);draw("0,00",625,446);
+  const pages=await extractTechnicalDescriptionPages(await pdf.save());
+  assert.equal(pages[0].priceColumns?.status,"separated");
+  assert.equal(pages[0].priceColumns?.excludedCells.length,4);
+  const result=extractTechnicalDescriptionFromPages(pages);
+  const control=result.materialLines.find(line=>line.postNumber==="30.33.332.24")!;
+  const cage=result.materialLines.find(line=>line.postNumber==="30.33.332.18.15")!;
+  assert.equal(control.title,title);assert.equal(control.requirementText,body);
+  assert.equal(cage.title,"GITTERBUR");assert.equal(cage.requirementText,cageBody.join("\n"));
+  assert.equal(cage.quantity,50);assert.equal(cage.unit,"st");
+  assert.equal(control.pdfColumnValues?.unit,"RS");
+  assert.equal(result.materialLines.some(line=>["30.1","30.2"].includes(line.postNumber??"")),false);
+  // A prior audit must not suppress the new header/layout interpretation.
+  const legacy=structuredClone(pages);
+  Object.assign(legacy[0].priceColumns!,{version:1,tables:[],status:"review",excludedCells:[]});
+  legacy[0].text="stale text";
+  const refreshed=await extractTechnicalDescriptionPages(await pdf.save(),{cachedPages:legacy});
+  assert.equal(refreshed[0].priceColumns?.status,"separated");
+  assert.notEqual(refreshed[0].text,"stale text");
+});
+
+test("a later requirement clause cannot truncate a mixed-case heading continuation",()=>{
+  const split=splitPostHeading("UBA\nInnendørs rørledninger\nAndre krav:\nRadonanlegg komplett.\nPrisen inkluderer oppfyllelse av krav i post 30.1 og 30.2.");
+  assert.equal(split.title,"UBA Innendørs rørledninger");
+  assert.equal(split.requirementText,"Andre krav:\nRadonanlegg komplett.\nPrisen inkluderer oppfyllelse av krav i post 30.1 og 30.2.");
 });

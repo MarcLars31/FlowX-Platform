@@ -1,5 +1,5 @@
 import { isPdfTableTotalFooter } from "@/lib/pdf-post-text";
-import { isTechnicalDescriptionDateHeader, normalizedPageLines, parseStructuredPostStart } from "./document-parser";
+import { continuesPostReference, isTechnicalDescriptionDateHeader, normalizedPageLines, parseStructuredPostStart } from "./document-parser";
 import { layoutTextFromPdfItems } from "./pdf-layout";
 import { numberedPostHeading } from "./numbered-post-heading";
 import type { TechnicalDescriptionPage } from "./types";
@@ -91,6 +91,7 @@ export function textPostInventory(text: string): PostInventory {
   const table = lines.some(line => /^Post\s*(?:nr|nummer)[.:\s]/i.test(line));
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index], previous = lines[index - 1] ?? "";
+    if (continuesPostReference(lines, index)) continue;
     if (isTechnicalDescriptionDateHeader(line.split(/\s/)[0])) continue;
     // Building/chapter headers describe the page, not a left-column post.
     if (/^\d{3,6}\s+[A-ZÆØÅ][\wÆØÅæøå-]*\s+[-–—]\s+\d/.test(line)

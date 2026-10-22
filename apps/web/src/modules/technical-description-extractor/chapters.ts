@@ -1,5 +1,5 @@
 import { splitPostHeading } from "./post-heading";
-import { findTableQuantity, parseStructuredPostStart } from "./document-parser";
+import { continuesPostReference, findTableQuantity, parseStructuredPostStart } from "./document-parser";
 import type {
   TechnicalDescriptionMaterialLine,
   TechnicalDescriptionPage
@@ -24,7 +24,7 @@ export function numberedChaptersFromPages(pages: readonly TechnicalDescriptionPa
       // A discipline has two digits (possibly zero-padded). Three-digit system
       // identifiers such as 360.010 in prose are not chapter numbers.
       const heading = line.match(/^(\d{2,6}\.\d{2}(?:\.\d{3})?|0*\d{2}\.\d{3})\s*([A-ZÆØÅ][^\n]+)$/i);
-      if (!heading) return [];
+      if (!heading || continuesPostReference(lines, index)) return [];
       const [, number, title] = heading;
       // An NS code, dimension or quantity belongs to a product row, even when
       // its post number happens to have the same shape as a chapter number.

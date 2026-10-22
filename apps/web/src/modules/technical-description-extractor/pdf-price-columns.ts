@@ -1,7 +1,7 @@
 /** Separate financial cells while geometry still exists. No monetary-number
  * pattern is used to decide which text to remove. Coordinates use a downward
  * y axis (PDF coordinates are flipped, OCR coordinates are already downward). */
-export const PRICE_COLUMN_VERSION = 1;
+export const PRICE_COLUMN_VERSION = 2;
 export type Box = { x0: number; y0: number; x1: number; y1: number };
 export type PositionedWord = { text: string; bbox: Box };
 export type TableRule = Box;
@@ -22,7 +22,7 @@ export type PriceColumnAudit = {
 };
 const labels: Record<Role, string[]> = {
   post: ["postnr", "postnummer", "pos", "posnr"],
-  description: ["beskrivelse", "beskrivning", "tekst", "text", "specifikation", "spesifikasjon", "ns3420kode/spesifikasjon"],
+  description: ["beskrivelse", "beskrivning", "tekst", "text", "specifikation", "spesifikasjon", "nskode/spesifikasjon", "ns3420kode/spesifikasjon"],
   unit: ["enh", "enhet", "enhed", "eining"],
   quantity: ["mengde", "mengd", "mängd", "antall", "antal"],
   price: ["pris", "enhetspris", "enhedspris", "àpris", "ápris", "apris"],
