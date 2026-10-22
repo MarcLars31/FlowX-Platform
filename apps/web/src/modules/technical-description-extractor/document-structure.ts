@@ -56,13 +56,13 @@ export function buildPdfDocumentStructure(
 
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
     const page = pages[pageIndex];
-    const lines = prepared.pageLines[pageIndex];
-    const pageScope = extractPostScope(lines);
+    const lines = page.postTable ? normalizedPageLines(page.postTable.text) : prepared.pageLines[pageIndex];
+    const pageScope = extractPostScope(normalizedPageLines(page.text));
     if (pageScope && pageScope !== scope) {
       contexts.clear();
       previous = undefined;
       scope = pageScope;
-      const header = lines.find(line => /^Kapittel:/i.test(line))!;
+      const header = normalizedPageLines(page.text).find(line => /^Kapittel:/i.test(line))!;
       const segments = header.replace(/^Kapittel:\s*/i, "").split(/\s+-\s+/).filter(Boolean);
       scopeChapter = undefined;
       for (const [index, segment] of segments.entries()) {
@@ -77,8 +77,9 @@ export function buildPdfDocumentStructure(
         scopeChapter = node;
       }
     }
-    const starts: Array<StructuredPostStart & { chapter?: boolean }> = [];
-    for (let index = 0; index < lines.length; index++) {
+    const starts: Array<StructuredPostStart & { chapter?: boolean }> = page.postTable
+      ? page.postTable.posts.map(post => ({...post, consumedLineCount: 1})) : [];
+    for (let index = 0; !page.postTable && index < lines.length; index++) {
       const line = lines[index];
       const chapter = headings.find(heading => heading.sourcePage === page.pageNumber
         && (line.replace(/\s/g, "") === heading.label.replace(/\s/g, "") || heading.label.replace(/\s/g, "").startsWith(line.replace(/\s/g, ""))));

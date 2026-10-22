@@ -18,5 +18,5 @@ export function separateOcrPriceText(text:string, words?:readonly PositionedWord
     status:"review" as const,excludedCells:[],issues:[...separated.audit.issues,"incomplete-word-positions"]}};
   return {text:separated.audit.excludedCells.length
     ? layoutTextFromOcrBlocks(ocrBlocksFromWords(separated.kept.map(i=>words[i]))) : text,
-  priceColumns:separated.audit};
+  priceColumns:separated.audit, words:complete ? separated.kept.map(i=>words[i]) : undefined};
 }

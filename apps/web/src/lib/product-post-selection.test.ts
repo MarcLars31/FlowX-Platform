@@ -53,17 +53,17 @@ test("common requirements precede the table; selection and amounts belong to ind
   assert.match(html, /aria-label="Velg post 03\.33\.332\.2\.1\.9\.3" checked=""/);
   assert.ok(html.indexOf("Trykk: PN10") < html.indexOf("<table"));
   for (const amount of [2, 1, 14]) assert.ok(html.includes(`>${amount}</td>`));
-  assert.doesNotMatch(html, /0,00 0,00/);
+  assert.match(html, /0,00 0,00/);
   assert.match(html, /Antall stk 1/);
 });
-test("legacy display strips prices only from explicit rows, preserving real zeroes, thousands and prose", () => {
+test("legacy display preserves cells without coordinate evidence, including zeroes and thousands", () => {
   for (const amount of ["0", "2", "1 234,50", "1 000 000"]) {
-    assert.equal(pdfPostDisplayText(`Antall stk ${amount} 0,00 0,00`), `Antall stk ${amount}`);
+    assert.equal(pdfPostDisplayText(`Antall stk ${amount} 0,00 0,00`), `Antall stk ${amount} 0,00 0,00`);
     assert.equal(pdfPostDisplayText(`Antall stk ${amount}`), `Antall stk ${amount}`);
   }
-  assert.equal(pdfPostDisplayText("Antall stk\t\t0,00\t0,00"), "Antall stk");
-  assert.equal(pdfPostDisplayText("Antall stk\t2\t000\t000"), "Antall stk 2");
-  assert.equal(pdfPostDisplayText("Antall stk 2 0 0"), "Antall stk 2");
+  assert.equal(pdfPostDisplayText("Antall stk\t\t0,00\t0,00"), "Antall stk\t\t0,00\t0,00");
+  assert.equal(pdfPostDisplayText("Antall stk\t2\t000\t000"), "Antall stk\t2\t000\t000");
+  assert.equal(pdfPostDisplayText("Antall stk 2 0 0"), "Antall stk 2 0 0");
   const prose = "Det skal følge med 2 stk skruer.\nMaksimal pris 2 0,00 0,00\nAntall stk 1 000 000";
   assert.equal(pdfPostDisplayText(prose), prose);
 });

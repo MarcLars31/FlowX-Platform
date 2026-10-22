@@ -2,6 +2,7 @@ import { priceColumnsFromPdfItems, type PriceTable } from "./pdf-price-columns";
 import { isPdfTableTotalFooter } from "@/lib/pdf-post-text";
 import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
 import type { TechnicalDescriptionPage } from "./types";
+import { pdfPostColumnLayout } from "./post-inventory";
 
 type Item = { text: string; x: number; y: number; width: number; height: number };
 type Row = { y: number; items: Item[] };
@@ -30,9 +31,8 @@ function findColumnHeader(items: Item[], labels: readonly string[]): Item | unde
   return undefined;
 }
 
-/** ISY site tables have an explicit Sted identity and a separate Postnr column.
- * Only that column establishes posts; numbers in the description remain prose.
- * Other digital layouts and OCR continue to use their existing readers.
+/** Verified post columns establish row boundaries independently of the document
+ * template. Numbers inside the description column remain ordinary prose.
  */
 export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSeparated = false, tables?: readonly PriceTable[]): TechnicalDescriptionPage["postTable"] {
   const separated = cellsSeparated ? undefined : priceColumnsFromPdfItems(input);
@@ -44,12 +44,13 @@ export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSepara
     return [{ text: item.str.trim(), x: item.transform[4], y: item.transform[5],
       width: item.width ?? 0, height: item.height || Math.abs(item.transform[3]) || 10 }];
   });
-  const header = items.find(item => /^Postnr:$/.test(item.text));
+  const layout = pdfPostColumnLayout(source);
+  const header = items.find(item => /^Post\s*(?:nr|nummer)[.:]?$/i.test(item.text));
   const site = items.find(item => /^Sted:\s*\d+\s+\S/.test(item.text));
-  if (!header || !site || site.y <= header.y) return undefined;
-  const siteMatch = site.text.match(/^Sted:\s*(\d+)\s+(.+)$/)!;
+  if (!header || !layout || (site && site.y <= header.y)) return undefined;
+  const siteMatch = site?.text.match(/^Sted:\s*(\d+)\s+(.+)$/);
   const headerItems = items.filter(item => Math.abs(item.y - header.y) < 3);
-  const descriptionHeader = headerItems.find(item => item.text === "Beskrivelse");
+  const descriptionHeader = headerItems.find(item => /^(?:Beskrivelse|Beskrivning|(?:NS\s*(?:3420\s*)?[- ]?kode\s*\/\s*)?Spesifikasjon)$/i.test(item.text));
   if (!descriptionHeader) return undefined;
   const columnItems = headerItems.filter(item => item.x >= descriptionHeader.x + descriptionHeader.width);
   const unitCandidate = findColumnHeader(columnItems, ["enh", "enhet", "enhed"]);
@@ -71,21 +72,9 @@ export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSepara
   const footer = items.filter(item => item.y < header.y && isPdfTableTotalFooter(item.text));
   const bottom = footer.length ? Math.max(...footer.map(item => item.y)) + 3 : -Infinity;
   const body = items.filter(item => item.y < header.y - 4 && item.y > bottom);
-  const postItems = body.filter(item => item.x < header.x + header.width && /^[\d.]+$/.test(item.text))
-    .sort((a, b) => b.y - a.y);
-  const anchors: Array<{ postNumber: string; y: number; items: Item[] }> = [];
-  for (const item of postItems) {
-    if (item.text === siteMatch[1] || item.text.startsWith(`${siteMatch[1]}.`)) {
-      anchors.push({ postNumber: item.text, y: item.y, items: [item] });
-    } else {
-      const previous = anchors.at(-1);
-      const last = previous?.items.at(-1);
-      if (!previous || !last || last.y - item.y > last.height * 1.8) return undefined;
-      previous.postNumber += item.text;
-      previous.items.push(item);
-    }
-  }
-  if (anchors.some(anchor => !/^\d+(?:\.\d+)*$/.test(anchor.postNumber))) return undefined;
+  const postItems = body.filter(item => layout.column.some(cell => cell.x === item.x && cell.y === item.y && cell.str === item.text));
+  const anchors = layout.anchors.map(anchor => ({postNumber: anchor.postNumber.replace(/\.$/, ""), y: anchor.y}));
+  if (siteMatch && anchors.some(anchor => anchor.postNumber !== siteMatch[1] && !anchor.postNumber.startsWith(siteMatch[1] + "."))) return undefined;
   // A raised exponent can sit above the normal row tolerance. Attach only
   // a small 2/3 glyph immediately after its own m, before grouping rows.
   for (const exponent of body) {
@@ -121,8 +110,7 @@ export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSepara
     const unitText = unitItems.map(item => item.text).join("").replace(/m2/i, "m²").replace(/m3/i, "m³");
     const amountText = amountItems.map(item => item.text).join("");
     const value = /^RS$/i.test(unitText) ? 1 : parseQuantityNumber(amountText);
-    const isQuantity = /^(?:RS|stk\.?|st|m|lm|m²|m³|kg|l)$/i.test(unitText)
-      && value !== null;
+    const isQuantity = Boolean(unitText) && value !== null;
     // Financial cells have already been classified. Preserve every other
     // item, including uncertain cells; never discard the rest of a row.
     const descriptionItems = isQuantity ? sorted.filter(item => !unitItems.includes(item) && !amountItems.includes(item)) : sorted;
@@ -143,10 +131,10 @@ export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSepara
     if (isQuantity) {
       const unit = normalizeQuantityUnit(unitText);
       const label: Record<string, string> = { st: "Antall", m: "Lengde", m2: "Areal", m3: "Volum", kg: "Vekt", l: "Volum", RS: "Rund sum" };
-      const quantity = { quantity: value!, unit, text: `${label[unit]} ${amountText || "1"} ${unitText}`,
+      const quantity = { quantity: value!, unit, text: `${label[unit] ?? "Antall"} ${amountText || "1"} ${unitText}`,
         lineIndex: lines.length, descriptionPrefix: "", sourceUnitText: unitText, sourceAmountText: amountText };
       quantities.push(quantity);
-      lines.push(`${label[unit]} ${unit} ${amountText || "1"}`);
+      lines.push(`${label[unit] ?? "Antall"} ${unit} ${amountText || "1"}`);
     }
   }
   for (const [index, post] of posts.entries()) {
@@ -154,7 +142,7 @@ export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSepara
     post.quantity = quantities.find(quantity => quantity.lineIndex >= post.lineIndex && quantity.lineIndex < end);
     if (post.quantity) post.chapter = false;
   }
-  return { text: lines.join("\n"), siteTitle: `${siteMatch[1]} ${siteMatch[2]}`, posts, quantities, quantityColumnsVerified: columnsVerified,
+  return { text: lines.join("\n"), siteTitle: siteMatch ? `${siteMatch[1]} ${siteMatch[2]}` : "", posts, quantities, quantityColumnsVerified: columnsVerified,
     ...(quantityColumnsUnrecognized ? { quantityColumnsUnrecognized: true } : {}) };
 }
 
@@ -164,7 +152,7 @@ export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSepara
 export function withSiteTableChapterHeadings(pages: TechnicalDescriptionPage[]) {
   return pages.map((page, index) => {
     const table = page.postTable;
-    if (!table || table.posts.length) return page;
+    if (!table?.siteTitle || table.posts.length) return page;
     const heading = table.text.match(/^(\d{3})\s+([A-ZÆØÅ][^\n]+)\n/);
     if (!heading) return page;
     let nextPost: string | undefined;

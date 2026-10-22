@@ -1,4 +1,5 @@
 import { projectPostSourceStart } from "./project-requirement-source";
+import { ownRequirementSpecification } from "./own-requirement-text";
 import { captureInheritedProductRequirements } from "./inherited-product-requirements";
 import { normalizeOcrDnTokens, repairedOcrPostAttributes, withoutPdfHeaderContinuations, withoutPdfPageSumFooters } from "./pdf-post-text";
 
@@ -33,7 +34,8 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
     || Object.values(origins).some(origin => text(record(origin).postNumber) && text(record(origin).postNumber) !== post);
   const ownSpecification = parts.length > 1 ? ownPart(specification) || source
     : foreign && leadingPost(specification) !== post ? source || ownPart(specification) : specification || source;
-  const ownText = [ownSpecification, source, text(requirement.value_text)].filter(Boolean).join("\n");
+  const canonicalSpecification = ownRequirementSpecification(value) ?? ownSpecification;
+  const ownText = [canonicalSpecification, ownSpecification, source, text(requirement.value_text)].filter(Boolean).join("\n");
   const ancestors = parts.filter(part => foreign && part.trim() !== ownSpecification.trim()).join("\n");
   // Keep numbered ancestor text available for the PDF view across repeated
   // projections. It remains separate from this post's own fields and quantity.
@@ -88,7 +90,7 @@ export function currentPostRequirement<T extends Row>(requirement: T): T {
       ...(inheritedSpecification ? { inheritedSpecification: canonicalText(inheritedSpecification) } : {}),
       ...(repairOcr && typeof value.description === "string" ? { description: canonicalText(value.description) } : {}),
       attributeSources: Object.fromEntries(Object.entries(origins).filter(([key]) => Object.hasOwn(attributes, key))),
-      sourceText: canonicalText(source || ownSpecification), technicalSpecification: canonicalText(ownSpecification),
+      sourceText: canonicalText(source || ownSpecification), technicalSpecification: canonicalText(canonicalSpecification),
       standardRefs,
       ...(inheritedCode ? { nsCode: null } : {}),
       // Parent identity remains available for the expandable post list only.

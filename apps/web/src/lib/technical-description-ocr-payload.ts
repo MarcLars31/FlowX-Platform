@@ -1,4 +1,7 @@
-import { ocrHeadingLayout } from "@/modules/technical-description-extractor/pdf-heading-layout";
+import { ocrHeadingLayout, pdfPostHeadingSources } from "@/modules/technical-description-extractor/pdf-heading-layout";
+import { sitePostTableFromPdfItems } from "@/modules/technical-description-extractor/pdf-post-table";
+import { pdfPostInventoryFromItems } from "@/modules/technical-description-extractor/post-inventory";
+import { pdfPostMeasurementCells } from "@/modules/technical-description-extractor/pdf-post-measurements";
 import { separateOcrPriceText } from "@/modules/technical-description-extractor/pdf-ocr-columns";
 import type { PositionedWord } from "@/modules/technical-description-extractor/pdf-price-columns";
 import { mergePdfPageSource } from "./pdf-page-source-merge";
@@ -127,7 +130,10 @@ export function mergeClientOcrPages(
       ? serverPage.priceColumns.issues.map(issue => `digital:${issue}`) : [];
     const priceColumns = { ...separated.priceColumns,
       ...(retainedDigitalIssues.length ? { status: "review" as const, issues: [...separated.priceColumns.issues, ...retainedDigitalIssues] } : {}) };
-    const postInventory = textPostInventory(merged.text);
+    const positioned = separated.words?.map(word => ({str:word.text, width:word.bbox.x1-word.bbox.x0,
+      height:word.bbox.y1-word.bbox.y0, transform:[1,0,0,word.bbox.y1-word.bbox.y0,word.bbox.x0,-word.bbox.y0]}));
+    const postTable = positioned && !merged.supplemented ? sitePostTableFromPdfItems(positioned,true,priceColumns.tables) : undefined;
+    const postInventory = postTable && positioned ? pdfPostInventoryFromItems(positioned)! : textPostInventory(merged.text);
     const remaining = [...postInventory.posts];
     for (const post of serverPage.postInventory?.posts ?? []) {
       const index = remaining.findIndex(candidate => candidate.postNumber === post.postNumber);
@@ -140,12 +146,13 @@ export function mergeClientOcrPages(
       text: merged.text,
       priceColumns,
       headingLayout: rawClientPage.words ? ocrHeadingLayout(rawClientPage.words, separated.priceColumns.tables) : undefined,
-      headingSources: undefined,
+      headingSources: postTable && positioned ? pdfPostHeadingSources(positioned,priceColumns.tables) : undefined,
       priceColumnReadings: { digital: serverPage.priceColumns, ocr: separated.priceColumns },
       sourceTextMerge: merged.supplemented,
       sourceReadings: { digital: serverPage.text, ocr: clientPage.text },
       // Digital coordinates/line indices no longer describe the replacement OCR text.
-      postTable: undefined,
+      postTable,
+      ...(postTable && positioned ? {sourcePostColumns:pdfPostMeasurementCells(positioned,priceColumns.tables)} : {}),
       postInventory,
       ocrReason: readable ? undefined : serverPage.ocrReason,
       method: "ocr",

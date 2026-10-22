@@ -2,6 +2,7 @@ import { visibleProjectRequirements } from "./project-requirement-views";
 import { projectRequirementOrderPostNumber, sortProjectRequirementsBySource } from "./project-requirement-order";
 import { currentPostRequirement } from "./current-post-requirement";
 import { requirementSnapshot } from "./requirement-snapshot";
+import { ownRequirementBody } from "./own-requirement-text";
 
 type Row = Record<string, unknown> & { id: string };
 export type ChapterSource = { id: string; number: string; title: string; text: string; pages: number[]; parentId?: string };
@@ -20,16 +21,24 @@ export function buildChapterWorkspace(requirements: Row[]): ChapterWorkspace {
   const sources: ChapterWorkspace["sources"] = {}, ancestors: ChapterWorkspace["ancestors"] = {};
   const scope = (row: Row) => JSON.stringify([row.source_document_id ?? row.source_technical_description_document_id ?? "", record(row.value_json).postScope ?? ""]);
   const byAddress = new Map<string, Row[]>();
+  const bySourceId = new Map<string, Row[]>();
   for (const row of rows) {
     const address = JSON.stringify([scope(row), projectRequirementOrderPostNumber(row)]);
     byAddress.set(address, [...(byAddress.get(address) ?? []), row]);
+    const sourceId = record(row.value_json).sourcePostId;
+    if (typeof sourceId === "string") {
+      const key = JSON.stringify([scope(row), sourceId]);
+      bySourceId.set(key, [...(bySourceId.get(key) ?? []), row]);
+    }
   }
   const parentById = new Map<string, string>(), children = new Map<string, Row[]>(), unlinked = new Set<string>();
   for (const row of rows) {
     const value = record(row.value_json), parentNumber = value.parentPostNumber;
     const explicit = typeof value.parentRequirementId === "string" ? byId.get(value.parentRequirementId) : undefined;
-    const candidates = explicit ? [explicit] : typeof parentNumber === "string" && parentNumber
-      ? byAddress.get(JSON.stringify([scope(row), parentNumber])) ?? [] : [];
+    const sourceParent = typeof value.parentSourcePostId === "string"
+      ? bySourceId.get(JSON.stringify([scope(row), value.parentSourcePostId])) : undefined;
+    const candidates = explicit ? [explicit] : typeof value.parentSourcePostId === "string" ? sourceParent ?? [] : (typeof parentNumber === "string" && parentNumber
+      ? byAddress.get(JSON.stringify([scope(row), parentNumber])) ?? [] : []);
     if (!explicit && !parentNumber) continue;
     const parent = candidates.length === 1 ? candidates[0] : undefined;
     if (!parent || scope(parent) !== scope(row) || positions.get(parent.id)! >= positions.get(row.id)!) { unlinked.add(row.id); continue; }
@@ -40,7 +49,7 @@ export function buildChapterWorkspace(requirements: Row[]): ChapterWorkspace {
     const own = currentPostRequirement(row), value = record(own.value_json);
     const pages = [...new Set([Number(row.source_page), ...(Array.isArray(value.sourcePages) ? value.sourcePages.map(Number) : [])])].filter(page => Number.isSafeInteger(page) && page > 0);
     sources[row.id] = { id: row.id, number: projectRequirementOrderPostNumber(row) ?? "", title: String(row.value_text ?? row.display_name ?? "Rubrik saknas"),
-      text: String((record(value.headingSplit).status === "separated" ? record(value.headingSplit).requirementText : null) ?? value.pdfDescriptionText ?? value.sourceText ?? value.technicalSpecification ?? own.source_excerpt ?? ""), pages, parentId: parentById.get(row.id) };
+      text: String(ownRequirementBody(value) ?? value.pdfDescriptionText ?? value.sourceText ?? value.technicalSpecification ?? own.source_excerpt ?? ""), pages, parentId: parentById.get(row.id) };
     const path: string[] = [];
     let parent = parentById.get(row.id);
     while (parent) { path.unshift(parent); parent = parentById.get(parent); }

@@ -61,7 +61,7 @@ test("unrecognized section identities stay separate and marked, with no discarde
   assert.match(html, /Dokumentasjon kreves/);
 });
 
-test("area prices are hidden in own, inherited, uncertain and reimport source text without changing saved data", () => {
+test("unclassified legacy cells remain in own, inherited, uncertain and reimport source text", () => {
   const source = "Areal m 2 2300,00 0,00 0,00\n\n22.25.2 TH2.121\nHALVHARDT BELEGG PÅ GULV\nAreal m2 2300,00 0,00 0,00";
   const details = {
     ...projectRequirementDetails({ value_json: { postNumber: "22.25.2",
@@ -76,7 +76,7 @@ test("area prices are hidden in own, inherited, uncertain and reimport source te
     quantity: { quantity: 2300, unit: "m2" },
   }));
   assert.equal(html.split("Areal m² 2300,00").length - 1, 6);
-  assert.doesNotMatch(html, /0,00 0,00/);
+  assert.match(html, /0,00 0,00/);
   assert.match(html, /TH2\.121/);
   assert.match(html, /HALVHARDT BELEGG PÅ GULV/);
   assert.match(html, /Felles krav/);
@@ -100,7 +100,8 @@ test("the full floor specification is visible at the top while the selected post
     assert.ok(heading.includes(clause));
     assert.ok(!detail.includes(clause));
   }
-  assert.doesNotMatch(heading, /<details|0,00 0,00/);
+  assert.doesNotMatch(heading, /<details/);
+  assert.match(heading, /0,00 0,00/);
   assert.match(detail, /Antall: 2300/);
   assert.deepEqual(details, before);
 });
@@ -119,7 +120,8 @@ test("switching an underpost leaves the common heading above its individual spec
     assert.match(heading, /Materiale: Vinyl på rull\nLeggemåte: Hellimt/);
     assert.doesNotMatch(heading, /<details|Rom [12]/);
     assert.ok(detail.includes(`Areal m² ${suffix}00,00`));
-    assert.doesNotMatch(detail, /Materiale:|Leggemåte:|0,00 0,00/);
+    assert.doesNotMatch(detail, /Materiale:|Leggemåte:/);
+    assert.match(detail, /0,00 0,00/);
     headings.push(heading);
   }
   assert.equal(headings[0], headings[1]);

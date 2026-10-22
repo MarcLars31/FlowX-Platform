@@ -9,6 +9,7 @@ export type TechnicalDescriptionAnnotation = {
 
 export type TechnicalDescriptionPage = {
   pageNumber: number;
+  readingVersion?: number;
   text: string;
   /** Financial cells remain auditable but are excluded before building requirements. */
   headingLayout?: import("./post-heading").HeadingLayout;
@@ -68,6 +69,8 @@ export type TechnicalDescriptionMaterialLine = {
   id: string;
   postNumber?: string;
   parentPostNumber?: string;
+  /** Stable extraction identity, resolved within this document and scope. */
+  parentSourcePostId?: string;
   parentDescription?: string;
   /** Chapter/section identity; short post numbers may repeat within a PDF. */
   postScope?: string;

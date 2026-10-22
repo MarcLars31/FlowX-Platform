@@ -13,7 +13,7 @@ const numberToken = /^(?:[A-Z]\d*\.)?\.?\d+(?:\.\d+)*\.?$/i;
 /** Inventory the physical post column independently of product, NS-code and
  * quantity parsing. Description references and subsection numbers cannot enter
  * this inventory. No Sted, language-specific description or amount header is required. */
-function pdfPostColumnLayout(input: readonly unknown[]) {
+export function pdfPostColumnLayout(input: readonly unknown[]) {
   const items: Item[] = input.flatMap(value => {
     const item = value as Partial<Item> | null;
     if (!item || typeof item.str !== "string" || !item.str.trim() || !Array.isArray(item.transform)) return [];
@@ -38,7 +38,12 @@ function pdfPostColumnLayout(input: readonly unknown[]) {
     const stem = previous?.postNumber.replace(/\.$/, "").split(".")[0];
     const sameRoot = stem && item.str.startsWith(`${stem}.`);
     const nearby = previous && previous.last.y - item.y >= -2 && previous.last.y - item.y <= Math.max(item.height, previous.last.height) * 1.8;
-    const wrapped = nearby && !sameRoot && !/^[A-Z]/i.test(item.str)
+    // The adjacent suffix in one physical cell may begin with the same root:
+    // 30.31.315. / 30.1. Complete sibling/parent identifiers are not appended.
+    const shortSuffix = previous?.postNumber.endsWith(".")
+      && item.str.replace(/\.$/, "").split(".").length < previous.postNumber.replace(/\.$/, "").split(".").length
+      && Math.abs(item.x - previous.last.x) < item.height * .5;
+    const wrapped = nearby && (!sameRoot || shortSuffix) && !/^[A-Z]/i.test(item.str)
       && (previous.postNumber.endsWith(".") || item.str.startsWith(".")
         || (previous.postNumber.includes(".") && previous.last.x + previous.last.width >= header.x + header.width - header.height * .3));
     if (wrapped) {

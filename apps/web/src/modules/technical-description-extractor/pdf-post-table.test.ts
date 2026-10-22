@@ -146,8 +146,8 @@ test("a numeric-looking word outside the post column is not a wrapped suffix", (
   assert.match(result[0].sourceText, /\n12$/);
 });
 
-test("unrecognized layout falls back without changing other digital PDFs", () => {
-  assert.equal(sitePostTableFromPdfItems([item("Postnr:", 49, 713), item("Beskrivelse", 198, 713), ...post("11.1", "Rør", 650)]), undefined);
+test("a verified generic column does not require Sted, but contradictory site identities fall back", () => {
+  assert.deepEqual(sitePostTableFromPdfItems([item("Postnr:", 49, 713), item("Beskrivelse", 198, 713), ...post("11.1", "Rør", 650)])?.posts.map(p=>p.postNumber), ["1201.30.311.1"]);
   assert.equal(sitePostTableFromPdfItems([...header(), item("42", 44, 550)]), undefined);
 });
 

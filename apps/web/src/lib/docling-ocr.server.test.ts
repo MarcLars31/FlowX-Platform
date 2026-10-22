@@ -48,7 +48,7 @@ test("only the failed page is transmitted; checkpoints resume without duplicate 
   const result = await recoverFailedOcr(data, deps);
   assert.equal(calls, 1); assert.equal(result[0], data.pages[0]);
   assert.equal(result[1].ocrFallback?.status, "accepted");
-  assert.match(result[1].text, /Lengde m 12,5/);
+  assert.match(result[1].text, /Lengde\s+m\s+12,5/);
   assert.doesNotMatch(result[1].text, /0,00/);
   assert.equal(result[1].priceColumns?.excludedCells.length, 2);
   const extracted = extractTechnicalDescriptionFromPages(result);

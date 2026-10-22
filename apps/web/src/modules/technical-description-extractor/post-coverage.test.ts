@@ -147,7 +147,7 @@ test("real PDF extraction inventories a generic post column without Sted or quan
     sheet.drawText(cell.str,{font,size:10,x:cell.transform[4],y:cell.transform[5]});
   }
   const pages=await extractTechnicalDescriptionPages(await pdf.save());
-  assert.equal(pages[0].postTable,undefined);
+  assert.deepEqual(pages[0].postTable?.posts.map(post=>post.postNumber),["30.1.3","33.332.7"]);
   assert.deepEqual(pages[0].postInventory?.posts.map(post=>post.postNumber),["30.1.3","33.332.7"]);
   const result=extractTechnicalDescriptionFromPages(pages);
   assert.deepEqual(result.materialLines.map(line=>line.postNumber),["30.1.3","33.332.7"]);

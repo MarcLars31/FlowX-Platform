@@ -25,6 +25,7 @@ import { pdfChaptersByPage } from "./pdf-chapters";
 import { withSiteTableChapterHeadings } from "./pdf-post-table";
 import { sortMaterialLinesBySource } from "./post-source-order";
 import { reconcileSourcePosts } from "./post-coverage";
+import { linkPostHierarchy } from "./post-hierarchy";
 import { pdfPostDescriptionText, pdfPostColumnValues } from "./pdf-post-description";
 
 type ExtractOptions = {
@@ -96,7 +97,7 @@ export function extractTechnicalDescriptionFromPages(
       chapter = nextChapter;
     }
     const table = pages.find(page => page.pageNumber === line.sourcePage)?.postTable;
-    if (table) chapter = { title: table.siteTitle,
+    if (table?.siteTitle) chapter = { title: table.siteTitle,
       sourcePage: pages.find(page => page.postTable?.siteTitle === table.siteTitle)!.pageNumber };
     if (chapter) line.sourceChapter = chapter;
     if ((line.sourcePages ?? [line.sourcePage]).some(pageNumber => unrecognizedQuantityPages.has(pageNumber))) {
@@ -118,6 +119,7 @@ export function extractTechnicalDescriptionFromPages(
       && line.reviewFlags.includes("project-information") && !line.unit && line.quantity === undefined);
   }
   attachNumberedChapters(materialLines, numberedChapters);
+  linkPostHierarchy(materialLines);
   const pageChecks = reconcilePageQuantities(pages, materialLines, warnings);
   appendMaterialLineValidationWarnings(materialLines, warnings);
   const standards = unique(
@@ -533,7 +535,7 @@ function extractNs3420TableLines(pages: TechnicalDescriptionPage[]) {
       pipeSection = undefined;
     }
     if (nextChapterTitle) chapterTitle = nextChapterTitle;
-    const scope = extractPostScope(pageLines);
+    const scope = extractPostScope(normalizedPageLines(page.text));
     if (scope && scope !== postScope) {
       parentContexts.clear();
       previousContext = undefined;

@@ -85,7 +85,7 @@ export function parseStructuredPostStart(
   lineIndex: number
 ): StructuredPostStart | undefined {
   if (continuesPostReference(lines, lineIndex)) return undefined;
-  const line = withoutPriceColumns(lines[lineIndex]);
+  const line = quantityParsingLine(lines[lineIndex]);
   if (isTechnicalDescriptionDateHeader(line.split(/\s+/)[0])) return undefined;
   // Wrapped IO-list identifiers are references inside a specification, not
   // rows in the post-number column.
@@ -405,14 +405,13 @@ export function footerIndex(lines: string[], afterIndex: number) {
 export function normalizedPageLines(text: string) {
   return text
     .split(/\r?\n/)
-    .map((line) => normalizeOcrArtifacts(withoutPriceColumns(line).replace(/\s+/g, " ").trim()))
+    .map((line) => normalizeOcrArtifacts(normalizePdfMeasurementUnit(line).replace(/[^\S\t]+/g, " ").trim()))
     .filter(Boolean);
 }
 
-/** Tabs are physical cell boundaries. Consume exactly the cell after the unit,
- * including an empty cell; prices must not become a quantity or its suffix.
- * Spaces inside one quantity cell (e.g. 1 234,50) remain significant. */
-function withoutPriceColumns(line: string) {
+/** Inspect a quantity cell, including an empty one, only for numeric parsing.
+ * Never replace source text with this view: tabs do not prove price columns. */
+function quantityParsingLine(line: string) {
   line = normalizePdfMeasurementUnit(line);
   if (!line.includes("\t")) return line;
   const cells = line.split("\t");
@@ -456,13 +455,13 @@ function isTableFooter(value: string) {
 
 export function findTableQuantity(lines: string[]) {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    let line = withoutPriceColumns(lines[lineIndex]);
+    let line = quantityParsingLine(lines[lineIndex]);
     // PDF text streams can place a row's label, unit and amount on separate
     // consecutive lines. Join only a complete quantity, never the next post.
     const label = String.raw`(?:(?:Samlet\s+)?Lengde|Antall|Areal|Volum|Vekt|Masse)`;
     if (new RegExp(String.raw`^(?:${label}(?:\s+${QUANTITY_UNIT_SOURCE})?|${QUANTITY_UNIT_SOURCE})\.?$`, "i").test(line)) {
       for (let count = 2; count <= 3; count++) {
-        const candidate = withoutPriceColumns(lines.slice(lineIndex, lineIndex + count).join(" "));
+        const candidate = quantityParsingLine(lines.slice(lineIndex, lineIndex + count).join(" "));
         if (new RegExp(String.raw`^(?:${label}\s+)?${QUANTITY_UNIT_SOURCE}\.?\s+${QUANTITY_NUMBER_SOURCE}(?:\s+${QUANTITY_NUMBER_SOURCE}){0,3}$`, "i").test(candidate)) {
           line = candidate;
           break;

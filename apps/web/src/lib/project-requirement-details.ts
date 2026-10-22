@@ -1,6 +1,7 @@
 import { productPostMeasurement } from "./project-requirement-views";
 import { requirementExtractionWarnings } from "./requirement-extraction-warnings";
 import { currentPostRequirement } from "./current-post-requirement";
+import { ownRequirementBody } from "./own-requirement-text";
 import { projectRequirementKFactorDisplayValue } from "./project-requirement-data-warnings";
 
 export type ProjectRequirementDetail = {
@@ -31,7 +32,7 @@ export function projectRequirementDetails(
   requirement = currentPostRequirement(requirement);
   const value = record(requirement.value_json);
   const sourceExcerpt =
-    (record(value.headingSplit).status === "separated" ? text(record(value.headingSplit).requirementText) : null) ?? text(value.pdfDescriptionText) ?? text(value.technicalSpecification) ?? text(requirement.source_excerpt);
+    ownRequirementBody(value) ?? text(value.pdfDescriptionText) ?? text(value.technicalSpecification) ?? text(requirement.source_excerpt);
   const columnValues = record(value.pdfColumnValues);
   const requirementKey = text(requirement.requirement_key);
   const attributes = normalizedAttributes(record(value.attributes));

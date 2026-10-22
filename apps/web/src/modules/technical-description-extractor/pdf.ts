@@ -20,6 +20,7 @@ import { pdfPostInventoryFromItems } from "./post-inventory";
 import { sitePostTableFromPdfItems } from "./pdf-post-table";
 
 import { nonTextBodyOcrReason, pageRequiresOcr, MIN_TEXT_PAGE_LENGTH } from "./pdf-ocr-detection";
+export const PDF_READING_VERSION = 2;
 
 /** Read the document hierarchy independently of product analysis. */
 export async function readPdfDocument(data: Buffer | Uint8Array, fileName?: string) {
@@ -46,7 +47,7 @@ export async function extractPagesFromDocument(
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       options.beforePage?.();
       const saved = cached.get(pageNumber);
-      if (saved?.priceColumns?.version === PRICE_COLUMN_VERSION && saved.headingLayout?.version === POST_HEADING_VERSION) { pages.push(saved); previousTables = saved.priceColumns.tables; continue; }
+      if (saved?.readingVersion === PDF_READING_VERSION && saved.priceColumns?.version === PRICE_COLUMN_VERSION && saved.headingLayout?.version === POST_HEADING_VERSION) { pages.push(saved); previousTables = saved.priceColumns.tables; continue; }
       let page: Awaited<ReturnType<typeof document.getPage>> | undefined;
       try {
         page = await document.getPage(pageNumber);
@@ -74,6 +75,7 @@ export async function extractPagesFromDocument(
         }
         pages.push({
           pageNumber,
+          readingVersion: PDF_READING_VERSION,
           text,
           priceColumns: separated.audit,
           headingLayout: pdfHeadingLayout(cleanItems, separated.audit.tables),
