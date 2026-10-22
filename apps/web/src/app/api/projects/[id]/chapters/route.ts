@@ -18,7 +18,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     // One read per workspace, never per post click. Only ancestor source text is
     // returned; full post details and product matching remain lazy and separate.
     const rows = await selectAllUserRows<Row>("project_requirements", { ...scope, deleted_at: "is.null",
-      select: "id,value_text,display_name,value_json,source_excerpt,source_page,source_document_id,source_technical_description_document_id,status,created_at", order: "id.asc" }, { pagination: "id" });
+      select: "id,value_text,display_name,value_json,source_excerpt,source_page,source_document_id,source_technical_description_document_id,status,created_at,reviewed_at,reviewed_by", order: "id.asc" }, { pagination: "id" });
     return NextResponse.json(buildChapterWorkspace(rows), { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return NextResponse.json({ error: "Kapitlen kunde inte hämtas. Försök igen." }, { status: 503 });
