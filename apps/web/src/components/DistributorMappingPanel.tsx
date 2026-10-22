@@ -8,7 +8,7 @@ import { type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ChapterOverview, ChapterRequirements, ChapterSectionProgress, SectionPosts } from "@/components/ChapterWorkspaceNavigation";
-import { type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
+import { chapterPostSection, chapterPostRows, type ChapterWorkspace, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
 import { createProductWorkspaceResource, type ProductWorkspaceResource } from "@/lib/product-workspace-resource";
 import { Button } from "@/components/Button";
 import { ManualProductCard, type ManualProductChoice } from "@/components/ManualProductCard";
@@ -102,8 +102,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [expandedChapter, setExpandedChapter] = useState<string | null>(null);
-  const [sectionId, setSectionId] = useState<string | null>(null);
+  const [chapterId, setChapterId] = useState<string | null>(null);
   const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
   const [productCardSaving, setProductCardSaving] = useState(false);
   const [productCardDirty, setProductCardDirty] = useState(false);
@@ -115,9 +114,9 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const approvedRequirementIds = useMemo(() => new Set(approvedAssignments.map(row => String(row.requirement_id))), [approvedAssignments]);
   const visible = useMemo(() => visibleProjectRequirements(requirements), [requirements]);
   const rowsById = useMemo(() => new Map(visible.map(row => [row.id, row])), [visible]);
-  const chapter = workspace?.chapters.find(item => item.sections.some(section => section.id === sectionId));
-  const section = chapter?.sections.find(item => item.id === sectionId);
-  const sectionRows = useMemo(() => section?.requirementIds.flatMap(id => rowsById.get(id) ? [rowsById.get(id)!] : []) ?? [], [section, rowsById]);
+  const chapter = workspace?.chapters.find(item => item.id === chapterId);
+  const section = useMemo(() => chapter ? chapterPostSection(chapter) : undefined, [chapter]);
+  const sectionRows = useMemo(() => section ? chapterPostRows(section, rowsById) : [], [section, rowsById]);
   const activeRequirement = activeRequirementId ? rowsById.get(activeRequirementId) : undefined;
   const activeAssignment = activeRequirementId ? approvedAssignmentByRequirementId.get(activeRequirementId) : undefined;
   const activeIndex = sectionRows.findIndex(row => row.id === activeRequirementId);
@@ -152,10 +151,10 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   function canNavigate() { return !productCardSaving && (!productCardDirty || window.confirm("Du har osparade ändringar. Byt vy utan att spara?")); }
   function focusWorkspace() { requestAnimationFrame(() => document.getElementById("product-post-detail")?.focus({ preventScroll: true })); }
   function returnToOverview() {
-    setSectionId(null); setActiveRequirementId(null); setProductCardDirty(false); setMessage(null); setError(null);
+    setChapterId(null); setActiveRequirementId(null); setProductCardDirty(false); setMessage(null); setError(null);
     requestAnimationFrame(() => {
       window.scrollTo({ top: listPosition.current, behavior: "instant" });
-      document.getElementById(`chapter-section-${encodeURIComponent(sectionId ?? "")}`)?.focus({ preventScroll: true });
+      document.getElementById(`chapter-${encodeURIComponent(chapterId ?? "")}`)?.focus({ preventScroll: true });
     });
   }
   const handleHistory = useEffectEvent((event: PopStateEvent) => {
@@ -163,28 +162,29 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     const target = event.state?.scipxChapter;
     if (target?.projectId !== projectId) return;
     if (!canNavigate()) { historyRestore.current = true; window.history.forward(); return; }
-    if (!target.sectionId) { returnToOverview(); return; }
-    const nextSection = workspace?.chapters.flatMap(item => item.sections).find(item => item.id === target.sectionId);
-    if (!nextSection) return;
-    setSectionId(nextSection.id); setActiveRequirementId(nextSection.requirementIds.includes(target.id) ? target.id : null);
+    // Older browser entries may still point at a subsection of this chapter.
+    const nextChapter = workspace?.chapters.find(item => item.id === target.chapterId ||
+      (target.sectionId && item.sections.some(section => section.id === target.sectionId)));
+    if (!nextChapter) { returnToOverview(); return; }
+    setChapterId(nextChapter.id); setActiveRequirementId(chapterPostSection(nextChapter).requirementIds.includes(target.id) ? target.id : null);
     setProductCardDirty(false); setMessage(null); setError(null); focusWorkspace();
   });
   useEffect(() => { const listen = (event: PopStateEvent) => handleHistory(event); window.addEventListener("popstate", listen); return () => window.removeEventListener("popstate", listen); }, []);
-  function openSection(nextChapter: WorkspaceChapter, nextSection: ChapterSection) {
+  function openChapter(nextChapter: WorkspaceChapter) {
     if (!canNavigate()) return;
     const id = null;
     listPosition.current = window.scrollY;
-    setExpandedChapter(nextChapter.id); setSectionId(nextSection.id); setActiveRequirementId(id);
+    setChapterId(nextChapter.id); setActiveRequirementId(id);
     setProductCardDirty(false); setMessage(null); setError(null);
-    window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId: null } }, "");
-    window.history.pushState({ ...window.history.state, scipxChapter: { projectId, sectionId: nextSection.id, id } }, "");
+    window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, chapterId: null } }, "");
+    window.history.pushState({ ...window.history.state, scipxChapter: { projectId, chapterId: nextChapter.id, id } }, "");
     requestAnimationFrame(() => { document.getElementById("product-post-detail")?.scrollIntoView({ block: "start", behavior: "instant" }); focusWorkspace(); });
   }
   function showRequirement(id: string) {
     if (!section?.requirementIds.includes(id) || !canNavigate()) return false;
     if (!activeRequirementId) postListPosition.current = window.scrollY;
     setActiveRequirementId(id); setProductCardDirty(false); setMessage(null); setError(null);
-    window.history.pushState({ ...window.history.state, scipxChapter: { projectId, sectionId, id } }, "");
+    window.history.pushState({ ...window.history.state, scipxChapter: { projectId, chapterId, id } }, "");
     requestAnimationFrame(() => { const anchor = document.getElementById("chapter-active-anchor"); anchor?.scrollIntoView({ block: "start", behavior: "instant" }); anchor?.focus({ preventScroll: true }); });
     return true;
   }
@@ -194,19 +194,19 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     {!workspace && <div className="product-selection-empty" role={loadError ? "alert" : "status"}>
       <p>{loadError ?? "Laddar PDF-filens kapitel…"}</p>{loadError && <Button variant="secondary" onClick={() => setLoadAttempt(value => value + 1)}>Försök igen</Button>}
     </div>}
-    {workspace && !section && <ChapterOverview workspace={workspace} selected={approvedRequirementIds} expanded={expandedChapter} onToggle={id => setExpandedChapter(current => current === id ? null : id)} onOpen={openSection} />}
-    {workspace && chapter && section && <section id="product-post-detail" tabIndex={-1} className="product-post-detail" aria-label={activeRequirement ? "Produktpost" : "Poster i underkapitlet"}>
+    {workspace && !section && <ChapterOverview workspace={workspace} selected={approvedRequirementIds} onOpen={openChapter} />}
+    {workspace && chapter && section && <section id="product-post-detail" tabIndex={-1} className="product-post-detail" aria-label={activeRequirement ? "Produktpost" : "Poster i kapitlet"}>
       <header className="chapter-workspace-header">
         <Button variant="secondary" disabled={productCardSaving} onClick={() => {
           if (!canNavigate()) return;
           if (activeRequirement) {
             const previousId = activeRequirement.id;
             setActiveRequirementId(null); setProductCardDirty(false); setMessage(null); setError(null);
-            window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId, id: null } }, "");
+            window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, chapterId, id: null } }, "");
             requestAnimationFrame(() => { window.scrollTo({ top: postListPosition.current, behavior: "instant" }); document.getElementById('section-post-' + previousId)?.focus({ preventScroll: true }); });
-          } else { window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId: null } }, ""); returnToOverview(); }
+          } else { window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, chapterId: null } }, ""); returnToOverview(); }
         }}><ChevronLeft aria-hidden="true" className="h-4 w-4" />{activeRequirement ? "Tillbaka till postlistan" : "Tillbaka till kapitelöversikten"}</Button>
-        <nav aria-label="Navigeringsspår">{chapter.number} {chapter.title}<ChevronRight aria-hidden="true" /><span aria-current="page">{section.number} {section.title}</span></nav>
+        <nav aria-label="Navigeringsspår"><span aria-current={activeRequirement ? undefined : "page"}>{chapter.number} {chapter.title}</span>{activeRequirement && <><ChevronRight aria-hidden="true" /><span aria-current="page">Post {projectRequirementDetails(activeRequirement).postNumber ?? "utan nummer"}</span></>}</nav>
         {!activeRequirement && <><h2>{section.number} {section.title}</h2><ChapterSectionProgress chapter={chapter} section={section} selected={approvedRequirementIds} /></>}
       </header>
       {!activeRequirement && <>

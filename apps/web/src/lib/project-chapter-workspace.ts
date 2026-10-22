@@ -10,6 +10,25 @@ export type ChapterSection = { id: string; sourceId: string | null; title: strin
 export type WorkspaceChapter = { id: string; sourceId: string | null; title: string; number: string; sections: ChapterSection[]; kind?: "review" | "main-post" };
 export type ChapterWorkspace = { chapters: WorkspaceChapter[]; sources: Record<string, ChapterSource>; ancestors: Record<string, string[]> };
 
+/** Navigation presents a chapter as one list. Keep the source hierarchy intact
+ * for requirement inheritance and collect all text when removing the extra step. */
+export function chapterPostSection(chapter: WorkspaceChapter): ChapterSection {
+  return {
+    id: chapter.id, sourceId: chapter.sourceId, number: chapter.number, title: chapter.title,
+    requirementIds: [...new Set(chapter.sections.flatMap(section => section.requirementIds))],
+    textSourceIds: [...new Set(chapter.sections.flatMap(section =>
+      [section.sourceId, ...(section.textSourceIds ?? [])]).filter((id): id is string => Boolean(id)))],
+    warning: [...new Set(chapter.sections.map(section => section.warning).filter(Boolean))].join("\n") || undefined
+  };
+}
+
+export function chapterPostRows<T extends Row>(section: ChapterSection, rowsById: ReadonlyMap<string, T>): T[] {
+  return sortProjectRequirementsBySource(section.requirementIds.flatMap(id => {
+    const row = rowsById.get(id);
+    return row ? [row] : [];
+  }));
+}
+
 /** Saved requirement IDs are the identity. Legacy parent numbers are resolved
  * only through an explicit parent reference in the same document and scope,
  * with source-order evidence. Ambiguous links never choose an arbitrary parent. */

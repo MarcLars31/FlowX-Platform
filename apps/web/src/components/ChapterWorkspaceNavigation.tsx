@@ -1,31 +1,24 @@
 "use client";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import type { ChapterSource, ChapterWorkspace, ChapterSection, WorkspaceChapter } from "@/lib/project-chapter-workspace";
+import { ChevronRight } from "lucide-react";
+import { chapterPostSection, type ChapterSource, type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
 import { productChoiceSnapshots } from "@/lib/product-choice-collection";
 import { projectRequirementDetails } from "@/lib/project-requirement-details";
 import { formatProjectQuantity, projectRequirementQuantity } from "@/lib/project-requirement-quantity";
 type Row = Record<string, unknown> & { id: string };
 
-export function ChapterOverview({ workspace, expanded, onToggle, onOpen, selected }: {
-  workspace: ChapterWorkspace; expanded: string | null; selected: ReadonlySet<string>;
-  onToggle: (id: string) => void; onOpen: (chapter: WorkspaceChapter, section: ChapterSection) => void;
+export function ChapterOverview({ workspace, onOpen, selected }: {
+  workspace: ChapterWorkspace; selected: ReadonlySet<string>;
+  onOpen: (chapter: WorkspaceChapter) => void;
 }) {
   return <nav className="chapter-overview" aria-label="Kapitelöversikt">
-    {workspace.chapters.map((chapter, index) => {
-      const ids = chapter.sections.flatMap(section => section.requirementIds), open = expanded === chapter.id;
-      const sectionCount = chapter.sections.filter(section => section.number !== chapter.number).length;
+    {workspace.chapters.map(chapter => {
+      const ids = chapterPostSection(chapter).requirementIds;
       return <section key={chapter.id} className="chapter-overview-group">
-        <h3><button type="button" className="chapter-overview-row" aria-expanded={open} aria-controls={`chapter-sections-${index}`} onClick={() => onToggle(chapter.id)}>
-          {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-          <span><strong>{chapter.number} {chapter.title}</strong><small>{chapter.kind === "review" ? chapter.sections.length + " textavsnitt" : ids.length ? (sectionCount ? sectionCount + " underkapitel · " : "") + ids.length + " poster" : "Kapitlets krav och information"}</small></span>
+        <h3><button type="button" id={`chapter-${encodeURIComponent(chapter.id)}`} className="chapter-overview-row" onClick={() => onOpen(chapter)}>
+          <ChevronRight aria-hidden="true" />
+          <span><strong>{chapter.number} {chapter.title}</strong><small>{chapter.kind === "review" ? chapter.sections.length + " textavsnitt" : ids.length ? ids.length + " poster" : "Kapitlets krav och information"}</small></span>
           <span className="chapter-count">{chapter.kind === "review" ? "Behöver kontroll" : ids.length ? ids.filter(id => selected.has(id)).length + " av " + ids.length + " valda" : "Kravtext"}</span>
         </button></h3>
-        <ol id={`chapter-sections-${index}`} hidden={!open}>
-          {chapter.sections.map(section => <li key={section.id}><button type="button" id={`chapter-section-${encodeURIComponent(section.id)}`} className="chapter-section-row" onClick={() => onOpen(chapter, section)}>
-            <span><strong>{section.number} {section.title}</strong><small>{section.requirementIds.length ? section.requirementIds.length + " poster" : chapter.kind === "review" ? "Bevarad originaltext" : "Krav och information"}{section.warning ? " · Behöver kontroll" : ""}</small></span>
-            <span className="chapter-count">{chapter.kind === "review" ? "Behöver kontroll" : section.requirementIds.length ? section.requirementIds.filter(id => selected.has(id)).length + " av " + section.requirementIds.length + " valda" : "Kravtext"}</span><ChevronRight aria-hidden="true" />
-          </button></li>)}
-        </ol>
       </section>;
     })}
   </nav>;
@@ -52,13 +45,9 @@ function SourceRequirements({ source, label }: { source?: ChapterSource; label: 
 export function ChapterRequirements({ workspace, chapter, section }: {
   workspace: ChapterWorkspace; chapter: WorkspaceChapter; section: ChapterSection;
 }) {
-  if (chapter.kind === "review") return <div className="chapter-common-requirements">
-    <SourceRequirements source={workspace.sources[section.sourceId ?? ""]} label="PDF-text för kontroll" />
-    {section.warning && <p role="status" className="chapter-warning">{section.warning}</p>}
-  </div>;
   const sources = [...new Set([chapter.sourceId, section.sourceId, ...(section.textSourceIds ?? [])])]
     .filter((id): id is string => Boolean(id && workspace.sources[id]?.text.trim()));
-  const content = sources.map(id => <SourceRequirements key={id} source={workspace.sources[id]} label="Krav och information" />);
+  const content = sources.map(id => <SourceRequirements key={id} source={workspace.sources[id]} label={chapter.kind === "review" ? "PDF-text för kontroll" : "Krav och information"} />);
   return <div className="chapter-common-requirements">
     {section.requirementIds.length && sources.length ? <details><summary>Krav och information för kapitlet</summary>{content}</details> : content}
     {section.warning && <p role="status" className="chapter-warning">{section.warning}</p>}
@@ -75,7 +64,7 @@ export function SectionPosts({ rows, assignments, disabled, onSelect }: {
   rows: Row[]; assignments: ReadonlyMap<string, Row>; disabled: boolean; onSelect: (id: string) => boolean;
 }) {
   if (!rows.length) return null;
-  return <nav className="chapter-other-posts" aria-label="Poster i underkapitlet">
+  return <nav className="chapter-other-posts" aria-label="Poster i kapitlet">
     <h3>Poster <span>({rows.length})</span></h3>
     <ol>{rows.map(row => <li key={row.id}><button type="button" id={`section-post-${row.id}`} disabled={disabled} onClick={() => onSelect(row.id)}>
       <span><strong>{projectRequirementDetails(row).postNumber ?? "Post utan nummer"}</strong> {String(row.value_text ?? row.display_name ?? "Produktpost")}</span>
