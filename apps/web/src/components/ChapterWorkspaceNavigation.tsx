@@ -13,14 +13,16 @@ export function ChapterOverview({ workspace, expanded, onToggle, onOpen, selecte
   return <nav className="chapter-overview" aria-label="Kapitelöversikt">
     {workspace.chapters.map((chapter, index) => {
       const ids = chapter.sections.flatMap(section => section.requirementIds), open = expanded === chapter.id;
+      const direct = chapter.sections.length === 1;
+      const subsectionCount = chapter.sections.filter(section => section.sourceId !== null).length;
       return <section key={chapter.id} className="chapter-overview-group">
-        <h3><button type="button" className="chapter-overview-row" aria-expanded={open} aria-controls={`chapter-sections-${index}`} onClick={() => onToggle(chapter.id)}>
-          {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-          <span><strong>{chapter.number} {chapter.title}</strong><small>{chapter.kind === "review" ? chapter.sections.length + " textavsnitt" : ids.length ? chapter.sections.filter(section => section.sourceId !== null).length + " underkapitel · " + ids.length + " poster" : "Kapitlets krav och information"}</small></span>
+        <h3><button type="button" id={direct ? `chapter-section-${encodeURIComponent(chapter.sections[0].id)}` : undefined} className="chapter-overview-row" aria-expanded={direct ? undefined : open} aria-controls={direct ? undefined : `chapter-sections-${index}`} onClick={() => direct ? onOpen(chapter, chapter.sections[0]) : onToggle(chapter.id)}>
+          {!direct && open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
+          <span><strong>{chapter.number} {chapter.title}</strong><small>{chapter.kind === "review" ? chapter.sections.length + " textavsnitt" : ids.length ? (subsectionCount ? subsectionCount + " underkapitel · " : "") + ids.length + " poster" : "Kapitlets krav och information"}</small></span>
           <span className="chapter-count">{chapter.kind === "review" ? "Behöver kontroll" : ids.length ? ids.filter(id => selected.has(id)).length + " av " + ids.length + " valda" : "Kravtext"}</span>
         </button></h3>
-        <ol id={`chapter-sections-${index}`} hidden={!open}>
-          {chapter.sections.map(section => <li key={section.id}><button type="button" id={`chapter-section-${encodeURIComponent(section.id)}`} className="chapter-section-row" onClick={() => onOpen(chapter, section)}>
+        <ol id={`chapter-sections-${index}`} hidden={direct || !open}>
+          {chapter.sections.map(section => <li key={section.id}><button type="button" id={direct ? undefined : `chapter-section-${encodeURIComponent(section.id)}`} className="chapter-section-row" onClick={() => onOpen(chapter, section)}>
             <span><strong>{section.number} {section.title}</strong><small>{section.requirementIds.length ? section.requirementIds.length + " poster" : chapter.kind === "review" ? "Bevarad originaltext" : "Krav och information"}{section.warning ? " · Behöver kontroll" : ""}</small></span>
             <span className="chapter-count">{chapter.kind === "review" ? "Behöver kontroll" : section.requirementIds.length ? section.requirementIds.filter(id => selected.has(id)).length + " av " + section.requirementIds.length + " valda" : "Kravtext"}</span><ChevronRight aria-hidden="true" />
           </button></li>)}
@@ -55,13 +57,18 @@ export function ChapterRequirements({ workspace, chapter, section, activeId }: {
     <SourceRequirements source={workspace.sources[section.sourceId ?? ""]} label="PDF-text för kontroll" />
     {section.warning && <p role="status" className="chapter-warning">{section.warning}</p>}
   </div>;
-  const common = new Set([chapter.sourceId, section.sourceId]);
-  const extra = (activeId ? workspace.ancestors[activeId] ?? [] : []).filter(id => !common.has(id));
+  const commonSources = [
+    { id: chapter.sourceId, label: "Huvudkapitlets krav" },
+    { id: section.sourceId, label: "Underkapitlets krav" }
+  ].filter((item, index, items) => item.id && item.id !== activeId && workspace.sources[item.id]
+    && items.findIndex(other => other.id === item.id) === index);
+  const common = new Set(commonSources.map(item => item.id));
+  const contextId = activeId ?? section.sourceId;
+  const extra = (contextId ? workspace.ancestors[contextId] ?? [] : []).filter(id => !common.has(id) && id !== activeId && workspace.sources[id]);
   return <div className="chapter-common-requirements">
-    <div className="chapter-common-grid">
-      <SourceRequirements source={workspace.sources[chapter.sourceId ?? ""]} label="Huvudkapitlets krav" />
-      <SourceRequirements source={workspace.sources[section.sourceId ?? ""]} label="Underkapitlets krav" />
-    </div>
+    {commonSources.length > 0 && <div className="chapter-common-grid">
+      {commonSources.map(item => <SourceRequirements key={item.id} source={workspace.sources[item.id!]} label={item.label} />)}
+    </div>}
     {extra.length > 0 && <div className="chapter-ancestor-requirements" aria-label="Övriga överordnade krav">
       {extra.map(id => <SourceRequirements key={id} source={workspace.sources[id]} label="Överordnad posts krav" />)}
     </div>}

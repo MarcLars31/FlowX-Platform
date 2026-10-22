@@ -669,6 +669,7 @@ export function ProjectWorkspace({
             <Button type="button" variant="secondary" disabled={finishing} title="Original-PDF tas bort när projektet avslutas. Poster och produktval sparas." onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" className="h-4 w-4" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button>
           </div>
           <DistributorMappingPanel
+            key={data.project.id}
             deliveryResource={deliveryResource}
             onEditStateChange={setProductEditState}
             projectId={data.project.id}

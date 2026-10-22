@@ -43,3 +43,26 @@ test("opening an information or review section never displays zero of zero selec
   assert.match(render(false,["one","two"]),/2 poster · 1 av 2 valda/);
   assert.doesNotMatch(render(false,[])+render(true,[]),/0 av 0/);
 });
+
+test("direct posts display only existing common requirements", () => {
+  const workspace = buildChapterWorkspace([
+    { id: "main", value_text: "VVS", source_page: 1, value_json: { postNumber: "30", sourceText: "Gemensamma krav." } },
+    { id: "post", source_page: 2, value_json: { postNumber: "30.1", parentPostNumber: "30", unit: "m", quantity: 12 } }
+  ]);
+  const chapter = workspace.chapters[0];
+  const html = renderToStaticMarkup(createElement(ChapterRequirements, { workspace, chapter, section: chapter.sections[0], activeId: "post" }));
+  assert.match(html, /Gemensamma krav/);
+  assert.doesNotMatch(html, /Underkapitlets krav|Ingen separat kravtext/);
+});
+
+test("the active product's own source is not repeated as a common requirement", () => {
+  const workspace = buildChapterWorkspace([
+    { id: "main", value_text: "VVS", source_page: 1, value_json: { postNumber: "30" } },
+    { id: "parent", value_text: "Rör", source_page: 2, value_json: { postNumber: "30.1", parentPostNumber: "30", unit: "m", quantity: 12, sourceText: "Egen produkttext." } },
+    { id: "child", source_page: 3, value_json: { postNumber: "30.1.1", parentPostNumber: "30.1", unit: "m", quantity: 2 } }
+  ]);
+  const chapter = workspace.chapters[0], section = chapter.sections[0];
+  const render = (activeId: string) => renderToStaticMarkup(createElement(ChapterRequirements, { workspace, chapter, section, activeId }));
+  assert.doesNotMatch(render("parent"), /Egen produkttext/);
+  assert.match(render("child"), /Egen produkttext/);
+});

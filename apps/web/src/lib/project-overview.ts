@@ -5,6 +5,8 @@ import { productRequirementCategory, PRODUCT_REQUIREMENT_CATEGORY_VERSION } from
 import { projectRequirementDataWarnings } from "./project-requirement-data-warnings";
 import { projectRequirementOrderPostNumber } from "./project-requirement-order";
 import { requirementSnapshot } from "./requirement-snapshot";
+import { projectPostIdentity } from "./project-requirement-identity";
+export { projectPostIdentity } from "./project-requirement-identity";
 
 export type OverviewRow = Record<string, unknown> & { id: string };
 const valueFields = ["title", "postNumber", "parentPostNumber", "parentDescription", "postScope", "nsCode", "sourceChapter", "sourceOrder", "chapterInformation", "quantity", "quantityText", "unit", "operation", "system", "reviewFlags", "productResolution"] as const;
@@ -71,11 +73,6 @@ export function legacyParentDescription(row: OverviewRow): string | null {
     return title && title.length <= 250 && !/^[A-ZÆØÅ]{1,5}\d*\./.test(title) && !title.includes(":") ? [title] : [];
   });
   return new Set(titles).size === 1 ? titles[0] : null;
-}
-
-export function projectPostIdentity(row: OverviewRow, number: unknown) {
-  const value = record(row.value_json);
-  return JSON.stringify([row.source_technical_description_document_id ?? row.source_document_id ?? "", value.postScope ?? "", number]);
 }
 
 /** One source snapshot per missing heading, only for imports predating parentDescription. */

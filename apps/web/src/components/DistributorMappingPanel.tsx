@@ -8,8 +8,9 @@ import { type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ChapterOverview, ChapterRequirements, ChapterSectionProgress, OtherSectionPosts } from "@/components/ChapterWorkspaceNavigation";
-import { initialSectionPost, type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
+import { chapterWorkspaceRevision, initialSectionPost, type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
 import { createProductWorkspaceResource, type ProductWorkspaceResource } from "@/lib/product-workspace-resource";
+import { createProductCardHistory } from "@/lib/product-card-history";
 import { Button } from "@/components/Button";
 import { ManualProductCard, type ManualProductChoice } from "@/components/ManualProductCard";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
@@ -97,6 +98,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   onEditStateChange?: (state: ProductEditState) => void;
 }) {
   const resource = useMemo(() => ({ projectId, ...createProductWorkspaceResource() }), [projectId]);
+  const workspaceRevision = useMemo(() => chapterWorkspaceRevision(requirements), [requirements]);
   const [workspace, setWorkspace] = useState<ChapterWorkspace | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -109,7 +111,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const [productCardDirty, setProductCardDirty] = useState(false);
   const listPosition = useRef(0);
   const rememberedPosts = useRef(new Map<string, string>());
-  const historyRestore = useRef(false);
+  const chapterHistory = useRef<ReturnType<typeof createProductCardHistory> | null>(null);
+  const initialHistoryRestored = useRef(false);
   const approvedAssignments = useMemo(() => assignments.filter(isUserApprovedProductAssignment), [assignments]);
   const approvedAssignmentByRequirementId = useMemo(() => new Map(approvedAssignments.map(row => [String(row.requirement_id), row])), [approvedAssignments]);
   const approvedRequirementIds = useMemo(() => new Set(approvedAssignments.map(row => String(row.requirement_id))), [approvedAssignments]);
@@ -118,19 +121,20 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const chapter = workspace?.chapters.find(item => item.sections.some(section => section.id === sectionId));
   const section = chapter?.sections.find(item => item.id === sectionId);
   const sectionRows = useMemo(() => section?.requirementIds.flatMap(id => rowsById.get(id) ? [rowsById.get(id)!] : []) ?? [], [section, rowsById]);
-  const activeRequirement = activeRequirementId ? rowsById.get(activeRequirementId) : undefined;
-  const activeAssignment = activeRequirementId ? approvedAssignmentByRequirementId.get(activeRequirementId) : undefined;
-  const activeIndex = sectionRows.findIndex(row => row.id === activeRequirementId);
+  const activeRequirement = sectionRows.find(row => row.id === activeRequirementId)
+    ?? sectionRows.find(row => !approvedRequirementIds.has(row.id)) ?? sectionRows[0];
+  const activeAssignment = activeRequirement ? approvedAssignmentByRequirementId.get(activeRequirement.id) : undefined;
+  const activeIndex = sectionRows.findIndex(row => row.id === activeRequirement?.id);
   const memories = useMemo(() => allMemories.filter(memory => ahlsellMldlProduct(String(memory.product_number ?? "")) && !readProductSelectionReview(memory.notes)), [allMemories]);
   const recordFullCatalogResult = useCallback(() => {}, []);
 
   useEffect(() => {
     let current = true;
-    resource.load<ChapterWorkspace>(`/api/projects/${projectId}/chapters`).then(data => {
+    resource.load<ChapterWorkspace>(`/api/projects/${projectId}/chapters`, workspaceRevision).then(data => {
       if (current) { setWorkspace(data); setLoadError(null); }
     }).catch(error => { if (current) setLoadError(error instanceof Error ? error.message : "Kapitlen kunde inte hämtas."); });
     return () => { current = false; };
-  }, [resource, projectId, loadAttempt]);
+  }, [resource, projectId, workspaceRevision, loadAttempt]);
   useEffect(() => {
     onEditStateChange?.({ dirty: productCardDirty, saving: productCardSaving });
     return () => onEditStateChange?.({ dirty: false, saving: false });
@@ -163,20 +167,30 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       document.getElementById(`chapter-section-${encodeURIComponent(sectionId ?? "")}`)?.focus({ preventScroll: true });
     });
   }
-  const handleHistory = useEffectEvent((event: PopStateEvent) => {
-    if (historyRestore.current) { historyRestore.current = false; return; }
-    const target = event.state?.scipxChapter;
-    if (target?.projectId !== projectId) return;
-    if (!canNavigate()) { historyRestore.current = true; window.history.forward(); return; }
-    if (!target.sectionId) { returnToOverview(); return; }
-    const nextSection = workspace?.chapters.flatMap(item => item.sections).find(item => item.id === target.sectionId);
-    if (!nextSection) return;
-    setSectionId(nextSection.id); setActiveRequirementId(initialSectionPost(nextSection, approvedRequirementIds, target.id));
+  const canLeaveHistory = useEffectEvent(() => canNavigate());
+  const handleHistory = useEffectEvent((targetSectionId: string | null) => {
+    if (!targetSectionId) { returnToOverview(); return; }
+    const nextSection = workspace?.chapters.flatMap(item => item.sections).find(item => item.id === targetSectionId);
+    if (!nextSection) { returnToOverview(); return; }
+    setSectionId(nextSection.id); setActiveRequirementId(initialSectionPost(nextSection, approvedRequirementIds, rememberedPosts.current.get(nextSection.id)));
     setProductCardDirty(false); setMessage(null); setError(null); focusWorkspace();
   });
-  useEffect(() => { const listen = (event: PopStateEvent) => handleHistory(event); window.addEventListener("popstate", listen); return () => window.removeEventListener("popstate", listen); }, []);
+  useEffect(() => {
+    const navigation = createProductCardHistory(window, `${projectId}:chapters`, {
+      canLeave: () => canLeaveHistory(), onNavigate: id => handleHistory(id)
+    });
+    chapterHistory.current = navigation;
+    return () => { navigation.dispose(); chapterHistory.current = null; };
+  }, [projectId]);
+  useEffect(() => {
+    if (!workspace || initialHistoryRestored.current) return;
+    initialHistoryRestored.current = true;
+    const current = chapterHistory.current?.current();
+    if (current) handleHistory(current);
+  }, [workspace]);
   function openSection(nextChapter: WorkspaceChapter, nextSection: ChapterSection) {
     if (!canNavigate()) return;
+    if (!chapterHistory.current?.open(nextSection.id)) return;
     let remembered = rememberedPosts.current.get(nextSection.id);
     try { remembered ??= sessionStorage.getItem(`scipx-post:${projectId}:${nextSection.id}`) ?? undefined; } catch { /* Optional. */ }
     const id = initialSectionPost(nextSection, approvedRequirementIds, remembered);
@@ -184,14 +198,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     setExpandedChapter(nextChapter.id); setSectionId(nextSection.id); setActiveRequirementId(id);
     if (id) remember(id, nextSection.id);
     setProductCardDirty(false); setMessage(null); setError(null);
-    window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId: null } }, "");
-    window.history.pushState({ ...window.history.state, scipxChapter: { projectId, sectionId: nextSection.id, id } }, "");
     requestAnimationFrame(() => { document.getElementById("product-post-detail")?.scrollIntoView({ block: "start", behavior: "instant" }); focusWorkspace(); });
   }
   function showRequirement(id: string) {
     if (!section?.requirementIds.includes(id) || !canNavigate()) return false;
     remember(id); setActiveRequirementId(id); setProductCardDirty(false); setMessage(null); setError(null);
-    window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId, id } }, "");
     requestAnimationFrame(() => { const anchor = document.getElementById("chapter-active-anchor"); anchor?.scrollIntoView({ block: "start", behavior: "instant" }); anchor?.focus({ preventScroll: true }); });
     return true;
   }
@@ -201,14 +212,15 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
     {!workspace && <div className="product-selection-empty" role={loadError ? "alert" : "status"}>
       <p>{loadError ?? "Laddar PDF-filens kapitel…"}</p>{loadError && <Button variant="secondary" onClick={() => setLoadAttempt(value => value + 1)}>Försök igen</Button>}
     </div>}
+    {workspace && loadError && <p role="alert">{loadError} <Button variant="secondary" onClick={() => setLoadAttempt(value => value + 1)}>Försök igen</Button></p>}
     {workspace && !section && <ChapterOverview workspace={workspace} selected={approvedRequirementIds} expanded={expandedChapter} onToggle={id => setExpandedChapter(current => current === id ? null : id)} onOpen={openSection} />}
     {workspace && chapter && section && <section id="product-post-detail" tabIndex={-1} className="product-post-detail" aria-label="Arbetsvy för underkapitel">
       <header className="chapter-workspace-header">
-        <Button variant="secondary" disabled={productCardSaving} onClick={() => { if (canNavigate()) { window.history.replaceState({ ...window.history.state, scipxChapter: { projectId, sectionId: null } }, ""); returnToOverview(); } }}><ChevronLeft aria-hidden="true" className="h-4 w-4" />Tillbaka till kapitelöversikten</Button>
+        <Button variant="secondary" disabled={productCardSaving} onClick={() => { if (canNavigate()) { chapterHistory.current?.close(); returnToOverview(); } }}><ChevronLeft aria-hidden="true" className="h-4 w-4" />Tillbaka till kapitelöversikten</Button>
         <nav aria-label="Navigeringsspår">{chapter.number} {chapter.title}<ChevronRight aria-hidden="true" /><span aria-current="page">{section.number} {section.title}</span></nav>
         <h2>{section.number} {section.title}</h2><ChapterSectionProgress chapter={chapter} section={section} selected={approvedRequirementIds} />
       </header>
-      <ChapterRequirements workspace={workspace} chapter={chapter} section={section} activeId={activeRequirementId} />
+      <ChapterRequirements workspace={workspace} chapter={chapter} section={section} activeId={activeRequirement?.id} />
       {(message || error) && <p role={error ? "alert" : "status"} className="product-selection-feedback">{error ?? message}</p>}
       <div id="chapter-active-anchor" className="scroll-mt-24" tabIndex={-1} aria-label="Aktiv produktpost" />
       {activeRequirement ? <LazyRequirementProductMappingCard
