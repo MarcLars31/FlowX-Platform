@@ -13,7 +13,7 @@ import {
 import { getMissingProducts } from "@/lib/pipeline-analysis";
 
 const explanation =
-  "FlowX selected this product because it matches the detected standard, pressure rating, dimension, system type and supplier preference. Alternative products are shown when they meet the same compliance requirements.";
+  "Scipx selected this product because it matches the detected standard, pressure rating, dimension, system type and supplier preference. Alternative products are shown when they meet the same compliance requirements.";
 
 export default function ProductResolutionPage() {
   const missingProducts = getMissingProducts(demoMaterialLines);
@@ -38,7 +38,7 @@ export default function ProductResolutionPage() {
               Product Resolution
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-600">
-              FlowX maps extracted requirements to compatible supplier products
+              Scipx maps extracted requirements to compatible supplier products
               for {demoProjectProfile.project}.
             </p>
           </div>

@@ -6,3 +6,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .env*.local
+
+# Generated from the installed PDF.js version by prepare:ocr
+/public/pdf-assets/

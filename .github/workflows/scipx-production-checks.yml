@@ -1,0 +1,58 @@
+name: Scipx production checks
+on:
+  pull_request:
+  push:
+    branches: [Frontend-]
+permissions:
+  contents: read
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run build:production
+
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: supabase/package-lock.json
+      - run: npm ci
+        working-directory: supabase
+      - run: npm run verify:empty
+        working-directory: supabase
+  crawler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e '.[dev]'
+        working-directory: apps/document-crawler
+      - run: python -m pytest -q
+        working-directory: apps/document-crawler
+
+  docling-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Contract tests use the standard library and do not download ML models.
+      - run: python -m unittest discover -s tests -v
+        working-directory: apps/docling-ocr
