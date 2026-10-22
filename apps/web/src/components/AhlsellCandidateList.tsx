@@ -131,7 +131,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
           <div className="space-y-3 p-3 sm:p-4" role="group" aria-label="Produktförslag">{productRows(review)}</div>
         </details>
       )}
-      {rejected.length > 0 && <details className="border-t border-neutral-200">
+      {rejected.length > 0 && <details open={matching.length === 0 && review.length === 0} className="border-t border-neutral-200">
         <summary className="cursor-pointer px-3 py-3 text-sm font-bold sm:px-4">FAIL · Oppfyller ikke kravene ({rejected.length})</summary>
         <div className="space-y-3 p-3 sm:p-4" role="group" aria-label="Produkter med tekniske avvik">{productRows(rejected)}</div>
       </details>}

@@ -1,7 +1,7 @@
 {
-  "version": "scipx-product-rules-2026-10-22.4",
+  "version": "scipx-product-rules-2026-10-22.demo.1",
   "sources": {
-    "../components/AhlsellCandidateList.tsx": "6647dbfb579d6bfd2c8fa1da8e8e3056434678d7cc94005f61cb89248f6e04f0",
+    "../components/AhlsellCandidateList.tsx": "ffefd6f368f9d66a737327bebccb11ee92fe19e05edb41ce1f6daf2136598d81",
     "../components/ChapterWorkspaceNavigation.tsx": "c7aa74470d5f99c368fda827ed382f3e6be457c4da2eb3cb66f1f2deef63b7ff",
     "../components/DistributorMappingPanel.tsx": "460d3e03681f1546244fed057af5c168b63e18d989d5783b2eb3e83d6a370649",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
