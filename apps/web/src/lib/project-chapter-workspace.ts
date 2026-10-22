@@ -6,8 +6,8 @@ import { ownRequirementBody } from "./own-requirement-text";
 
 type Row = Record<string, unknown> & { id: string };
 export type ChapterSource = { id: string; number: string; title: string; text: string; pages: number[]; parentId?: string };
-export type ChapterSection = { id: string; sourceId: string | null; title: string; number: string; requirementIds: string[]; warning?: string };
-export type WorkspaceChapter = { id: string; sourceId: string | null; title: string; number: string; sections: ChapterSection[]; kind?: "review" };
+export type ChapterSection = { id: string; sourceId: string | null; title: string; number: string; requirementIds: string[]; textSourceIds?: string[]; warning?: string };
+export type WorkspaceChapter = { id: string; sourceId: string | null; title: string; number: string; sections: ChapterSection[]; kind?: "review" | "main-post" };
 export type ChapterWorkspace = { chapters: WorkspaceChapter[]; sources: Record<string, ChapterSource>; ancestors: Record<string, string[]> };
 
 /** Saved requirement IDs are the identity. Legacy parent numbers are resolved

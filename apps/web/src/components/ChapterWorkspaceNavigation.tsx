@@ -13,10 +13,11 @@ export function ChapterOverview({ workspace, expanded, onToggle, onOpen, selecte
   return <nav className="chapter-overview" aria-label="Kapitelöversikt">
     {workspace.chapters.map((chapter, index) => {
       const ids = chapter.sections.flatMap(section => section.requirementIds), open = expanded === chapter.id;
+      const sectionCount = chapter.sections.filter(section => section.number !== chapter.number).length;
       return <section key={chapter.id} className="chapter-overview-group">
         <h3><button type="button" className="chapter-overview-row" aria-expanded={open} aria-controls={`chapter-sections-${index}`} onClick={() => onToggle(chapter.id)}>
           {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-          <span><strong>{chapter.number} {chapter.title}</strong><small>{chapter.kind === "review" ? chapter.sections.length + " textavsnitt" : ids.length ? chapter.sections.filter(section => section.sourceId !== null).length + " underkapitel · " + ids.length + " poster" : "Kapitlets krav och information"}</small></span>
+          <span><strong>{chapter.number} {chapter.title}</strong><small>{chapter.kind === "review" ? chapter.sections.length + " textavsnitt" : ids.length ? (sectionCount ? sectionCount + " underkapitel · " : "") + ids.length + " poster" : "Kapitlets krav och information"}</small></span>
           <span className="chapter-count">{chapter.kind === "review" ? "Behöver kontroll" : ids.length ? ids.filter(id => selected.has(id)).length + " av " + ids.length + " valda" : "Kravtext"}</span>
         </button></h3>
         <ol id={`chapter-sections-${index}`} hidden={!open}>
@@ -48,23 +49,18 @@ function SourceRequirements({ source, label }: { source?: ChapterSource; label: 
     {split < text.length && <details className="chapter-full-source"><summary>Visa hela kravtexten · {text.length - split} tecken dolda</summary><p className="chapter-original-text">{text.slice(split)}</p></details>}
   </section>;
 }
-export function ChapterRequirements({ workspace, chapter, section, activeId }: {
-  workspace: ChapterWorkspace; chapter: WorkspaceChapter; section: ChapterSection; activeId?: string | null;
+export function ChapterRequirements({ workspace, chapter, section }: {
+  workspace: ChapterWorkspace; chapter: WorkspaceChapter; section: ChapterSection;
 }) {
   if (chapter.kind === "review") return <div className="chapter-common-requirements">
     <SourceRequirements source={workspace.sources[section.sourceId ?? ""]} label="PDF-text för kontroll" />
     {section.warning && <p role="status" className="chapter-warning">{section.warning}</p>}
   </div>;
-  const common = new Set([chapter.sourceId, section.sourceId]);
-  const extra = (activeId ? workspace.ancestors[activeId] ?? [] : []).filter(id => !common.has(id));
+  const sources = [...new Set([chapter.sourceId, section.sourceId, ...(section.textSourceIds ?? [])])]
+    .filter((id): id is string => Boolean(id && workspace.sources[id]?.text.trim()));
+  const content = sources.map(id => <SourceRequirements key={id} source={workspace.sources[id]} label="Krav och information" />);
   return <div className="chapter-common-requirements">
-    <div className="chapter-common-grid">
-      <SourceRequirements source={workspace.sources[chapter.sourceId ?? ""]} label="Huvudkapitlets krav" />
-      <SourceRequirements source={workspace.sources[section.sourceId ?? ""]} label="Underkapitlets krav" />
-    </div>
-    {extra.length > 0 && <div className="chapter-ancestor-requirements" aria-label="Övriga överordnade krav">
-      {extra.map(id => <SourceRequirements key={id} source={workspace.sources[id]} label="Överordnad posts krav" />)}
-    </div>}
+    {section.requirementIds.length && sources.length ? <details><summary>Krav och information för kapitlet</summary>{content}</details> : content}
     {section.warning && <p role="status" className="chapter-warning">{section.warning}</p>}
   </div>;
 }
@@ -75,14 +71,13 @@ export function SelectedProductSummary({ assignment }: { assignment?: Row }) {
     {String(product.name ?? "Produkt")} · Art. {String(product.productNumber ?? "—")}
   </span>)}</span> : <span className="chapter-no-product">Ingen produkt vald</span>;
 }
-export function OtherSectionPosts({ rows, activeId, assignments, disabled, onSelect }: {
-  rows: Row[]; activeId: string; assignments: ReadonlyMap<string, Row>; disabled: boolean; onSelect: (id: string) => boolean;
+export function SectionPosts({ rows, assignments, disabled, onSelect }: {
+  rows: Row[]; assignments: ReadonlyMap<string, Row>; disabled: boolean; onSelect: (id: string) => boolean;
 }) {
-  const others = rows.filter(row => row.id !== activeId);
-  return <nav className="chapter-other-posts" aria-label="Övriga poster i underkapitlet">
-    <h3>Övriga poster i underkapitlet <span>({others.length})</span></h3>
-    {!others.length && <p>Detta är underkapitlets enda produktpost.</p>}
-    <ol>{others.map(row => <li key={row.id}><button type="button" disabled={disabled} onClick={() => onSelect(row.id)}>
+  if (!rows.length) return null;
+  return <nav className="chapter-other-posts" aria-label="Poster i underkapitlet">
+    <h3>Poster <span>({rows.length})</span></h3>
+    <ol>{rows.map(row => <li key={row.id}><button type="button" id={`section-post-${row.id}`} disabled={disabled} onClick={() => onSelect(row.id)}>
       <span><strong>{projectRequirementDetails(row).postNumber ?? "Post utan nummer"}</strong> {String(row.value_text ?? row.display_name ?? "Produktpost")}</span>
       <small>{formatProjectQuantity(projectRequirementQuantity(row.value_json))}</small>
       <SelectedProductSummary assignment={assignments.get(row.id)} />

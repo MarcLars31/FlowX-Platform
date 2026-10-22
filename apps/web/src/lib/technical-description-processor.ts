@@ -5,6 +5,7 @@ import { compactRequirementText } from "./requirement-text-storage";
 import { extractionQualitySummary } from "./technical-description-quality";
 import { retainProjectPdf } from "./project-pdf-storage";
 import { createHash, randomUUID } from "node:crypto";
+import { compactChapterPageLayout } from "./pdf-chapter-navigation";
 import { NextResponse } from "next/server";
 import * as userPersistence from "@/lib/supabase-user-rest";
 import type { PermissionKey } from "@/lib/organization-rbac";
@@ -570,7 +571,7 @@ export async function processTechnicalDescription(request: Request, authorizatio
         confidence: page.confidence,
         annotations: page.annotations ?? [],
         annotation_read_failed: page.annotationReadFailed ?? false,
-        ...(page.headingLayout ? { heading_layout: page.headingLayout, heading_sources: page.headingSources } : {}),
+        ...(page.headingLayout ? { heading_layout: page.headingLayout, heading_sources: page.headingSources, chapter_navigation: compactChapterPageLayout(page.headingLayout) } : {}),
         ...(page.priceColumns ? { price_columns: page.priceColumns } : {}),
         ...(page.priceColumnReadings ? { price_column_readings: page.priceColumnReadings } : {}),
         ...(page.sourceReadings ? { source_readings: page.sourceReadings, source_text_merged: page.sourceTextMerge ?? false } : {})

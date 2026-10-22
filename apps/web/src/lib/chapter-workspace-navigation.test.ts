@@ -43,3 +43,10 @@ test("opening an information or review section never displays zero of zero selec
   assert.match(render(false,["one","two"]),/2 poster · 1 av 2 valda/);
   assert.doesNotMatch(render(false,[])+render(true,[]),/0 av 0/);
 });
+
+test("physical header sections count without a separate saved heading row", () => {
+  const workspace={chapters:[{id:"main",sourceId:null,number:"31",title:"Sanitær",sections:[{id:"pipes",sourceId:null,number:"31.2",title:"Ledningsnett",requirementIds:["one"]}]}],sources:{},ancestors:{}};
+  const html=renderToStaticMarkup(createElement(ChapterOverview,{workspace,expanded:null,selected:new Set<string>(),onToggle:()=>{},onOpen:()=>{}}));
+  assert.match(html,/1 underkapitel/);
+  assert.doesNotMatch(html,/0 underkapitel/);
+});

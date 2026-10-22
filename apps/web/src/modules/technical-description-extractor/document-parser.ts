@@ -84,7 +84,7 @@ export function parseStructuredPostStart(
   lines: string[],
   lineIndex: number
 ): StructuredPostStart | undefined {
-  if (continuesPostReference(lines, lineIndex)) return undefined;
+  if (!lines[lineIndex] || continuesPostReference(lines, lineIndex)) return undefined;
   const line = quantityParsingLine(lines[lineIndex]);
   if (isTechnicalDescriptionDateHeader(line.split(/\s+/)[0])) return undefined;
   // Wrapped IO-list identifiers are references inside a specification, not
