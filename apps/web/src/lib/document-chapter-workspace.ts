@@ -11,7 +11,8 @@ import { groupProductsByMainPost } from "./project-post-hierarchy";
 
 type Row = Record<string, unknown> & { id: string };
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-const documentId = (row: Row) => String(row.source_technical_description_document_id ?? row.source_document_id ?? "legacy");
+// document_pages belongs to the physical project file, not the extraction job.
+const documentId = (row: Row) => String(row.source_document_id ?? row.source_technical_description_document_id ?? "legacy");
 const key = (...parts: string[]) => JSON.stringify(parts);
 const flags = (row: Row) => Array.isArray(record(row.value_json).reviewFlags) ? record(row.value_json).reviewFlags as unknown[] : [];
 
@@ -22,6 +23,7 @@ export function buildDocumentChapterWorkspace(requirements: Row[], pages: readon
   const rows = sortProjectRequirementsBySource(requirements.filter(row => !["rejected", "superseded"].includes(String(row.status))).map(requirementSnapshot));
   const original = buildChapterWorkspace(rows);
   const mainGroups = groupProductsByMainPost(rows);
+  const mainSourceIds = new Set(mainGroups.flatMap(group => group.sourceId && !group.standalone ? [group.sourceId] : []));
   const headers = chapterHeaderPages(pages), products = new Set(visibleProjectRequirements(rows).map(row => row.id));
   const sources = { ...original.sources };
   const layouts = new Map(pages.map(page => [key(page.document_id,String(page.page_number)),page.heading_layout as HeadingLayout | undefined]));
@@ -81,7 +83,7 @@ export function buildDocumentChapterWorkspace(requirements: Row[], pages: readon
     }
     if (!id && products.has(row.id)) {
       const main = mainGroups.find(group => group.requirementIds.includes(row.id));
-      if (main && !main.review) {
+      if (main?.sourceId) {
         // A real main post (or a standalone product) supplies its own title.
         id = key(doc, "main", main.id);
         if (!groups.has(id)) groups.set(id, {scope,chapter:{id,sourceId:main.standalone ? null : main.sourceId,
@@ -99,7 +101,7 @@ export function buildDocumentChapterWorkspace(requirements: Row[], pages: readon
       return [chapter.number,...group.paths.map(joinedChapterNumber)].some(n => chapterAddress(n) === chapterAddress(number));
     };
     const headings = group.rows.filter(row => !products.has(row.id) && projectRequirementOrderPostNumber(row)
-      && (!flags(row).some(flag => ["unassigned-source-text","unverified-post-source"].includes(String(flag))) || headerVerified(row)));
+      && (!flags(row).some(flag => ["unassigned-source-text","unverified-post-source"].includes(String(flag))) || headerVerified(row) || mainSourceIds.has(row.id)));
     const main = headings.find(row => chapterAddress(projectRequirementOrderPostNumber(row)!) === chapterAddress(chapter.number));
     if (main) { chapter.sourceId=main.id; assignedText.add(main.id); }
     const known = group.paths.map(path => ({number:joinedChapterNumber(path), title:path.slice(1).map(c => c.title).join(" › ")}));
@@ -141,7 +143,7 @@ export function buildDocumentChapterWorkspace(requirements: Row[], pages: readon
       // root-only headers use the deepest evidenced containing subchapter.
       const caption = path && path.length > 1 ? {number:joinedChapterNumber(path),title:path.slice(1).map(c => c.title).join(" › ")}
         : known.filter(c => chapterContains(c.number,number)).sort((a,b) => b.number.split(".").length-a.number.split(".").length)[0];
-      if (!products.has(row.id) && !headerVerified(row) && flags(row).some(flag => ["unassigned-source-text","unverified-post-source"].includes(String(flag)))) continue;
+      if (!products.has(row.id) && !headerVerified(row) && !mainSourceIds.has(row.id) && flags(row).some(flag => ["unassigned-source-text","unverified-post-source"].includes(String(flag)))) continue;
       const section = sectionFor(caption);
       if (products.has(row.id)) { section.requirementIds.push(row.id); assigned.add(row.id); }
       else { section.textSourceIds!.push(row.id); assignedText.add(row.id); }

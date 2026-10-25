@@ -68,9 +68,20 @@ export function chapterHeaderPages(pages: readonly ChapterPage[]): Map<string, P
   }
   for (const [document, headers] of result) {
     const mains = new Map(headers.filter(h => h.path[0]?.title).map(h => [h.path[0].number, h.path[0].title]));
-    result.set(document, headers.map(h => ({ ...h, path: h.path.map((caption,index) => index === 0 && !caption.title
+    const resolved = headers.map(h => ({ ...h, path: h.path.map((caption,index) => index === 0 && !caption.title
       ? {...caption,title:mains.get(caption.number) ?? ""} : caption) }))
-      .filter(h => h.path.every(caption => caption.title)).sort((a,b) => a.page-b.page));
+      .filter(h => h.path.every(caption => caption.title)).sort((a,b) => a.page-b.page);
+    // Repeated OCR headers may insert spaces inside a word. Only identical
+    // letters, numbering and ancestor captions share the most frequent spelling.
+    const captionKey = (path: ChapterCaption[], index: number) => JSON.stringify(path.slice(0,index + 1)
+      .map(caption => [caption.number,caption.title.replace(/\s/g, "")]));
+    const variants = new Map<string, Map<string, number>>();
+    for (const header of resolved) header.path.forEach((caption,index) => {
+      const key = captionKey(header.path,index), counts = variants.get(key) ?? new Map<string, number>();
+      counts.set(caption.title,(counts.get(caption.title) ?? 0) + 1); variants.set(key,counts);
+    });
+    result.set(document, resolved.map(header => ({...header,path:header.path.map((caption,index) => ({...caption,
+      title:[...variants.get(captionKey(header.path,index))!].sort((a,b) => b[1]-a[1])[0][0]}))})));
   }
   return result;
 }

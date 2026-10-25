@@ -33,7 +33,7 @@ export function chapterWorkspaceView(workspace: ChapterWorkspace, mode: "pdf" | 
     if (!chapter.mainPosts?.length) return [chapter];
     return chapter.mainPosts.map(group => ({
       id: `main:${chapter.id}:${group.id}`, sourceId: group.standalone ? null : group.sourceId,
-      number: group.number, title: group.title, kind: group.review ? "review" as const : "main-post" as const,
+      number: group.number, title: group.title, kind: group.sourceId ? "main-post" as const : "review" as const,
       mainPosts: [group], sections: [{ id: group.id, sourceId: group.standalone ? null : group.sourceId,
         number: group.number, title: group.title, requirementIds: group.requirementIds,
         textSourceIds: [...new Set(group.requirementIds.flatMap(id => workspace.ancestors[id] ?? []))],

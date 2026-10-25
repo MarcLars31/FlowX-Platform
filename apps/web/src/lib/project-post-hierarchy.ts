@@ -13,6 +13,10 @@ export function isSourceChapter(row: HierarchyRow) {
   const path = chapterCaptionPath(String(hierarchyValue(value.sourceChapter).title ?? ""));
   return Boolean(number && path.some((_, index) => joinedChapterNumber(path.slice(0, index + 1)) === number));
 }
+function unassignedSource(row: HierarchyRow) {
+  const flags = hierarchyValue(row.value_json).reviewFlags;
+  return Array.isArray(flags) && flags.includes("unassigned-source-text");
+}
 export function uncertainPost(row: HierarchyRow) {
   const flags = hierarchyValue(row.value_json).reviewFlags;
   return Array.isArray(flags) && flags.some(flag => ["unassigned-source-text", "unverified-post-source"].includes(String(flag))) && !isSourceChapter(row);
@@ -20,7 +24,7 @@ export function uncertainPost(row: HierarchyRow) {
 
 /** Explicit source relations only. Printed numbers are addresses within one
  * document and place/table scope, never globally unique identifiers. */
-export function resolvePostParents(requirements: readonly HierarchyRow[]) {
+export function resolvePostParents(requirements: readonly HierarchyRow[], mode: "verified" | "navigation" = "verified") {
   const rows = sortProjectRequirementsBySource(requirements.filter(row => !["rejected", "superseded"].includes(String(row.status))));
   const byId = new Map(rows.map(row => [row.id, row]));
   const addresses = new Map<string, HierarchyRow[]>(), sourceIds = new Map<string, HierarchyRow[]>();
@@ -44,7 +48,15 @@ export function resolvePostParents(requirements: readonly HierarchyRow[]) {
     const parent = candidates.length === 1 ? candidates[0] : undefined;
     const preceding = parent && (Number(parent.source_page ?? 0) < Number(row.source_page ?? 0)
       || Number(parent.source_page ?? 0) === Number(row.source_page ?? 0) && Number(hierarchyValue(parent.value_json).sourceOrder ?? 0) < Number(value.sourceOrder ?? 0));
-    if (!parent || (!explicitId && !sourceId && !preceding) || postScopeKey(parent) !== postScopeKey(row) || uncertainPost(parent)) { unresolved.add(row.id); continue; }
+    // OCR can retain an explicit source identity while its text still needs
+    // review. Navigation may show that relation; assignment and requirement
+    // inheritance keep the default verified graph. Never relax number matching.
+    const navigable = mode === "navigation" && Boolean(explicitId || sourceId) && parent
+      && [parent, row].every(source => Boolean(projectRequirementOrderPostNumber(source))
+        && !unassignedSource(source));
+    if (!parent || (!explicitId && !sourceId && !preceding) || postScopeKey(parent) !== postScopeKey(row)
+      || (uncertainPost(parent) && !navigable)
+      || (mode === "navigation" && uncertainPost(row) && !navigable)) { unresolved.add(row.id); continue; }
     parents.set(row.id, parent.id);
   }
   const ancestors = new Map<string, string[]>();
@@ -62,17 +74,21 @@ export function resolvePostParents(requirements: readonly HierarchyRow[]) {
 }
 
 export function groupProductsByMainPost(requirements: readonly HierarchyRow[], productIds?: ReadonlySet<string>): MainPostGroup[] {
-  const graph = resolvePostParents(requirements);
+  const graph = resolvePostParents(requirements, "navigation");
   const products = productIds ?? new Set(visibleProjectRequirements(graph.rows).map(row => row.id));
   const groups = new Map<string, MainPostGroup>();
   for (const row of graph.rows) {
     if (!products.has(row.id)) continue;
-    const review = graph.unresolved.has(row.id) || uncertainPost(row);
-    const parent = review ? undefined : [...(graph.ancestors.get(row.id) ?? [])].reverse().map(id => graph.byId.get(id)!).find(source => !isSourceChapter(source));
+    const ancestors = graph.ancestors.get(row.id) ?? [];
+    const unplaced = graph.unresolved.has(row.id) || !projectRequirementOrderPostNumber(row)
+      || unassignedSource(row);
+    const parent = unplaced ? undefined : [...ancestors].reverse().map(id => graph.byId.get(id)!).find(source => !isSourceChapter(source));
+    const review = Boolean(unplaced || uncertainPost(row) || ancestors.some(id => uncertainPost(graph.byId.get(id)!)));
     const main = parent ?? row;
-    const id = review ? `review:${row.id}` : main.id;
-    const group = groups.get(id) ?? { id, sourceId: review ? null : main.id, number: projectRequirementOrderPostNumber(main) ?? "",
-      title: String(main.value_text ?? main.display_name ?? "Post utan rubrik"), requirementIds: [], ...(review ? { review: true } : !parent ? { standalone: true } : {}) };
+    const id = unplaced ? `review:${row.id}` : main.id;
+    const group = groups.get(id) ?? { id, sourceId: unplaced ? null : main.id, number: projectRequirementOrderPostNumber(main) ?? "",
+      title: String(main.value_text ?? main.display_name ?? "Post utan rubrik"), requirementIds: [], ...(!parent && !unplaced ? { standalone: true } : {}) };
+    if (review) group.review = true;
     if (parent) group.standalone = false;
     group.requirementIds.push(row.id); groups.set(id, group);
   }

@@ -24,7 +24,17 @@ export function productPostMeasurement(requirement: DistributorRequirementRow): 
   const hasAmount = hasColumns ? populated(amount) : validAmount;
   const rsLine = /^\s*(?:RS|Rund\s+sum(?:\s+RS)?)(?:\s+[\d., ]+)?\s*$/im;
   const rs = unit === "RS" || (!unit && !hasAmount && [value.quantityText, value.sourceText ?? requirement.source_excerpt].some(text => typeof text === "string" && rsLine.test(text.split(/\n\s*UNDERPOST\s*\n/i).at(-1) ?? "")));
-  const visible = hasUnit || hasAmount || rs;
+  // Keep an OCR product with an explicit own measurement line available
+  // for quantity review. This does not repair fused cells (e.g. "m²" for m + 2),
+  // infer a quantity, read inherited text or override empty verified columns.
+  const flags = Array.isArray(value.reviewFlags) ? value.reviewFlags : [];
+  const ownText = String(value.sourceText ?? requirement.source_excerpt ?? "").split(/\n\s*UNDERPOST\s*\n/i).at(-1) ?? "";
+  const ownUnitLine = !hasColumns && Boolean(value.postNumber) && flags.includes("missing-quantity")
+    && !flags.includes("unassigned-source-text") && ownText.split(/\r?\n/).some(line => {
+      const unit = line.match(/^[ \t]*(?:Antall|Lengde|Areal|Volum|Mengde)[ \t]+(\S+)[ \t]*$/i)?.[1];
+      return unit !== undefined && quantityUnits.has(normalizeQuantityUnit(unit));
+    });
+  const visible = hasUnit || hasAmount || rs || ownUnitLine;
   return { visible, missingQuantity: visible && !rs && !validAmount };
 }
 
