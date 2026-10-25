@@ -1,7 +1,8 @@
 import type { DeliveryReview } from "./project-delivery";
 
 export type ProjectWorkPackage = {
-  id: string; scope_type: "chapter" | "group" | "pdf_chapter" | "post"; scope_value: string;
+  id: string; scope_type: "chapter" | "group" | "pdf_chapter" | "main_post" | "post"; scope_value: string;
+  assignment_mode?: "explicit" | "inherit" | "unassigned";
   assigned_to: string; due_date: string | null; note: string; revision: number;
 };
 export type ProjectDeliveryDocument = {

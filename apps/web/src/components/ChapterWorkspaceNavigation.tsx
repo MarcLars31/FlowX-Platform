@@ -1,4 +1,5 @@
 "use client";
+import type { MainPostGroup } from "@/lib/project-post-hierarchy";
 import { ChevronRight } from "lucide-react";
 import { chapterPostSection, type ChapterSource, type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
 import { productChoiceSnapshots } from "@/lib/product-choice-collection";
@@ -60,16 +61,24 @@ export function SelectedProductSummary({ assignment }: { assignment?: Row }) {
     {String(product.name ?? "Produkt")} · Art. {String(product.productNumber ?? "—")}
   </span>)}</span> : <span className="chapter-no-product">Ingen produkt vald</span>;
 }
-export function SectionPosts({ rows, assignments, disabled, onSelect }: {
+export function SectionPosts({ rows, groups, assignments, disabled, onSelect }: {
+  groups?: MainPostGroup[];
   rows: Row[]; assignments: ReadonlyMap<string, Row>; disabled: boolean; onSelect: (id: string) => boolean;
 }) {
   if (!rows.length) return null;
   return <nav className="chapter-other-posts" aria-label="Poster i kapitlet">
     <h3>Poster <span>({rows.length})</span></h3>
-    <ol>{rows.map(row => <li key={row.id}><button type="button" id={`section-post-${row.id}`} disabled={disabled} onClick={() => onSelect(row.id)}>
-      <span><strong>{projectRequirementDetails(row).postNumber ?? "Post utan nummer"}</strong> {String(row.value_text ?? row.display_name ?? "Produktpost")}</span>
-      <small>{formatProjectQuantity(projectRequirementQuantity(row.value_json))}</small>
-      <SelectedProductSummary assignment={assignments.get(row.id)} />
-    </button></li>)}</ol>
+    {(groups ?? [{ id: "posts", sourceId: null, number: "", title: "", requirementIds: rows.map(row => row.id) }]).map(group => {
+      const byId = new Map(rows.map(row => [row.id,row]));
+      return <section key={group.id} className="mb-4 rounded-lg border border-slate-200">
+        {!group.standalone && group.title && <h4 className="bg-slate-50 px-4 py-3 font-semibold">{group.number} {group.title}</h4>}
+        {group.review && <p className="px-4 py-2 text-sm text-amber-800">Kontrollera huvudpostkopplingen</p>}
+        <ol>{group.requirementIds.flatMap(id => { const row = byId.get(id); return row ? [<li key={row.id}><button type="button" id={`section-post-${row.id}`} disabled={disabled} onClick={() => onSelect(row.id)}>
+          <span><strong>{projectRequirementDetails(row).postNumber ?? "Post utan nummer"}</strong> {String(row.value_text ?? row.display_name ?? "Produktpost")}</span>
+          <small>{formatProjectQuantity(projectRequirementQuantity(row.value_json))}</small>
+          <SelectedProductSummary assignment={assignments.get(row.id)} />
+        </button></li>] : []; })}</ol>
+      </section>;
+    })}
   </nav>;
 }

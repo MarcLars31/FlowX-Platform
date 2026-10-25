@@ -26,3 +26,12 @@ Commit and push upgrades only to the development branch. Use local fixtures or a
 ## Publication after the freeze
 
 Wait for a new explicit user request to publish or unfreeze, including after 9 November. Before publication, verify the intended revision, complete release checks, and review any data or configuration changes. Keep the frozen branch unchanged as a recovery point. Do not automatically enable domain assignment or promote a deployment as part of routine development.
+
+## Local design workspace — 25 October 2026
+
+Local design and PDF testing now use the separate working copy
+`C:/Users/marcu/.codex/worktrees/scipx-upgrades/FlowX-Platform`, checked out on
+`codex/scipx-upgrades`. Use this path for continued development; the earlier
+`post-quantity-release` path above records the working copy at the time of the freeze.
+Run `npm.cmd run dev:local` from `apps/web` and open http://127.0.0.1:3100.
+The full application uses a separate persistent local PostgreSQL database and local customer/admin test accounts. The former PDF-only mode remains available with `npm.cmd run dev:pdf`. See [local development instructions](local-design.md).

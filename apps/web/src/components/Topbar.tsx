@@ -6,7 +6,8 @@ import type { OrganizationOption } from "@/types/organization";
 
 export function Topbar({
   navigation, organizationName = "Scipx", activeOrganizationId, organizationOptions,
-  userName = "Platform administrator", userEmail, roleLabel = "Internal administration"
+  userName = "Platform administrator", userEmail, roleLabel = "Internal administration",
+  showAccountMenu = true
 }: {
   navigation?: readonly OrganizationNavigationItem[];
   organizationName?: string;
@@ -15,6 +16,7 @@ export function Topbar({
   userName?: string;
   userEmail?: string;
   roleLabel?: string;
+  showAccountMenu?: boolean;
 }) {
   return (
     <header className="portal-topbar">
@@ -26,8 +28,10 @@ export function Topbar({
         <div className="portal-account">
           <span className="portal-account-label">{organizationName}</span>
           <span className="portal-account-label" title={roleLabel}>{userName}</span>
-          <AccountMenu userName={userName} userEmail={userEmail} roleLabel={roleLabel}
-            activeOrganizationId={activeOrganizationId} organizationOptions={organizationOptions} />
+          {showAccountMenu && (
+            <AccountMenu userName={userName} userEmail={userEmail} roleLabel={roleLabel}
+              activeOrganizationId={activeOrganizationId} organizationOptions={organizationOptions} />
+          )}
         </div>
       </div>
     </header>

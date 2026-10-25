@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { localDesignEnabled } from "@/lib/local-design";
+import { localPlatformEnabled } from "@/lib/local-platform";
 import { refreshSession, SessionRefreshError } from "@/lib/session-refresh";
 import {
   ACCESS_COOKIE,
@@ -12,6 +14,25 @@ import {
 // Keep session refresh in Edge middleware until the Cloudflare adapter can bundle Next 16 Node proxy files.
 
 export async function middleware(request: NextRequest) {
+  if (process.env.SCIPX_LOCAL_PLATFORM === "1") {
+    if (!localPlatformEnabled(process.env, request.headers.get("host"))) {
+      return new NextResponse("Local development host required", { status: 403 });
+    }
+    if (request.nextUrl.pathname === "/local") {
+      return NextResponse.redirect(new URL("/dashboard", `http://${request.headers.get("host")}`));
+    }
+  }
+  if (localDesignEnabled(process.env, request.headers.get("host"))) {
+    const pathname = request.nextUrl.pathname;
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/local", request.url));
+    }
+    if (pathname === "/local" || pathname.startsWith("/api/local/")) {
+      // The local workspace has no session; ignore cookies from other local apps.
+      return NextResponse.next();
+    }
+  }
+
   const accessToken = request.cookies.get(ACCESS_COOKIE)?.value;
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
 

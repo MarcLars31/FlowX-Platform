@@ -54,7 +54,7 @@ function chapterIdentity(requirement: Requirement) {
   const title = typeof chapter.title === "string" && chapter.title.trim()
     ? chapter.title.replace(/\s+/g, " ").trim() : "Kapitel saknas i PDF";
   const documentId = requirement.source_technical_description_document_id ?? requirement.source_document_id ?? "";
-  return { key: JSON.stringify([documentId, title.toLocaleLowerCase("nb-NO")]), title };
+  return { key: JSON.stringify([documentId, title.toLocaleLowerCase("nb-NO"), value.postScope ?? "", chapter.occurrenceId ?? ""]), title };
 }
 
 function record(value: unknown): Record<string, unknown> {

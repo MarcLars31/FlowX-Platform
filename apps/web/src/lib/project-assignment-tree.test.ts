@@ -4,7 +4,7 @@ import { assignmentSelectionPlan, buildAssignmentTree, saveAssignmentChanges, se
 import type { ProjectDeliveryData, ProjectWorkPackage } from "./project-delivery-resource";
 
 function row(id: string, post: string | null, chapter = "03.30.314 Armaturer", document = "pdf-a"): ProjectDeliveryData["requirements"][number] {
-  return { id, category: "valve", edit_revision: 0, value_text: post === "03.30.314.2.1" ? "DN15\nAll the detailed requirements" : `Title ${id}`, source_page: 29, source_document_id: document, value_json: { postNumber: post, sourceChapter: { title: chapter } } };
+  return { id, category: "valve", edit_revision: 0, value_text: post === "03.30.314.2.1" ? "DN15\nAll the detailed requirements" : `Title ${id}`, source_page: 29, source_document_id: document, value_json: { postNumber: post, sourceChapter: { title: chapter }, ...(id === "parent" ? {parentRequirementId:"root",sourceOrder:1} : id === "dn15" || id === "dn20" ? {parentRequirementId:"parent",sourceOrder:id === "dn15" ? 2 : 3} : {}) } };
 }
 const rows = [row("root", "03.30.314"), row("parent", "03.30.314.2"), row("dn15", "03.30.314.2.1"), row("dn20", "03.30.314.2.2"), row("other", "03.30.314.3"), row("second", "03.30.345.1", "03.30.345 Trykkluft"), row("other-pdf", "03.30.314.2.1", undefined, "pdf-b")];
 const pkg = (id: string, scope_type: ProjectWorkPackage["scope_type"], scope_value: string): ProjectWorkPackage => ({ id, scope_type, scope_value, assigned_to: "person", due_date: null, note: "", revision: 7 });
@@ -26,20 +26,20 @@ test("a single post, a whole subtree, and mixed chapters produce document-scoped
   const selected = new Set(["dn15", "dn20", "second"]);
   assert.deepEqual(selectedAssignmentNodes(tree, selected).map(node => node.key), ["parent", tree.find(node => node.number === "03.30.345")!.key]);
   const plan = assignmentSelectionPlan(tree, selected, []);
-  assert.deepEqual(new Set(plan.map(x => `${x.target.type}:${x.target.value}`)), new Set(["post:parent", "post:dn15", "post:dn20", "pdf_chapter:second"]));
+  assert.deepEqual(new Set(plan.map(x => `${x.target.type}:${x.target.value}`)), new Set(["main_post:parent", "pdf_chapter:second"]));
   assert.ok(!plan.some(x => x.target.value === "other-pdf"));
   selected.add("other");
   assert.equal(assignmentSelectionPlan(tree, selected, []).length, 2, "whole chapter compacts to one assignment");
 });
 
-test("whole chapters preserve their existing anchor/revision and also reassign exact post overrides", () => {
+test("whole chapters preserve their existing anchor/revision and leave exact post overrides unchanged", () => {
   const tree = buildAssignmentTree(rows);
   const chapter = pkg("existing-chapter", "pdf_chapter", "root");
   const override = pkg("existing-post", "post", "dn15");
   const foreign = pkg("foreign", "post", "other-pdf");
   const plan = assignmentSelectionPlan(tree, new Set(tree[0].leafIds), [chapter, override, foreign]);
-  assert.equal(plan.length, 2);
-  assert.deepEqual(plan.map(x => x.existing?.id), [chapter.id, override.id]);
+  assert.equal(plan.length, 1);
+  assert.deepEqual(plan.map(x => x.existing?.id), [chapter.id]);
   assert.equal(plan[0].target.value, "root");
   assert.equal(plan[0].existing?.revision, 7);
 });

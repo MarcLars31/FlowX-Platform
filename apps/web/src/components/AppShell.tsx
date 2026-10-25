@@ -10,6 +10,7 @@ export function AppShell({
   organizationOptions,
   userName,
   userEmail,
+  showAccountMenu = true,
   roleLabel
 }: {
   children: React.ReactNode;
@@ -19,6 +20,7 @@ export function AppShell({
   organizationOptions?: readonly OrganizationOption[];
   userName?: string;
   userEmail?: string;
+  showAccountMenu?: boolean;
   roleLabel?: string;
 }) {
   return (
@@ -31,6 +33,7 @@ export function AppShell({
           organizationOptions={organizationOptions}
           userName={userName}
           userEmail={userEmail}
+          showAccountMenu={showAccountMenu}
           roleLabel={roleLabel}
         />
         <main>{children}</main>

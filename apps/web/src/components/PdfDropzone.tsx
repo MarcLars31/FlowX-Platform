@@ -12,6 +12,7 @@ export function PdfDropzone({
   onValidationError,
   disabled = false,
   maxBytes = DEFAULT_MAX_BYTES,
+  storageNotice = "Posterna sparas. Original-PDF:en tas bort när importen är klar och kan därefter inte öppnas här.",
   compact = false
 }: {
   id: string;
@@ -21,6 +22,7 @@ export function PdfDropzone({
   disabled?: boolean;
   maxBytes?: number;
   compact?: boolean;
+  storageNotice?: string;
 }) {
   const [dragging, setDragging] = useState(false);
 
@@ -108,7 +110,7 @@ export function PdfDropzone({
           </>
         )}
       </label>
-      <p className="mt-2 text-xs text-slate-500">Posterna sparas. Original-PDF:en tas bort när importen är klar och kan därefter inte öppnas här.</p>
+      <p className="mt-2 text-xs text-slate-500">{storageNotice}</p>
       <input
         id={id}
         name="file"

@@ -4,10 +4,12 @@ import { currentPostRequirement } from "./current-post-requirement";
 import { requirementSnapshot } from "./requirement-snapshot";
 import { ownRequirementBody } from "./own-requirement-text";
 
+import { resolvePostParents, type MainPostGroup } from "./project-post-hierarchy";
+
 type Row = Record<string, unknown> & { id: string };
 export type ChapterSource = { id: string; number: string; title: string; text: string; pages: number[]; parentId?: string };
 export type ChapterSection = { id: string; sourceId: string | null; title: string; number: string; requirementIds: string[]; textSourceIds?: string[]; warning?: string };
-export type WorkspaceChapter = { id: string; sourceId: string | null; title: string; number: string; sections: ChapterSection[]; kind?: "review" | "main-post" };
+export type WorkspaceChapter = { id: string; sourceId: string | null; title: string; number: string; sections: ChapterSection[]; mainPosts?: MainPostGroup[]; kind?: "review" | "main-post" };
 export type ChapterWorkspace = { chapters: WorkspaceChapter[]; sources: Record<string, ChapterSource>; ancestors: Record<string, string[]> };
 
 /** Navigation presents a chapter as one list. Keep the source hierarchy intact
@@ -35,34 +37,13 @@ export function chapterPostRows<T extends Row>(section: ChapterSection, rowsById
 export function buildChapterWorkspace(requirements: Row[]): ChapterWorkspace {
   const rows = sortProjectRequirementsBySource(requirements.filter(row => !["rejected", "superseded"].includes(String(row.status))).map(requirementSnapshot));
   const purchasable = new Set(visibleProjectRequirements(rows).map(row => row.id));
-  const byId = new Map(rows.map(row => [row.id, row]));
-  const positions = new Map(rows.map((row, index) => [row.id, index]));
   const sources: ChapterWorkspace["sources"] = {}, ancestors: ChapterWorkspace["ancestors"] = {};
-  const scope = (row: Row) => JSON.stringify([row.source_document_id ?? row.source_technical_description_document_id ?? "", record(row.value_json).postScope ?? ""]);
-  const byAddress = new Map<string, Row[]>();
-  const bySourceId = new Map<string, Row[]>();
+  const scope = (row: Row) => JSON.stringify([row.source_technical_description_document_id ?? row.source_document_id ?? "", record(row.value_json).postScope ?? ""]);
+  const graph = resolvePostParents(rows), parentById = graph.parents, unlinked = graph.unresolved;
+  const children = new Map<string, Row[]>();
   for (const row of rows) {
-    const address = JSON.stringify([scope(row), projectRequirementOrderPostNumber(row)]);
-    byAddress.set(address, [...(byAddress.get(address) ?? []), row]);
-    const sourceId = record(row.value_json).sourcePostId;
-    if (typeof sourceId === "string") {
-      const key = JSON.stringify([scope(row), sourceId]);
-      bySourceId.set(key, [...(bySourceId.get(key) ?? []), row]);
-    }
-  }
-  const parentById = new Map<string, string>(), children = new Map<string, Row[]>(), unlinked = new Set<string>();
-  for (const row of rows) {
-    const value = record(row.value_json), parentNumber = value.parentPostNumber;
-    const explicit = typeof value.parentRequirementId === "string" ? byId.get(value.parentRequirementId) : undefined;
-    const sourceParent = typeof value.parentSourcePostId === "string"
-      ? bySourceId.get(JSON.stringify([scope(row), value.parentSourcePostId])) : undefined;
-    const candidates = explicit ? [explicit] : typeof value.parentSourcePostId === "string" ? sourceParent ?? [] : (typeof parentNumber === "string" && parentNumber
-      ? byAddress.get(JSON.stringify([scope(row), parentNumber])) ?? [] : []);
-    if (!explicit && !parentNumber) continue;
-    const parent = candidates.length === 1 ? candidates[0] : undefined;
-    if (!parent || scope(parent) !== scope(row) || positions.get(parent.id)! >= positions.get(row.id)!) { unlinked.add(row.id); continue; }
-    parentById.set(row.id, parent.id);
-    children.set(parent.id, [...(children.get(parent.id) ?? []), row]);
+    const parent = parentById.get(row.id);
+    if (parent) children.set(parent, [...(children.get(parent) ?? []), row]);
   }
   for (const row of rows) {
     const own = currentPostRequirement(row), value = record(own.value_json);

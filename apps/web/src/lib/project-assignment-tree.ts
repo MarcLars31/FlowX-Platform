@@ -1,3 +1,4 @@
+import { resolvePostParents } from "./project-post-hierarchy";
 import { groupProductRequirementsByPdfChapter, productChapterHeading } from "./product-post-groups";
 import { chapterAssignmentTarget, type AssignmentTarget } from "./project-work-assignment";
 import type { ProjectDeliveryData, ProjectWorkPackage } from "./project-delivery-resource";
@@ -22,7 +23,8 @@ function record(value: unknown): Record<string, unknown> {
 
 /** A row's identity is its UUID, never just its printed post number. */
 export function buildAssignmentTree(requirements: readonly Requirement[]): AssignmentTreeNode[] {
-  return groupProductRequirementsByPdfChapter(requirements).map(group => {
+  const graph = resolvePostParents(requirements);
+  return groupProductRequirementsByPdfChapter(requirements).flatMap(group => {
     const heading = productChapterHeading(group.title);
     const documentId = group.requirements[0]?.source_technical_description_document_id ?? group.requirements[0]?.source_document_id ?? "";
     const root: AssignmentTreeNode = {
@@ -49,15 +51,9 @@ export function buildAssignmentTree(requirements: readonly Requirement[]): Assig
         root.requirementIds.push(...node.requirementIds);
         continue;
       }
-      let parent = root;
-      let number = node.number;
-      while (number.includes(".")) {
-        number = number.slice(0, number.lastIndexOf("."));
-        if (number === root.number) break;
-        const candidates = byNumber.get(number);
-        // An ambiguous repeated number must not swallow another row's children.
-        if (candidates?.length === 1) { parent = candidates[0]; break; }
-      }
+      const parentId = graph.parents.get(node.key);
+      const candidate = nodes.find(node => node.key === parentId);
+      const parent = candidate?.number === root.number ? root : candidate ?? root;
       parent.children.push(node);
     }
     function collect(node: AssignmentTreeNode) {
@@ -67,14 +63,15 @@ export function buildAssignmentTree(requirements: readonly Requirement[]): Assig
         node.leafIds.push(...child.leafIds);
       }
       if (!node.children.length) node.leafIds.push(node.key);
+      if (node !== root) node.target = { type: node.children.length ? "main_post" : "post", value: node.key, label: `${node.number} ${node.title}`.trim() };
     }
     collect(root);
-    return root;
+    return group.title === "Kapitel saknas i PDF" ? root.children : [root];
   });
 }
 
 export function selectedAssignmentNodes(tree: readonly AssignmentTreeNode[], selected: ReadonlySet<string>): AssignmentTreeNode[] {
-  return tree.flatMap(node => node.leafIds.every(id => selected.has(id)) ? [node] : selectedAssignmentNodes(node.children, selected));
+  return tree.flatMap(node => node.leafIds.length > 0 && node.leafIds.every(id => selected.has(id)) ? [node] : selectedAssignmentNodes(node.children, selected));
 }
 
 export function assignmentSelectionPlan(tree: readonly AssignmentTreeNode[], selected: ReadonlySet<string>, packages: readonly ProjectWorkPackage[]): AssignmentChange[] {
@@ -84,12 +81,9 @@ export function assignmentSelectionPlan(tree: readonly AssignmentTreeNode[], sel
   }
   for (const node of selectedAssignmentNodes(tree, selected)) {
     if (node.target) {
-      const existing = packages.find(item => item.scope_type === "pdf_chapter" && node.requirementIds.includes(item.scope_value));
+      const existing = packages.find(item => item.scope_type === node.target!.type && (item.scope_type === "pdf_chapter" ? node.requirementIds.includes(item.scope_value) : item.scope_value === node.target!.value));
       add(existing ? { ...node.target, value: existing.scope_value } : node.target, existing);
-      // Selecting the whole chapter also updates its existing, higher-priority post overrides.
-      for (const item of packages.filter(item => item.scope_type === "post" && node.requirementIds.includes(item.scope_value))) {
-        add({ type: "post", value: item.scope_value, label: node.target.label }, item);
-      }
+      // Exact post assignments remain exceptions when the chapter default changes.
     } else {
       for (const id of node.requirementIds) {
         add({ type: "post", value: id, label: `${node.number} ${node.title}`.trim() }, packages.find(item => item.scope_type === "post" && item.scope_value === id));

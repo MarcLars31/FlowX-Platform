@@ -6,9 +6,12 @@ import { currentPostRequirement } from "./current-post-requirement";
 import { ownRequirementBody } from "./own-requirement-text";
 import { chapterAddress, chapterCaptionPath, chapterContains, chapterHeaderPages, joinedChapterNumber, type ChapterCaption, type ChapterPage } from "./pdf-chapter-navigation";
 import { splitPostHeading, type HeadingLayout } from "@/modules/technical-description-extractor/post-heading";
+import { withMainPostGroups } from "./chapter-main-posts";
+import { groupProductsByMainPost } from "./project-post-hierarchy";
+
 type Row = Record<string, unknown> & { id: string };
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-const documentId = (row: Row) => String(row.source_document_id ?? row.source_technical_description_document_id ?? "legacy");
+const documentId = (row: Row) => String(row.source_technical_description_document_id ?? row.source_document_id ?? "legacy");
 const key = (...parts: string[]) => JSON.stringify(parts);
 const flags = (row: Row) => Array.isArray(record(row.value_json).reviewFlags) ? record(row.value_json).reviewFlags as unknown[] : [];
 
@@ -18,6 +21,7 @@ const flags = (row: Row) => Array.isArray(record(row.value_json).reviewFlags) ? 
 export function buildDocumentChapterWorkspace(requirements: Row[], pages: readonly ChapterPage[] = []): ChapterWorkspace {
   const rows = sortProjectRequirementsBySource(requirements.filter(row => !["rejected", "superseded"].includes(String(row.status))).map(requirementSnapshot));
   const original = buildChapterWorkspace(rows);
+  const mainGroups = groupProductsByMainPost(rows);
   const headers = chapterHeaderPages(pages), products = new Set(visibleProjectRequirements(rows).map(row => row.id));
   const sources = { ...original.sources };
   const layouts = new Map(pages.map(page => [key(page.document_id,String(page.page_number)),page.heading_layout as HeadingLayout | undefined]));
@@ -38,12 +42,12 @@ export function buildDocumentChapterWorkspace(requirements: Row[], pages: readon
       }
     }
   }
-  type Group = { chapter: WorkspaceChapter; paths: ChapterCaption[][]; rows: Row[] };
+  type Group = { scope: string; chapter: WorkspaceChapter; paths: ChapterCaption[][]; rows: Row[] };
   const groups = new Map<string, Group>(), rowPath = new Map<string, ChapterCaption[]>();
-  const ensure = (doc: string, path: ChapterCaption[], fallback = false) => {
-    const root = path[0], id = key(doc, root.number, root.title);
+  const ensure = (doc: string, path: ChapterCaption[], scope = "") => {
+    const root = path[0], id = key(doc, root.number, root.title, scope);
     let group = groups.get(id);
-    if (!group) { group = { chapter:{ id, sourceId:null, number:root.number, title:root.title, sections:[], ...(fallback ? {kind:"main-post" as const} : {}) }, paths:[], rows:[] }; groups.set(id,group); }
+    if (!group) { group = { scope, chapter:{ id, sourceId:null, number:root.number, title:root.title, sections:[] }, paths:[], rows:[] }; groups.set(id,group); }
     if (path.length > 1 && !group.paths.some(p => key(...p.map(c => c.number + " " + c.title)) === key(...path.map(c => c.number + " " + c.title)))) group.paths.push(path);
     return id;
   };
@@ -69,23 +73,27 @@ export function buildDocumentChapterWorkspace(requirements: Row[], pages: readon
       const preceding = documentHeaders.filter(header => header.page < Number(row.source_page)).at(-1);
       if (preceding && (chapterContains(joinedChapterNumber(preceding.path),number) || chapterContains(preceding.path[0].number,number))) path = preceding.path;
     }
-    let id = path ? ensure(doc,path) : undefined;
+    const value = record(row.value_json), scope = key(String(value.postScope ?? ""),String(record(value.sourceChapter).occurrenceId ?? ""));
+    let id = path ? ensure(doc,path,scope) : undefined;
     if (!id && number) {
-      const candidates = [...groups.entries()].filter(([groupId,g]) => groupId.startsWith(key(doc).slice(0,-1) + ",") && chapterContains(g.chapter.number,number));
+      const candidates = [...groups.entries()].filter(([groupId,g]) => groupId.startsWith(key(doc).slice(0,-1) + ",") && g.scope === scope && chapterContains(g.chapter.number,number));
       if (candidates.length === 1) id = candidates[0][0];
     }
-    if (!id && !documentHeaders.length && !legacyDocuments.has(doc) && number) {
-      const main = number.replace(/^D\d+\./i, "").split(".")[0];
-      const heading = rows.find(candidate => documentId(candidate) === doc && !products.has(candidate.id)
-        && chapterAddress(projectRequirementOrderPostNumber(candidate) ?? "") === chapterAddress(main)
-        && !flags(candidate).some(flag => ["unassigned-source-text","unverified-post-source"].includes(String(flag))));
-      id = ensure(doc,[{number:main,title:heading ? String(heading.value_text ?? heading.display_name) : "Huvudpost " + main}],!heading);
+    if (!id && products.has(row.id)) {
+      const main = mainGroups.find(group => group.requirementIds.includes(row.id));
+      if (main && !main.review) {
+        // A real main post (or a standalone product) supplies its own title.
+        id = key(doc, "main", main.id);
+        if (!groups.has(id)) groups.set(id, {scope,chapter:{id,sourceId:main.standalone ? null : main.sourceId,
+          number:main.number,title:main.title,kind:"main-post",sections:[]},paths:[],rows:[]});
+      }
     }
     if (id) { groups.get(id)!.rows.push(row); if (path) rowPath.set(row.id,path); }
   }
   const assigned = new Set<string>(), assignedText = new Set<string>();
   for (const [groupId,group] of groups) {
     const {chapter} = group, sections = new Map<string,ChapterSection>();
+    if (chapter.sourceId) assignedText.add(chapter.sourceId);
     const headerVerified = (row: Row) => {
       const number = projectRequirementOrderPostNumber(row) ?? "";
       return [chapter.number,...group.paths.map(joinedChapterNumber)].some(n => chapterAddress(n) === chapterAddress(number));
@@ -150,5 +158,5 @@ export function buildDocumentChapterWorkspace(requirements: Row[], pages: readon
   const review = rows.filter(row => !products.has(row.id) && !assignedText.has(row.id));
   if (review.length) chapters.push({id:"source-review",sourceId:null,number:"",title:"PDF-text att kontrollera",kind:"review",sections:review.map(row => ({
     id:row.id,sourceId:row.id,number:"",title:"PDF-sida " + sources[row.id].pages.join(", "),requirementIds:[],warning:"Originaltexten har bevarats för kontroll och används inte som kapitelrubrik."}))});
-  return { chapters,sources,ancestors:original.ancestors };
+  return withMainPostGroups({ chapters,sources,ancestors:original.ancestors }, rows);
 }

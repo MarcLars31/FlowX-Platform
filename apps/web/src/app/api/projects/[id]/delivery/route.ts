@@ -50,13 +50,13 @@ export async function GET(request: Request, context: Context) {
       selectAllUserRows<Row>('project_post_workflows',{...filters,order:'requirement_id.asc'}),
       selectUserRows<Row>('technical_description_documents',{...filters,select:'id,file_name,file_sha256,status,page_count',limit:'1000'}),
       selectUserRows<Row>('project_document_controls',{...filters,limit:'1000'}),
-      selectAllUserRows<Row>('project_requirements',{...filters,status:'neq.superseded',deleted_at:'is.null',select:'id,category,value_text,source_page,edit_revision,source_document_id,source_technical_description_document_id,post_number:value_json->>postNumber,source_chapter:value_json->sourceChapter,source_order:value_json->sourceOrder,chapter_information:value_json->chapterInformation,unit:value_json->unit,quantity:value_json->quantity',order:'id.asc'}),
+      selectAllUserRows<Row>('project_requirements',{...filters,status:'neq.superseded',deleted_at:'is.null',select:'id,category,value_text,source_page,edit_revision,source_document_id,source_technical_description_document_id,value_json',order:'id.asc'}),
       selectUserRows<Row>('organization_members',{organization_id:filters.organization_id,status:'eq.active',select:'id,user_id',limit:'1000'}),
       selectUserRows<Row>('project_documents',{...filters,select:'id,file_sha256',storage_path:'not.is.null',deleted_at:'is.null',limit:'1000'})
     ]);
     const profiles=members.length ? await selectUserRows<Row>('profiles',{select:'id,display_name,email',id:`in.(${members.map(m=>m.user_id).join(',')})`}) : [];
     const memberLabels=members.map(m=>({...m,label:String(profiles.find(p=>p.id===m.user_id)?.display_name ?? profiles.find(p=>p.id===m.user_id)?.email ?? m.user_id)}));
-    return response({manager,packages,reviews,documents:documents.map(d=>({...d,...controls.find(c=>c.document_id===d.id),fileId:files.find(f=>f.file_sha256===d.file_sha256)?.id})),requirements:requirements.map(r=>({...r,value_text:typeof r.value_text==='string'?r.value_text.split(/\r?\n/).map(line=>line.trim()).find(Boolean)?.slice(0,200):'',value_json:{postNumber:r.post_number,sourceChapter:r.source_chapter,sourceOrder:r.source_order,chapterInformation:r.chapter_information},actionable:groupProjectRequirementViews([{id:r.id,value_json:{unit:r.unit,quantity:r.quantity}}]).products.length>0})),members:memberLabels,userId:auth.user.id,enforced:project.assignments_enforced});
+    return response({manager,packages,reviews,documents:documents.map(d=>({...d,...controls.find(c=>c.document_id===d.id),fileId:files.find(f=>f.file_sha256===d.file_sha256)?.id})),requirements:requirements.map(r=>({...r,value_text:typeof r.value_text==='string'?r.value_text.split(/\r?\n/).map(line=>line.trim()).find(Boolean)?.slice(0,200):'',value_json:assignmentHierarchyValue(r.value_json),actionable:groupProjectRequirementViews([{id:r.id,value_json:r.value_json}]).products.length>0})),members:memberLabels,userId:auth.user.id,enforced:project.assignments_enforced});
   } catch(error) { return failed(error); }
 }
 export async function POST(request: Request, context: Context) {
@@ -72,8 +72,8 @@ export async function POST(request: Request, context: Context) {
     }
     if(body.action==='assignment') {
       const payload=body.payload as Record<string,unknown> | undefined;
-      if(!payload||!isUuid(payload.assigned_to)||!['chapter','group','pdf_chapter','post'].includes(String(payload.scope_type))||typeof payload.scope_value!=='string'||!payload.scope_value.trim()||payload.scope_value.length>160
-        || (['post','pdf_chapter'].includes(String(payload.scope_type))&&!isUuid(payload.scope_value))
+      if(!payload||!isUuid(payload.assigned_to)||!['chapter','group','pdf_chapter','main_post','post'].includes(String(payload.scope_type))||typeof payload.scope_value!=='string'||!payload.scope_value.trim()||payload.scope_value.length>160
+        || (['post','pdf_chapter','main_post'].includes(String(payload.scope_type))&&!isUuid(payload.scope_value))
         || (payload.id!=null&&(!isUuid(payload.id)||!Number.isSafeInteger(body.revision)))
         || (payload.note!=null&&(typeof payload.note!=='string'||payload.note.length>2000))) return responseError('Välj ansvarig och ett giltigt kapitel, postnummer eller produktgrupp.',400);
       return response(await callUserRpc('save_work_package',{pid:id,payload,expected_revision:body.revision ?? null}));
@@ -97,4 +97,9 @@ function failed(error: unknown) {
   }
   console.error('project_delivery_failed',{code:error instanceof UserSupabaseError ? error.code : undefined});
   return responseError('Projektstyrningen kunde inte läsas eller sparas. Försök igen.',503);
+}
+
+function assignmentHierarchyValue(value: unknown) {
+  const row = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return Object.fromEntries(['postNumber','sourceChapter','sourceOrder','chapterInformation','parentRequirementId','parentSourcePostId','parentPostNumber','sourcePostId','postScope','reviewFlags'].map(key => [key,row[key]]));
 }

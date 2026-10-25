@@ -33,6 +33,12 @@ export const ORGANIZATION_NAVIGATION: readonly OrganizationNavigationItem[] = [
     ]
   },
   {
+    name: "Prosjektstyring",
+    href: "/projects/management",
+    icon: "projects",
+    anyPermissions: ["project.requirement.view", "project.product_suggestion.view"]
+  },
+  {
     name: "Projekthistorik",
     href: "/project-history",
     icon: "history",

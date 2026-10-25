@@ -16,6 +16,7 @@ export default defineConfig([
     "public/ocr/**",
     "public/pdf-assets/**",
     "tmp/**",
+    ".tmp/**",
     "next-env.d.ts"
   ])
 ]);

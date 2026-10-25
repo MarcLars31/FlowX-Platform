@@ -19,6 +19,7 @@ import { Button } from "@/components/Button";
 import { DemoBadge } from "@/components/DemoBadge";
 import { createProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { ProjectDeliveryControl } from "@/components/ProjectDeliveryControl";
+import { ProjectManagementBoard } from "@/components/ProjectManagementBoard";
 import { DistributorMappingPanel, type ProductEditState } from "@/components/DistributorMappingPanel";
 import { visibleProjectRequirements } from "@/lib/project-requirement-views";
 import { Input } from "@/components/Input";
@@ -547,7 +548,7 @@ export function ProjectWorkspace({
           {projectDetailsForm}
         </section>
         {managementStep === "assignments" && <>
-          <ProjectDeliveryControl projectId={data.project.id} mode="assignments" onChanged={reload} resource={deliveryResource} onBusyChange={setAssignmentSaving} />
+          <ProjectManagementBoard projectId={data.project.id} onBusyChange={setAssignmentSaving} />
           {accessManagement}
         </>}
       </div>}

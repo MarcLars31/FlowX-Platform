@@ -54,9 +54,10 @@ test("dates, body references, price words and technical headings do not create c
   assert.equal(chapterContains("01.1","1.1.2"),true);
 });
 
-test("no chapter evidence uses main post numbers, isolating different documents",()=>{
+test("no chapter evidence uses each standalone post title, without inventing a numeric chapter",()=>{
   const w=buildDocumentChapterWorkspace([row("a","30.1","DN25",1,true),row("b","30.2","DN32",2,true),row("c","30.1","DN40",1,true,"b")]);
-  assert.equal(w.chapters.length,2);
+  assert.equal(w.chapters.length,3);
+  assert.deepEqual(w.chapters.map(c=>c.title),["DN25","DN40","DN32"]);
   assert.ok(w.chapters.every(c=>c.kind==="main-post"));
   assert.deepEqual(new Set(w.chapters.flatMap(c=>c.sections.flatMap(s=>s.requirementIds))),new Set(["a","b","c"]));
 });

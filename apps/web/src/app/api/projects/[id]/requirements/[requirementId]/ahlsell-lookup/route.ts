@@ -1,5 +1,6 @@
 import { ahlsellRequestContext } from "@/lib/ahlsell-shared-fetch.server";
 import { ahlsellEvidenceStore } from "@/lib/ahlsell-evidence-store.server";
+import { lookupAhlsellProductSeries } from "@/lib/ahlsell-product-series";
 import { NextResponse } from "next/server";
 import { AhlsellCatalogError, ahlsellMarketFromSearchUrl } from "@/lib/ahlsell-public-catalog";
 import { AhlsellLookupInputError, lookupAhlsellProduct, parseAhlsellLookupQuery } from "@/lib/ahlsell-product-lookup";
@@ -28,7 +29,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (!isUuid(id) || !isUuid(requirementId)) return NextResponse.json({ error: "Ogiltigt projekt- eller krav-id." }, { status: 400, headers });
     const limit = consumeRateLimit(requestRateLimitKey(request, "ahlsell-lookup", authorization.user.id), 30, 60_000);
     if (!limit.allowed) return NextResponse.json({ error: "För många produktsökningar. Vänta en kort stund och försök igen." }, { status: 429, headers: { ...headers, "Retry-After": String(limit.retryAfterSeconds) } });
-    const body = await readJsonBody<{ query?: unknown; accessory?: unknown; componentKind?: unknown; componentId?: unknown; mainArticleNumber?: unknown; automatic?: unknown } | null>(request, 8_000);
+    const body = await readJsonBody<{ query?: unknown; series?: unknown; accessory?: unknown; componentKind?: unknown; componentId?: unknown; mainArticleNumber?: unknown; automatic?: unknown } | null>(request, 8_000);
     parseAhlsellLookupQuery(body?.query, "no");
     const requirement = await loadEffectiveRequirement(id, requirementId, authorization.context.organization.id);
     if (!requirement) return NextResponse.json({ error: "Produktraden ble ikke funnet i prosjektet." }, { status: 404, headers });
@@ -42,7 +43,7 @@ export async function POST(request: Request, context: RouteContext) {
         market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, fetchImpl: supplier.fetch, store: ahlsellEvidenceStore() });
       return NextResponse.json(result, { headers });
     }
-    const lookup = body?.accessory === true ? lookupAccessoryProducts : lookupAhlsellProduct;
+    const lookup = body?.series === true && body?.accessory !== true ? lookupAhlsellProductSeries : body?.accessory === true ? lookupAccessoryProducts : lookupAhlsellProduct;
     const result = await lookup({ query: body?.query, market: ahlsellMarketFromSearchUrl(buildAhlsellRequirementGuide(requirement).searchUrl), signal: request.signal, fetchImpl: supplier.fetch, store: ahlsellEvidenceStore() });
     // Accessories have their own compatibility check against the chosen head;
     // do not compare an escutcheon with the head's K-factor or temperature.
