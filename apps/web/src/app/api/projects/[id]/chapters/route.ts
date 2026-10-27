@@ -1,40 +1,48 @@
 import { NextResponse } from "next/server";
 import { requireOrganizationApi } from "@/lib/organization-api-authorization";
-import { callUserRpc, selectAllUserRows, selectUserRows } from "@/lib/supabase-user-rest";
+import { callUserRpc, UserSupabaseError } from "@/lib/supabase-user-rest";
 import { isUuid } from "@/lib/distributor-product-mapping";
-import { buildDocumentChapterWorkspace } from "@/lib/document-chapter-workspace";
-import type { ChapterPage } from "@/lib/pdf-chapter-navigation";
+import { loadProjectChapterWorkspace } from "@/lib/project-chapter-workspace.server";
+import { validateChapterOrganizationChange, type ChapterOrganization } from "@/lib/chapter-organization";
+import { readJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-type Row = Record<string, unknown> & { id: string };
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+type Context = { params: Promise<{ id: string }> };
+const json = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
+
+async function load(context: Context) {
+  const auth = await requireOrganizationApi(["project.requirement.view"]);
+  if (auth.error) return { error: auth.error };
+  const { id } = await context.params;
+  if (!isUuid(id)) return { error: json({ error: "Ogiltigt projekt-id." }, 400) };
+  const workspace = await loadProjectChapterWorkspace(id, auth.context.organization.id);
+  if (!workspace) return { error: json({ error: "Projektet hittades inte." }, 404) };
+  return { id, workspace, error: null };
+}
+export async function GET(_request: Request, context: Context) {
+  try { const result = await load(context); return result.error ?? json(result.workspace); }
+  catch (error) { return failed(error); }
+}
+export async function POST(request: Request, context: Context) {
   try {
-    const auth = await requireOrganizationApi(["project.requirement.view"]);
-    if (auth.error) return auth.error;
-    const { id } = await context.params;
-    if (!isUuid(id)) return NextResponse.json({ error: "Ogiltigt projekt-id." }, { status: 400 });
-    const scope = { project_id: `eq.${id}`, organization_id: `eq.${auth.context.organization.id}` };
-    const [project] = await selectUserRows("projects", { id: `eq.${id}`, organization_id: scope.organization_id, deleted_at: "is.null", select: "id", limit: "1" });
-    if (!project) return NextResponse.json({ error: "Projektet hittades inte." }, { status: 404 });
-    // One read per workspace, never per post click. Only ancestor source text is
-    // returned; full post details and product matching remain lazy and separate.
-    const [rows,pages,ancestorContext] = await Promise.all([
-      selectAllUserRows<Row>("project_requirements", { ...scope, deleted_at: "is.null",
-        select: "id,value_text,display_name,value_json,source_excerpt,source_page,source_document_id,source_technical_description_document_id,status,created_at", order: "id.asc" }, { pagination: "id" }),
-      selectAllUserRows<ChapterPage & {id:string}>("document_pages", { ...scope,
-        select:"id,document_id,page_number,heading_layout:metadata->chapter_navigation", order:"id.asc" }, {pagination:"id"}),
-      callUserRpc<Row[]>("read_post_hierarchy_context", {pid:id})
-    ]);
-    // Older imports retain the full geometry. New imports have a compact
-    // header projection, so large PDF pages need not be transferred again.
-    const legacy = pages.some(page => !page.heading_layout) ? await selectAllUserRows<ChapterPage & {id:string}>("document_pages", {...scope,
-      "metadata->chapter_navigation":"is.null", "metadata->heading_layout":"not.is.null",
-      select:"id,document_id,page_number,heading_layout:metadata->heading_layout",order:"id.asc"},{pagination:"id"}) : [];
-    const oldById = new Map(legacy.map(page => [page.id,page]));
-    const visibleIds = new Set(rows.map(row => row.id));
-    const contextualRows = [...rows,...ancestorContext.filter(row => !visibleIds.has(row.id))];
-    return NextResponse.json(buildDocumentChapterWorkspace(contextualRows,pages.map(page => oldById.get(page.id) ?? page)), { headers: { "Cache-Control": "private, no-store" } });
-  } catch {
-    return NextResponse.json({ error: "Kapitlen kunde inte hämtas. Försök igen." }, { status: 503 });
+    const result = await load(context);
+    if (result.error) return result.error;
+    if (!result.workspace.canOrganize) return json({ error: "Projektansvarig kan ändra kapitelplaceringen." }, 403);
+    const change = validateChapterOrganizationChange(await readJsonBody(request, 50_000), result.workspace);
+    if ("error" in change) return json(change, 400);
+    const organization = await callUserRpc<ChapterOrganization>("save_project_chapter_organization", {
+      pid: result.id, expected_revision: change.revision, source_ids: change.sourceIds, target_id: change.targetId, new_title: change.newTitle
+    });
+    return json({ organization });
+  } catch (error) { return failed(error); }
+}
+function failed(error: unknown) {
+  if (error instanceof RequestBodyTooLargeError) return json({ error: "Välj färre poster åt gången." }, 413);
+  if (error instanceof SyntaxError) return json({ error: "Ogiltig kapitelplacering." }, 400);
+  if (error instanceof UserSupabaseError) {
+    if (error.code === "40001") return json({ error: "Kapitelplaceringen har ändrats av någon annan. Ladda om sidan och försök igen." }, 409);
+    if (error.code === "42501" || error.status === 403 || error.status === 401) return json({ error: "Du saknar behörighet att ändra kapitelplaceringen." }, 403);
+    if (error.code === "22023") return json({ error: "Kontrollera valda poster och kapitel. Högst 200 egna kapitel kan skapas." }, 400);
   }
+  return json({ error: "Kapitlen kunde inte läsas eller sparas. Försök igen." }, 503);
 }

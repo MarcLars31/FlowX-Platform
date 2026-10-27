@@ -160,5 +160,18 @@ export function buildDocumentChapterWorkspace(requirements: Row[], pages: readon
   const review = rows.filter(row => !products.has(row.id) && !assignedText.has(row.id));
   if (review.length) chapters.push({id:"source-review",sourceId:null,number:"",title:"PDF-text att kontrollera",kind:"review",sections:review.map(row => ({
     id:row.id,sourceId:row.id,number:"",title:"PDF-sida " + sources[row.id].pages.join(", "),requirementIds:[],warning:"Originaltexten har bevarats för kontroll och används inte som kapitelrubrik."}))});
-  return withMainPostGroups({ chapters,sources,ancestors:original.ancestors }, rows);
+  const workspace = withMainPostGroups({ chapters,sources,ancestors:original.ancestors }, rows);
+  // Manual chapter placement needs a readable source for standalone review
+  // products as well as prose. Keep the original IDs and matching data intact.
+  const reviewProducts = new Set(workspace.chapters.filter(chapter => chapter.kind === "review")
+    .flatMap(chapter => chapter.sections.flatMap(section => section.requirementIds)));
+  for (const row of rows.filter(row => reviewProducts.has(row.id) && !sources[row.id])) {
+    const own = currentPostRequirement(row), value = record(own.value_json);
+    sources[row.id] = { id: row.id, number: projectRequirementOrderPostNumber(row) ?? "",
+      title: String(row.value_text ?? row.display_name ?? "Post utan rubrik"),
+      text: String(ownRequirementBody(value) ?? value.pdfDescriptionText ?? value.sourceText ?? own.source_excerpt ?? ""),
+      pages: [...new Set([Number(row.source_page), ...(Array.isArray(value.sourcePages) ? value.sourcePages.map(Number) : [])])]
+        .filter(page => Number.isSafeInteger(page) && page > 0) };
+  }
+  return workspace;
 }

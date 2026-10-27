@@ -1,3 +1,4 @@
+import { organizedChapterWorkspace } from "./chapter-organization";
 import { groupProductsByMainPost, type HierarchyRow } from "./project-post-hierarchy";
 import { chapterPostSection, type ChapterWorkspace, type WorkspaceChapter } from "./project-chapter-workspace";
 
@@ -28,13 +29,14 @@ export function withMainPostGroups(workspace: ChapterWorkspace, rows: readonly H
 }
 
 export function chapterWorkspaceView(workspace: ChapterWorkspace, mode: "pdf" | "main"): ChapterWorkspace {
+  workspace = organizedChapterWorkspace(workspace);
   // Hide preserved, unplaced text in navigation; review groups containing
   // actual product posts and ordinary information chapters remain visible.
   const visibleChapters = workspace.chapters.filter(chapter => chapter.kind !== "review" || chapterPostSection(chapter).requirementIds.length > 0);
   if (mode === "pdf") return { ...workspace, chapters: visibleChapters };
   const chapters: WorkspaceChapter[] = visibleChapters.flatMap(chapter => {
     if (!chapter.mainPosts?.length) return [chapter];
-    return chapter.mainPosts.map(group => ({
+    const groups: WorkspaceChapter[] = chapter.mainPosts.map(group => ({
       id: `main:${chapter.id}:${group.id}`, sourceId: group.standalone ? null : group.sourceId,
       number: group.number, title: group.title, kind: group.sourceId ? "main-post" as const : "review" as const,
       mainPosts: [group], sections: [{ id: group.id, sourceId: group.standalone ? null : group.sourceId,
@@ -42,6 +44,13 @@ export function chapterWorkspaceView(workspace: ChapterWorkspace, mode: "pdf" | 
         textSourceIds: [...new Set(group.requirementIds.flatMap(id => workspace.ancestors[id] ?? []))],
         ...(group.review ? { warning: "Huvudpostkopplingen behöver kontrolleras. Originalposten är bevarad." } : {}) }]
     }));
+    // Manually placed chapter text stays accessible when products are shown as
+    // main-post chapters; it is never copied into every product family's text.
+    if (chapter.manualTextSourceIds?.length) groups.push({ id: `${chapter.id}:manual-text`, sourceId: null,
+      number: chapter.number, title: chapter.title, kind: chapter.kind,
+      sections: [{ id: `${chapter.id}:manual-text`, sourceId: null, number: chapter.number, title: chapter.title,
+        requirementIds: [], textSourceIds: chapter.manualTextSourceIds }] });
+    return groups;
   });
   return { ...workspace, chapters };
 }

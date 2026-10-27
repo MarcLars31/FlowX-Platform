@@ -1,3 +1,4 @@
+import type { ChapterOrganization } from "./chapter-organization";
 import { visibleProjectRequirements } from "./project-requirement-views";
 import { projectRequirementOrderPostNumber, sortProjectRequirementsBySource } from "./project-requirement-order";
 import { currentPostRequirement } from "./current-post-requirement";
@@ -9,8 +10,8 @@ import { resolvePostParents, type MainPostGroup } from "./project-post-hierarchy
 type Row = Record<string, unknown> & { id: string };
 export type ChapterSource = { id: string; number: string; title: string; text: string; pages: number[]; parentId?: string };
 export type ChapterSection = { id: string; sourceId: string | null; title: string; number: string; requirementIds: string[]; textSourceIds?: string[]; warning?: string };
-export type WorkspaceChapter = { id: string; sourceId: string | null; title: string; number: string; sections: ChapterSection[]; mainPosts?: MainPostGroup[]; kind?: "review" | "main-post" };
-export type ChapterWorkspace = { chapters: WorkspaceChapter[]; sources: Record<string, ChapterSource>; ancestors: Record<string, string[]> };
+export type WorkspaceChapter = { id: string; sourceId: string | null; title: string; number: string; sections: ChapterSection[]; mainPosts?: MainPostGroup[]; manualTextSourceIds?: string[]; kind?: "review" | "main-post" | "custom" };
+export type ChapterWorkspace = { organization?: ChapterOrganization; canOrganize?: boolean; chapters: WorkspaceChapter[]; sources: Record<string, ChapterSource>; ancestors: Record<string, string[]> };
 
 /** Navigation presents a chapter as one list. Keep the source hierarchy intact
  * for requirement inheritance and collect all text when removing the extra step. */

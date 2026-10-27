@@ -38,7 +38,8 @@ test("main card opens common requirements separately and status icons are not co
   }));
   assert(!html.includes('type="checkbox"'));
   assert.equal((html.match(/<button /g)??[]).length,4);
-  assert.match(html,/Åpne hovedpost 33.332.6/);
+  assert.match(html,/<header><h3><button[^>]+aria-label="Åpne hovedpost 33.332.6: VANNLEDNING"/);
+  assert.match(html,/Vis krav og informasjon/);
   assert.match(html,/aria-haspopup="dialog"/);
   assert.doesNotMatch(html,/Trykk: PN12/);
   assert.match(html,/Til gjennomgang/); assert.match(html,/Godkjent/);

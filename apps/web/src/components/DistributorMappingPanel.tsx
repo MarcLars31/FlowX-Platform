@@ -7,6 +7,7 @@ import { projectRequirementPageLabel } from "@/lib/project-requirement-details";
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
+import { ChapterTextOrganizer } from "@/components/ChapterTextOrganizer";
 import { MainPostDetailsButton } from "@/components/MainPostDetailsButton";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ProductPostGroupPanel } from "@/components/ProductPostGroupPanel";
@@ -249,6 +250,11 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   return <section id="project-requirement-table" aria-label="Produktöversikt" className="product-selection-workspace chapter-workspace" data-post-open={Boolean(activeRequirement)}>
     {!section && <div className="product-selection-heading"><h2>Kapitelöversikt</h2><p>{visible.length} poster · {visible.filter(row => approvedRequirementIds.has(row.id)).length} valda</p></div>}
     {workspaceNavigation}
+    {sourceWorkspace && !activeRequirement && <div className="py-3"><ChapterTextOrganizer projectId={projectId} workspace={sourceWorkspace}
+      disabled={anySaving || anyDirty} onSaved={organization => {
+        resource.invalidate(`/api/projects/${projectId}/chapters`);
+        setWorkspace(current => current ? { ...current, organization } : current);
+      }} /></div>}
     {workspace && !activeRequirement && <label className="block max-w-sm py-3 text-sm">Kapitelindelning
       <select className="ml-3 rounded border border-slate-300 bg-white px-3 py-2" value={chapterView} onChange={event => {
         if (!canNavigate()) return;
@@ -288,7 +294,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       </article> : activeRequirement ? <LazyRequirementProductMappingCard
         key={`${activeRequirement.id}:${String(activeRequirement.edit_revision ?? "")}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
         projectId={projectId} currency={currency} requirement={activeRequirement} assignment={activeAssignment} resource={resource}
-        mainPostDetails={activeMainPost && !activeGroup ? <MainPostDetailsButton group={activeMainPost}
+        mainPostDetails={activeMainPost && !activeGroup ? <MainPostDetailsButton group={activeMainPost} variant="heading"
           source={activeMainPost.sourceId ? workspace.sources[activeMainPost.sourceId] : undefined} disabled={anySaving} /> : undefined}
         groupPanel={groupPanel} draft={productDrafts[activeRequirement.id]} onDraftChange={storeProductDraft}
         sourcePdfHref={projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup)} sourcePdfFileName={projectRequirementSourcePdfFileName(activeRequirement, sourcePdfLookup)}

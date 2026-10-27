@@ -15,8 +15,8 @@ export function ProductPostGroupPanel({ group, source, rows, statuses, activeId,
   activeId: string; seriesOpen: boolean; disabled: boolean; onSelect: (id: string) => void; onSearchSeries: () => void;
 }) {
   return <div className="product-main-post">
-    <header><p>Hovedpost {group.number}</p><h3>{group.title}</h3></header>
-    <MainPostDetailsButton group={group} source={source} disabled={disabled} />
+    <header>{source ? <MainPostDetailsButton group={group} source={source} disabled={disabled} variant="heading" />
+      : <><p>Hovedpost {group.number}</p><h3>{group.title}</h3></>}</header>
     <div className="product-underpost-heading"><h4>Underposter <span>({rows.length})</span></h4>
       <button type="button" disabled={disabled} aria-pressed={seriesOpen} onClick={onSearchSeries}>Søk produktserie</button></div>
     <nav aria-label={`Underposter til ${group.number}`}><ol className="product-underpost-list">{rows.map(row => {
