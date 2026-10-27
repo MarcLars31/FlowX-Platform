@@ -30,8 +30,8 @@ export async function POST(request: Request, context: Context) {
     if (!result.workspace.canOrganize) return json({ error: "Projektansvarig kan ändra kapitelplaceringen." }, 403);
     const change = validateChapterOrganizationChange(await readJsonBody(request, 50_000), result.workspace);
     if ("error" in change) return json(change, 400);
-    const organization = await callUserRpc<ChapterOrganization>("save_project_chapter_organization", {
-      pid: result.id, expected_revision: change.revision, source_ids: change.sourceIds, target_id: change.targetId, new_title: change.newTitle
+    const organization = await callUserRpc<ChapterOrganization>("save_individual_chapter_organization", {
+      pid: result.id, expected_revision: change.revision, source_ids: change.sourceIds, target_id: change.targetId, new_title: change.newTitle, normalized_placements: result.workspace.organization?.placements ?? {}
     });
     return json({ organization });
   } catch (error) { return failed(error); }

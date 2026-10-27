@@ -3,7 +3,7 @@ import test from "node:test";
 import { buildDocumentChapterWorkspace } from "./document-chapter-workspace";
 import { chapterWorkspaceView } from "./chapter-main-posts";
 import { chapterPostSection } from "./project-chapter-workspace";
-import { emptyChapterOrganization, organizationSources, organizedChapterWorkspace, validateChapterOrganizationChange } from "./chapter-organization";
+import { emptyChapterOrganization, expandLegacyChapterPlacements, organizationSources, organizedChapterWorkspace, validateChapterOrganizationChange } from "./chapter-organization";
 
 function fixture() {
   const rows = [
@@ -63,27 +63,64 @@ test("missing targets keep their original review text available and arbitrary pr
   assert.deepEqual(validateChapterOrganizationChange({...valid,targetId:null,newTitle:"  Nytt kapitel  "},workspace),{...valid,targetId:null,newTitle:"Nytt kapitel"});
 });
 
-test("moving a review main post keeps every child together in both views and supports undo",()=>{
+function reviewFamilyFixture() {
   const workspace=fixture();
   const source=workspace.chapters.shift()!;
-  workspace.chapters.unshift({...source,id:"review-family",kind:"review"});
+  const productIds=["product","product2","product3"];
+  workspace.chapters.unshift({...source,id:"review-family",kind:"review",
+    sections:[{id:"family",sourceId:"main",number:"30.332.7",title:"Rørledning",requirementIds:productIds}],
+    mainPosts:[{...source.mainPosts![0],requirementIds:productIds}]});
+  productIds.forEach((id,index)=>{
+    workspace.sources[id]={id,number:`30.332.7.${index+1}`,title:`DN${25+index*5}`,text:`Original ${id}`,pages:[2]};
+    workspace.ancestors[id]=["main"];
+  });
   workspace.chapters.push({id:"target",sourceId:null,number:"31",title:"Sanitär",sections:[]});
-  const original=structuredClone(workspace);
-  assert.equal(organizationSources(workspace).find(s=>s.id==="main")?.requirementIds[0],"product");
-  assert.ok(!organizationSources(workspace).some(s=>s.id==="product"));
-  workspace.organization.placements.main="target";
+  workspace.organization.customChapters=[{id:"custom:second",title:"Eget kapitel"}];
+  return workspace;
+}
+
+test("individual products can be split across chapters without moving siblings or rewriting their parent",()=>{
+  const workspace=reviewFamilyFixture(), original=structuredClone(workspace);
+  assert.deepEqual(organizationSources(workspace).filter(s=>s.groupId==="main").map(s=>s.id),["main","product","product2","product3"]);
+  assert.deepEqual(organizationSources(workspace).find(s=>s.id==="main")?.requirementIds,[]);
+  workspace.organization.placements={product:"target",product2:"custom:second"};
+  assert.ok(!("error" in validateChapterOrganizationChange({revision:0,sourceIds:["product"],targetId:"target",newTitle:null},workspace)));
   for(const mode of ["pdf","main"] as const){
     const view=chapterWorkspaceView(workspace,mode);
-    assert.equal(view.chapters.flatMap(c=>chapterPostSection(c).requirementIds).filter(id=>id==="product").length,1);
-    assert.ok(!view.chapters.find(c=>c.id==="review-family"));
-    const owner=view.chapters.find(c=>chapterPostSection(c).requirementIds.includes("product"))!;
-    assert.ok(owner.id.includes("target"));
-    assert.equal(owner.mainPosts?.[0].sourceId,"main");
+    const owners=view.chapters.filter(c=>chapterPostSection(c).requirementIds.length);
+    assert.equal(owners.length,3);
+    assert.deepEqual(owners.flatMap(c=>chapterPostSection(c).requirementIds).sort(),["product","product2","product3"]);
+    for(const [id,target] of [["product","target"],["product2","custom:second"],["product3","review-family"]]){
+      const owner=owners.find(c=>chapterPostSection(c).requirementIds.includes(id))!;
+      assert.ok(owner.id.includes(target));
+      assert.deepEqual(owner.mainPosts?.[0].requirementIds,[id]);
+      assert.equal(owner.mainPosts?.[0].sourceId,"main");
+    }
     assert.deepEqual(view.ancestors,original.ancestors);
     assert.deepEqual(view.sources,original.sources);
   }
-  delete workspace.organization.placements.main;
-  assert.deepEqual(chapterPostSection(organizedChapterWorkspace(workspace).chapters[0]).requirementIds,["product"]);
+  const reloaded=JSON.parse(JSON.stringify(workspace));
+  delete reloaded.organization.placements.product;
+  assert.deepEqual(chapterPostSection(organizedChapterWorkspace(reloaded).chapters[0]).requirementIds,["product","product3"]);
+});
+
+test("moving only the main-post text does not move its products",()=>{
+  const workspace=reviewFamilyFixture();workspace.organization.placements.main="target";
+  const view=organizedChapterWorkspace(workspace);
+  assert.deepEqual(chapterPostSection(view.chapters[0]).requirementIds,["product","product2","product3"]);
+  assert.deepEqual(chapterPostSection(view.chapters.find(c=>c.id==="target")!).requirementIds,[]);
+  assert.ok(chapterPostSection(view.chapters.find(c=>c.id==="target")!).textSourceIds?.includes("main"));
+});
+
+test("old whole-family placements expand once while explicit child placements win",()=>{
+  const workspace=reviewFamilyFixture();workspace.organization.placements={main:"target",product2:"custom:second"};
+  const saved=structuredClone(workspace.organization);
+  const normalized=expandLegacyChapterPlacements(workspace,workspace.organization);
+  assert.deepEqual(normalized.placements,{main:"target",product:"target",product2:"custom:second",product3:"target"});
+  assert.deepEqual(workspace.organization,saved);
+  workspace.organization=normalized;
+  delete workspace.organization.placements.product;
+  assert.ok(chapterPostSection(organizedChapterWorkspace(workspace).chapters[0]).requirementIds.includes("product"));
 });
 
 test("standalone review products can be placed without manufacturing a parent or losing source text",()=>{

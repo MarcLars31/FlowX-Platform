@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "./Button";
-import { emptyChapterOrganization, organizationSources, organizationTargets, type ChapterOrganization } from "@/lib/chapter-organization";
+import { emptyChapterOrganization, organizationSources, organizationTargets, type ChapterOrganization, type OrganizationSource } from "@/lib/chapter-organization";
 import type { ChapterWorkspace } from "@/lib/project-chapter-workspace";
 
 export function ChapterTextOrganizer({ projectId, workspace, disabled, onSaved }: {
@@ -29,6 +29,7 @@ function OrganizerDialog({ projectId, workspace, onSaved, onClose }: {
   const [selected, setSelected] = useState<string[]>([]);
   const [filter, setFilter] = useState("unplaced");
   const [target, setTarget] = useState("");
+  const [query, setQuery] = useState("");
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -38,7 +39,11 @@ function OrganizerDialog({ projectId, workspace, onSaved, onClose }: {
   const targetById = new Map(targets.map(chapter => [chapter.id, chapter]));
   const sources = organizationSources(workspace);
   const placed = (sourceId: string) => targetById.get(organization.placements[sourceId]);
-  const visible = sources.filter(source => filter === "all" || (filter === "placed" ? Boolean(placed(source.id)) : !placed(source.id)));
+  const search = query.trim().toLocaleLowerCase();
+  const visible = sources.filter(source => (filter === "all" || (filter === "placed" ? Boolean(placed(source.id)) : !placed(source.id)))
+    && (!search || [source.number,source.title,source.groupTitle].filter(Boolean).join(" ").toLocaleLowerCase().includes(search)));
+  const groups = new Map<string, OrganizationSource[]>();
+  visible.forEach(source => { const key = source.groupId ?? "ungrouped"; groups.set(key, [...(groups.get(key) ?? []), source]); });
   useEffect(() => {
     const element = dialog.current, trigger = document.activeElement;
     const overflow = document.body.style.overflow;
@@ -68,11 +73,23 @@ function OrganizerDialog({ projectId, workspace, onSaved, onClose }: {
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Placeringen kunde inte sparas."); }
     finally { setSaving(false); }
   }
+  function renderSource(source: OrganizationSource) {
+    return <li key={source.id} className="rounded border border-neutral-200 p-3">
+      <label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={selected.includes(source.id)}
+        disabled={!selected.includes(source.id) && selected.length >= 500}
+        onChange={event => setSelected(current => event.target.checked ? [...current,source.id] : current.filter(value => value !== source.id))} />
+        <span><span className="block text-sm font-semibold">{[source.number,source.title].filter(Boolean).join(" ")}</span>
+          <span className="block text-xs font-medium">{source.requirementIds.length ? "Produktpost" : source.groupId ? "Huvudpostens text – flyttas separat" : "Textpost"}</span>
+          <span className="block text-xs text-neutral-600">PDF-sida {source.pages.join(", ") || "saknas"} · {placed(source.id)?.title ?? "PDF-text att kontrollera"}</span></span>
+      </label>
+      <details className="ml-6 mt-2 text-sm"><summary className="cursor-pointer">Visa originaltext</summary><p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">{source.text || "Ingen separat text finns sparad."}</p></details>
+    </li>;
+  }
   return <dialog ref={dialog} aria-labelledby={`${id}-title`} className="m-auto max-h-[90vh] w-[min(68rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-300 bg-white p-0 text-neutral-950 shadow-xl backdrop:bg-black/40"
     onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}>
     <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b bg-white p-5">
       <div><h2 id={`${id}-title`} className="text-xl font-semibold">Ordna PDF-text</h2>
-        <p className="mt-1 text-sm">Markera poster och välj var de ska visas. En huvudpost flyttas tillsammans med sina produktposter. Originaltext och PDF-sidor sparas.</p></div>
+        <p className="mt-1 text-sm">Markera enskilda poster och välj kapitel. Bara markerade poster flyttas. Originaltext, PDF-sidor och kopplingen till huvudposten bevaras.</p></div>
       <button type="button" aria-label="Stäng kapitelhantering" disabled={saving} onClick={onClose} className="rounded border p-2"><X className="h-5 w-5" aria-hidden="true" /></button>
     </header>
     <div className="space-y-4 p-5">
@@ -85,19 +102,24 @@ function OrganizerDialog({ projectId, workspace, onSaved, onClose }: {
             <option value="placed">Flyttade ({sources.filter(source => placed(source.id)).length})</option><option value="all">Alla ({sources.length})</option>
           </select>
         </label>
+        <label className="block text-sm font-medium">Sök postnummer eller namn
+          <input type="search" className="mt-1 block w-full rounded border p-2" value={query} onChange={event => setQuery(event.target.value)} />
+        </label>
+        <div className="flex items-center justify-between text-sm"><span>{selected.length} markerade · {visible.length} visas</span>
+          {selected.length > 0 && <button type="button" className="underline" onClick={() => setSelected([])}>Rensa markering</button>}</div>
         {visible.length > 0 ? <>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={visible.every(source => selected.includes(source.id))}
-            onChange={event => setSelected(event.target.checked ? visible.slice(0,500).map(source => source.id) : [])} />Markera alla{visible.length > 500 ? " (högst 500 åt gången)" : ""}</label>
-          <ul className="max-h-[42vh] space-y-2 overflow-y-auto rounded border p-2">{visible.map(source => <li key={source.id} className="rounded border border-neutral-200 p-3">
-            <label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={selected.includes(source.id)}
-              disabled={!selected.includes(source.id) && selected.length >= 500}
-              onChange={event => setSelected(current => event.target.checked ? [...current,source.id] : current.filter(value => value !== source.id))} />
-              <span><span className="block text-sm font-semibold">{[source.number,source.title].filter(Boolean).join(" ")}</span>
-                {source.requirementIds.length > 0 && <span className="block text-xs font-medium">{source.requirementIds.length} produktposter följer med</span>}
-                <span className="block text-xs text-neutral-600">PDF-sida {source.pages.join(", ") || "saknas"} · {placed(source.id)?.title ?? "PDF-text att kontrollera"}</span></span>
-            </label>
-            <details className="ml-6 mt-2 text-sm"><summary className="cursor-pointer">Visa originaltext</summary><p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">{source.text || "Ingen separat text finns sparad."}</p></details>
-          </li>)}</ul>
+            onChange={event => setSelected(current => event.target.checked
+              ? [...new Set([...current,...visible.map(source => source.id)])].slice(0,500)
+              : current.filter(value => !visible.some(source => source.id === value)))} />Markera alla visade{visible.length > 500 ? " (högst 500 åt gången)" : ""}</label>
+          <div className="max-h-[42vh] space-y-3 overflow-y-auto rounded border p-2">
+            {[...groups].map(([key,entries]) => key === "ungrouped"
+              ? <ul key={key} className="space-y-2">{entries.map(renderSource)}</ul>
+              : <details key={key} open className="rounded border border-neutral-300 p-3">
+                <summary className="cursor-pointer text-sm font-semibold">{entries[0].groupTitle} · {entries.filter(source => source.requirementIds.length).length} produktposter</summary>
+                <ul className="mt-3 space-y-2">{entries.map(renderSource)}</ul>
+              </details>)}
+          </div>
         </> : <p className="rounded bg-neutral-50 p-4 text-sm">Inga poster i denna vy.</p>}
         <div className="flex flex-wrap items-end gap-3 border-t pt-4">
           <label className="block min-w-64 text-sm font-medium">Flytta till

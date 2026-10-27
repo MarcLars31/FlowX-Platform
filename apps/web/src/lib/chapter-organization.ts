@@ -13,26 +13,44 @@ export function organizationTargets(workspace: ChapterWorkspace): WorkspaceChapt
       sourceId: null, number: "", sections: [] }))];
 }
 
-export type OrganizationSource = ChapterSource & { requirementIds: string[] };
-/** Operates on the original workspace. A main post and its products form one
- * moveable entry, so manual placement can never split a product family. */
+export type OrganizationSource = ChapterSource & { requirementIds: string[]; groupId?: string; groupTitle?: string };
+/** Each saved source is selectable independently. The group label is only for
+ * navigation; changing a chapter never rewrites the original parent relation. */
 export function organizationSources(workspace: ChapterWorkspace): OrganizationSource[] {
   const entries = new Map<string, OrganizationSource>();
-  const review = workspace.chapters.filter(chapter => chapter.kind === "review");
-  for (const chapter of review) {
-    for (const group of chapter.mainPosts ?? []) {
-      const id = group.sourceId ?? group.requirementIds[0];
+  for (const chapter of workspace.chapters.filter(chapter => chapter.kind === "review")) {
+    const products = new Set(chapterPostSection(chapter).requirementIds);
+    const add = (id: string | null, group?: { id: string; title: string }) => {
+      if (!id || !workspace.sources[id]) return;
       const source = workspace.sources[id];
-      if (source) entries.set(id, { ...source, requirementIds: group.requirementIds });
+      entries.set(id, { ...source, requirementIds: products.has(id) ? [id] : [],
+        ...(group ? { groupId: group.id, groupTitle: group.title } : {}) });
+    };
+    for (const group of chapter.mainPosts ?? []) {
+      const label = !group.standalone && group.sourceId
+        ? { id: group.id, title: [group.number,group.title].filter(Boolean).join(" ") } : undefined;
+      if (group.sourceId) add(group.sourceId, label);
+      group.requirementIds.forEach(id => add(id, label));
     }
     for (const id of [chapter.sourceId, ...chapter.sections.flatMap(section =>
       [section.sourceId, ...(section.textSourceIds ?? []), ...section.requirementIds])]) {
-      if (!id || entries.has(id) || [...entries.values()].some(entry => entry.requirementIds.includes(id))) continue;
-      const source = workspace.sources[id];
-      if (source) entries.set(id, { ...source, requirementIds: chapterPostSection(chapter).requirementIds.includes(id) ? [id] : [] });
+      if (id && !entries.has(id)) add(id);
     }
   }
   return [...entries.values()];
+}
+
+/** Older placements addressed a whole family by its parent ID. Expand them
+ * once on read, then persist atomically with the next individual change. */
+export function expandLegacyChapterPlacements(workspace: ChapterWorkspace, organization: ChapterOrganization): ChapterOrganization {
+  const placements = { ...organization.placements };
+  for (const chapter of workspace.chapters.filter(chapter => chapter.kind === "review")) {
+    for (const group of chapter.mainPosts ?? []) {
+      const target = group.sourceId && organization.placements[group.sourceId];
+      if (target) for (const id of group.requirementIds) placements[id] ??= target;
+    }
+  }
+  return { ...organization, placements };
 }
 
 export function organizedChapterWorkspace(workspace: ChapterWorkspace): ChapterWorkspace {
@@ -41,11 +59,12 @@ export function organizedChapterWorkspace(workspace: ChapterWorkspace): ChapterW
   const targets = organizationTargets(workspace), targetIds = new Set(targets.map(chapter => chapter.id));
   const placements = Object.entries(workspace.organization.placements)
     .filter(([source, target]) => sources.has(source) && targetIds.has(target));
-  const moved = new Set(placements.flatMap(([source]) => [source, ...sources.get(source)!.requirementIds]));
+  const moved = new Set(placements.map(([source]) => source));
   const groups = workspace.chapters.flatMap(chapter => chapter.mainPosts ?? []);
   const detach = (chapter: WorkspaceChapter): WorkspaceChapter => ({ ...chapter,
     sourceId: chapter.sourceId && moved.has(chapter.sourceId) ? null : chapter.sourceId,
-    mainPosts: chapter.mainPosts?.filter(group => !group.requirementIds.some(id => moved.has(id))),
+    mainPosts: chapter.mainPosts?.map(group => ({ ...group, requirementIds: group.requirementIds.filter(id => !moved.has(id)) }))
+      .filter(group => group.requirementIds.length > 0),
     sections: chapter.sections.map(section => ({ ...section,
       sourceId: section.sourceId && moved.has(section.sourceId) ? null : section.sourceId,
       requirementIds: section.requirementIds.filter(id => !moved.has(id)),
@@ -56,15 +75,17 @@ export function organizedChapterWorkspace(workspace: ChapterWorkspace): ChapterW
   for (const chapter of chapters) {
     const entries = placements.filter(([,target]) => target === chapter.id).map(([source]) => sources.get(source)!);
     if (!entries.length) continue;
-    // Only independent text needs a separate information entry in main-post
-    // view. Main-post source text travels with its original product group.
     chapter.manualTextSourceIds = entries.filter(entry => !entry.requirementIds.length).map(entry => entry.id);
     const products = new Set(entries.flatMap(entry => entry.requirementIds));
-    chapter.mainPosts = [...(chapter.mainPosts ?? []), ...groups.filter(group => group.requirementIds.some(id => products.has(id)))];
+    // A main post may appear in several chapters, each showing only the
+    // products actually placed there. Its original requirements stay readable.
+    const incoming = groups.map(group => ({ ...group, requirementIds: group.requirementIds.filter(id => products.has(id)) }))
+      .filter(group => group.requirementIds.length > 0);
+    chapter.mainPosts = [...(chapter.mainPosts ?? []), ...incoming];
     chapter.sections = [...chapter.sections, ...entries.map(entry => ({
-      id: `${chapter.id}:manual:${entry.id}`, sourceId: entry.requirementIds.includes(entry.id) ? null : entry.id,
+      id: `${chapter.id}:manual:${entry.id}`, sourceId: entry.requirementIds.length ? null : entry.id,
       number: entry.number, title: entry.title, requirementIds: entry.requirementIds,
-      textSourceIds: entry.requirementIds.includes(entry.id) ? [] : [entry.id]
+      textSourceIds: entry.requirementIds.length ? [] : [entry.id]
     }))];
   }
   return { ...workspace, chapters: chapters.filter(chapter => chapter.kind !== "review" || chapter.sections.length > 0) };
