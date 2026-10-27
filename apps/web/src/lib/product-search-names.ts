@@ -8,8 +8,8 @@ export function productNameAfterDimension(title: string): string | null {
   if (!/^(?:dimensjon\b|DN\s*\d|[Øø⌀]|diameter\b)/i.test(title.trim()) && !/\bmm\b/i.test(match[0])) return null;
   const rest = title.trim().slice(match[0].length).replace(/^[-–—:,]\s*/, "").trim();
   // Medium, assembly qualifiers and included parts do not name a new main item.
-  if (!rest || /^(?:med|with|inkl\.?|inkludert|inklusive|including|for|til)\b/i.test(rest)
-    || /^komplett(?:\s+(?:med|with|inkl\.?|inkludert|inklusive|including)\b|\.?$)/i.test(rest)
+  if (!rest || /^(?:med|with|inkl?\.?|inkludert|inklusive|including|for|til)\b/i.test(rest)
+    || /^komplett(?:\s+(?:med|with|inkl?\.?|inkludert|inklusive|including)\b|\.?$)/i.test(rest)
     || /^(?:kaldtvann|varmtvann|tur|retur|toveis|treveis|pn\s*\d+)\.?$/i.test(rest)) return null;
   return /[a-zæøåäö]{3}/i.test(rest) ? rest : null;
 }

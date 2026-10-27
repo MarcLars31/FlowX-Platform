@@ -117,3 +117,30 @@ test("automatic connection suggestions require the specified system in product e
   assert.deepEqual(results.map(item => item.articleNumber).sort(), ["8754057", "8754262"]);
   assert.ok(results.every(item => item.exactMatch !== true));
 });
+
+test("Sprinkler2 ink. parts keep the main pipe name and its sourced requirements in search", () => {
+  const main = "30.332.7", post = main + ".1";
+  for (const qualifier of ["ink.", "ink", "inkl.", "inkl", "komplett ink.", "komplett inkl."]) {
+    const title = `DN25, ${qualifier} deler og oppheng`;
+    const row = { id: "dn25", value_text: title, source_page: 2, value_json: {
+      postNumber: post, parentPostNumber: main, parentDescription: "INNENDØRS RØRLEDNING - BRANNSLOKKING - KOMPLETT",
+      quantity: 126, unit: "m", reviewFlags: ["ocr-source", "unverified-post-source", "unverified-price-columns"],
+      attributes: { dimensjon: "DN25", materiale: "Stål", trykk: "PN12", materialkvalitet: "Sort stål, pulverlakkert i RAL 7012." },
+      attributeSources: { dimensjon: { postNumber: post, sourcePage: 2 }, materiale: { postNumber: main, sourcePage: 1 },
+        trykk: { postNumber: main, sourcePage: 2 }, materialkvalitet: { postNumber: main, sourcePage: 2 } },
+      sourceText: `${post} ${title}\nLengde m 126`, technicalSpecification: `${main} INNENDØRS RØRLEDNING - BRANNSLOKKING - KOMPLETT\nMateriale: Stål\nTrykk: PN12\n\nUNDERPOST\n${post} ${title}\nLengde m 126`
+    } };
+    const before = structuredClone(row), effective = withEffectiveRequirements(row);
+    const search = requirementForSearch(effective);
+    assert.equal(classifyProductRequirement(search).intent, "pipe", title);
+    const queries = buildAhlsellRequirementGuide(search).searchQueries;
+    assert.match(queries.join(" "), /Stålrør DN25 PN12/);
+    assert.doesNotMatch(queries.join(" "), /ink|deler|oppheng/i);
+    const requirements = effective.effectiveRequirements.requirements;
+    assert.ok(requirements.some(r => r.property === "dn" && r.value === 25 && r.source.postNumber === post));
+    assert.ok(requirements.some(r => r.property === "pn" && r.value === 12 && r.source.postNumber === main));
+    assert.ok(requirements.some(r => r.property === "material" && r.value === "steel" && r.source.postNumber === main));
+    assert.ok(requirements.some(r => r.property === "materialGrade" && /ral 7012/i.test(String(r.value)) && r.source.postNumber === main));
+    assert.deepEqual(row, before);
+  }
+});

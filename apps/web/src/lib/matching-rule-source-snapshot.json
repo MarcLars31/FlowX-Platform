@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-27.2",
+  "version": "scipx-product-rules-2026-10-27.3",
   "sources": {
     "../components/AhlsellCandidateList.tsx": "6647dbfb579d6bfd2c8fa1da8e8e3056434678d7cc94005f61cb89248f6e04f0",
     "../components/ChapterWorkspaceNavigation.tsx": "d4bee2c823720bd3578695411f2ad1280ae03f5b2ca01298a7318891088c9413",
@@ -92,7 +92,7 @@
     "product-post-selection.ts": "166d395998b447ffbc117febf2dbc6cfeb43f39ba0f8906f1b58b215253186e1",
     "product-post-tree.ts": "103d97c1d7a7f702315fbc6fd40dba59211d026e528d5f7cec720fd30a18c0a0",
     "product-requirement-category.ts": "2b2730d60c38ddbbc1b2af3ce4ab30f5cf5bb4b6005ae3d301106b32bf94880e",
-    "product-search-names.ts": "79d8b19b7378b9d5b529b61f4bf68e8248fc1fe3d6b00074644350a0a5d39c5d",
+    "product-search-names.ts": "be89ac04507c93f576234e4d911d6d5c483459f9c79cb4156ada48a28658f547",
     "product-search-pagination.ts": "4d1367f9b8b4349f422912b80b796d5190811bf1baf85c0ed0fdad044e213c49",
     "product-search-store.ts": "5d3fec94e5f880e140bfd70b390a81d531854c11cb34937e94d017ec8dd3cccb",
     "product-selection-review.ts": "7e704b14d9631953a3b50715a50bff4b059b6fdfffb9d902bf9eacceb6c8432d",
