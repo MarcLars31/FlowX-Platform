@@ -1,4 +1,5 @@
 "use client";
+import { MainPostDetailsButton } from "./MainPostDetailsButton";
 import type { MainPostGroup } from "@/lib/project-post-hierarchy";
 import { ChevronRight } from "lucide-react";
 import { chapterPostSection, type ChapterSource, type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
@@ -61,8 +62,8 @@ export function SelectedProductSummary({ assignment }: { assignment?: Row }) {
     {String(product.name ?? "Produkt")} · Art. {String(product.productNumber ?? "—")}
   </span>)}</span> : <span className="chapter-no-product">Ingen produkt vald</span>;
 }
-export function SectionPosts({ rows, groups, assignments, disabled, onSelect }: {
-  groups?: MainPostGroup[];
+export function SectionPosts({ rows, groups, sources, assignments, disabled, onSelect }: {
+  groups?: MainPostGroup[]; sources?: ChapterWorkspace["sources"];
   rows: Row[]; assignments: ReadonlyMap<string, Row>; disabled: boolean; onSelect: (id: string) => boolean;
 }) {
   if (!rows.length) return null;
@@ -71,7 +72,10 @@ export function SectionPosts({ rows, groups, assignments, disabled, onSelect }: 
     {(groups ?? [{ id: "posts", sourceId: null, number: "", title: "", requirementIds: rows.map(row => row.id) }]).map(group => {
       const byId = new Map(rows.map(row => [row.id,row]));
       return <section key={group.id} className="mb-4 rounded-lg border border-slate-200">
-        {!group.standalone && group.title && <h4 className="bg-slate-50 px-4 py-3 font-semibold">{group.number} {group.title}</h4>}
+        {!group.standalone && group.title && <header className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 px-4 py-3">
+          <h4 className="font-semibold">{group.number} {group.title}</h4>
+          <MainPostDetailsButton group={group} source={group.sourceId ? sources?.[group.sourceId] : undefined} disabled={disabled} />
+        </header>}
         {group.review && <p className="px-4 py-2 text-sm text-amber-800">Kontrollera huvudpostkopplingen</p>}
         <ol>{group.requirementIds.flatMap(id => { const row = byId.get(id); return row ? [<li key={row.id}><button type="button" id={`section-post-${row.id}`} disabled={disabled} onClick={() => onSelect(row.id)}>
           <span><strong>{projectRequirementDetails(row).postNumber ?? "Post utan nummer"}</strong> {String(row.value_text ?? row.display_name ?? "Produktpost")}</span>

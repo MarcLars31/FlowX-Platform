@@ -28,8 +28,11 @@ export function withMainPostGroups(workspace: ChapterWorkspace, rows: readonly H
 }
 
 export function chapterWorkspaceView(workspace: ChapterWorkspace, mode: "pdf" | "main"): ChapterWorkspace {
-  if (mode === "pdf") return workspace;
-  const chapters: WorkspaceChapter[] = workspace.chapters.flatMap(chapter => {
+  // Hide preserved, unplaced text in navigation; review groups containing
+  // actual product posts and ordinary information chapters remain visible.
+  const visibleChapters = workspace.chapters.filter(chapter => chapter.kind !== "review" || chapterPostSection(chapter).requirementIds.length > 0);
+  if (mode === "pdf") return { ...workspace, chapters: visibleChapters };
+  const chapters: WorkspaceChapter[] = visibleChapters.flatMap(chapter => {
     if (!chapter.mainPosts?.length) return [chapter];
     return chapter.mainPosts.map(group => ({
       id: `main:${chapter.id}:${group.id}`, sourceId: group.standalone ? null : group.sourceId,

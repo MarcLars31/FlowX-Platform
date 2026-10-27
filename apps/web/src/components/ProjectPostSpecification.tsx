@@ -1,7 +1,7 @@
 import { PdfInheritedRequirements, PdfSourceDocument } from "./PdfRequirementSource";
 import { projectRequirementSourceSections } from "@/lib/project-requirement-source";
 import { projectRequirementPageLabel, type ProjectRequirementDetail } from "@/lib/project-requirement-details";
-import type { ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
+import { formatProjectQuantity, type ProjectRequirementQuantity } from "@/lib/project-requirement-quantity";
 import type { ReactNode } from "react";
 import { pdfPostDisplayText } from "@/lib/pdf-post-display-text";
 
@@ -18,9 +18,17 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
   sourcePdfFileName?: string | null;
   pdfArticleNumber?: string | null;
   relatedPosts?: ReactNode;
-  section?: "all" | "heading" | "detail";
+  section?: "all" | "heading" | "detail" | "quantity";
   currentPostIsHeading?: boolean;
 }) {
+  // The product selection card shows the saved amount, without OCR prose or
+  // extraction warnings. Full source views keep their existing detail below.
+  if (section === "quantity") return <div className="rounded-lg border border-neutral-200 bg-white p-4">
+    <p aria-label="Mengde fra PDF" className="text-2xl font-semibold">{formatProjectQuantity(quantity)}</p>
+    <div className="mt-3 text-xs text-neutral-600"><PdfSourceDocument fileName={sourcePdfFileName ?? null}
+      page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} /></div>
+    {sourcePdfHref && <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm underline">Vis original-PDF</a>}
+  </div>;
   const sections = projectRequirementSourceSections(details.sourceExcerpt ?? "", details.postNumber);
   const own = sections.filter(section => section.relation === "current" || (!section.postNumber && sections.length === 1));
   const ownText = own.map(section => section.text).join("\n\n");

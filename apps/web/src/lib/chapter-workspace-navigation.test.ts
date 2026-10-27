@@ -4,6 +4,7 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {ChapterOverview,ChapterRequirements,ChapterSectionProgress} from "@/components/ChapterWorkspaceNavigation";
 import {buildChapterWorkspace,chapterPostSection,chapterPostRows} from "./project-chapter-workspace";
+import {chapterWorkspaceView} from "./chapter-main-posts";
 
 test("information chapters stay accessible without a misleading 0 of 0 product count", () => {
   const workspace=buildChapterWorkspace([{id:"info",value_text:"Generelle krav",source_page:1,
@@ -19,14 +20,24 @@ test("information chapters stay accessible without a misleading 0 of 0 product c
   assert.match(body,/Hele kravteksten skal bevares/);
 });
 
-test("uncertain PDF fragments are review text, not inherited chapter requirements", () => {
+test("unplaced PDF text is hidden in both views while its source and reviewed product posts remain", () => {
   const workspace=buildChapterWorkspace([{id:"fragment",value_text:"Uavklart tekst fra PDF – side 8",source_page:8,
     value_json:{sourceText:"Prisen inkluderer oppfyllelse av krav i post 30.1 og 30.2.",reviewFlags:["unassigned-source-text"]}}]);
   const chapter=workspace.chapters[0];
-  const html=renderToStaticMarkup(createElement(ChapterOverview,{workspace,selected:new Set<string>(),onOpen:()=>{}}));
-  assert.match(html,/PDF-text att kontrollera/);
-  assert.match(html,/Behöver kontroll/);
-  assert.doesNotMatch(html,/Uavklart|0 av 0/);
+  const before=JSON.stringify(workspace);
+  const productReview={...chapter,id:"product-review",title:"Poster att kontrollera",
+    sections:[{...chapter.sections[0],requirementIds:["uncertain-product"]}]};
+  for(const mode of ["pdf","main"] as const) {
+    const empty=chapterWorkspaceView(workspace,mode);
+    assert.equal(empty.chapters.length,0);
+    const displayed=chapterWorkspaceView({...workspace,chapters:[...workspace.chapters,productReview]},mode);
+    const html=renderToStaticMarkup(createElement(ChapterOverview,{workspace:displayed,selected:new Set<string>(),onOpen:()=>{}}));
+    assert.doesNotMatch(html,/PDF-text att kontrollera|Uavklart|0 av 0/);
+    assert.match(html,/Poster att kontrollera/);
+    assert.deepEqual(displayed.chapters.flatMap(c=>chapterPostSection(c).requirementIds),["uncertain-product"]);
+    assert.deepEqual(displayed.sources,workspace.sources);
+  }
+  assert.equal(JSON.stringify(workspace),before);
   const body=renderToStaticMarkup(createElement(ChapterRequirements,{workspace,chapter,section:chapter.sections[0]}));
   assert.match(body,/Prisen inkluderer oppfyllelse av krav i post 30.1 og 30.2./);
   assert.match(body,/PDF-text för kontroll/);

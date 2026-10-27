@@ -1,5 +1,6 @@
 "use client";
 
+import { MainPostDetailsButton } from "./MainPostDetailsButton";
 import { Check, Minus, AlertCircle } from "lucide-react";
 import type { MainPostGroup } from "@/lib/project-post-hierarchy";
 import type { ChapterSource } from "@/lib/project-chapter-workspace";
@@ -15,7 +16,7 @@ export function ProductPostGroupPanel({ group, source, rows, statuses, activeId,
 }) {
   return <div className="product-main-post">
     <header><p>Hovedpost {group.number}</p><h3>{group.title}</h3></header>
-    {source?.text && <section aria-label="Felles krav fra hovedposten" className="product-main-post-requirements"><h4>Felles krav</h4><p>{source.text}</p></section>}
+    <MainPostDetailsButton group={group} source={source} disabled={disabled} />
     <div className="product-underpost-heading"><h4>Underposter <span>({rows.length})</span></h4>
       <button type="button" disabled={disabled} aria-pressed={seriesOpen} onClick={onSearchSeries}>Søk produktserie</button></div>
     <nav aria-label={`Underposter til ${group.number}`}><ol className="product-underpost-list">{rows.map(row => {

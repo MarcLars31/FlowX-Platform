@@ -7,6 +7,7 @@ import { projectRequirementPageLabel } from "@/lib/project-requirement-details";
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
+import { MainPostDetailsButton } from "@/components/MainPostDetailsButton";
 import { ProjectPostSpecification } from "@/components/ProjectPostSpecification";
 import { ProductPostGroupPanel } from "@/components/ProductPostGroupPanel";
 import { ProductSeriesSearch, type ProductSeriesProposal } from "@/components/ProductSeriesSearch";
@@ -143,7 +144,10 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
   const activeRequirement = activeRequirementId ? rowsById.get(activeRequirementId) : undefined;
   const activeAssignment = activeRequirementId ? approvedAssignmentByRequirementId.get(activeRequirementId) : undefined;
   const activeIndex = sectionRows.findIndex(row => row.id === activeRequirementId);
-  const activeGroup = chapter?.mainPosts?.find(group => !group.standalone && !group.review && activeRequirementId && group.requirementIds.includes(activeRequirementId));
+  const activeMainPost = chapter?.mainPosts?.find(group => !group.standalone && group.sourceId && activeRequirementId && group.requirementIds.includes(activeRequirementId));
+  // Explicit OCR links may be opened for reading; series proposals still require
+  // the verified grouping and must not start inheriting uncertain source text.
+  const activeGroup = activeMainPost?.review ? undefined : activeMainPost;
   const groupRows = activeGroup ? activeGroup.requirementIds.flatMap(id => { const row = rowsById.get(id); return row ? [row] : []; }) : [];
   const statusById = new Map(groupRows.map(row => [row.id, productPostCardStatus(approvedAssignmentByRequirementId.get(row.id), Boolean(productDrafts[row.id]), Boolean(productRequirementResolution(row)))]));
   const seriesRows = groupRows.filter(row => row.can_edit !== false && !approvedRequirementIds.has(row.id) && !productDrafts[row.id] && !productRequirementResolution(row));
@@ -272,7 +276,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
         {!activeRequirement && <><h2>{section.number} {section.title}</h2><ChapterSectionProgress chapter={chapter} section={section} selected={approvedRequirementIds} /></>}
       </header>
       {!activeRequirement && <>
-        {sectionRows.length > 0 && <SectionPosts groups={chapter.mainPosts} rows={sectionRows} assignments={approvedAssignmentByRequirementId} disabled={productCardSaving} onSelect={showRequirement} />}
+        {sectionRows.length > 0 && <SectionPosts groups={chapter.mainPosts} sources={workspace.sources} rows={sectionRows} assignments={approvedAssignmentByRequirementId} disabled={productCardSaving} onSelect={showRequirement} />}
         <ChapterRequirements workspace={workspace} chapter={chapter} section={section} />
       </>}
       {(message || error) && <p role={error ? "alert" : "status"} className="product-selection-feedback">{error ?? message}</p>}
@@ -284,6 +288,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       </article> : activeRequirement ? <LazyRequirementProductMappingCard
         key={`${activeRequirement.id}:${String(activeRequirement.edit_revision ?? "")}:${String(activeAssignment?.updated_at ?? "new")}:${productRequirementResolution(activeRequirement)?.status ?? ""}`}
         projectId={projectId} currency={currency} requirement={activeRequirement} assignment={activeAssignment} resource={resource}
+        mainPostDetails={activeMainPost && !activeGroup ? <MainPostDetailsButton group={activeMainPost}
+          source={activeMainPost.sourceId ? workspace.sources[activeMainPost.sourceId] : undefined} disabled={anySaving} /> : undefined}
         groupPanel={groupPanel} draft={productDrafts[activeRequirement.id]} onDraftChange={storeProductDraft}
         sourcePdfHref={projectRequirementSourcePdfHref(projectId, activeRequirement, sourcePdfLookup)} sourcePdfFileName={projectRequirementSourcePdfFileName(activeRequirement, sourcePdfLookup)}
         position={activeIndex + 1} memories={memories.filter(memory => memory.requirement_fingerprint === activeRequirement.mapping_fingerprint)}
@@ -327,8 +333,9 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
   </div>;
 }
 
-function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, resource, groupPanel, draft, onDraftChange, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
+function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, resource, groupPanel, mainPostDetails, draft, onDraftChange, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
   groupPanel?: ReactNode;
+  mainPostDetails?: ReactNode;
   draft?: PostProductDraft;
   onDraftChange: (id: string, choices: PostProductChoice[] | undefined, revision: string) => void;
   projectId: string;
@@ -959,16 +966,17 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
   return (
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
       disabled={requirement.can_edit === false || saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
-      {({ postComments, productComments }) => <>
+      {({ productComments }) => <>
       {requirement.can_edit === false && <p className="product-readonly-notice">Läsläge: posten är tilldelad en annan person. Projektansvarig kan ändra tilldelningen.</p>}
       <article id={`post-${requirement.id}`} className={`product-mapping-card${groupPanel ? " product-group-card" : ""}`}>
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
         <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{projectRequirementPageLabel(details)}</span></div>
         <div className="product-requirement-content">
+          {mainPostDetails}
           {groupPanel}
           {groupPanel && <h4 className="product-current-post-heading">Krav for valgt underpost</h4>}
           <h3 className="chapter-active-post-title">{details.postNumber} {String(requirement.value_text ?? "Produktpost")}</h3>
-          <ProjectPostSpecification id={requirement.id} details={details} section="detail" description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")} quantity={quantity} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
+          <ProjectPostSpecification id={requirement.id} details={details} section="quantity" description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")} quantity={quantity} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
               <summary className="cursor-pointer text-sm font-bold text-neutral-800">Lagrede merknader til PDF-grunnlaget</summary>
@@ -989,12 +997,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           ))}
 
 
-          <div className="product-post-extras">
-          <details>
-            <summary>Kommentarer til posten</summary>
-            <div id={`post-comments-${requirement.id}`} className="mt-3 scroll-mt-28">{postComments}</div>
-          </details>
-          </div>
+
         </div>
       </section>
 
