@@ -13,7 +13,7 @@
     "dev:local": "node --no-wasm-code-gc scripts/dev-platform.mjs",
     "dev:platform": "node --no-wasm-code-gc scripts/dev-platform.mjs",
     "dev:pdf": "node scripts/dev-local.mjs",
-    "test:local-platform": "node --no-wasm-code-gc --import tsx --test scripts/local-platform.test.mjs",
+    "test:local-platform": "node --no-wasm-code-gc --import tsx --test scripts/local-platform.test.mjs scripts/local-platform/git.test.mjs",
     "test:local-design": "node --import tsx --test src/lib/local-design.test.ts",
     "build": "next build",
     "test:release": "node scripts/release-check.mjs",

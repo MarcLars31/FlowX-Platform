@@ -1,15 +1,17 @@
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
 import nextEnv from '@next/env';
 import { assertLocalPlatformEnvironment } from './local-platform/environment.mjs';
+import { readLocalPlatformBranch } from './local-platform/git.mjs';
 import { credentialsAt, startBackend } from './local-platform/server.mjs';
 
 const web = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-nextEnv.loadEnvConfig(web, true);
-const branch = execFileSync('git', ['branch', '--show-current'], { cwd: web, encoding: 'utf8' }).trim();
-assertLocalPlatformEnvironment(process.env, branch);
+try {
+  nextEnv.loadEnvConfig(web, true);
+  assertLocalPlatformEnvironment(process.env, readLocalPlatformBranch(web));
+} catch (error) { console.error(error.message); process.exit(1); }
 if (process.argv.includes('--check')) { console.log('Isolerad utvecklingskonfiguration godkänd.'); process.exit(0); }
 const directory = resolve(web, '.local-platform');
 await mkdir(directory, { recursive: true });

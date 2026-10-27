@@ -50,6 +50,14 @@ Det avgränsade PDF-läget finns kvar med `npm.cmd run dev:pdf`. Stoppa först
 den andra lokala servern eftersom båda använder port 3100. Detta läge saknar
 databas, och uppladdning/ändringar försvinner när fliken laddas om.
 
+## Om Git saknas i terminalens PATH
+
+Starten söker först efter `git` i PATH. På Windows kontrolleras även vanliga
+Git för Windows-installationer och Git i Codex lokala runtime-cache.
+Den installerade Git-klienten används alltid för att kontrollera grenen.
+Om Git saknas helt visas ett kort fel med instruktion att installera Git eller
+lägga det i PATH och öppna terminalen igen.
+
 ## Kontroller
 
 ```powershell
