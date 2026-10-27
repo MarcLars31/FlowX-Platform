@@ -5,12 +5,12 @@ Gren: `codex/scipx-upgrades`.
 
 ```powershell
 cd C:\Users\marcu\.codex\worktrees\scipx-upgrades\FlowX-Platform\apps\web
-npm.cmd run dev:local
+npm.cmd run dev
 ```
 
-Öppna http://127.0.0.1:3100 och välj **Kundvy** eller **Administration**.
+Öppna http://127.0.0.1:3100. Kundvyn öppnas automatiskt med det lokala testkontot, utan inloggningsformulär eller startsteg. `dev:local` fungerar också och startar samma miljö.
 Den tidigare adressen `/local` leder till plattformens arbetsöversikt.
-I sidans överkant kan du växla mellan de två lokala testkontona.
+I sidans överkant kan du växla mellan **Kundvy** och **Administration**. Ett befintligt val av administrationskonto behålls när sidan laddas om.
 
 Appens vanliga sidor, komponenter, API-routes, databasfunktioner och
 behörighetsregler används. Kundkontot är organisationsägare och kan använda

@@ -10,7 +10,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://127.0.0.1:3100`.
+
+På `codex/scipx-upgrades` startar `npm run dev` den isolerade lokala plattformen på port 3100. Kundvyn öppnas direkt utan inloggning. Administration väljs i sidans överkant. Se [lokal utveckling](../../docs/local-design.md).
 
 ## Administrative account HTTP test
 
@@ -58,4 +60,4 @@ proof that an already running Next.js server uses the same database.
 - `/projects/demo/material-list` - generated material list
 - `/products` - product search and detail panel
 
-All data is static mock data in `src/lib/mock-data.ts`.
+Local development uses a separate persistent database in `.local-platform`, with a sample project and product catalog.

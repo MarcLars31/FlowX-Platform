@@ -53,7 +53,7 @@ try {
   maintenance = setInterval(() => {
     fetch('http://127.0.0.1:3100/api/internal/import-worker', { method: 'POST', headers: { Authorization: `Bearer ${credentials.instance}${credentials.instance.slice(0, 24)}` }, signal: AbortSignal.timeout(15000) }).catch(() => {});
   }, 30000);
-  console.log('Hela ScipX: http://127.0.0.1:3100 — välj Kundvy eller Administration.');
+  console.log('Hela ScipX: http://127.0.0.1:3100 — kundvyn öppnas direkt. Administration finns i sidans överkant.');
   console.log('Projekt och filer sparas i apps/web/.local-platform. Ingen livedatabas används.');
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { void shutdown(); });
 } catch (error) { console.error(error.message); await shutdown(1); }

@@ -9,7 +9,7 @@
     "prebuild": "npm run prepare:ocr",
     "prebuild:cloudflare": "npm run prepare:ocr",
     "accounts": "node --env-file-if-exists=.env.test.local --import tsx scripts/accounts.ts",
-    "dev": "next dev",
+    "dev": "node --no-wasm-code-gc scripts/dev-platform.mjs",
     "dev:local": "node --no-wasm-code-gc scripts/dev-platform.mjs",
     "dev:platform": "node --no-wasm-code-gc scripts/dev-platform.mjs",
     "dev:pdf": "node scripts/dev-local.mjs",

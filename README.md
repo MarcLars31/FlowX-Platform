@@ -64,7 +64,7 @@ Krav:
 
 - Node.js 24 (samma huvudversion som CI)
 - npm
-- `apps/web/.env.local` med Supabase-konfiguration
+- Utvecklingsgrenen `codex/scipx-upgrades`; inga externa tjänsteuppgifter i arbetskopian
 
 ```powershell
 cd apps/web
@@ -72,14 +72,14 @@ npm.cmd ci
 npm.cmd run dev
 ```
 
-Öppna `http://localhost:3000`.
+Öppna `http://127.0.0.1:3100`. Kundvyn öppnas direkt med det lokala testkontot. Administration väljs i sidans överkant. `npm.cmd run dev` startar en separat lokal databas och sparar projekt och filer på datorn. Se [lokal utveckling](docs/local-design.md).
 
 På Windows används `npm.cmd` i exemplen eftersom PowerShell kan blockera
 `npm.ps1` genom sin execution policy.
 
-### Miljövariabler
+### Miljövariabler för driftsatt version
 
-Applikationen använder följande variabelnamn:
+Den isolerade lokala starten skapar sin egen konfiguration och avvisar externa tjänsteuppgifter. För driftsatt version använder applikationen följande variabelnamn:
 
 ```text
 SUPABASE_URL
