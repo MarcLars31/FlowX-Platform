@@ -23,7 +23,7 @@ Applied and verified the following migrations in order:
 3. `20261027160000_project_chapter_organization.sql`
 4. `20261027200000_individual_chapter_placement.sql`
 
-Supabase initially assigned application-time versions. Their four history rows were aligned to the canonical versions above after successful application. The production history now contains all 81 repository migrations.
+Supabase initially assigned application-time versions. Their four history rows were aligned to the canonical versions above after successful application. The initial rollout brought production history to 81 migrations; the dashboard correction recorded below adds one further migration.
 
 All nine new tables have RLS enabled. Chapter-edit RPCs permit authenticated callers and reject anonymous callers; the email worker's claim RPC is restricted to the service role. Existing project, requirement, document-page and work-package counts remained unchanged, and existing work assignments retained their assignees. Department project management remains opt-in per project; no existing project was automatically enrolled.
 
@@ -60,4 +60,6 @@ Prepared migration `20261102181154_optimize_legacy_requirement_scope.sql` preser
 
 Validation: all 12 relevant database/RLS tests passed; a 10,000-row authenticated summary returned the expected counts and excluded another organization and a disabled member. A same-fixture comparison returned identical results in 856 ms before and 172 ms after. TypeScript and ESLint passed. Empty-database verification passed 81 migrations (the scheduler remains excluded) and three idempotent seeds.
 
-Production application of this correction is pending explicit approval of this policy change: the automatic approval review rejected both the initial variant and the stricter variant. The existing live policy and deployment remain unchanged by the attempted correction. A read-only authenticated production benchmark before the correction took 6,341 ms; production's authenticated statement timeout is 8 seconds.
+The user explicitly approved this exact policy correction after the automatic approval review requested confirmation. Applied successfully at 18:36 UTC (19:36 Europe/Stockholm). Supabase initially recorded version `20261102183648`; that single history row was aligned to the repository version `20261102181154`, bringing production history to 82 migrations. The application deployment did not need to change because the correction is entirely in PostgreSQL.
+
+The same read-only authenticated production dashboard benchmark returned three project summaries in 578 ms after the correction, compared with 6,341 ms before. RLS remains enabled, the existing permissive project/permission policy remains present, and the authenticated statement timeout remains 8 seconds. A full-user read with no accessible open projects returned no summaries, as required. The security advisor reported the same finding categories as before. Vercel returned no dashboard error records in the ten-minute log window ending 18:38 UTC; this is a log check, not proof of a fresh customer browser session.
