@@ -51,3 +51,13 @@ For an application rollback, promote the previous deployment and restore manual 
 Project-management email delivery remains disabled because Resend and the `SCIPX_WORK_EMAIL_*` settings have not been configured. In-app notifications work independently. See [project-management configuration](scipx-project-management.md).
 
 The database advisor retained its pre-existing security-definer view and Auth warnings. The added findings identify the deliberately service-only email outbox and the authenticated SECURITY DEFINER workflow RPCs; role restrictions were checked. This release is not a claim that every historical database advisory has been resolved.
+
+## Dashboard timeout correction
+
+After publication, authenticated `/dashboard` requests logged PostgreSQL error `57014` (statement timeout). The new restrictive `pm_requirement_scope` policy called `pm_can_read(id)` for every requirement, repeating project authorization for legacy projects. The pre-publication unauthenticated HTTP check did not exercise this query.
+
+Prepared migration `20261102181154_optimize_legacy_requirement_scope.sql` preserves explicit `can_access_project` authorization and the managed-project department check. It batches the legacy authorization through an uncorrelated project subquery. It changes one SELECT policy, with no grants, data updates, role timeout changes or application-code changes.
+
+Validation: all 12 relevant database/RLS tests passed; a 10,000-row authenticated summary returned the expected counts and excluded another organization and a disabled member. A same-fixture comparison returned identical results in 856 ms before and 172 ms after. TypeScript and ESLint passed. Empty-database verification passed 81 migrations (the scheduler remains excluded) and three idempotent seeds.
+
+Production application of this correction is pending explicit approval of this policy change: the automatic approval review rejected both the initial variant and the stricter variant. The existing live policy and deployment remain unchanged by the attempted correction. A read-only authenticated production benchmark before the correction took 6,341 ms; production's authenticated statement timeout is 8 seconds.

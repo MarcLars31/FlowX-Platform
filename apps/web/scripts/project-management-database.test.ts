@@ -48,7 +48,7 @@ async function fixture() {
   alter table project_documents enable row level security; create policy existing_read on project_documents for select to authenticated using(can_access_project(project_id));
   alter table technical_description_documents enable row level security; create policy existing_read on technical_description_documents for select to authenticated using(can_access_project(project_id));
   `);
-  for (const file of ['20261004120000_project_delivery_control.sql','20261004220000_remove_product_delivery_gate.sql','20261007120000_post_list_assignments.sql','20261025120000_department_project_management.sql']) {
+  for (const file of ['20261004120000_project_delivery_control.sql','20261004220000_remove_product_delivery_gate.sql','20261007120000_post_list_assignments.sql','20261025120000_department_project_management.sql','20261102181154_optimize_legacy_requirement_scope.sql']) {
     await db.exec(readFileSync(new URL(`../../../supabase/migrations/${file}`,import.meta.url),'utf8'));
   }
   await as(db,manager);
