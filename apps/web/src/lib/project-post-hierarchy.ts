@@ -82,7 +82,10 @@ export function groupProductsByMainPost(requirements: readonly HierarchyRow[], p
     const ancestors = graph.ancestors.get(row.id) ?? [];
     const unplaced = graph.unresolved.has(row.id) || !projectRequirementOrderPostNumber(row)
       || unassignedSource(row);
-    const parent = unplaced ? undefined : [...ancestors].reverse().map(id => graph.byId.get(id)!).find(source => !isSourceChapter(source));
+    // A chapter is a boundary: never skip it to choose the building above it.
+    // Products directly below a chapter keep their own group in that chapter.
+    const nearest = unplaced ? undefined : graph.byId.get(ancestors.at(-1) ?? "");
+    const parent = nearest && !isSourceChapter(nearest) ? nearest : undefined;
     const review = Boolean(unplaced || uncertainPost(row) || ancestors.some(id => uncertainPost(graph.byId.get(id)!)));
     const main = parent ?? row;
     const id = unplaced ? `review:${row.id}` : main.id;

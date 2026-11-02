@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-10-27.6",
+  "version": "scipx-product-rules-2026-11-02.1",
   "sources": {
     "../../../../supabase/migrations/20261027160000_project_chapter_organization.sql": "264323661ef38ee4a845aae8d710fab605d3e64c090e3f947ad36babf343bec3",
     "../../../../supabase/migrations/20261027200000_individual_chapter_placement.sql": "ed55e62e5b63f0d454fc3199ac83788bb0bdd6baef6c847414df6a1f9ddcc260",
@@ -107,7 +107,7 @@
     "project-chapter-workspace.ts": "b99a419205a35de0510917d431ee7fc22f2b0eef677430ad0d00f9d654a2334f",
     "project-overview-cache.ts": "5d248d4b457fd2f72938cb4252eeded8eae93e3eddfee0f15dcc6d17a05356f1",
     "project-overview.ts": "a0cbe1f4f13a8bc88b2a4bb18bff9ce655ca919194a3681aa0922fd40d18bcba",
-    "project-post-hierarchy.ts": "38a44153f4119f7d61574d6eef27e14a3d8c63b4dcebf8ac6dac45265e1fd9ea",
+    "project-post-hierarchy.ts": "7bd57ff89e71385ee96b75959b799e66362ea84879ba8cc2652f1118cfdba716",
     "project-requirement-details.ts": "5bab48dc0f5e510cf58ff77617c9cf64c4fcfa25f8c44023773c357ed5ef664c",
     "project-requirement-source.ts": "29b22ba6e0b2fa79606afb96b7b9ec5571b755a1c3d2f64f12bafff2500eb535",
     "project-requirement-views.ts": "403033a68189528466fbf28f44dcf75341d1ecff3daa690b8b81a0d12e57cade",

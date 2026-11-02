@@ -77,3 +77,39 @@ test("a changed continuation caption cannot split a verified main-post family",(
   const ids=workspace.chapters.flatMap(c=>c.sections.flatMap(s=>s.requirementIds));
   assert.equal(ids.length,5);assert.equal(new Set(ids).size,5);
 });
+
+test("Rørhall chapter boundaries stop standalone sprinklers from grouping under the building wrapper",()=>{
+  for(const explicitChapterFlag of [true,false]) {
+    const make=(id:string,number:string,title:string,parentId?:string,quantity?:number,chapter=false)=>({
+      id,source_document_id:"rorhall",source_page:number==="03.30.332.24"?77:70,value_text:title,
+      value_json:{postNumber:number,sourcePostId:id,parentRequirementId:parentId,sourceText:title,
+        ...(number!=="03"?{sourceChapter:{title:chapter?`${number} ${title}`:"03.30.332 Installasjon for brannslokking med sprinkler"}}:{}),
+        ...(explicitChapterFlag&&chapter?{chapterInformation:true}:{}),
+        ...(quantity!==undefined?{quantity,unit:"st"}:{})}
+    });
+    const rows=[make("building","03","Bygg 10 Rørhall"),
+      make("vvs","03.30","VVS-installasjoner","building",undefined,true),
+      make("chapter","03.30.332","Installasjon for brannslokking med sprinkler","vvs",undefined,true),
+      make("pipe","03.30.332.4","Rørledning","chapter"),
+      make("dn25","03.30.332.4.1","DN25","pipe",126),
+      make("dn32","03.30.332.4.2","DN32","pipe",45),
+      make("sprinkler","03.30.332.24","SPRINKLER","chapter",6)];
+    const before=structuredClone(rows),groups=groupProductsByMainPost(rows);
+    const sprinkler=groups.find(group=>group.requirementIds.includes("sprinkler"))!;
+    assert.equal(sprinkler.number,"03.30.332.24");
+    assert.equal(sprinkler.standalone,true);
+    assert.deepEqual(groups.find(group=>group.sourceId==="pipe")?.requirementIds,["dn25","dn32"]);
+    const workspace=buildDocumentChapterWorkspace(rows);
+    const owner=workspace.chapters.find(chapter=>chapter.sections.some(section=>section.requirementIds.includes("sprinkler")))!;
+    assert.equal(owner.number,"03.30.332");
+    assert.notEqual(owner.kind,"review");
+    assert.equal(owner.title,"Installasjon for brannslokking med sprinkler");
+    for(const mode of ["pdf","main"] as const) {
+      const view=chapterWorkspaceView(workspace,mode);
+      assert.deepEqual(view.chapters.flatMap(chapter=>chapter.sections.flatMap(section=>section.requirementIds)).sort(),["dn25","dn32","sprinkler"]);
+      assert.ok(!view.chapters.some(chapter=>chapter.number==="03"));
+    }
+    assert.deepEqual(workspace.ancestors.sprinkler,["building","vvs","chapter"]);
+    assert.deepEqual(rows,before);
+  }
+});
