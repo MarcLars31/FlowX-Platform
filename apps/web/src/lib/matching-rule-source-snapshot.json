@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-11-02.1",
+  "version": "scipx-product-rules-2026-11-02.2",
   "sources": {
     "../../../../supabase/migrations/20261027160000_project_chapter_organization.sql": "264323661ef38ee4a845aae8d710fab605d3e64c090e3f947ad36babf343bec3",
     "../../../../supabase/migrations/20261027200000_individual_chapter_placement.sql": "ed55e62e5b63f0d454fc3199ac83788bb0bdd6baef6c847414df6a1f9ddcc260",
@@ -7,7 +7,7 @@
     "../components/AhlsellCandidateList.tsx": "6647dbfb579d6bfd2c8fa1da8e8e3056434678d7cc94005f61cb89248f6e04f0",
     "../components/ChapterTextOrganizer.tsx": "63da2546fd61a1500e7087369d07dd592dc8e2d4d91326fada078d8018790d48",
     "../components/ChapterWorkspaceNavigation.tsx": "d4bee2c823720bd3578695411f2ad1280ae03f5b2ca01298a7318891088c9413",
-    "../components/DistributorMappingPanel.tsx": "d74c469aefba27e408302d29278172f9a036c1401fa1c5f6891f7633932855a4",
+    "../components/DistributorMappingPanel.tsx": "336c67f0a836f0ca42688e33d94ab6eb975f4526cd3bc18ed95d73ee998ef0bb",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
     "../components/MainPostDetailsButton.tsx": "503aeabae59d16294d1909595b02c7d758bc21d5be6ed90a9b5e12c71adaf98d",
     "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",
@@ -15,7 +15,7 @@
     "../components/ProductPostNavigation.tsx": "7d651d7d9ff8541d9058fbcd5fa4e9ddf9b7e0332147bb570a7a339add8c46d7",
     "../components/ProductPostRequirements.tsx": "86947787cc690bbab7ae81c7cdc30b6c46ca45579e6fb185258e4b4315284bdc",
     "../components/ProductSeriesSearch.tsx": "705bc121d66ff1035b8a8cdbb3e6a2c9284c8fefbbd1c0472efffd49fda945bf",
-    "../components/ProjectPostSpecification.tsx": "5c3a2db5badddb5aa8a120f4d50cce97bb570cd2d6c040995a3ab9fda549bb4e",
+    "../components/ProjectPostSpecification.tsx": "484a2b656d61d10f139a4c618df19ba14fa2f43bcb629597e9ab3b12d6860692",
     "../modules/pdf-extractor/extractor.ts": "d76794363468db68ab6c9063703c65f38a409b886315a2c4b17d8f3d322350fa",
     "../modules/pdf-extractor/pdf-text.ts": "0c22c4c068f18c55be0beff1a2e3bae978c67eb79dede43c7b731910a7b98866",
     "../modules/technical-description-extractor/chapters.ts": "3ca28c72a64a6c969a4d46f162d463a4df2a522da6ef2850e3154be151e82d9f",

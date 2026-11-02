@@ -18,17 +18,10 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
   sourcePdfFileName?: string | null;
   pdfArticleNumber?: string | null;
   relatedPosts?: ReactNode;
-  section?: "all" | "heading" | "detail" | "quantity";
+  section?: "all" | "heading" | "detail" | "card";
   currentPostIsHeading?: boolean;
 }) {
-  // The product selection card shows the saved amount, without OCR prose or
-  // extraction warnings. Full source views keep their existing detail below.
-  if (section === "quantity") return <div className="rounded-lg border border-neutral-200 bg-white p-4">
-    <p aria-label="Mengde fra PDF" className="text-2xl font-semibold">{formatProjectQuantity(quantity)}</p>
-    <div className="mt-3 text-xs text-neutral-600"><PdfSourceDocument fileName={sourcePdfFileName ?? null}
-      page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} /></div>
-    {sourcePdfHref && <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm underline">Vis original-PDF</a>}
-  </div>;
+  const productCard = section === "card";
   const sections = projectRequirementSourceSections(details.sourceExcerpt ?? "", details.postNumber);
   const own = sections.filter(section => section.relation === "current" || (!section.postNumber && sections.length === 1));
   const ownText = own.map(section => section.text).join("\n\n");
@@ -51,8 +44,13 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
     </div>;
   }
 
-  return <div className="border border-neutral-300 bg-white text-sm font-normal text-neutral-950">
-    <header className="border-b border-neutral-200 p-3">
+  return <div className={`border bg-white text-sm font-normal text-neutral-950 ${productCard ? "rounded-lg border-neutral-200" : "border-neutral-300"}`}>
+    {productCard ? <header className="border-b border-neutral-200 p-4">
+      <p aria-label="Mengde fra PDF" className="text-2xl font-semibold">{formatProjectQuantity(quantity)}</p>
+      <div className="mt-3 text-xs text-neutral-600"><PdfSourceDocument fileName={sourcePdfFileName ?? null}
+        page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} /></div>
+      {sourcePdfHref && <a href={sourcePdfHref} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm underline">Vis original-PDF</a>}
+    </header> : <header className="border-b border-neutral-200 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <h3 id={`pdf-specification-${id}`} className="break-words text-sm font-normal">
           {details.postNumber ? `PDF-post ${details.postNumber}` : `PDF · side ${details.sourcePage ?? "—"}`}
@@ -61,22 +59,23 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
           className="rounded border border-neutral-300 px-3 py-2 text-xs hover:bg-neutral-50">Vis original-PDF</a>}
       </div>
       <PdfSourceDocument fileName={sourcePdfFileName ?? null} page={details.sourcePage} href={sourcePdfHref ?? null} pageLabel={projectRequirementPageLabel(details)} />
-    </header>
-    {!compact && warnings.length > 0 && <div role="status" className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">
+    </header>}
+    {!compact && !productCard && warnings.length > 0 && <div role="status" className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">
       <p>Kontroller PDF-posten</p><ul className="list-disc pl-5">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
     </div>}
     {!headingOnly && relatedPosts && <>{section === "all" && <PdfInheritedRequirements specification={inherited} postNumber={details.postNumber} defaultOpen />}{relatedPosts}</>}
-    <div aria-label="Produktpost" className="p-3">
+    <div aria-label={productCard ? "Teknisk informasjon fra posten" : "Produktpost"} className={productCard ? "p-4" : "p-3"}>
+      {productCard && <h4 className="mb-3 font-semibold">Teknisk informasjon fra posten</h4>}
       <pre className="m-0 whitespace-pre-wrap break-words font-sans text-sm font-normal leading-relaxed">{pdfPostDisplayText(compact ? [details.nsCode, description].filter(Boolean).join("\n") : body)}</pre>
       {/* Verified description text excludes the physical quantity cells. Legacy
           text displays its quantity row without price/sum; never add a second copy or
           delete a matching amount that may describe something else. */}
-      {(compact || details.sourceLayout === "six-column" || !ownText) && <div className="mt-4 flex flex-wrap gap-6 border-t border-neutral-200 pt-3 text-sm">
+      {!productCard && (compact || details.sourceLayout === "six-column" || !ownText) && <div className="mt-4 flex flex-wrap gap-6 border-t border-neutral-200 pt-3 text-sm">
         <span>Enh.: {details.pdfColumnValues?.unit ?? (quantity.unit === "?" ? "" : quantity.unit)}</span>
         <span>Antall: {details.pdfColumnValues?.quantity ?? quantity.quantity ?? ""}</span>
       </div>}
     </div>
-    {section !== "detail" && !relatedPosts && <PdfInheritedRequirements specification={inherited} postNumber={details.postNumber} alwaysVisible={headingOnly} />}
+    {section !== "detail" && !productCard && !relatedPosts && <PdfInheritedRequirements specification={inherited} postNumber={details.postNumber} alwaysVisible={headingOnly} />}
     {!compact && uncertain.length > 0 && <details className="border-t border-amber-300 bg-amber-50 p-3">
       <summary className="cursor-pointer">Kildetekst med usikker postgrense</summary>
       {uncertain.map((reading, index) => <pre key={index} className="mt-3 whitespace-pre-wrap break-words font-sans font-normal">{pdfPostDisplayText(reading)}</pre>)}
@@ -86,7 +85,7 @@ export function ProjectPostSpecification({ id, details, description, quantity, s
       <p className="my-2">Läsningen skiljer sig från den sparade texten. Jämför med original-PDF:n innan kraven ändras.</p>
       {details.sourceReimportReadings!.map((reading, index) => <pre key={index} className="my-2 whitespace-pre-wrap break-words border-t border-amber-200 pt-2 font-sans font-normal">{pdfPostDisplayText(reading)}</pre>)}
     </details>}
-    {!compact && details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <div key={key} className="border-t border-neutral-200 p-3">
+    {!compact && !productCard && details.attributes.filter(([key]) => key === "pdf-kommentar").map(([key, value]) => <div key={key} className="border-t border-neutral-200 p-3">
       <p>PDF-kommentar</p><p className="whitespace-pre-wrap">{value}</p>
     </div>)}
     {!compact && pdfArticleNumber && <p className="border-t border-neutral-200 px-3 py-2 text-xs">NRF-nummer i PDF: {pdfArticleNumber}</p>}

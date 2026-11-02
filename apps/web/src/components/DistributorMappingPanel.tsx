@@ -982,7 +982,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
           {groupPanel}
           {groupPanel && <h4 className="product-current-post-heading">Krav for valgt underpost</h4>}
           <h3 className="chapter-active-post-title">{details.postNumber} {String(requirement.value_text ?? "Produktpost")}</h3>
-          <ProjectPostSpecification id={requirement.id} details={details} section="quantity" description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")} quantity={quantity} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
+          <ProjectPostSpecification id={requirement.id} details={details} section="card" description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")} quantity={quantity} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
               <summary className="cursor-pointer text-sm font-bold text-neutral-800">Lagrede merknader til PDF-grunnlaget</summary>
