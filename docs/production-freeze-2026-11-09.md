@@ -1,5 +1,7 @@
 # ScipX demonstration freeze — 9 November 2026
 
+> Historical record: the user authorized a new live release on 2 November 2026. See [the release record](production-release-2026-11-02.md) for the current deployment. The frozen branch and deployment below remain preserved as recovery points.
+
 Requested by the user on 22 October 2026. The live application is frozen for the demonstration; development continues separately. There is no scheduled publication or automatic unfreeze.
 
 ## Frozen live version
