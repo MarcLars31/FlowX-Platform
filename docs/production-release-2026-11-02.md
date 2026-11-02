@@ -1,14 +1,14 @@
 # ScipX production release — 2 November 2026
 
-The user explicitly authorized publishing `codex/scipx-upgrades` on 2 November 2026, superseding the previous live freeze for this release. Publication was verified at approximately 19:00 Europe/Stockholm.
+The user explicitly authorized publishing `codex/scipx-upgrades` on 2 November 2026, superseding the previous live freeze for this release. Initial publication was verified at approximately 19:00 Europe/Stockholm. The latest product-card update was verified at 20:01 Europe/Stockholm.
 
 ## Published application
 
 - Sites: https://www.scipx.ai and https://scipx.ai.
-- Application commit: `b669f02b3995f52a14d6ca74d2368f43fb156729` on `codex/scipx-upgrades`.
+- Application commit: `429249db711ff83ced027477456e4011154a0a07` on `codex/scipx-upgrades`.
 - Vercel project: `scripx`, team `vvs-search`.
-- Production deployment: `dpl_F35eKF9Cn8v84CsvC4yMjCodYD1R`.
-- Deployment URL: https://scripx-plgm5v2nu-vvs-search.vercel.app.
+- Production deployment: `dpl_J9CW3p6TFya2qrZhYyuovrCirUdX`.
+- Deployment URL: https://scripx-gifctv3cb-vvs-search.vercel.app.
 - Both custom domains and the project's production target were verified against that deployment ID.
 - Automatic production domain assignment remains disabled. Vercel promote enabled it as a side effect; it was explicitly restored to `false` after publication. The configured production Git branch remains `Frontend-`.
 
@@ -34,8 +34,8 @@ No production seed, reimport, customer-data reset or real notification test was 
 - `npm run build:production`: passed locally and in the Vercel production build.
 - Production dependency audit: zero vulnerabilities.
 - TypeScript and ESLint: passed.
-- Release suite: 1,303 passed, zero failed or skipped.
-- Empty-database verification: 80 SQL migrations and three idempotent seeds passed. The Supabase-specific scheduler migration is deliberately excluded from the local SQL engine; the live scheduler was checked separately.
+- Release suite: 1,306 passed, zero failed or skipped (latest product-card release).
+- Empty-database verification: 81 SQL migrations and three idempotent seeds passed. The Supabase-specific scheduler migration is deliberately excluded from the local SQL engine; the live scheduler was checked separately.
 - Supabase REST schema checks returned HTTP 200 for the new tables and columns without fetching customer rows.
 - Before promotion and again on the live domain: home page 200, unauthenticated project APIs 401, local-design page/upload endpoint 404, unauthenticated background-worker POST 401. The protected dashboard redirected to sign-in before promotion.
 - The temporary Vercel CLI test-access token was revoked after the pre-promotion checks.
@@ -44,7 +44,7 @@ The live HTTP checks did not sign in as a customer or submit a real PDF. Authent
 
 ## Recovery and operational limits
 
-The previous deployment `dpl_JCvgsjDyQokNsebKH8bW9GNi43aW`, commit `1a7e91eba4207d27edefd0c316237e09d515deb8`, and protected branch `codex/demo-2026-11-09` remain available as recovery points. See the [historical freeze record](production-freeze-2026-11-09.md). A completed managed database backup from 2 November 2026 at 01:10 UTC was verified; point-in-time recovery was not enabled. No new full database or Storage-object backup was created during this release.
+The pre-release demonstration deployment `dpl_JCvgsjDyQokNsebKH8bW9GNi43aW`, commit `1a7e91eba4207d27edefd0c316237e09d515deb8`, and protected branch `codex/demo-2026-11-09` remain available as recovery points. See the [historical freeze record](production-freeze-2026-11-09.md). A completed managed database backup from 2 November 2026 at 01:10 UTC was verified; point-in-time recovery was not enabled. No new full database or Storage-object backup was created during this release.
 
 For an application rollback, promote the previous deployment and restore manual domain assignment afterward. Retain the installed schema and all customer data. Assess department-enabled projects before reverting to the older UI; do not drop the new tables as a routine rollback step.
 
@@ -63,3 +63,12 @@ Validation: all 12 relevant database/RLS tests passed; a 10,000-row authenticate
 The user explicitly approved this exact policy correction after the automatic approval review requested confirmation. Applied successfully at 18:36 UTC (19:36 Europe/Stockholm). Supabase initially recorded version `20261102183648`; that single history row was aligned to the repository version `20261102181154`, bringing production history to 82 migrations. The application deployment did not need to change because the correction is entirely in PostgreSQL.
 
 The same read-only authenticated production dashboard benchmark returned three project summaries in 578 ms after the correction, compared with 6,341 ms before. RLS remains enabled, the existing permissive project/permission policy remains present, and the authenticated statement timeout remains 8 seconds. A full-user read with no accessible open projects returned no summaries, as required. The security advisor reported the same finding categories as before. Vercel returned no dashboard error records in the ten-minute log window ending 18:38 UTC; this is a log check, not proof of a fresh customer browser session.
+
+
+## Product-card technical information publication
+
+The user explicitly requested this publication after reviewing the completed change. At 19:01 UTC (20:01 Europe/Stockholm), both live domains were verified on application commit `429249db711ff83ced027477456e4011154a0a07` and deployment `dpl_J9CW3p6TFya2qrZhYyuovrCirUdX`. The immediately preceding application is `b669f02b3995f52a14d6ca74d2368f43fb156729`, deployment `dpl_F35eKF9Cn8v84CsvC4yMjCodYD1R`, available for application rollback.
+
+Product cards now display the selected post's saved technical source text under “Teknisk informasjon fra posten”, alongside its quantity and original PDF link. Saved technical attributes provide the fallback when source prose is unavailable. Parent and neighboring posts remain separate from the selected post's technical text. No database migration or customer-data update was required for this UI change.
+
+The production build passed both locally and in Vercel: 1,306 tests, TypeScript, ESLint and a clean production dependency audit. Rendering tests cover all technical clauses from the reported sprinkler example, source attribution, fallback attributes and exclusion of neighboring-post text. Live HTTP checks returned home page 200, Sprsok 200 with 413 variants, protected dashboard 307 to sign-in, and protected APIs 401. They did not use a customer login. Automatic domain assignment was restored to false after the manual promotion and verified.
