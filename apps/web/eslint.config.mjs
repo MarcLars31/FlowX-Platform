@@ -9,6 +9,7 @@ export default defineConfig([
     ".next/**",
     ".flowx-next/**",
     ".open-next/**",
+    ".vercel/**",
     "node_modules/**",
     "out/**",
     "dist/**",
