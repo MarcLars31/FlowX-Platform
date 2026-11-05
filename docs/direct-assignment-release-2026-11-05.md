@@ -7,9 +7,9 @@ Status: published and verified on 5 November 2026.
 ## Application
 
 - Branch: `codex/scipx-upgrades`.
-- Release commit: `b6d1b5d75963d154ac14da44981d8b7b03b29656` (feature commit `84183e1` plus the imported-hierarchy optimization).
+- Release commit: `a0bd06ff4600857ef4cacbebac471ce544b1eb64` (feature commit `84183e1`, imported-hierarchy optimization `b6d1b5d`, and empty-state guidance matching the new flow).
 - Vercel project/team: `scripx` / `vvs-search`.
-- Deployment: `dpl_6DhNspHJnAHmJCa3wA9yy7cLkSGp`, https://scripx-9r6uyl8kl-vvs-search.vercel.app.
+- Deployment: `dpl_CZrsdggqfsBMjMzxEyHSqMFfqMxU`, https://scripx-11p06zgjc-vvs-search.vercel.app.
 - Previous application recovery point: `adc2310e7741060a547ae55b80098dcd79c54253`, deployment `dpl_64GUK5C2paswmdBpQrtxEhRGYzFT`.
 - Domains: https://www.scipx.ai and https://scipx.ai. Keep automatic production domain assignment disabled.
 
@@ -43,19 +43,20 @@ Read-only verification confirms selectable users: Cato Andersen, Elekto, Marcus 
 ## Validation
 
 - Local `npm run build:production`: dependency audit with zero vulnerabilities, TypeScript, zero-warning ESLint, all **1,318 tests**, and Next.js production build passed.
-- Vercel ran the same checks: **1,318 tests passed**, zero failed; production dependency audit reported zero vulnerabilities.
+- Vercel ran the same checks on the final application commit: **1,318 tests passed**, zero failed; production dependency audit reported zero vulnerabilities. The two final empty-state text corrections passed targeted lint and this complete Vercel production check.
 - Empty-database verification: 84 SQL migrations executed (one hosted scheduler migration intentionally excluded), 192 public tables and three idempotent seed files. The private undo table is additional.
 - Full-schema tests cover direct and department workflows, real authenticated RLS, inherited/explicit/unassigned states, mixed bulk operations, atomic rollback, stale versions, guarded undo, deadlines without departments, inactive/viewer protection and cross-organization denial.
 - The batch hierarchy is compared with the existing authoritative functions on cycles, missing parents, source warnings and nested assignments. A fixture with 1,124 imported rows verifies the production eight-second statement budget. Vercel measured the imported read at 2.48 seconds.
 - Production Framo Fusa read under owner JWT claims and the unchanged eight-second timeout: **1,071.852 ms** for 1,124 raw source rows. An initial production read exposed repeated permission/hierarchy work; the second migration resolves that bottleneck.
 - Browser checks against a separate local PGlite fixture used the real React board and database RPCs: chapter assignment, individual override, mixed selection and undo. Desktop and 360-pixel layouts were inspected; no horizontal overflow, keyboard search focus and Escape behavior verified.
 - Supabase advisors: no added externally exposed definer-function or anonymous-function warnings. The new private history table adds one intentional RLS-without-policy informational finding; its two indexes are initially unused. Pre-existing security findings remain outside this release.
-- Logs in the main checkout: `.tmp/scipx-direct-assignment-build-20261105.log`, `.tmp/scipx-direct-assignment-database-20261105.log`, `.tmp/scipx-direct-assignment-vercel-build-20261105.log`.
+- Logs in the main checkout: `.tmp/scipx-direct-assignment-build-20261105.log`, `.tmp/scipx-direct-assignment-database-20261105.log`, `.tmp/scipx-direct-assignment-vercel-build-20261105.log`, `.tmp/scipx-direct-assignment-vercel-final-20261105.log`.
 
 ## Publication verification
 
-- Manual promotion completed. Both custom-domain aliases and the project production target resolve to `dpl_6DhNspHJnAHmJCa3wA9yy7cLkSGp` at release commit `b6d1b5d75963d154ac14da44981d8b7b03b29656`.
+- Manual promotion completed. Both custom-domain aliases and the project production target resolve to `dpl_CZrsdggqfsBMjMzxEyHSqMFfqMxU` at release commit `a0bd06ff4600857ef4cacbebac471ce544b1eb64`. The initial feature deployment (`dpl_6DhNspHJnAHmJCa3wA9yy7cLkSGp`, `b6d1b5d75963d154ac14da44981d8b7b03b29656`) remains an additional recovery point.
 - `autoAssignCustomDomains` was restored to `false` immediately after promotion and verified.
 - Signed-in live verification in Ahlsell Norge: **Fordel arbeidet** loads Framo Fusa with 778 actionable measured/RS posts from 1,124 raw source rows. Searching “sprinkler” finds **33 Brannslokking**; its person picker shows Elekto, VVS and an enabled Sprinkel option, alongside the other eligible organization users.
 - The picker was inspected without saving a production assignment. Screenshot: `.tmp/scipx-direct-assignment-live-20261105.jpg` in the main checkout.
+- Final signed-in overview verification confirms the empty state directs users to assign a chapter/post to a person, with no department prerequisite. The project view and enabled Sprinkel option were rechecked after the final promotion.
 - A duplicate preview for the identical application commit was canceled; the tested production deployment was retained. Future publication requires a new explicit user request under `AGENTS.md`.
