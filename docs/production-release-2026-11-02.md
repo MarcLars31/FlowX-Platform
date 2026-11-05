@@ -1,5 +1,7 @@
 # ScipX production release — 2 November 2026
 
+This is a historical release record. The current live application and verification are recorded in [the 5 November release](project-management-fix-2026-11-05.md).
+
 The user explicitly authorized publishing `codex/scipx-upgrades` on 2 November 2026, superseding the previous live freeze for this release. Initial publication was verified at approximately 19:00 Europe/Stockholm. The latest product-card update was verified at 20:01 Europe/Stockholm.
 
 ## Published application
