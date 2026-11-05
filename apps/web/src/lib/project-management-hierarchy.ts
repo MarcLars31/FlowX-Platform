@@ -30,7 +30,7 @@ export function managementMainPosts(posts: HierarchyPost[], assignments: Hierarc
 }
 export function managementChapters(data: HierarchySnapshot, mode: 'pdf' | 'main' = 'pdf') {
   const grouped = new Map<string, { key: string; title: string; posts: HierarchyPost[]; assignment?: HierarchyAssignment; anchor: string; scope: 'pdf_chapter' | 'main_post' | 'post'; review: boolean }>();
-  for (const post of [...data.posts].sort((a,b) => (a.sourcePage ?? 0)-(b.sourcePage ?? 0) || (a.sourceOrder ?? 0)-(b.sourceOrder ?? 0))) {
+  for (const post of [...data.posts].sort((a,b) => (a.sourcePage ?? 0)-(b.sourcePage ?? 0) || (a.sourceOrder ?? 0)-(b.sourceOrder ?? 0) || (a.number ?? '').localeCompare(b.number ?? '', 'nb', {numeric:true}) || a.id.localeCompare(b.id))) {
     const useMain = mode === 'main' || !post.sourceChapter || post.hierarchyReview;
     const key = useMain ? `main:${post.mainPost?.id ?? post.id}` : post.chapterKey;
     const chapter = grouped.get(key) ?? { key, title: useMain ? `${post.mainPost?.number ?? post.number ?? ''} ${post.mainPost?.title ?? post.title}`.trim() : post.chapter,

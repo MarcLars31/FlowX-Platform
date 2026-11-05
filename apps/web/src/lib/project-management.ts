@@ -13,7 +13,9 @@ export type ManagedPost = {
 export type ManagementSnapshot = {
   projectId: string; name: string; userId: string; manager: boolean; settings: ManagementSettings | null; emailEnabled?: boolean;
   departments: { id: string; name: string; supervisorId: string | null }[];
-  members: { id: string; departmentId: string; name: string }[];
+  members: { id: string; departmentId: string | null; name: string }[];
+  assignees?: { id: string; name: string }[];
+  assignmentVersion?: string | null;
   assignments: WorkAssignment[]; posts: ManagedPost[];
 };
 export type WorkMessage = { id: string; help_id: string | null; body: string; created_by: string; created_at: string };
@@ -47,6 +49,6 @@ export function managementChapters(data: ManagementSnapshot) {
 export function managementError(code?: string) {
   if (code === '40001') return { status: 409, error: 'En annen bruker har endret dette. Oppdater visningen før du prøver igjen.' };
   if (code === '42501') return { status: 403, error: 'Du har ikke tilgang til å gjøre denne endringen.' };
-  if (['22023', '22P02', '22007', '22008', '23502', '23505', '23514'].includes(code ?? '')) return { status: 400, error: 'Kontroller avdeling, ansvarlig og frister. Åpne hjelpebehov må løses før posten kan fullføres.' };
+  if (['22023', '22P02', '22007', '22008', '23502', '23505', '23514'].includes(code ?? '')) return { status: 400, error: 'Kontroller valgte poster, ansvarlig og frister. Ansvarlig må være en aktiv bruker med redigeringstilgang. Åpne hjelpebehov må løses før posten kan fullføres.' };
   return { status: 503, error: 'Prosjektstyringen er ikke tilgjengelig akkurat nå. Prøv igjen.' };
 }

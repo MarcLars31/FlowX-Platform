@@ -4,6 +4,7 @@ import { callUserRpc, selectUserRows, UserSupabaseError } from '@/lib/supabase-u
 import { isUuid } from '@/lib/distributor-product-mapping';
 import { readJsonBody, RequestBodyTooLargeError } from '@/lib/request-body';
 import { managementError } from '@/lib/project-management';
+import { isAssignmentVersion, validDirectAssignment, type AssignmentSaved } from '@/lib/direct-project-assignment';
 import { actionableManagementSnapshot, type HierarchySnapshot as ManagementSnapshot } from '@/lib/project-management-hierarchy';
 import { flushProjectWorkEmails, projectWorkEmailConfig } from '@/lib/project-work-email.server';
 
@@ -36,7 +37,14 @@ export async function POST(request: Request, context: Context) {
     const body = await readJsonBody<Record<string, unknown>>(request, 150_000);
     if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Ugyldig endring.' }, 400);
     const pid = auth.id;
+    let result: AssignmentSaved | undefined;
     switch (body.action) {
+      case 'directAssign':
+        if (!validDirectAssignment(body)) return json({ error: 'Velg 1–500 kapitler eller poster og en ansvarlig.' }, 400);
+        result = await callUserRpc<AssignmentSaved>('assign_project_work_direct', { pid, targets: body.targets, assignee: body.assignee, assignment_mode: body.mode, replace_overrides: body.replaceOverrides, expected_version: body.version }); break;
+      case 'directUndo':
+        if (!isUuid(body.undoToken) || !isAssignmentVersion(body.version)) return json({ error: 'Oppdater visningen før du prøver å angre.' }, 400);
+        result = await callUserRpc<AssignmentSaved>('undo_project_work_assignment', { pid, action_id: body.undoToken, expected_version: body.version }); break;
       case 'configure':
         if (!Number.isSafeInteger(body.revision) || !body.payload || typeof body.payload !== 'object') return json({ error: 'Velg prosjektregler.' }, 400);
         await callUserRpc('save_project_management', { pid, payload: body.payload, expected_revision: body.revision }); break;
@@ -55,7 +63,7 @@ export async function POST(request: Request, context: Context) {
       default: return json({ error: 'Ukjent handling.' }, 400);
     }
     after(async () => { try { await flushProjectWorkEmails(); } catch { console.error('project_work_email_flush_failed'); } });
-    return json({ saved: true });
+    return json(result ?? { saved: true });
   } catch (error) { return failed(error); }
 }
 function failed(error: unknown) {
