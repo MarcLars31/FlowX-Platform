@@ -147,3 +147,29 @@ test('large project: preserve legacy assignments and isolate repeated chapter oc
     assert.equal(restored.assignments.find(w=>w.id===legacy)?.assigned_to,user);
   }finally{await db.close();}
 });
+
+test('batch hierarchy matches authoritative scopes, reviews and nearest main posts in a large imported tree',async()=>{
+  const db=await stabilizationDatabase();
+  try{
+    const {org,user,project}=await testOrganization(db);
+    await db.query("insert into project_requirements(organization_id,project_id,category,requirement_key,value_text,value_json,status) select $1,$2,'pipe',n::text,'Imported post',jsonb_build_object('postNumber','03.'||n,'sourcePostId','source-'||n,'parentSourcePostId',case when n%6=1 then null else 'source-'||(n-((n-1)%6)) end,'sourceOrder',n,'sourceChapter',jsonb_build_object('title','03 Sprinkler'),'unit','stk','quantity',74),'extracted_unreviewed' from generate_series(1,1124) n",[org,project]);
+    const rows=(await db.query<{id:string;requirement_key:string}>('select id,requirement_key from project_requirements where project_id=$1 order by requirement_key::int',[project])).rows;
+    // A cycle, a missing parent, and a source warning exercise review propagation.
+    await db.query("update project_requirements set value_json=value_json||jsonb_build_object('parentRequirementId',$2::text) where id=$1",[rows[0].id,rows[1].id]);
+    await db.query("update project_requirements set value_json=value_json||jsonb_build_object('parentSourcePostId','missing') where id=$1",[rows[12].id]);
+    await db.query("update project_requirements set value_json=value_json||jsonb_build_object('reviewFlags',jsonb_build_array('unverified-post-source')) where id=$1",[rows[18].id]);
+    for(const [type,rid] of [['pdf_chapter',rows[6].id],['main_post',rows[30].id],['post',rows[31].id]])await db.query('insert into project_work_packages(project_id,organization_id,scope_type,scope_value,assigned_to,direct_assignee) values($1,$2,$3,$4,$5,true)',[project,org,type,rid,user]);
+    const comparison=(await db.query<{same:boolean}>(`select bool_and(r.work_id is not distinct from work_package_for_requirement(r.requirement_id)
+      and r.main_id is not distinct from post_main_id(r.requirement_id)
+      and r.hierarchy_review is not distinct from post_needs_hierarchy_review(r.requirement_id)) same
+      from scipx_assignment_internal.resolution($1) r where r.requirement_id=any($2::uuid[])`,[project,rows.slice(0,45).map(r=>r.id)])).rows[0];
+    assert.equal(comparison.same,true);
+    await db.exec('set role authenticated');const start=performance.now();
+    const result=(await db.query<{data:HierarchySnapshot}>('select read_project_management($1) data',[project])).rows[0].data;
+    assert.equal(result.posts.length,1124);assert.equal(result.posts.find(p=>p.id===rows[1].id)?.hierarchyReview,true);
+    assert.equal(result.posts.find(p=>p.id===rows[31].id)?.mainPost?.id,rows[30].id);
+    console.log('1,124-row imported hierarchy read (ms)',Math.round(performance.now()-start));
+    assert.ok(performance.now()-start<8000,'imported hierarchy must fit production statement budget');
+    await assert.rejects(db.query('select * from scipx_assignment_internal.resolution($1)',[project]),/permission denied/);
+  }finally{await db.close();}
+});
