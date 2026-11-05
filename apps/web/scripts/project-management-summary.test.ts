@@ -16,6 +16,7 @@ test('dashboard summary handles large legacy projects with authenticated RLS and
         'extracted_unreviewed'
       from generate_series(1,$3::int) n`, [fixture.org,fixture.project,fixture === visible ? 10000 : 10]);
     }
+    await db.query('insert into project_management_settings(project_id) values($1)', [hidden.project]);
     await db.query("select set_config('request.jwt.claim.sub',$1,false)", [visible.user]);
     await db.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({sub:visible.user,role:'authenticated'})]);
     await db.exec('set role authenticated');
@@ -30,6 +31,17 @@ test('dashboard summary handles large legacy projects with authenticated RLS and
     })), [{project_id:visible.project,total:10000,approved:0,not_in_assortment:5000,handled:5000}]);
     assert.ok(elapsed < 8000, `Dashboard summary exceeded the production 8s budget: ${elapsed.toFixed(0)}ms`);
     t.diagnostic(`10,000-row authenticated summary: ${elapsed.toFixed(0)}ms`);
+    const overviewStarted = performance.now();
+    const overview = await db.query<{data: unknown[]}>(
+      'select project_management_overview($1) data', [visible.org],
+    );
+    const overviewElapsed = performance.now()-overviewStarted;
+    assert.deepEqual(overview.rows[0].data, []);
+    assert.ok(overviewElapsed < 8000, `Empty management overview exceeded the production 8s budget: ${overviewElapsed.toFixed(0)}ms`);
+    t.diagnostic(`Empty management overview alongside 10,000 legacy posts: ${overviewElapsed.toFixed(0)}ms`);
+    assert.deepEqual((await db.query<{data: unknown[]}>(
+      'select project_management_overview($1) data', [hidden.org],
+    )).rows[0].data, []);
     await db.exec('reset role');
     // Retain a second owner while deactivating the original member.
     await db.query("select set_config('request.jwt.claim.sub',$1,false)", [hidden.user]);

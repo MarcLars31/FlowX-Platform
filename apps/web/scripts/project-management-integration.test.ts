@@ -30,6 +30,12 @@ test('full schema: manager to supervisor to employee, immutable assigned dates, 
     const snapshot=(await db.query<{data:{posts:unknown[]}}>('select read_project_management($1) data',[project])).rows[0].data;
     assert.equal(snapshot.posts.length,2);
     await db.query('select write_project_message($1,$2,$3)',[project,first,JSON.stringify({kind:'help',body:'Hvilket materiale?'})]);
+    const overview = (await db.query<{data: {id: string; total: number; done: number; help: number; unassigned: number}[]}>(
+      'select project_management_overview($1) data', [org],
+    )).rows[0].data;
+    assert.deepEqual(overview.map(({id,total,done,help,unassigned}) => ({id,total,done,help,unassigned})), [
+      {id:project,total:2,done:0,help:1,unassigned:0},
+    ]);
     await assert.rejects(db.query('select update_project_task($1,$2,-1,true)',[project,first]),/Resolve help/);
     await assert.rejects(db.query('select update_project_task($1,$2,-1,true)',[project,second]),/edit denied/);
     await db.exec('reset role');
@@ -38,5 +44,11 @@ test('full schema: manager to supervisor to employee, immutable assigned dates, 
     assert.equal((await db.query<{allowed:boolean}>('select can_access_project($1) allowed',[project])).rows[0].allowed,true);
     await assert.rejects(db.query('select read_project_management($1)',[project]),/access denied/);
     await assert.rejects(db.query('select read_project_work_thread($1,$2)',[project,first]),/access denied/);
+    const restrictedOverview = (await db.query<{data: {total: number; help: number; unassigned: number}[]}>(
+      'select project_management_overview($1) data', [org],
+    )).rows[0].data;
+    assert.equal(restrictedOverview[0].total, 0);
+    assert.equal(restrictedOverview[0].help, 0);
+    assert.equal(restrictedOverview[0].unassigned, 0);
   } finally { await db.close(); }
 });

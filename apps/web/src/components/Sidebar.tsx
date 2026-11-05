@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
   BarChart3,
+  Building2,
   ClipboardCheck,
   FileJson,
   FileText,
@@ -52,6 +53,7 @@ const organizationIcons = {
   statistics: BarChart3,
   crm: Handshake,
   technical_description: FileText,
+  organization: Building2,
   rules: SlidersHorizontal
 } satisfies Record<OrganizationNavigationItem["icon"], typeof Home>;
 
