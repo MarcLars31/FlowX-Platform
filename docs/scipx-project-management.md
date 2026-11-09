@@ -11,6 +11,7 @@ Prosjektstyring fordeler PDF-kapitler og poster fra prosjektleder til arbeidsled
 | Prosjektleder | Hele prosjektet | Velge avdelinger og arbeidsledere, tildele kapitler og poster til arbeidsleder, sette alle frister, følge opp og endre alle poster |
 | Arbeidsleder | Egne avdelinger | Fordele arbeid til aktive medarbeidere i avdelingen, svare på hjelpebehov, løse dem og endre avdelingens poster |
 | Medarbeider | Egne avdelingers kapitler og poster | Arbeide med, klarmarkere og gjenåpne egne poster; stille spørsmål og be om hjelp |
+| Gransker | Hele det uttrykkelig tildelte prosjektets underlag og poster | Lese; utpekt gransker kan godkjenne eller sende tilbake innleverte poster, uten å redigere innhold eller tildele arbeid |
 
 Eksisterende prosjektansvarlige og organisasjonsadministratorer beholder prosjektledertilgangen fra Scipx sin tilgangsmodell. En avdeling kan bare velges med en aktiv arbeidsleder som er medlem av avdelingen. Aktive avdelingsmedlemmer legges til som prosjektmedlemmer ved oppsett; eksisterende inaktive medlemskap og leserroller oppgraderes ikke automatisk. Ved nye avdelingsmedlemmer lagrer prosjektlederen avdelingsoppsettet på nytt.
 
@@ -22,11 +23,11 @@ Ved første tildeling lagres postens gjeldende kapittelfrist, eller prosjektfris
 
 Flere hjelpebehov kan være åpne på samme post. Hvert hjelpebehov krever en beskrivelse og har sin egen svarstråd. Medarbeideren som nå er ansvarlig, arbeidslederen og prosjektlederen kan løse hjelpebehov innenfor sine rettigheter. Alle åpne hjelpebehov må være løst før klarmarkering. Vanlige spørsmål og kommentarer blokkerer ikke klarmarkering. En ferdig post må gjenåpnes før et nytt hjelpebehov kan opprettes.
 
-Medarbeiderens klarmarkering er tilstrekkelig. Det finnes ikke et obligatorisk godkjenningstrinn hos leder. Arbeidsstatus er separat fra produktvalg og tekniske kontroller; disse kontrollene beholdes.
+Som standard er medarbeiderens klarmarkering tilstrekkelig. Prosjektlederen kan aktivere valgfri granskning og velge gransker: Pågår → Klar til granskning → Godkjent / Sendt tilbake. Egen innlevering kan ikke godkjennes av samme person. Se [roller og valgfri arbeidsgranskning](project-roles-and-review-local.md) for tilgang, historikk og lokale testkontoer. Arbeidsstatus er separat fra produktvalg og tekniske kontroller; disse kontrollene beholdes.
 
 ## Tilgang til underlaget
 
-Avdelingsgrensene håndheves i databasen og gjelder også eksisterende API-er for poster, kommentarer, produktforslag og sammendrag. Hele PDF-er og rå ekstraksjonsresultater kan inneholde andre avdelingers materiale og er derfor begrenset til prosjektleder i aktiverte prosjekter. Avdelinger arbeider med sine synlige poster. Eksisterende prosjekter beholder tidligere tilgangsregler til prosjektstyringen aktiveres.
+Avdelingsgrensene håndheves i databasen og gjelder også eksisterende API-er for poster, kommentarer, produktforslag og sammendrag. Hele PDF-er og rå ekstraksjonsresultater kan inneholde andre avdelingers materiale og er derfor begrenset til prosjektleder og uttrykkelig tildelte granskere i aktiverte prosjekter. Avdelinger arbeider med sine synlige poster. Eksisterende prosjekter beholder tidligere tilgangsregler til prosjektstyringen aktiveres.
 
 Automatisk videreføring av arbeid til en ny PDF-revisjon inngår ikke i denne funksjonen.
 

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canonicalOrganizationRole,
+  CUSTOMER_ROLES,
+  organizationRoleLabel,
   canAccessProjectForRole,
   canAssignOrganizationRole,
   canViewDeletedProject,
@@ -188,4 +191,22 @@ test("soft-deleted projects are hidden except from restore roles", () => {
   );
   assert.equal(canViewDeletedProject("organization_admin", true), true);
   assert.equal(canViewDeletedProject("full_user", true), false);
+});
+
+test('canonical engineer works on posts without project lifecycle administration', () => {
+  for(const permission of ['project.create','project.update','project.delete','project.settings.update','document.upload','document.delete','project.version.create'] as const) {
+    assert.equal(hasRolePermission('engineer',permission),false,permission);
+    assert.equal(hasRolePermission('project_manager',permission),true,permission);
+  }
+  assert.equal(hasRolePermission('engineer','project.product_suggestion.create'),true);
+  assert.equal(hasRolePermission('engineer','analysis.create'),true);
+});
+test('canonical role choices collapse aliases without removing legacy privileges', () => {
+  assert.equal(new Set(CUSTOMER_ROLES.map(role=>role.value)).size,5);
+  for(const [alias,canonical] of [['organization_admin','company_admin'],['full_user','project_manager'],['read_only','viewer']]) {
+    assert.equal(canonicalOrganizationRole(alias),canonical);
+    assert.equal(organizationRoleLabel(alias),organizationRoleLabel(canonical));
+  }
+  assert.equal(hasRolePermission('full_user','project.create'),true);
+  assert.equal(organizationRoleLabel('mini_user'),'Produktsökning');
 });

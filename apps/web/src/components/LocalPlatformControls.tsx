@@ -11,6 +11,7 @@ export function LocalPlatformControls({ welcome = false }: { welcome?: boolean }
         <form action="/api/local/session" method="post"><input type="hidden" name="view" value="customer" /><button className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-700" type="submit">Kundvy</button></form>
         <form action="/api/local/session" method="post"><input type="hidden" name="view" value="admin" /><button className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-900 hover:bg-slate-100" type="submit">Administration</button></form>
       </div>
+      {process.env.SCIPX_LOCAL_REVIEW_PROJECT && <div className="flex w-full flex-wrap items-center gap-2 border-t border-cyan-200 pt-2 text-xs"><span>Testa granskning som:</span>{[['manager','Projektledare'],['employee','Medarbetare'],['reviewer','Granskare']].map(([value,label]) => <form action="/api/local/session" method="post" key={value}><input type="hidden" name="view" value={value} /><button type="submit" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium hover:bg-slate-100">{label}</button></form>)}</div>}
       {welcome && <p className="mt-5 text-sm text-slate-500">Kundvyn innehåller projekt, projektstyrning, historik, statistik, CRM, regler och organisationsinställningar. Administration öppnar produkt- och importverktygen. Externa e-post- och synktjänster är frånkopplade.</p>}
     </section>
   );

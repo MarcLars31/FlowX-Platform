@@ -41,8 +41,11 @@ try {
   const credentials = await credentialsAt(directory);
   console.log('Startar separat lokal databas och laddar plattformens schema…');
   backend = await startBackend({ directory, repository: resolve(web, '../..'), credentials });
+  let reviewProject='';
+  try { reviewProject=JSON.parse(await readFile(resolve(directory,'review-demo.json'),'utf8')).project ?? ''; }
+  catch(error) { if(error.code!=='ENOENT') throw error; }
   const environment = {
-    ...process.env, NODE_ENV: 'development', SCIPX_LOCAL_PLATFORM: '1', SCIPX_LOCAL_DESIGN: '',
+    ...process.env, NODE_ENV: 'development', SCIPX_LOCAL_PLATFORM: '1', SCIPX_LOCAL_DESIGN: '', SCIPX_LOCAL_REVIEW_PROJECT: reviewProject,
     SUPABASE_URL: 'http://127.0.0.1:54329', SUPABASE_PUBLISHABLE_KEY: credentials.anonKey,
     SUPABASE_SECRET_KEY: credentials.serviceKey, SCIPX_LOCAL_PASSWORD: credentials.password,
     PRODUCT_SYNC_WRITES_ENABLED: 'false', NEXT_TELEMETRY_DISABLED: '1',

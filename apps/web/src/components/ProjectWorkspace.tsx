@@ -80,6 +80,8 @@ export function ProjectWorkspace({
   canExportMaterialList = false,
   canCreateProject = false,
   canDeleteProject = false,
+  canUpdateProject = false,
+  canUploadDocuments = false,
   accessManagement
 }: {
   initialData: ProjectModuleData;
@@ -87,6 +89,8 @@ export function ProjectWorkspace({
   canExportMaterialList?: boolean;
   canCreateProject?: boolean;
   canDeleteProject?: boolean;
+  canUpdateProject?: boolean;
+  canUploadDocuments?: boolean;
   accessManagement?: ReactNode;
 }) {
   const router = useRouter();
@@ -133,6 +137,7 @@ export function ProjectWorkspace({
   }
 
   async function advanceProjectStage(targetStage: string) {
+    if (!canUpdateProject) return;
     const currentIndex = PROJECT_STAGES.findIndex(
       ([stage]) => stage === data.project.current_stage
     );
@@ -160,6 +165,7 @@ export function ProjectWorkspace({
   }
 
   async function finishProject(latestData?: ProjectModuleData) {
+    if (!canUpdateProject) return;
     if (!canLeaveProductSelection()) return;
     setFinishing(true);
     setError(null);
@@ -244,7 +250,8 @@ export function ProjectWorkspace({
   async function saveProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const continueToAssignments = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "continue";
-    if (continueToAssignments && !projectDraft) { setManagementStep("assignments"); return; }
+    if (continueToAssignments && (!canUpdateProject || !projectDraft)) { setManagementStep("assignments"); return; }
+    if (!canUpdateProject) return;
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -302,6 +309,7 @@ export function ProjectWorkspace({
 
   async function uploadTechnicalDescription(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canUploadDocuments) return;
     const formElement = event.currentTarget;
     if (!selectedFile) {
       setError("Välj en PDF med teknisk beskrivning.");
@@ -419,7 +427,7 @@ export function ProjectWorkspace({
   );
 
   const projectDetailsForm = (<form id="project-details-form" onSubmit={saveProject} onChange={event => setProjectDraft(Object.fromEntries([...new FormData(event.currentTarget)].map(([key,value]) => [key,String(value)])))} className="border-t border-ink-100">
-            <fieldset disabled={saving}>
+            <fieldset disabled={saving || !canUpdateProject}>
             <div className="px-5 py-5 sm:px-6">
               <h2 className="font-semibold text-ink-950">Projektförutsättningar</h2>
               <p className="mt-1 text-sm text-ink-600">Grunddata som styr dokumentanalys och produktval.</p>
@@ -471,10 +479,10 @@ export function ProjectWorkspace({
               <TextArea name="description" label="Projektbeskrivning" defaultValue={projectDraft?.description ?? (data.project.description ?? "")} />
               <TextArea name="internalComments" label="Interna kommentarer" defaultValue={projectDraft?.internalComments ?? (data.project.internal_comments ?? "")} />
             </div>
-            <div className="flex flex-wrap justify-end gap-3 border-t border-ink-100 bg-ink-50 px-5 py-4 sm:px-6">
+            {canUpdateProject && <div className="flex flex-wrap justify-end gap-3 border-t border-ink-100 bg-ink-50 px-5 py-4 sm:px-6">
               <Button type="submit" disabled={saving}><Save className="h-4 w-4" aria-hidden="true" />{saving ? "Sparar..." : "Spara projektuppgifter"}</Button>
               {tab === "management" && <Button type="submit" name="intent" value="continue" disabled={saving}>Fortsätt till fördelning och ansvar <ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>}
-            </div>
+            </div>}
             </fieldset>
           </form>);
 
@@ -524,7 +532,7 @@ export function ProjectWorkspace({
               <ProjectMaterialListPdfExportButton projectId={data.project.id} />
             </>
           )}
-          {!projectFinished && (
+          {canUpdateProject && !projectFinished && (
             <Button disabled={finishing} onClick={() => void finishProject()}>
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               {finishing ? "Slutför…" : "Markera projektet klart"}
@@ -638,14 +646,14 @@ export function ProjectWorkspace({
       {tab === "documents" && (
         <div className="space-y-5">
           <ProjectDeliveryControl key={counts.documents} projectId={data.project.id} mode="documents" onChanged={reload} resource={deliveryResource} />
-          <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900">
+          {canUploadDocuments && <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900">
             <h2 className="text-lg font-bold">Ladda upp projektunderlag</h2>
             <p className="mt-2 text-sm">Läs in en specifikation, offert, mängd-PDF eller referens. Ytterligare dokument väntar på granskning i dokumentlistan innan deras poster aktiveras.</p>
             <form className="mt-4" onSubmit={uploadTechnicalDescription}>
               <PdfDropzone id={`project-pdf-${data.project.id}`} file={selectedFile} disabled={uploading} compact onFileChange={setSelectedFile} onValidationError={setError} />
               <Button className="mt-4" type="submit" disabled={uploading || !selectedFile}><Upload className="h-4 w-4" aria-hidden="true" />{uploading ? analysisProgress ?? "Läser underlag…" : "Läs in dokument"}</Button>
             </form>
-          </section>
+          </section>}
           <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-end justify-between gap-3"><div><h2 className="font-semibold text-ink-950">Projektets dokument</h2><p className="mt-1 text-sm text-ink-600">Original-PDF finns kvar medan projektet pågår och tas bort när projektet avslutas. Extraherade poster och produktval sparas.</p></div><span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-700">{counts.documents} {counts.documents === 1 ? "dokument" : "dokument"}</span></div><div className="mt-4 divide-y divide-ink-100">{uniqueTechnicalDescriptions.length === 0 && distinctProjectDocuments.length === 0 ? <p className="rounded-lg bg-ink-50 px-4 py-8 text-center text-sm text-ink-600">Ingen PDF är kopplad ännu.</p> : <>{uniqueTechnicalDescriptions.map((item) => <DocumentRow key={`technical-${item.id}`} item={item} source="Teknisk extraktion" />)}{distinctProjectDocuments.map((item) => <DocumentRow key={`project-${item.id}`} item={item} source="Projektfil" />)}</>}</div></section>
           {counts.documents > 0 && (
             <section className="flex flex-col gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -667,7 +675,7 @@ export function ProjectWorkspace({
         <div className="product-workspace-body">
           <div className="product-workspace-tools">
             <p>Alle PDF-poster ({visibleRequirements.length})</p>
-            <Button type="button" variant="secondary" disabled={finishing} title="Original-PDF tas bort när projektet avslutas. Poster och produktval sparas." onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" className="h-4 w-4" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button>
+            {canUpdateProject && <Button type="button" variant="secondary" disabled={finishing} title="Original-PDF tas bort när projektet avslutas. Poster och produktval sparas." onClick={() => void finishProject()}><CheckCircle2 aria-hidden="true" className="h-4 w-4" />{finishing ? "Fullfører…" : "Fullfør prosjekt"}</Button>}
           </div>
           <DistributorMappingPanel
             deliveryResource={deliveryResource}

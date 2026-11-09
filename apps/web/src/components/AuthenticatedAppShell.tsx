@@ -1,3 +1,4 @@
+import { organizationRoleLabel } from "@/lib/organization-rbac";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -75,25 +76,9 @@ export async function AuthenticatedAppShell({
       organizationOptions={organizationOptions}
       userName={userName}
       userEmail={user.email}
-      roleLabel={formatRole(context.membership.role_slug)}
+      roleLabel={organizationRoleLabel(context.membership.role_slug)}
     >
       {children}
     </AppShell>
   );
-}
-
-function formatRole(role: string) {
-  const labels: Record<string, string> = {
-    organization_owner: "Organisationsägare",
-    organization_admin: "Organisationsadmin",
-    company_admin: "Företagsadministratör",
-    project_manager: "Projektledare",
-    engineer: "Ingenjör",
-    viewer: "Läsbehörighet",
-    full_user: "Full användare",
-    mini_user: "Mini-användare",
-    read_only: "Läsanvändare"
-  };
-
-  return labels[role] ?? role;
 }

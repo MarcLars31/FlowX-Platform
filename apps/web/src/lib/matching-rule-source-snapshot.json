@@ -7,7 +7,7 @@
     "../components/AhlsellCandidateList.tsx": "6647dbfb579d6bfd2c8fa1da8e8e3056434678d7cc94005f61cb89248f6e04f0",
     "../components/ChapterTextOrganizer.tsx": "63da2546fd61a1500e7087369d07dd592dc8e2d4d91326fada078d8018790d48",
     "../components/ChapterWorkspaceNavigation.tsx": "d4bee2c823720bd3578695411f2ad1280ae03f5b2ca01298a7318891088c9413",
-    "../components/DistributorMappingPanel.tsx": "336c67f0a836f0ca42688e33d94ab6eb975f4526cd3bc18ed95d73ee998ef0bb",
+    "../components/DistributorMappingPanel.tsx": "f28f41c43cea0ba4aa33cada93242b6eb1e0cb40b0201e83d8bf33c80187020d",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
     "../components/MainPostDetailsButton.tsx": "503aeabae59d16294d1909595b02c7d758bc21d5be6ed90a9b5e12c71adaf98d",
     "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",

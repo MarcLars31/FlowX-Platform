@@ -1,4 +1,5 @@
 export type ManagementSettings = {
+  review_required?: boolean; reviewer_id?: string | null;
   project_id: string; deadline: string | null; revision: number;
   allow_later_post_deadline: boolean; multiple_help_requests: boolean; assignment_email: 'batch' | 'daily';
 };
@@ -6,11 +7,14 @@ export type WorkAssignment = {
   id: string; scope_type: 'post' | 'pdf_chapter' | 'chapter' | 'group'; scope_value: string;
   chapter_key?: string; department_id: string | null; assigned_to: string; due_date: string | null; revision: number;
 };
+export type WorkReviewState = 'in_progress' | 'ready' | 'approved' | 'returned' | 'completed';
 export type ManagedPost = {
+  reviewState?: WorkReviewState; submittedBy?: string | null; reviewNote?: string | null; canReview?: boolean; contentLocked?: boolean;
   id: string; number: string | null; title: string; chapter: string; chapterKey: string;
   assignmentId: string | null; dueDate: string | null; ownDeadline: string | null; deadlineRevision: number; canEdit: boolean; done: boolean; revision: number; openHelp: number;
 };
 export type ManagementSnapshot = {
+  reviewer?: boolean; canReview?: boolean; reviewerCandidates?: { id: string; name: string }[]; reviewerName?: string | null;
   projectId: string; name: string; userId: string; manager: boolean; settings: ManagementSettings | null; emailEnabled?: boolean;
   departments: { id: string; name: string; supervisorId: string | null }[];
   members: { id: string; departmentId: string | null; name: string }[];
@@ -20,7 +24,9 @@ export type ManagementSnapshot = {
 };
 export type WorkMessage = { id: string; help_id: string | null; body: string; created_by: string; created_at: string };
 export type HelpRequest = { id: string; description: string; created_by: string; created_at: string; resolved_at: string | null; resolved_by: string | null; revision: number };
-export type WorkThread = { help: HelpRequest[]; messages: WorkMessage[] };
+export type WorkReviewEvent = { id: string; state: WorkReviewState; actor: string; note: string; created_at: string };
+export const workReviewLabels: Record<WorkReviewState,string> = { in_progress: 'Pågår', ready: 'Klar til granskning', approved: 'Godkjent', returned: 'Sendt tilbake', completed: 'Ferdig' };
+export type WorkThread = { reviews?: WorkReviewEvent[]; help: HelpRequest[]; messages: WorkMessage[] };
 export type ManagementOverview = { id: string; name: string; manager: boolean; deadline: string | null; total: number; done: number; late: number; help: number; unassigned: number };
 export type WorkNotification = { id: string; project_id: string; requirement_id: string | null; title: string; kind: string; created_at: string; read_at: string | null };
 

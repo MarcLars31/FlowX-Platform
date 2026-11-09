@@ -60,6 +60,7 @@ export function matchesAssignmentFilters(data: HierarchySnapshot, post: Hierarch
   if (filters.person !== 'all' && (filters.person === 'none' ? person !== null : person !== filters.person)) return false;
   if (!`${post.chapter} ${post.number ?? ''} ${post.title}`.toLocaleLowerCase('nb').includes(filters.search.trim().toLocaleLowerCase('nb'))) return false;
   return filters.status === 'all' || filters.status === 'open' && !post.done || filters.status === 'done' && post.done
+    || ['ready','approved','returned'].includes(filters.status) && post.reviewState === filters.status
     || filters.status === 'help' && post.openHelp > 0 || filters.status === 'late' && isLate(post, today)
     || filters.status === 'unassigned' && !person || filters.status === 'queue' && Boolean(department) && !person;
 }

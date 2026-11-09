@@ -168,6 +168,25 @@ const fullUserPermissions: PermissionKey[] = [
   "news.view"
 ];
 
+const engineerPermissions = fullUserPermissions.filter(permission => ![
+  'project.create', 'project.update', 'project.delete', 'project.settings.update',
+  'project.version.create', 'document.upload', 'document.delete'
+].includes(permission));
+
+export const CUSTOMER_ROLES = [
+  { value: 'organization_owner', label: 'Organisationsägare', description: 'Ägarskap och företagets högsta behörighet.' },
+  { value: 'company_admin', label: 'Företagsadministratör', description: 'Användare, avdelningar och företagets projekt.' },
+  { value: 'project_manager', label: 'Projektledare', description: 'Skapar projekt och leder de projekt personen ansvarar för.' },
+  { value: 'engineer', label: 'Ingenjör / medarbetare', description: 'Arbetar med tilldelade poster, produktval och analyser.' },
+  { value: 'viewer', label: 'Läsare', description: 'Läser tillgängliga projekt och underlag.' }
+] as const;
+export function canonicalOrganizationRole(role: string) {
+  return ({ organization_admin: 'company_admin', full_user: 'project_manager', read_only: 'viewer' } as Record<string,string>)[role] ?? role;
+}
+export function organizationRoleLabel(role: string) {
+  return CUSTOMER_ROLES.find(item => item.value === canonicalOrganizationRole(role))?.label ?? (role === 'mini_user' ? 'Produktsökning' : role);
+}
+
 const miniUserPermissions: PermissionKey[] = [
   "product.search",
   "product.view",
@@ -199,7 +218,7 @@ export const ROLE_PERMISSION_KEYS: Record<
   organization_admin: organizationAdminPermissions,
   company_admin: organizationAdminPermissions,
   project_manager: fullUserPermissions,
-  engineer: fullUserPermissions,
+  engineer: engineerPermissions,
   viewer: readOnlyPermissions,
   full_user: fullUserPermissions,
   mini_user: miniUserPermissions,

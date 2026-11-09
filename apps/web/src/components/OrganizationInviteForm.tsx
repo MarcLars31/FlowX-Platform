@@ -4,13 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/Button";
+import { CUSTOMER_ROLES } from "@/lib/organization-rbac";
 import { Input } from "@/components/Input";
 
-const standardRoles = [
-  { value: "project_manager", label: "Projektledare" },
-  { value: "engineer", label: "Ingenjör" },
-  { value: "viewer", label: "Läsbehörighet" }
-];
+const standardRoles = CUSTOMER_ROLES.filter(role => ['project_manager','engineer','viewer'].includes(role.value));
 
 export function OrganizationInviteForm({ canAssignAdmins }: {
   canAssignAdmins: boolean;

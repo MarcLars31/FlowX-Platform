@@ -2,19 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { OrganizationRoleSlug } from "@/lib/organization-rbac";
+import { CUSTOMER_ROLES, canonicalOrganizationRole, type OrganizationRoleSlug } from "@/lib/organization-rbac";
 
-const roleOptions: { value: OrganizationRoleSlug; label: string }[] = [
-  { value: "organization_owner", label: "Organisationsägare" },
-  { value: "company_admin", label: "Företagsadministratör" },
-  { value: "project_manager", label: "Projektledare" },
-  { value: "engineer", label: "Ingenjör" },
-  { value: "viewer", label: "Läsbehörighet" },
-  { value: "organization_admin", label: "Organisationsadmin" },
-  { value: "full_user", label: "Full användare" },
-  { value: "mini_user", label: "Mini-användare" },
-  { value: "read_only", label: "Läsanvändare" }
-];
+const roleOptions = CUSTOMER_ROLES;
 
 const statusOptions = [
   { value: "active", label: "Aktiv" },
@@ -51,7 +41,7 @@ export function OrganizationMemberActions({
     ? roleOptions
     : roleOptions.filter(
         (role) =>
-          role.value === currentRole ||
+          role.value === canonicalOrganizationRole(currentRole) ||
           [
             "project_manager",
             "engineer",
@@ -88,7 +78,7 @@ export function OrganizationMemberActions({
         <label className="flex items-center gap-2 text-xs text-ink-600">
           <span className="sr-only">Roll</span>
           <select
-            defaultValue={currentRole}
+            defaultValue={canonicalOrganizationRole(currentRole)}
             disabled={saving !== null}
             className="h-9 min-w-0 flex-1 rounded-md border border-ink-200 bg-white px-2 text-xs"
             onChange={(event) =>
@@ -99,6 +89,7 @@ export function OrganizationMemberActions({
               )
             }
           >
+            {currentRole === 'mini_user' && <option value="mini_user">Produktsökning</option>}
             {roles.map((role) => (
               <option key={role.value} value={role.value}>
                 {role.label}

@@ -973,7 +973,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
       disabled={requirement.can_edit === false || saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
       {({ productComments }) => <>
-      {requirement.can_edit === false && <p className="product-readonly-notice">Läsläge: posten är tilldelad en annan person. Projektansvarig kan ändra tilldelningen.</p>}
+      {requirement.can_edit === false && <p className="product-readonly-notice">Läsläge: du saknar redigeringsbehörighet eller posten är låst för granskning. Granskade poster behöver öppnas igen innan de ändras.</p>}
       <article id={`post-${requirement.id}`} className={`product-mapping-card${groupPanel ? " product-group-card" : ""}`}>
       <section id={`pdf-requirement-${requirement.id}`} tabIndex={-1} aria-labelledby={`pdf-specification-${requirement.id}`} className="product-requirement-summary">
         <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{projectRequirementPageLabel(details)}</span></div>

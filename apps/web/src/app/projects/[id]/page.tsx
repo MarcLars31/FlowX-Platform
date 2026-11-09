@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { selectUserRows } from "@/lib/supabase-user-rest";
+import { callUserRpc, selectUserRows } from "@/lib/supabase-user-rest";
 import type { OrganizationProject } from "@/types/organization";
 import { ProjectWorkspace, type ProjectModuleData } from "@/components/ProjectWorkspace";
 import { ProjectAccessEditor } from "@/components/ProjectAccessEditor";
@@ -35,7 +35,8 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   });
   if (!project) notFound();
 
-  const canManageAccess = context.permissions.includes("project.manage_members");
+  const canManageProject = await callUserRpc<boolean>("is_delivery_manager", { pid: id });
+  const canManageAccess = canManageProject && context.permissions.includes("project.manage_members");
   let accessData: {
     teams: Array<{ id: string; name: string }>;
     members: Array<{ organizationMemberId: string; projectRole: "owner" | "editor" | "reviewer" | "viewer"; label: string }>;
@@ -49,7 +50,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         status: "eq.active",
         order: "name.asc"
       }),
-      selectUserRows<{ organization_member_id: string; project_role: "owner" | "editor" | "viewer"; role: "project_manager" | "editor" | "reviewer" | "viewer" }>("project_members", {
+      selectUserRows<{ organization_member_id: string; project_role: "owner" | "editor" | "reviewer" | "viewer"; role: "project_manager" | "editor" | "reviewer" | "viewer" }>("project_members", {
         select: "organization_member_id,project_role,role",
         project_id: `eq.${id}`
       }),
@@ -99,7 +100,9 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         initialTab={initialTab}
         canExportMaterialList={context.permissions.includes("material_list.export")}
         canCreateProject={context.permissions.includes("project.create")}
-        canDeleteProject={context.permissions.includes("project.delete")}
+        canDeleteProject={canManageProject && context.permissions.includes("project.delete")}
+        canUpdateProject={canManageProject && context.permissions.includes("project.update")}
+        canUploadDocuments={canManageProject && context.permissions.includes("document.upload")}
         accessManagement={canManageAccess && (
           <details className="group mx-auto max-w-[1500px] overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">

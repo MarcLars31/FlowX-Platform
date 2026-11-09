@@ -1,3 +1,4 @@
+import { CUSTOMER_ROLES, organizationRoleLabel } from "@/lib/organization-rbac";
 import { Badge } from "@/components/Badge";
 import { Building2 } from "lucide-react";
 import { ScipxPageHeader } from "@/components/ScipxPageHeader";
@@ -268,7 +269,7 @@ export default async function OrganizationPage() {
                         {profile?.email ?? "—"}
                       </td>
                       <td className="px-5 py-4 text-ink-600">
-                        {roleById.get(member.role_id)?.name ?? "Okänd roll"}
+                        {organizationRoleLabel(roleById.get(member.role_id)?.slug ?? "Okänd roll")}
                       </td>
                       <td className="px-5 py-4">
                         <Badge tone={member.status === "active" ? "green" : "amber"}>
@@ -319,6 +320,7 @@ export default async function OrganizationPage() {
         </section>
       )}
 
+      <details className="rounded-lg border border-ink-200 bg-white p-5"><summary className="cursor-pointer font-semibold">Roller och ansvar</summary><dl className="mt-4 space-y-3">{CUSTOMER_ROLES.map(role => <div key={role.value}><dt className="text-sm font-semibold">{role.label}</dt><dd className="text-sm text-ink-600">{role.description}</dd></div>)}</dl><p className="mt-4 text-sm text-ink-600">Arbetsledare utses per avdelning i projektet. Granskare väljs i projektets granskningsinställningar och godkänner eller återför inlämnade poster. Äldre rollnamn visas med motsvarande aktuellt namn; befintliga medlemskap behålls.</p></details>
       {context.permissions.includes("team.view") && (
         <section
           id="teams"

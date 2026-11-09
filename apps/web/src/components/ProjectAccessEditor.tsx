@@ -99,7 +99,7 @@ export function ProjectAccessEditor({
     <section className={embedded ? "space-y-5 p-5 sm:p-6" : "space-y-5 rounded-xl border border-ink-200 bg-white p-5 shadow-sm sm:p-6"}>
       <div>
         <h2 className="font-semibold text-ink-950">Projektåtkomst</h2>
-        <p className="mt-1 text-sm text-ink-600">Bestäm vilka som kan se projektet och hantera uttryckliga projektmedlemmar.</p>
+        <p className="mt-1 text-sm text-ink-600">Bestäm vilka som kan se projektet och hantera projektmedlemmar. Medarbetare arbetar med tilldelade poster. Granskare läser underlaget; utsedd granskare kan godkänna när projektets granskningsflöde är aktiverat.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
         <label className="block">
@@ -126,9 +126,9 @@ export function ProjectAccessEditor({
         <div className="mt-3 divide-y divide-ink-100 rounded-lg border border-ink-200">
           {members.map((member) => (
             <div key={member.organizationMemberId} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div><p className="text-sm font-medium text-ink-950">{member.label}</p><p className="text-xs text-ink-500">{member.projectRole === "owner" ? "Ägare" : member.projectRole === "editor" ? "Redaktör" : member.projectRole === "reviewer" ? "Granskare" : "Läsare"}</p></div>
+              <div><p className="text-sm font-medium text-ink-950">{member.label}</p><p className="text-xs text-ink-500">{member.projectRole === "owner" ? "Ägare" : member.projectRole === "editor" ? "Medarbetare" : member.projectRole === "reviewer" ? "Granskare" : "Läsare"}</p></div>
               <div className="flex flex-wrap items-center gap-2">
-                {member.projectRole !== "owner" && <select value={member.projectRole} onChange={(event) => void updateRole(member, event.target.value as "editor" | "reviewer" | "viewer")} disabled={busy !== null} className="h-9 rounded-lg border border-ink-200 bg-white px-2 text-sm"><option value="editor">Redaktör</option><option value="reviewer">Granskare</option><option value="viewer">Läsare</option></select>}
+                {member.projectRole !== "owner" && <select value={member.projectRole} onChange={(event) => void updateRole(member, event.target.value as "editor" | "reviewer" | "viewer")} disabled={busy !== null} className="h-9 rounded-lg border border-ink-200 bg-white px-2 text-sm"><option value="editor">Medarbetare</option><option value="reviewer">Granskare</option><option value="viewer">Läsare</option></select>}
                 {member.projectRole !== "owner" && <Button type="button" variant="ghost" onClick={() => void removeMember(member)} disabled={busy !== null}>Ta bort</Button>}
               </div>
             </div>
@@ -137,7 +137,7 @@ export function ProjectAccessEditor({
         </div>
         <form className="mt-4 flex flex-col gap-2 sm:flex-row" onSubmit={(event) => void addMember(event)}>
           <select name="organizationMemberId" required disabled={busy !== null || !availableMembers.length} className="h-10 min-w-60 rounded-lg border border-ink-200 bg-white px-3 text-sm"><option value="">Lägg till medlem…</option>{availableMembers.map((member) => <option key={member.organizationMemberId} value={member.organizationMemberId}>{member.label}</option>)}</select>
-          <select name="projectRole" defaultValue="viewer" disabled={busy !== null || !availableMembers.length} className="h-10 rounded-lg border border-ink-200 bg-white px-3 text-sm"><option value="editor">Redaktör</option><option value="reviewer">Granskare</option><option value="viewer">Läsare</option></select>
+          <select name="projectRole" defaultValue="viewer" disabled={busy !== null || !availableMembers.length} className="h-10 rounded-lg border border-ink-200 bg-white px-3 text-sm"><option value="editor">Medarbetare</option><option value="reviewer">Granskare</option><option value="viewer">Läsare</option></select>
           <Button type="submit" variant="secondary" disabled={busy !== null || !availableMembers.length}>Lägg till</Button>
         </form>
       </div>

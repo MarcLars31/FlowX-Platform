@@ -63,6 +63,9 @@ export async function POST(request: Request, context: Context) {
       case 'task':
         if (!isUuid(body.rid) || !Number.isSafeInteger(body.revision) || typeof body.done !== 'boolean') return json({ error: 'Ugyldig status.' }, 400);
         await callUserRpc('update_project_task', { pid, rid: body.rid, expected_revision: body.revision, mark_done: body.done }); break;
+      case 'review':
+        if (!isUuid(body.rid) || !Number.isSafeInteger(body.revision) || !['approve','return'].includes(String(body.operation)) || typeof body.note !== 'string' || body.note.length > 4000 || body.operation === 'return' && !body.note.trim()) return json({ error: 'Velg handling og beskriv hva som må endres ved tilbakeføring.' }, 400);
+        await callUserRpc('review_project_work', { pid, rid: body.rid, expected_revision: body.revision, operation: body.operation, note: body.note }); break;
       case 'message':
         if (!isUuid(body.rid) || !body.payload || typeof body.payload !== 'object') return json({ error: 'Ugyldig melding.' }, 400);
         await callUserRpc('write_project_message', { pid, rid: body.rid, payload: body.payload }); break;
