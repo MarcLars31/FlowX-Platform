@@ -1,12 +1,11 @@
 'use client';
 
-import Link from 'next/link';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { isLate, osloDate, type WorkThread } from '@/lib/project-management';
-import { managementMainPosts, managementChapters, type HierarchyPost as ManagedPost, type HierarchySnapshot as ManagementSnapshot, type HierarchySelection as AssignmentSelection } from '@/lib/project-management-hierarchy';
-import { HierarchyAssignmentDialog as AssignmentDialog } from '@/components/HierarchyAssignmentDialog';
-import { SimpleProjectAssignmentBoard } from '@/components/SimpleProjectAssignmentBoard';
-import type { AssignmentSaved, DirectAssignmentChange } from '@/lib/direct-project-assignment';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { type WorkThread } from '@/lib/project-management';
+import { type HierarchyPost as ManagedPost, type HierarchySnapshot as ManagementSnapshot } from '@/lib/project-management-hierarchy';
+import { ProjectAssignmentWorkspace } from '@/components/ProjectAssignmentWorkspace';
+import type { AssignmentSaved } from '@/lib/direct-project-assignment';
+import { supervisorChanges, type UnifiedAssignmentChange } from '@/lib/unified-project-assignment';
 
 const field = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900';
 const button = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50';
@@ -19,14 +18,10 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 export function ProjectManagementBoard({ projectId, onBusyChange }: { projectId: string; onBusyChange?: (busy: boolean) => void }) {
   const [data, setData] = useState<ManagementSnapshot | null>(null);
-  const [followUp, setFollowUp] = useState(false);
   const [undo, setUndo] = useState<AssignmentSaved | null>(null);
   const mutationLock = useRef(false);
   const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [busy, setBusy] = useState(false);
-  const [chapterView, setChapterView] = useState<'pdf' | 'main'>('pdf');
-  const [settings, setSettings] = useState(false); const [search, setSearch] = useState(''); const [filter, setFilter] = useState('all');
-  const [department, setDepartment] = useState(''); const [selected, setSelected] = useState<string[]>([]);
-  const [assign, setAssign] = useState<AssignmentSelection | null>(null); const [activePost, setActivePost] = useState<string | null>(null);
+  const [activePost, setActivePost] = useState<string | null>(null);
   const url = `/api/projects/${projectId}/management`;
   useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); }, [busy, onBusyChange]);
   const load = useCallback((signal?: AbortSignal) => requestJson<ManagementSnapshot>(url, { signal }), [url]);
@@ -58,14 +53,18 @@ export function ProjectManagementBoard({ projectId, onBusyChange }: { projectId:
     catch(error){setError(error instanceof Error?error.message:'Visningen kunne ikke oppdateres.');}
     finally{mutationLock.current=false;setBusy(false);}
   }
-  async function saveDirect(change?: DirectAssignmentChange) {
+  async function saveDirect(change?: UnifiedAssignmentChange) {
+    if (change && data && !data.manager) {
+      try { return await save({ action: 'assign', changes: supervisorChanges(data, change) }); }
+      catch (error) { setError(error instanceof Error ? error.message : 'Tildelingen kunne ikke lagres.'); return false; }
+    }
     if(mutationLock.current) return false;
     if(!data?.assignmentVersion){setError('Oppdater visningen før du endrer tildelingen.');return false;}
     if(!change && !undo?.undoToken)return false;
     mutationLock.current=true;setBusy(true);setError('');setNotice('');
     let saved=false;
     try {
-      const result=await requestJson<AssignmentSaved>(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(change?{action:'directAssign',...change,version:data.assignmentVersion}:{action:'directUndo',undoToken:undo?.undoToken,version:undo?.assignmentVersion})});
+      const result=await requestJson<AssignmentSaved>(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(change?{action:'unifiedAssign',...change,version:data.assignmentVersion}:{action:'directUndo',undoToken:undo?.undoToken,version:undo?.assignmentVersion})});
       saved=true;setUndo(change?result:null);setNotice(change?'Tildelingen er lagret.':'Siste tildeling er angret.');
       const next=await load();setData(next);
       if(next.assignmentVersion!==result.assignmentVersion)setUndo(null);
@@ -73,59 +72,14 @@ export function ProjectManagementBoard({ projectId, onBusyChange }: { projectId:
     } catch(error){setError(saved?'Tildelingen er lagret, men visningen kunne ikke oppdateres. Oppdater før neste endring.':error instanceof Error?error.message:'Tildelingen kunne ikke lagres.');if(saved)setData(current=>current?{...current,assignmentVersion:null}:current);return saved;}
     finally{mutationLock.current=false;setBusy(false);}
   }
-  const chapters = useMemo(() => data ? managementChapters(data, chapterView) : [], [data, chapterView]);
-  const today = osloDate();
-  const filtered = chapters.map(chapter => ({ ...chapter, posts: chapter.posts.filter(post => {
-    const work = data?.assignments.find(w => w.id === post.assignmentId);
-    return (!department || work?.department_id === department) && (!search || `${post.number} ${post.title} ${post.chapter}`.toLocaleLowerCase('nb').includes(search.toLocaleLowerCase('nb'))) &&
-      (filter === 'all' || filter === 'mine' && work?.assigned_to === data?.userId || filter === 'help' && post.openHelp > 0 || filter === 'late' && isLate(post, today) || filter === 'done' && post.done || filter === 'open' && !post.done || filter === 'unassigned' && (!post.assignmentId || post.assignmentMode === 'unassigned'));
-  }) })).filter(chapter => chapter.posts.length);
-  function toggle(id: string) { setSelected(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id]); }
-  if (!data) return <section className="p-6"><h1 className="text-2xl font-semibold">Prosjektstyring</h1>{error ? <p role="alert" className="mt-4 text-red-700">{error} <button className={button} onClick={() => { setError(''); void load().then(setData).catch(e => setError(e.message)); }}>Prøv igjen</button></p> : <p role="status" className="mt-4">Laster prosjektet …</p>}</section>;
-  const name = (id?: string | null) => data.members.find(m => m.id === id)?.name ?? 'Ikke tildelt';
-  const editableAssignment = (post: ManagedPost) => data.manager || data.departments.some(d => d.supervisorId === data.userId && d.id === data.assignments.find(w => w.id === post.assignmentId)?.department_id);
+  if (!data) return <section className="p-6"><h1 className="text-2xl font-semibold">Prosjektstyring</h1>{error ? <p role="alert" className="mt-4 text-red-700">{error} <button className={button} onClick={() => void reload()}>Prøv igjen</button></p> : <p role="status">Laster prosjektet …</p>}</section>;
   const focused = data.posts.find(post => post.id === activePost);
-  if(data.manager && !followUp) return <>
-    <SimpleProjectAssignmentBoard data={data} busy={busy} error={error} notice={notice} canUndo={Boolean(undo?.undoToken)} onAssign={saveDirect} onUndo={()=>void saveDirect()} onFollowUp={()=>setFollowUp(true)} onReload={()=>void reload()} onOpenPost={setActivePost} />
-    {focused && <PostDialog key={focused.id} post={focused} data={data} busy={busy} saveError={error} close={()=>setActivePost(null)} save={save} url={url} />}
-  </>;
-  return <section className="space-y-6 p-4 text-slate-900 lg:p-6">
-    {data.manager && <button data-variant="primary" className={primary} disabled={busy} onClick={()=>{setSettings(false);setFollowUp(false);}}>← Fordel arbeidet</button>}
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><Link className="text-sm text-teal-800 underline" href="/projects/management">Alle prosjekter og varsler</Link><h1 className="mt-2 text-2xl font-semibold">{data.name}</h1><p className="mt-1 text-sm text-slate-600">Prosjektstyring · {data.manager ? 'Prosjektleder' : data.departments.some(d => d.supervisorId === data.userId) ? 'Arbeidsleder' : 'Medarbeider'}</p></div>
-      <div className="flex gap-2"><Link href={`/projects/${projectId}`} className={button}>Åpne prosjekt</Link><button className={button} disabled={busy} onClick={() => { setError(''); void load().then(setData).catch(e => setError(e.message)); }}>Oppdater</button>{data.manager && <button className={button} onClick={() => setSettings(!settings)}>{settings ? 'Vis oppgaver' : 'Avdelinger og frister'}</button>}</div></div>
-    {error && <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-    {notice && <p role="status" className="text-sm text-teal-800">{notice}</p>}
-    {data.manager && data.emailEnabled === false && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Varsler i Scipx er tilgjengelige. E-post er ikke aktivert i dette miljøet ennå.</p>}
-    {(settings || !data.settings && data.departments.length > 0) && data.manager ? <SettingsForm key={data.settings?.revision ?? 'new'} data={data} busy={busy} save={async body => { const ok = await save(body); if (ok) setSettings(false); return ok; }} /> : !data.settings && !data.manager ? <p className="rounded-xl border bg-white p-6">Prosjektlederen må tildele arbeid før oppgavene vises her.</p> : <>
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">{[
-        ['Poster', data.posts.length], ['Ferdige', data.posts.filter(p => p.done).length], ['Trenger hjelp', data.posts.filter(p => p.openHelp).length], ['Over fristen', data.posts.filter(p => isLate(p, today)).length], ['Ikke tildelt', data.posts.filter(p => !p.assignmentId || p.assignmentMode === 'unassigned').length]
-      ].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-sm text-slate-600">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p></div>)}</div>
-      <div className="grid gap-3 rounded-xl border bg-white p-4 lg:grid-cols-3"><label className="text-sm">Søk etter post eller kapittel<input className={`${field} mt-1`} value={search} onChange={e => setSearch(e.target.value)} placeholder="Postnummer eller tekst" /></label>
-        <label className="text-sm">Avdeling<select className={`${field} mt-1`} value={department} onChange={e => setDepartment(e.target.value)}><option value="">Alle tilgjengelige avdelinger</option>{data.departments.filter(d => d.supervisorId).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-        <label className="text-sm">Vis<select className={`${field} mt-1`} value={filter} onChange={e => setFilter(e.target.value)}>{[['all','Alle poster'],['mine','Mine oppgaver'],['open','Ikke ferdige'],['help','Trenger hjelp'],['late','Over fristen'],['done','Ferdige'],['unassigned','Ikke tildelt']].map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>
-      <label className="block max-w-sm text-sm">Kapittelinndeling<select className={`${field} mt-1`} value={chapterView} onChange={e => setChapterView(e.target.value as 'pdf' | 'main')}><option value="pdf">Kapitler fra PDF</option><option value="main">Hovedposter som kapitler</option></select></label>
-      {!data.departments.length && <p className="rounded-lg bg-slate-50 p-4 text-sm">Ikke tildelt · Eksisterende avdelinger vises når de er tilgjengelige fra organisasjonen.</p>}
-      {selected.length > 0 && <div className="sticky top-0 z-10 flex items-center gap-3 rounded-xl bg-slate-900 p-3 text-white"><span>{selected.length} poster valgt</span><button className={button} disabled={busy || !data.settings || selected.length > 500} onClick={() => setAssign({ type: 'post', ids: selected, label: `${selected.length} valgte poster` })}>Tildel valgte</button><button className="text-sm underline" onClick={() => setSelected([])}>Fjern valg</button>{selected.length > 500 && <span className="text-sm">Velg høyst 500 om gangen.</span>}</div>}
-      {filtered.length === 0 && <p className="rounded-xl border bg-white p-8 text-center text-slate-600">Ingen poster passer til visningen. Ufordelt arbeid vises bare for prosjektlederen.</p>}
-      {filtered.map(chapter => <details key={chapter.key} open className="overflow-hidden rounded-xl border border-slate-200 bg-white"><summary className="cursor-pointer bg-slate-50 px-4 py-3 font-semibold">{chapter.title} <span className="ml-2 text-sm font-normal text-slate-500">{chapter.posts.filter(p => p.done).length} / {chapter.posts.length} ferdige i visningen</span></summary>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 text-sm"><span>{chapter.scope !== 'pdf_chapter' && (!chapter.assignment || chapter.assignment.assignment_mode === 'inherit') ? 'Arvet ansvar · se produktpostene' : chapter.assignment && chapter.assignment.assignment_mode !== 'unassigned' && chapter.assignment.assignment_mode !== 'inherit' ? `${data.departments.find(d => d.id === chapter.assignment?.department_id)?.name ?? 'Direkte tildeling'} · ${name(chapter.assignment.assigned_to)}` : 'Ikke tildelt'} · Frist: {chapter.scope === 'pdf_chapter' ? chapter.assignment?.due_date ?? data.settings?.deadline ?? 'Ingen frist' : 'Se produktpostene'}</span>
-          {(data.manager || data.departments.some(d => d.id === chapter.assignment?.department_id && d.supervisorId === data.userId)) && <button className={button} disabled={busy || !data.settings || chapter.review} onClick={() => setAssign({ type: chapter.scope, ids: [chapter.anchor], label: chapter.title })}>{chapter.scope === 'pdf_chapter' ? 'Tildel kapittel' : 'Tildel hovedpost'}{data.manager && chapter.scope === 'pdf_chapter' ? ' / endre frist' : ''}</button>}</div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="border-b text-xs uppercase tracking-wide text-slate-500"><tr><th className="w-10 p-3"><span className="sr-only">Velg</span></th><th className="p-3">Post</th><th className="p-3">Ansvarlig</th><th className="p-3">Frist</th><th className="p-3">Status</th><th className="p-3">Oppfølging</th></tr></thead><tbody>
-          {managementMainPosts(chapter.posts, data.assignments).map(group => <Fragment key={group.key}>
-            {chapterView === 'pdf' && !group.standalone && <tr className="border-y bg-slate-100"><th colSpan={6} className="p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span>{group.number} {group.title}</span>{(data.manager || data.departments.some(d => d.supervisorId === data.userId && d.id === data.assignments.find(w => w.id === group.posts[0]?.assignmentId)?.department_id)) && <button className={button} disabled={busy || !data.settings || group.review} onClick={() => setAssign({ type: 'main_post', ids: [group.anchor], label: `${group.number} ${group.title}` })}>Tildel hovedpost</button>}</div></th></tr>}
-            {group.review && <tr><td colSpan={6} className="px-3 py-2 text-amber-800">Kontroller hovedpostkoblingen. Originalposten er bevart.</td></tr>}
-          {group.posts.map(post => { const work = data.assignments.find(w => w.id === post.assignmentId); return <tr key={post.id} className="border-b last:border-0 hover:bg-slate-50"><td className="p-3">{editableAssignment(post) && <input type="checkbox" aria-label={`Velg post ${post.number ?? post.title}`} checked={selected.includes(post.id)} onChange={() => toggle(post.id)} />}</td>
-            <td className="max-w-md p-3"><button onClick={() => setActivePost(post.id)} className="text-left font-medium text-teal-900 hover:underline">{post.number ?? 'Uten nummer'} · {post.title || 'Post uten tittel'}</button>{work?.assignment_mode === 'unassigned' && <span className="mt-1 block text-xs text-slate-500">Ikke tildelt · {work.scope_type === 'post' ? 'eget unntak' : work.scope_type === 'main_post' ? 'arvet fra hovedpost' : 'arvet fra kapittel'}</span>}{work?.scope_type === 'main_post' && work.assignment_mode !== 'unassigned' && <span className="mt-1 block text-xs text-slate-500">Arvet fra hovedpost</span>}{work?.scope_type === 'post' && work.assignment_mode !== 'unassigned' && <span className="mt-1 block text-xs text-slate-500">Egen tildeling</span>}</td>
-            <td className="p-3">{name(work?.assigned_to)}<span className="block text-xs text-slate-500">{data.departments.find(d => d.id === work?.department_id)?.name}</span></td>
-            <td className={`whitespace-nowrap p-3 ${isLate(post, today) ? 'font-semibold text-red-700' : ''}`}>{post.dueDate ?? 'Ingen frist'}<span className="block text-xs font-normal text-slate-500">{post.ownDeadline ? 'Egen frist' : 'Tildelt frist'}</span></td>
-            <td className="p-3"><span className={`rounded-full px-2 py-1 text-xs ${post.done ? 'bg-teal-100 text-teal-900' : post.openHelp ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'}`}>{post.done ? 'Ferdig' : post.openHelp ? 'Trenger hjelp' : 'Ikke ferdig'}</span></td>
-            <td className="p-3"><button className={button} onClick={() => setActivePost(post.id)}>Åpne{post.openHelp ? ` · ${post.openHelp} hjelpebehov` : ''}</button></td></tr>; })}</Fragment>)}
-        </tbody></table></div></details>)}
-      <p className="text-xs text-slate-500">Klarmarkering gjelder arbeidsoppgaven. Produktvalg og tekniske kontroller følger fortsatt sine egne regler. Hele PDF-underlaget er tilgjengelig for prosjektlederen; avdelinger ser sine tildelte poster.</p>
-    </>}
-    {assign && <AssignmentDialog key={`${assign.type}:${assign.ids.join()}`} data={data} selection={assign} busy={busy} error={error} close={() => setAssign(null)} save={async body => { const ok = await save(body); if (ok) { setAssign(null); setSelected([]); } return ok; }} />}
+  return <>
+    <ProjectAssignmentWorkspace data={data} busy={busy} error={error} notice={notice} canUndo={Boolean(undo?.undoToken)}
+      onAssign={saveDirect} onUndo={() => void saveDirect()} onReload={() => void reload()} onOpenPost={setActivePost}
+      settings={data.manager ? <SettingsForm key={data.settings?.revision ?? 'new'} data={data} busy={busy} save={save} /> : undefined} />
     {focused && <PostDialog key={focused.id} post={focused} data={data} busy={busy} saveError={error} close={() => setActivePost(null)} save={save} url={url} />}
-  </section>;
+  </>;
 }
 
 function SettingsForm({ data, busy, save }: { data: ManagementSnapshot; busy: boolean; save: (body: unknown) => Promise<boolean> }) {

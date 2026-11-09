@@ -4,6 +4,7 @@ import { callUserRpc, selectUserRows, UserSupabaseError } from '@/lib/supabase-u
 import { isUuid } from '@/lib/distributor-product-mapping';
 import { readJsonBody, RequestBodyTooLargeError } from '@/lib/request-body';
 import { managementError } from '@/lib/project-management';
+import { validUnifiedAssignment } from '@/lib/unified-project-assignment';
 import { isAssignmentVersion, validDirectAssignment, type AssignmentSaved } from '@/lib/direct-project-assignment';
 import { actionableManagementSnapshot, type HierarchySnapshot as ManagementSnapshot } from '@/lib/project-management-hierarchy';
 import { flushProjectWorkEmails, projectWorkEmailConfig } from '@/lib/project-work-email.server';
@@ -39,6 +40,11 @@ export async function POST(request: Request, context: Context) {
     const pid = auth.id;
     let result: AssignmentSaved | undefined;
     switch (body.action) {
+      case 'unifiedAssign':
+        if (!validUnifiedAssignment(body)) return json({ error: 'Velg kapitler eller poster, avdeling og / eller person.' }, 400);
+        result = await callUserRpc<AssignmentSaved>('assign_project_work_unified', { pid, targets: body.targets, assignee: body.assignee,
+          assignment_mode: body.mode, replace_overrides: body.replaceOverrides, expected_version: body.version,
+          department: body.department, chapter_deadline: body.deadline, update_deadline: body.setDeadline }); break;
       case 'directAssign':
         if (!validDirectAssignment(body)) return json({ error: 'Velg 1–500 kapitler eller poster og en ansvarlig.' }, 400);
         result = await callUserRpc<AssignmentSaved>('assign_project_work_direct', { pid, targets: body.targets, assignee: body.assignee, assignment_mode: body.mode, replace_overrides: body.replaceOverrides, expected_version: body.version }); break;
