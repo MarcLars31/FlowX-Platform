@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
 import { managementChapters, type HierarchyAssignment, type HierarchySnapshot } from '@/lib/project-management-hierarchy';
 import type { AssignmentTarget } from '@/lib/direct-project-assignment';
@@ -43,7 +44,7 @@ export function ProjectAssignmentWorkspace({ data, busy, error, notice, canUndo,
   const queue = data.posts.filter(post => { const work = assignments.get(post.assignmentId ?? ''); return work?.department_id && !work.assigned_to; }).length;
 
   return <section className="space-y-5 p-4 text-slate-900 lg:p-6" aria-label="Fordel arbeidet">
-    <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-teal-800">Prosjektstyring · {data.name}</p><h1 className="mt-2 text-2xl font-semibold">Kapitler og ansvar</h1><p className="mt-2 text-sm text-slate-600">Fordel kapitler og poster til avdelinger og personer. Følg frister og fremdrift i samme oversikt.</p></div><button className={button} disabled={busy} onClick={onReload}>Oppdater</button></header>
+    <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-teal-800">Prosjektstyring · {data.name}</p><h1 className="mt-2 text-2xl font-semibold">Kapitler og ansvar</h1><p className="mt-2 text-sm text-slate-600">Fordel kapitler og poster til avdelinger og personer. Følg frister og fremdrift i samme oversikt.</p></div><div className="flex gap-2"><Link className={button} href={`/projects/${data.projectId}/reports`}>Rapporter</Link><button className={button} disabled={busy} onClick={onReload}>Oppdater</button></div></header>
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[['Poster', data.posts.length], ['Ferdige', data.posts.filter(post => post.done).length], ['Uten person', pending], ['I avdelingskø', queue]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white px-4 py-3"><p className="text-2xl font-semibold tabular-nums text-teal-950">{value}</p><p className="mt-1 text-xs text-slate-600">{label}</p></div>)}</div>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-teal-50 px-4 py-3 text-sm"><span>Din rolle i prosjektet: <strong>{data.manager ? 'Prosjektleder' : data.reviewer ? 'Gransker' : canManage ? 'Arbeidsleder' : data.posts.some(post => post.canEdit) ? 'Medarbeider' : 'Leser'}</strong></span>{data.settings?.review_required ? <span>Granskning på · {data.posts.filter(post => post.reviewState === 'ready').length} venter · {data.reviewerName ?? 'Velg aktiv gransker'}</span> : <span>Granskning er av</span>}</div>
     {settings && <details className="rounded-xl border border-slate-200 bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Avdelinger, frister og granskning</summary><div className="border-t border-slate-200">{settings}</div></details>}
