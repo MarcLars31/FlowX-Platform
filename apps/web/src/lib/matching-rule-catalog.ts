@@ -1,6 +1,6 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-10-22.5";
-export const RULE_CATALOG_DATE = "22 oktober 2026";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-11.1";
+export const RULE_CATALOG_DATE = "11 november 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
@@ -24,8 +24,9 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
   {
     id: "technical-evaluation", title: "Gemensam teknisk kontroll", appliesTo: "Alla produktkandidater efter sökningen", kind: "requirement",
     description: "Sökningen hittar kandidater. En separat kontroll jämför varje faktiskt krav med dokumenterade produktdata.",
-    sources: ["effective-requirements.ts", "effective-requirements.server.ts", "technical-evaluation-model.ts", "technical-evaluator.ts", "ahlsell-technical-evaluator.ts"],
+    sources: ["effective-requirements.ts", "effective-requirements.server.ts", "technical-evaluation-model.ts", "technical-evaluator.ts", "ahlsell-technical-evaluator.ts", "product-search-trace.ts", "../components/ProductSearchDetails.tsx", "../components/TechnicalEvaluationDetails.tsx"],
     rules: [
+      rule("search-criteria-evidence", "Visa sökunderlag och produktbevis", "Användaren granskar ett produktförslag.", "Visa serverns sökunderlag och tolkade kriterier, faktiskt försökta sökfraser efter begränsning och normalisering samt vilka uppslag som misslyckades. Tekniska indata är inte automatiskt absoluta sökfilter. Manuella huvudproduktsökningar visar användarens uppslag separat från efterföljande kravkontroll. Jämförelsen visar dokumenterade produktvärden, källutdrag och registrerat datum. Ärvt krav utan källsida får inte använda underpostens sida. Visningen gäller den aktuella sökningen och utgör inte en sparad attest av tidigare produktval.", { kind: "review" }),
       rule("effective-requirements", "Samma krav i kort, sökning och kontroll", "En produktpost öppnas eller en kandidat bedöms.", "Använd postens egna sparade fält och relevanta tekniska fält från dess direkta produkthuvudpost i sökning och teknisk kontroll. Underpostens egna värden har företräde, även över likvärdiga fältnamn som PN och Trykk: PN. Kravens källpost och sida följer bedömningen. PDF-kortet visar den valda postens original. Huvudpostens text finns kvar i PDF-underlaget och dess tekniska fält används fortfarande vid relevant produktkontroll. Kapiteltext, syskonposter och projektets standardvärden läggs inte till. Olösta krav och konflikter kräver verifiering. PDF-filer tolkas inte om och sparade produktval ändras inte vid läsning."),
       rule("technical-status", "MATCH, FAIL eller VERIFY per krav", "Krav jämförs med produktdata för den aktuella artikeln.", "MATCH kräver stöd för samtliga obligatoriska krav. Ett konstaterat obligatoriskt fel ger FAIL. Saknad, gammal, motsägelsefull eller otolkad information ger VERIFY. Ett tomt kravunderlag kan aldrig ge MATCH."),
       rule("technical-revision", "Ändrade krav kräver ny kontroll", "Den aktuella postens krav ändras efter att kortet öppnats.", "Resultat för en annan kravversion godtas inte. Produktvalet måste kontrolleras igen före sparande. Krav- och evidensversioner följer bedömningen."),

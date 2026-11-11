@@ -14,6 +14,8 @@ import { readJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
 import { UserSupabaseError } from "@/lib/supabase-user-rest";
 import { loadEffectiveRequirement } from "@/lib/effective-requirements.server";
+import { requirementForSearch } from "@/lib/effective-requirements";
+import { productSearchTrace } from "@/lib/product-search-trace";
 
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ id: string; requirementId: string }> };
@@ -50,7 +52,12 @@ export async function POST(request: Request, context: RouteContext) {
       ? result.products
       : assessAhlsellLookupCandidates(requirement, result.products)
       .map(candidate => ({ ...candidate, subtitle: result.products.find(product => product.articleNumber === candidate.articleNumber)?.subtitle }));
-    return NextResponse.json({ ...result, products }, { headers });
+    const searchInput = requirementForSearch(requirement);
+    const guide = buildAhlsellRequirementGuide(searchInput);
+    const input = parseAhlsellLookupQuery(body?.query, ahlsellMarketFromSearchUrl(guide.searchUrl));
+    const searchTrace = body?.accessory === true ? undefined : productSearchTrace(requirement, searchInput, guide,
+      [{ kind: "manual", query: input.query, status: "completed" }], "manual");
+    return NextResponse.json({ ...result, products, searchTrace }, { headers });
   } catch (error) {
     if (supplier.retryAfter) return NextResponse.json({error:"Produktsökningen är tillfälligt upptagen. Försök igen om en stund."},{status:429,headers:{...headers,"Retry-After":String(supplier.retryAfter)}});
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Sökningen är för lång." }, { status: 413, headers });

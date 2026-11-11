@@ -18,6 +18,7 @@ import { technicalText } from "./technical-evaluation-model";
 
 import { evaluateAhlsellCandidates } from "./ahlsell-technical-evaluator";
 import { requirementForSearch } from "./effective-requirements";
+import { productSearchTrace, type ProductSearchAttempt } from "./product-search-trace";
 
 /** MLDL is always available. Only product search terms/NRFs go to Ahlsell. */
 export async function findAhlsellHybridCandidates(requirement: Record<string, unknown>, fetchImpl: typeof fetch = fetch, store?: AhlsellEvidenceStore, offerCatalog?: AhlsellOfferCatalog | null): Promise<AhlsellCatalogResult> {
@@ -30,13 +31,15 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
   const commentArticle = String(value?.attributes?.["pdf-kommentar"] ?? "").match(/\b\d{6,8}(?:N5)?\b/i)?.[0];
   const primaryArticle = commentArticle ?? local.find(candidate => technicalConflictWarnings(candidate).length === 0)?.articleNumber;
   const queries = [...new Set([...(primaryArticle ? [primaryArticle] : []), ...guide.searchQueries])];
+  const attempts: ProductSearchAttempt[] = [];
   // Check the leading MLDL article by its exact NRF, independently of the
   // broader family search, which may return a different variant of that family.
   const [search, exact] = await Promise.allSettled([
-    searchAhlsellPublicCatalogQueries({ market, queries: guide.searchQueries, fetchImpl, maxCandidates: 40, maxPages: 2, maxVariantFamilies: 4 }),
+    searchAhlsellPublicCatalogQueries({ market, queries: guide.searchQueries, fetchImpl, maxCandidates: 40, maxPages: 2, maxVariantFamilies: 4, onSearch: attempt => attempts.push(attempt) }),
     primaryArticle ? lookupAhlsellProduct({ query: primaryArticle, market, fetchImpl, store }) : Promise.resolve(null)
   ]);
   const result = search.status === "fulfilled" ? search.value : null;
+  if (primaryArticle) attempts.push({ kind: "article", query: primaryArticle, status: exact.status === "fulfilled" ? "completed" : "failed" });
   const exactProducts = exact.status === "fulfilled" ? (exact.value?.products ?? [])
     .filter(product => articleKey(product.articleNumber) === articleKey(primaryArticle ?? "")) : [];
   const publicByArticle = new Map((result?.candidates ?? []).map(candidate => [articleKey(candidate.articleNumber), candidate]));
@@ -71,6 +74,7 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
     ...(exact.status === "rejected" && primaryArticle ? [primaryArticle] : [])];
   const anySearchSucceeded = search.status === "fulfilled" || (Boolean(primaryArticle) && exact.status === "fulfilled");
   return {
+    searchTrace: productSearchTrace(authoritativeRequirement, requirement, guide, attempts),
     query: queries[0] ?? guide.searchQuery, queries, searchUrl: guide.searchUrl,
     searchUrls: [...new Set([...(result?.searchUrls ?? []), ...(exact.status === "fulfilled" && exact.value ? [exact.value.searchUrl] : [])])],
     total: candidates.length, candidates,

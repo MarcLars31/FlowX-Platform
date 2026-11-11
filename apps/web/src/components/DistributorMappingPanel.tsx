@@ -41,6 +41,8 @@ import { ahlsellCatalogStatusFromPayload, type AhlsellCatalogMatchStatus } from 
 import { orderAhlsellCandidatesForDisplay } from "@/lib/ahlsell-candidate-ranking";
 import { effectiveRequirements } from "@/lib/effective-requirements";
 import { TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
+import { ProductSearchDetails } from "./ProductSearchDetails";
+import type { ProductSearchTrace } from "@/lib/product-search-trace";
 import { ahlsellMldlProduct } from "@/lib/ahlsell-mldl-catalog";
 import { AhlsellCandidateList } from "@/components/AhlsellCandidateList";
 import { AhlsellProductLookup } from "@/components/AhlsellProductLookup";
@@ -986,7 +988,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
               onClearSelection={clearSelectedProduct}
               onUseCandidate={applyAhlsellCandidate}
               onUseMemory={applyMemory}
-              renderSelected={candidateFor => (
+              renderSelected={(candidateFor, searchTrace) => (
                 <div className="product-linked-content">
                 <p role="status" aria-live="polite" className="sr-only">{hasUnapprovedChanges ? draftNotice : ""}</p>
                 {choices.map((choice, index) => <section key={choice.id} id={`selected-pipe-${requirement.id}-${choice.id}`} tabIndex={-1} aria-label={`Valgt produkt ${index + 1}: ${choice.product.productName}`} className="product-selected-item">
@@ -1007,7 +1009,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
                     {choice.product.deliveryTimeDays && <div><dt>Leveringstid</dt><dd>{choice.product.deliveryTimeDays} dager</dd></div>}
                     {choice.product.unitPrice && <div><dt>Pris</dt><dd>{formatUnitPrice(choice.product.unitPrice, choice.product.currency)}</dd></div>}
                   </dl>}
-                  <div className="product-selected-assessment"><TechnicalEvaluationDetails evaluation={candidateFor(choice.product.productNumber)?.technicalEvaluation} searchScore={candidateFor(choice.product.productNumber)?.searchScore} /></div>
+                  <div className="product-selected-assessment"><ProductSearchDetails trace={candidateFor(choice.product.productNumber) ? searchTrace : undefined} /><TechnicalEvaluationDetails evaluation={candidateFor(choice.product.productNumber)?.technicalEvaluation} searchScore={candidateFor(choice.product.productNumber)?.searchScore} /></div>
                   {choice.review?.status === "mismatch" && <details className="p-3 text-sm"><summary>Avvikelser mot postens krav</summary><ul>{choice.review.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}
                   {choice.id === activeChoice.id ? accessorySection : <div className="border-t border-neutral-200 bg-white p-4">
                     <h5 className="mb-3 font-bold">Tilbehør ({choice.accessories.length})</h5>
@@ -1063,7 +1065,7 @@ function AhlsellPublicMatchPanel({ resource, projectId, requirementId, requireme
   onCatalogResult: (requirementId: string, status: AhlsellCatalogMatchStatus) => void;
   onClearSelection: () => void;
   onUseCandidate: (candidate: AhlsellPublicCandidate, productSubtitle?: string) => void;
-  renderSelected: (candidateFor: (number: string) => AhlsellPublicCandidate | undefined) => ReactNode;
+  renderSelected: (candidateFor: (number: string) => AhlsellPublicCandidate | undefined, searchTrace?: ProductSearchTrace) => ReactNode;
   onUseMemory: (memory: Row, resolved?: { productName?: string; productSubtitle?: string; candidate?: AhlsellPublicCandidate }) => void;
 }) {
   const [catalogResult, setCatalogResult] = useState<AhlsellCatalogResult | null>(null);
@@ -1101,6 +1103,7 @@ function AhlsellPublicMatchPanel({ resource, projectId, requirementId, requireme
   // Server results already contain the combined assessment. Re-merging the
   // initial guide would restore missing-value warnings resolved by Ahlsell.
   const currentCandidates = catalogResult?.candidates.filter(candidate => candidate.technicalEvaluation?.requirementRevision === requirementRevision);
+  const searchTrace = !loadingCatalog && !catalogError && catalogResult?.searchTrace?.requirements.revision === requirementRevision ? catalogResult.searchTrace : undefined;
   const mergedCandidates = (currentCandidates ?? guide.directCandidates)
     .filter(candidate => !pipeMainProduct || isRigidPipeProduct(candidate.productName));
   const candidatesByArticle = new Map(mergedCandidates.map((candidate) => [
@@ -1126,7 +1129,8 @@ function AhlsellPublicMatchPanel({ resource, projectId, requirementId, requireme
 
   return (
     <section aria-label="Produkter">
-      {selectedArticleNumber.trim() && <details className="chapter-selected-details"><summary>Vald produkt: mängd, tillbehör och kommentarer</summary>{renderSelected(number => candidatesByArticle.get(normalizeNrfNumber(number)))}</details>}
+      {selectedArticleNumber.trim() && <details className="chapter-selected-details"><summary>Vald produkt: mängd, tillbehör och kommentarer</summary>{renderSelected(number => candidatesByArticle.get(normalizeNrfNumber(number)), searchTrace)}</details>}
+      {!mergedCandidates.length && <ProductSearchDetails trace={searchTrace} />}
       {loadingCatalog && (
         <div className="flex min-h-16 items-center justify-center gap-2 border-t border-neutral-200 bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-800" role="status">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Søker automatisk på leverandørens nettsted…
@@ -1186,6 +1190,7 @@ function AhlsellPublicMatchPanel({ resource, projectId, requirementId, requireme
                         <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
                         Tidligere bekreftet · dagens tekniske kontroll gjelder
                       </p>
+                      <ProductSearchDetails trace={candidate ? searchTrace : undefined} />
                       <TechnicalEvaluationDetails evaluation={candidate?.technicalEvaluation} searchScore={candidate?.searchScore} />
                     </div>
                     <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-neutral-800">
@@ -1214,6 +1219,7 @@ function AhlsellPublicMatchPanel({ resource, projectId, requirementId, requireme
       )}
 
       <AhlsellCandidateList
+        searchTrace={searchTrace}
         compact
         expandedMatches
         candidates={filteredCandidates}

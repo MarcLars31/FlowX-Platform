@@ -9,9 +9,12 @@ import { technicalConflictWarnings } from "@/lib/ahlsell-technical-conflicts";
 import { groupAhlsellCandidatesForDisplay, normalizeNrfNumber } from "@/lib/product-card-candidates";
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import { TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
+import { ProductSearchDetails } from "./ProductSearchDetails";
+import type { ProductSearchTrace } from "@/lib/product-search-trace";
 
-export function AhlsellCandidateList({ candidates, requirementId, selectedArticleNumber, selectedArticleNumbers, accessory = false, selectionLimitReached = false, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, expandedMatches = false, compact = false, onSelect }: {
+export function AhlsellCandidateList({ candidates, searchTrace, requirementId, selectedArticleNumber, selectedArticleNumbers, accessory = false, selectionLimitReached = false, disabled, allowMatches, accessoryRequirements = [], showNoMatch = true, expandedMatches = false, compact = false, onSelect }: {
   candidates: AhlsellPublicCandidate[];
+  searchTrace?: ProductSearchTrace;
   requirementId: string;
   selectedArticleNumber: string;
   selectedArticleNumbers?: string[];
@@ -49,6 +52,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
           {matched ? "Samsvarer med kravene" : state === "mismatch" ? "Avvik mot kravene" : "Må kontrolleres"}
         </p>
         <AhlsellCandidateWarnings candidate={candidate} />
+        <ProductSearchDetails trace={searchTrace} />
         <TechnicalEvaluationDetails evaluation={candidate.technicalEvaluation} searchScore={candidate.searchScore} />
       </article>
     );
@@ -76,6 +80,7 @@ export function AhlsellCandidateList({ candidates, requirementId, selectedArticl
               </p>
             ) : null}
             {state !== "review" && <AhlsellCandidateWarnings candidate={candidate} />}
+            <ProductSearchDetails trace={searchTrace} />
             <TechnicalEvaluationDetails evaluation={candidate.technicalEvaluation} searchScore={candidate.searchScore} />
           </div>
           <div className="flex shrink-0 items-center gap-3">
