@@ -1,9 +1,9 @@
 {
-  "version": "scipx-product-rules-2026-11-11.1",
+  "version": "scipx-product-rules-2026-11-11.2",
   "sources": {
     "../components/AhlsellCandidateList.tsx": "5c9a69262253bd68df43961ce0930109a581e12c709fac2f34ae39f089c75a34",
-    "../components/ChapterWorkspaceNavigation.tsx": "82cc568973d0d625626eb1eb37f1b38d912c07b9bf4e804f4e1a30121ca708ff",
-    "../components/DistributorMappingPanel.tsx": "4f8b3769c26a9418a2c459852ebc51e1211f1a78eedb83ab2230995dbbfdb50d",
+    "../components/ChapterWorkspaceNavigation.tsx": "221632d72fe73b7469baf80e310aa4b935d1d5da8c5c5e9a870a6aa64877f554",
+    "../components/DistributorMappingPanel.tsx": "ef2b2457f5823525c3b0e0563d7cb425a9d08c992edc15372ce87e559b354fcf",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
     "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",
     "../components/ProductPostNavigation.tsx": "7d651d7d9ff8541d9058fbcd5fa4e9ddf9b7e0332147bb570a7a339add8c46d7",
