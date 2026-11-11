@@ -33,13 +33,11 @@ export function ChapterSectionProgress({chapter,section,selected}: {chapter:Work
 
 function SourceRequirements({ source, label }: { source?: ChapterSource; label: string }) {
   const text = source?.text.trim() || "Ingen separat kravtext finns sparad för denna nivå.";
-  const split = text.length > 1400 ? Math.max(text.lastIndexOf("\n", 1000), 800) : text.length;
   return <section className="chapter-source-requirements" aria-label={label}>
     <p className="chapter-source-label">{label}</p>
     {source && <h3>{source.number} {source.title}</h3>}
     {source?.pages.length ? <p className="chapter-source-pages">PDF-sida {source.pages.join(", ")}</p> : null}
-    <p className="chapter-original-text">{text.slice(0, split)}</p>
-    {split < text.length && <details className="chapter-full-source"><summary>Visa hela kravtexten · {text.length - split} tecken dolda</summary><p className="chapter-original-text">{text.slice(split)}</p></details>}
+    <p className="chapter-original-text">{text}</p>
   </section>;
 }
 export function ChapterRequirements({ workspace, chapter, section }: {
@@ -49,7 +47,7 @@ export function ChapterRequirements({ workspace, chapter, section }: {
     .filter((id): id is string => Boolean(id && workspace.sources[id]?.text.trim()));
   const content = sources.map(id => <SourceRequirements key={id} source={workspace.sources[id]} label={chapter.kind === "review" ? "PDF-text för kontroll" : "Krav och information"} />);
   return <div className="chapter-common-requirements">
-    {section.requirementIds.length && sources.length ? <details><summary>Krav och information för kapitlet</summary>{content}</details> : content}
+    {content}
     {section.warning && <p role="status" className="chapter-warning">{section.warning}</p>}
   </div>;
 }

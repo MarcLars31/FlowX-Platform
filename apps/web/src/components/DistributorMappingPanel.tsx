@@ -212,8 +212,8 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
         {!activeRequirement && <><h2>{section.number} {section.title}</h2><ChapterSectionProgress chapter={chapter} section={section} selected={approvedRequirementIds} /></>}
       </header>
       {!activeRequirement && <>
-        {sectionRows.length > 0 && <SectionPosts rows={sectionRows} assignments={approvedAssignmentByRequirementId} disabled={productCardSaving} onSelect={showRequirement} />}
         <ChapterRequirements workspace={workspace} chapter={chapter} section={section} />
+        {sectionRows.length > 0 && <SectionPosts rows={sectionRows} assignments={approvedAssignmentByRequirementId} disabled={productCardSaving} onSelect={showRequirement} />}
       </>}
       {(message || error) && <p role={error ? "alert" : "status"} className="product-selection-feedback">{error ?? message}</p>}
       <div id="chapter-active-anchor" className="scroll-mt-24" tabIndex={-1} aria-label="Aktiv produktpost" />
