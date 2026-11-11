@@ -29,7 +29,7 @@ test("series proposals require proven dimensions and reject known conflicts, reg
   assert.equal(dimensionMatchedSeriesProducts([{...good,technicalEvaluation:undefined}]).length,0);
   assert.equal(dimensionMatchedSeriesProducts([{...good,technicalEvaluation:{...good.technicalEvaluation!,checks:[]}}]).length,0);
 });
-test("main card opens common requirements separately and status icons are not controls", () => {
+test("main card shows common requirements above underposts and status icons are not controls", () => {
   const html=renderToStaticMarkup(createElement(ProductPostGroupPanel,{
     group:{id:"parent",sourceId:"parent",number:"33.332.6",title:"VANNLEDNING",requirementIds:["a","b"]},
     source:{id:"parent",number:"33.332.6",title:"VANNLEDNING",text:"Materiale: Stål\nTrykk: PN12",pages:[1]},
@@ -41,7 +41,9 @@ test("main card opens common requirements separately and status icons are not co
   assert.match(html,/<header><h3><button[^>]+aria-label="Åpne hovedpost 33.332.6: VANNLEDNING"/);
   assert.match(html,/Vis krav og informasjon/);
   assert.match(html,/aria-haspopup="dialog"/);
-  assert.doesNotMatch(html,/Trykk: PN12/);
+  assert.match(html,/Trykk: PN12/);
+  assert.match(html,/PDF-side 1/);
+  assert.ok(html.indexOf("Trykk: PN12") < html.indexOf('aria-label="Underposter til'));
   assert.match(html,/Til gjennomgang/); assert.match(html,/Godkjent/);
   assert.equal((html.match(/aria-current="true"/g)??[]).length,1);
   assert.match(html,/aria-controls="product-post-candidate-panel"/);

@@ -1,4 +1,6 @@
 import type { EffectiveRequirementSet, TechnicalEvaluation } from "@/lib/technical-evaluation-model";
+import { productEvidenceHref } from "@/lib/product-search-trace";
+import { requirementSourceLabel } from "./ProductSearchDetails";
 const comparison = { eq: "=", gte: "≥", lte: "≤", one_of: "én av", range: "intervall", contains: "inkluderer" };
 
 export function EffectiveRequirementsPanel({ requirements }: { requirements: EffectiveRequirementSet }) {
@@ -17,16 +19,30 @@ export function EffectiveRequirementsPanel({ requirements }: { requirements: Eff
 }
 
 export function TechnicalEvaluationDetails({ evaluation, searchScore }: { evaluation?: TechnicalEvaluation; searchScore?: number | null }) {
-  if (!evaluation) return <p className="mt-1 text-xs">VERIFY · Teknisk kontroll er ikke utført.</p>;
-  return <details className="mt-2 text-xs">
-    <summary className="cursor-pointer font-bold">{evaluation.status} · Vis teknisk kontroll ({evaluation.checks.length})</summary>
+  const labels = { MATCH: "Oppfyller kontrollerte krav", FAIL: "Avvik", VERIFY: "Må kontrolleres" };
+  if (!evaluation) return <p className="mt-1 text-xs">Teknisk kontroll er ikke utført.</p>;
+  return <details className="mt-2 min-w-0 text-xs leading-5 [overflow-wrap:anywhere]">
+    <summary className="cursor-pointer font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Sammenlign med produktopplysningene · {labels[evaluation.status]}</summary>
+    <p className="mt-2 text-neutral-600">Kontrollen dekker kravene nedenfor og er ikke en godkjenning av hele installasjonen.</p>
     {searchScore != null && <p className="mt-2 text-neutral-600">Søkepoeng: {Math.round(searchScore)}. Relevans er ikke en teknisk godkjenning.</p>}
     <ul className="mt-2 space-y-3">
-      {evaluation.checks.map((check, index) => <li key={`${check.requirementId}:${index}`}>
-        <p><strong>{check.status} · {check.label}</strong>{!check.mandatory ? " · valgfritt" : ""}</p>
+      {evaluation.checks.map((check, index) => <li key={`${check.requirementId}:${index}`} className="rounded border border-neutral-200 p-2">
+        <p><strong>{labels[check.status]} · {check.label}</strong>{!check.mandatory ? " · valgfritt" : ""}</p>
+        <dl className="my-2 grid gap-2 sm:grid-cols-2">
+          <div><dt className="font-semibold">Prosjektets krav</dt><dd className="whitespace-pre-wrap">{check.source?.raw ?? check.expected}</dd>
+            {check.source && <dd className="text-neutral-600">{requirementSourceLabel(check.source)}</dd>}</div>
+          <div><dt className="font-semibold">Produktens opplysning</dt><dd>{check.actual ?? "Sammenlignbar produktopplysning mangler"}</dd></div>
+        </dl>
         <p>{check.reason}</p>
-        {check.source && <p>Krav: {check.source.raw} · {check.source.kind === "project" ? "prosjekt" : check.source.postNumber ?? "PDF"}{check.source.page ? `, side ${check.source.page}` : ""}</p>}
-        {check.actual && <p>Produkt: {check.actual}</p>}
+        {check.evidence.length > 0 && <ul className="mt-2 space-y-2 border-t border-neutral-200 pt-2" aria-label={`Produktkilder for ${check.label}`}>
+          {check.evidence.map((evidence, evidenceIndex) => <li key={evidenceIndex}>
+            <p className="whitespace-pre-wrap">{evidence.raw}</p>
+            <p>Kilde: {productEvidenceHref(evidence.source) ? <a className="underline" href={productEvidenceHref(evidence.source)} target="_blank" rel="noopener noreferrer">{evidence.source}</a> : evidence.source || "Ikke registrert"}</p>
+            {evidence.observedAt && <p>Hentet/verifisert: {evidence.observedAt}</p>}
+            {!evidence.documented && <p>Opplysningen er ikke verifisert som dokumentert.</p>}
+            {evidence.conditions?.length ? <p>Forutsetninger: {evidence.conditions.join(" · ")}</p> : null}
+          </li>)}
+        </ul>}
       </li>)}
     </ul>
   </details>;

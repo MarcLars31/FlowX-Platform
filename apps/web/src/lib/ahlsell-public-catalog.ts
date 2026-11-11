@@ -1,10 +1,12 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
+import type { ProductSearchAttempt, ProductSearchTrace } from "./product-search-trace";
 import { buildAhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
 import { isValveInsulationProduct, nominalDiameterRange } from "./product-search-names";
 
 export type AhlsellMarket = "no" | "se";
 
 export type AhlsellCatalogResult = {
+  searchTrace?: ProductSearchTrace;
   query: string;
   queries: string[];
   searchUrl: string;
@@ -118,7 +120,8 @@ export async function searchAhlsellPublicCatalogQueries({
   fetchImpl = fetch,
   maxCandidates = 80,
   maxVariantFamilies = MAX_VARIANT_FAMILIES,
-  maxPages = MAX_PAGES
+  maxPages = MAX_PAGES,
+  onSearch
 }: {
   market: AhlsellMarket;
   queries: string[];
@@ -126,6 +129,7 @@ export async function searchAhlsellPublicCatalogQueries({
   maxCandidates?: number;
   maxVariantFamilies?: number;
   maxPages?: number;
+  onSearch?: (attempt: ProductSearchAttempt) => void;
 }): Promise<AhlsellCatalogResult> {
   const cleanQueries = [...new Set(
     queries
@@ -141,6 +145,7 @@ export async function searchAhlsellPublicCatalogQueries({
     searchAhlsellPublicCatalog({ market, query, fetchImpl, maxCandidates, maxPages })
   ));
   for (const [index, search] of searches.entries()) {
+    onSearch?.({ kind: "catalog", query: cleanQueries[index], status: search.status === "fulfilled" ? "completed" : "failed" });
     if (search.status === "rejected") {
       failedQueries.push(cleanQueries[index]);
       continue;

@@ -12,6 +12,9 @@ import { normalizeNrfNumber } from "@/lib/product-card-candidates";
 import { ProductSelectionCheckbox } from "@/components/ProductSelectionCheckbox";
 import { ProductQuantityFields } from "@/components/ProductQuantityFields";
 import { isAutomaticAhlsellLookup } from "@/lib/ahlsell-lookup-input";
+import { ProductSearchDetails } from "./ProductSearchDetails";
+import { TechnicalEvaluationDetails } from "./TechnicalEvaluationDetails";
+import type { ProductSearchTrace } from "@/lib/product-search-trace";
 
 type LookupQuantity = { quantity: string; unit: string };
 type LookupSelection = LookupQuantity & { productNumber: string };
@@ -90,8 +93,9 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
       {error && <p role="alert" className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-900">{error}</p>}
       {result && <div className="space-y-3">
         {result.message && <p className="text-sm text-neutral-700">{result.message}</p>}
+        {!result.products.length && <ProductSearchDetails trace={result.searchTrace} />}
         <p className="text-xs text-neutral-600">Kryss av for å velge. Klikk i samme rute igjen for å fjerne valget. Mengden gjelder hele posten.</p>
-        {result.products.map((product) => <LookupProductCard key={product.articleNumber} id={id} product={product}
+        {result.products.map((product) => <LookupProductCard key={product.articleNumber} id={id} product={product} searchTrace={result.searchTrace}
           accessory={accessory} componentKind={componentKind} disabled={disabled} selectionLimitReached={selectionLimitReached}
           selection={selections.find(item => normalizeNrfNumber(item.productNumber) === normalizeNrfNumber(product.articleNumber))}
           defaultQuantity={defaultQuantity} defaultUnit={defaultUnit} onSelect={onSelect} onDeselect={onDeselect} onQuantityChange={onQuantityChange} />)}
@@ -101,7 +105,8 @@ export function AhlsellProductLookup({ projectId, requirementId, id, accessory =
   </div>;
 }
 
-function LookupProductCard({ id, product, accessory, componentKind, disabled, selectionLimitReached, selection, defaultQuantity, defaultUnit, onSelect, onDeselect, onQuantityChange }: {
+function LookupProductCard({ id, product, searchTrace, accessory, componentKind, disabled, selectionLimitReached, selection, defaultQuantity, defaultUnit, onSelect, onDeselect, onQuantityChange }: {
+  searchTrace?: ProductSearchTrace;
   id: string; product: AhlsellLookupProduct; accessory: boolean; componentKind?: AssemblyComponentKind;
   disabled: boolean; selectionLimitReached: boolean; selection?: LookupSelection; defaultQuantity: string; defaultUnit: string;
   onSelect: (product: AhlsellLookupProduct, quantity: LookupQuantity) => void;
@@ -134,6 +139,8 @@ function LookupProductCard({ id, product, accessory, componentKind, disabled, se
           <a href={product.productUrl} target="_blank" rel="noreferrer" aria-label={`Öppna artikel ${product.articleNumber}`}
             className="mt-1 inline-flex min-h-6 items-center text-sm font-bold text-neutral-800 underline underline-offset-2 hover:text-neutral-950">{product.articleNumber}</a>
           {(!accessory || componentKind) && <AhlsellCandidateWarnings candidate={product} />}
+          <ProductSearchDetails trace={searchTrace} />
+          {!accessory && <TechnicalEvaluationDetails evaluation={product.technicalEvaluation} searchScore={product.searchScore} />}
           <div className="mt-3 border-t border-neutral-200 pt-3">
             <ProductQuantityFields id={`${id}-${product.articleNumber}`} quantity={current.quantity} unit={current.unit} disabled={disabled}
               onQuantityChange={quantity => update({ quantity })} onUnitChange={unit => update({ unit })} />

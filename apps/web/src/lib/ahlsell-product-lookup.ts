@@ -3,9 +3,10 @@ import { applyAhlsellProductDetails, fetchAhlsellProductDetails, fetchAhlsellPro
 import { ahlsellLookupArticleNumber } from "./ahlsell-lookup-input";
 import type { AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
+import type { ProductSearchTrace } from "./product-search-trace";
 
 export type AhlsellLookupProduct = AhlsellPublicCandidate & { subtitle?: string };
-export type AhlsellLookupResult = { products: AhlsellLookupProduct[]; searchUrl: string; message?: string };
+export type AhlsellLookupResult = { products: AhlsellLookupProduct[]; searchUrl: string; message?: string; searchTrace?: ProductSearchTrace };
 export class AhlsellLookupInputError extends Error {}
 
 export function parseAhlsellLookupQuery(value: unknown, market: AhlsellMarket) {

@@ -5,6 +5,14 @@ import { ChevronRight, FileText, X } from "lucide-react";
 import type { ChapterSource } from "@/lib/project-chapter-workspace";
 import type { MainPostGroup } from "@/lib/project-post-hierarchy";
 
+export function MainPostText({ source }: { source?: ChapterSource }) {
+  if (!source) return null;
+  return <section aria-label="Hovedpostens kravtekst" className="px-4 py-3">
+    {source.pages.length > 0 && <p className="mb-2 text-xs text-neutral-600">PDF-side {source.pages.join(", ")}</p>}
+    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{source.text.trim() || "Ingen separat kravtekst er lagret for denne hovedposten."}</p>
+  </section>;
+}
+
 /** Reading a main post never changes product navigation, drafts or approval. */
 export function MainPostDetailsButton({ group, source, disabled = false, variant = "button" }: {
   group: MainPostGroup; source?: ChapterSource; disabled?: boolean; variant?: "button" | "heading";

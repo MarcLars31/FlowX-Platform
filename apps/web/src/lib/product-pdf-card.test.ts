@@ -4,7 +4,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProjectPostSpecification } from "../components/ProjectPostSpecification";
 import { MainPostDetailsButton, MainPostDetailsDialog } from "../components/MainPostDetailsButton";
-import { SectionPosts } from "../components/ChapterWorkspaceNavigation";
+import { ChapterRequirements, SectionPosts } from "../components/ChapterWorkspaceNavigation";
+import { chapterPostSection } from "./project-chapter-workspace";
 import { projectRequirementDetails } from "./project-requirement-details";
 import { projectRequirementQuantity } from "./project-requirement-quantity";
 import { buildDocumentChapterWorkspace } from "./document-chapter-workspace";
@@ -77,7 +78,7 @@ test("a product card without source prose still shows its saved technical attrib
   assert.match(html, /gjengedimensjon \(dn\): 20/);
 });
 
-test("an explicitly linked OCR main post opens separately in both lists with its own complete source", () => {
+test("an explicitly linked OCR main post shows its source above underposts in both lists", () => {
   const rows = [parent, child], before = structuredClone(rows);
   const workspace = buildDocumentChapterWorkspace(rows);
   for (const mode of ["pdf", "main"] as const) {
@@ -90,7 +91,11 @@ test("an explicitly linked OCR main post opens separately in both lists with its
       sources: workspace.sources, assignments: new Map(), disabled: false, onSelect: () => true }));
     assert.match(list, /Åpne hovedpost 30.332.7/);
     assert.match(list, /126 m/);
-    assert.doesNotMatch(list, /Trykk: PN12/);
+    assert.match(list, /Trykk: PN12/);
+    assert.ok(list.indexOf("Trykk: PN12") < list.indexOf('id="section-post-pipe"'));
+    const chapterText = renderToStaticMarkup(createElement(ChapterRequirements, { workspace, chapter,
+      section: chapterPostSection(chapter), textShownWithPosts: [source.id] }));
+    assert.equal(((chapterText + list).match(/Trykk: PN12/g) ?? []).length, 1);
     const button = renderToStaticMarkup(createElement(MainPostDetailsButton, { group, source }));
     assert.match(button, /aria-haspopup="dialog"/);
     const dialog = renderToStaticMarkup(createElement(MainPostDetailsDialog, { id: "source-dialog", source, onClose: () => {} }));

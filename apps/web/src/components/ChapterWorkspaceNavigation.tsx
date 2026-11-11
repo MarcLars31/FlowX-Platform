@@ -1,5 +1,5 @@
 "use client";
-import { MainPostDetailsButton } from "./MainPostDetailsButton";
+import { MainPostDetailsButton, MainPostText } from "./MainPostDetailsButton";
 import type { MainPostGroup } from "@/lib/project-post-hierarchy";
 import { ChevronRight } from "lucide-react";
 import { chapterPostSection, type ChapterSource, type ChapterWorkspace, type ChapterSection, type WorkspaceChapter } from "@/lib/project-chapter-workspace";
@@ -35,23 +35,22 @@ export function ChapterSectionProgress({chapter,section,selected}: {chapter:Work
 
 function SourceRequirements({ source, label }: { source?: ChapterSource; label: string }) {
   const text = source?.text.trim() || "Ingen separat kravtext finns sparad för denna nivå.";
-  const split = text.length > 1400 ? Math.max(text.lastIndexOf("\n", 1000), 800) : text.length;
   return <section className="chapter-source-requirements" aria-label={label}>
     <p className="chapter-source-label">{label}</p>
     {source && <h3>{source.number} {source.title}</h3>}
     {source?.pages.length ? <p className="chapter-source-pages">PDF-sida {source.pages.join(", ")}</p> : null}
-    <p className="chapter-original-text">{text.slice(0, split)}</p>
-    {split < text.length && <details className="chapter-full-source"><summary>Visa hela kravtexten · {text.length - split} tecken dolda</summary><p className="chapter-original-text">{text.slice(split)}</p></details>}
+    <p className="chapter-original-text">{text}</p>
   </section>;
 }
-export function ChapterRequirements({ workspace, chapter, section }: {
-  workspace: ChapterWorkspace; chapter: WorkspaceChapter; section: ChapterSection;
+export function ChapterRequirements({ workspace, chapter, section, textShownWithPosts = [] }: {
+  workspace: ChapterWorkspace; chapter: WorkspaceChapter; section: ChapterSection; textShownWithPosts?: readonly string[];
 }) {
   const sources = [...new Set([chapter.sourceId, section.sourceId, ...(section.textSourceIds ?? [])])]
-    .filter((id): id is string => Boolean(id && workspace.sources[id]?.text.trim()));
+    .filter((id): id is string => Boolean(id && workspace.sources[id]?.text.trim() && !textShownWithPosts.includes(id)));
+  if (!sources.length && !section.warning) return null;
   const content = sources.map(id => <SourceRequirements key={id} source={workspace.sources[id]} label={chapter.kind === "review" ? "PDF-text för kontroll" : "Krav och information"} />);
   return <div className="chapter-common-requirements">
-    {section.requirementIds.length && sources.length ? <details><summary>Krav och information för kapitlet</summary>{content}</details> : content}
+    {content}
     {section.warning && <p role="status" className="chapter-warning">{section.warning}</p>}
   </div>;
 }
@@ -76,6 +75,7 @@ export function SectionPosts({ rows, groups, sources, assignments, disabled, onS
           <h4 className="font-semibold">{group.number} {group.title}</h4>
           <MainPostDetailsButton group={group} source={group.sourceId ? sources?.[group.sourceId] : undefined} disabled={disabled} />
         </header>}
+        {!group.standalone && <MainPostText source={group.sourceId ? sources?.[group.sourceId] : undefined} />}
         {group.review && <p className="px-4 py-2 text-sm text-amber-800">Kontrollera huvudpostkopplingen</p>}
         <ol>{group.requirementIds.flatMap(id => { const row = byId.get(id); return row ? [<li key={row.id}><button type="button" id={`section-post-${row.id}`} disabled={disabled} onClick={() => onSelect(row.id)}>
           <span><strong>{projectRequirementDetails(row).postNumber ?? "Post utan nummer"}</strong> {String(row.value_text ?? row.display_name ?? "Produktpost")}</span>

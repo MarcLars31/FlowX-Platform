@@ -48,16 +48,18 @@ export function resolveEffectiveRequirements(requirement: Row): EffectiveRequire
   const attributes = productRequirementAttributes(requirement);
   for (const [label, raw] of Object.entries(attributes)) {
     const origin = record(origins[label]);
+    const inherited = Boolean(origin.postNumber && origin.postNumber !== postNumber);
     add(label, raw, { ...ownSource(""), kind: origin.postNumber && origin.postNumber !== postNumber ? "parent" : "post",
-      postNumber: string(origin.postNumber) ?? postNumber, page: page(origin.sourcePage) ?? page(requirement.source_page) });
+      postNumber: string(origin.postNumber) ?? postNumber, page: page(origin.sourcePage) ?? (inherited ? undefined : page(requirement.source_page)) });
   }
   // Search intentionally filters broad chapter context. Retain non-metadata clauses
   // for explicit verification rather than allowing that filter to erase obligations.
   for (const [label, raw] of Object.entries(record(value.attributes))) {
     if (Object.hasOwn(attributes, label) || informational.test(technicalText(label)) || /^(?:generelle krav|andre krav|andra krav)$/.test(technicalText(label))) continue;
     const origin = record(origins[label]);
+    const inherited = Boolean(origin.postNumber && origin.postNumber !== postNumber);
     add(`Kontekstkrav (${label})`, raw, { ...ownSource(""), kind: origin.postNumber && origin.postNumber !== postNumber ? "parent" : "post",
-      postNumber: string(origin.postNumber) ?? postNumber, page: page(origin.sourcePage) ?? page(requirement.source_page) });
+      postNumber: string(origin.postNumber) ?? postNumber, page: page(origin.sourcePage) ?? (inherited ? undefined : page(requirement.source_page)) });
   }
   // Explicit tokens in the post's own title are data, but bare numbers/ranges are not.
   const title = String(requirement.value_text ?? "");
@@ -76,7 +78,8 @@ export function resolveEffectiveRequirements(requirement: Row): EffectiveRequire
   const specification = string(value.technicalSpecification) ?? string(value.sourceText) ?? string(requirement.source_excerpt) ?? "";
   for (const section of specification.split(/\n\s*UNDERPOST\s*\n/i)) {
     const sectionPost = section.trim().match(/^(\d+(?:\.\d+)+)\b/)?.[1];
-    const source: RequirementSource = { ...ownSource(section), kind: sectionPost && sectionPost !== postNumber ? "parent" : "post", postNumber: sectionPost ?? postNumber };
+    const source: RequirementSource = { ...ownSource(section), kind: sectionPost && sectionPost !== postNumber ? "parent" : "post", postNumber: sectionPost ?? postNumber,
+      page: sectionPost && sectionPost !== postNumber ? undefined : page(requirement.source_page) };
     const freeText: string[] = [];
     for (const line of section.split(/\r?\n/).map(item => item.trim()).filter(Boolean)) {
       const field = /^([^:]{1,90}):\s*(.+)$/.exec(line);
