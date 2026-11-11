@@ -78,7 +78,7 @@ test("a product card without source prose still shows its saved technical attrib
   assert.match(html, /gjengedimensjon \(dn\): 20/);
 });
 
-test("an explicitly linked OCR main post shows its source above underposts in both lists", () => {
+test("chapter lists keep PDF post text out of the list and expose it when the post is opened", () => {
   const rows = [parent, child], before = structuredClone(rows);
   const workspace = buildDocumentChapterWorkspace(rows);
   for (const mode of ["pdf", "main"] as const) {
@@ -91,11 +91,9 @@ test("an explicitly linked OCR main post shows its source above underposts in bo
       sources: workspace.sources, assignments: new Map(), disabled: false, onSelect: () => true }));
     assert.match(list, /Åpne hovedpost 30.332.7/);
     assert.match(list, /126 m/);
-    assert.match(list, /Trykk: PN12/);
-    assert.ok(list.indexOf("Trykk: PN12") < list.indexOf('id="section-post-pipe"'));
     const chapterText = renderToStaticMarkup(createElement(ChapterRequirements, { workspace, chapter,
-      section: chapterPostSection(chapter), textShownWithPosts: [source.id] }));
-    assert.equal(((chapterText + list).match(/Trykk: PN12/g) ?? []).length, 1);
+      section: chapterPostSection(chapter), showText: false }));
+    assert.doesNotMatch(chapterText + list, /Trykk: PN12|Materiale: Stål/);
     const button = renderToStaticMarkup(createElement(MainPostDetailsButton, { group, source }));
     assert.match(button, /aria-haspopup="dialog"/);
     const dialog = renderToStaticMarkup(createElement(MainPostDetailsDialog, { id: "source-dialog", source, onClose: () => {} }));

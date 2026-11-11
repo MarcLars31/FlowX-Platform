@@ -285,7 +285,7 @@ export function DistributorMappingPanel({ projectId, currency = "NOK", requireme
       </header>
       {!activeRequirement && <>
         <ChapterRequirements workspace={workspace} chapter={chapter} section={section}
-          textShownWithPosts={sectionRows.length ? chapter.mainPosts?.flatMap(group => !group.standalone && group.sourceId ? [group.sourceId] : []) : undefined} />
+          showText={!sectionRows.length} />
         {sectionRows.length > 0 && <SectionPosts groups={chapter.mainPosts} sources={workspace.sources} rows={sectionRows} assignments={approvedAssignmentByRequirementId} disabled={productCardSaving} onSelect={showRequirement} />}
       </>}
       {(message || error) && <p role={error ? "alert" : "status"} className="product-selection-feedback">{error ?? message}</p>}

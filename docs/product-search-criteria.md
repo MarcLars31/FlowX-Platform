@@ -38,10 +38,11 @@ keyboard activation and a 390-pixel mobile viewport without horizontal overflow.
 
 The same search trace and evidence display are integrated into
 `codex/scipx-upgrades`, preserving its grouped product cards, series search,
-project roles, review workflow and reports. Post and chapter text is fully
-visible before the post list. Each main post also shows its complete source
-text and PDF pages above its own underposts in the grouped list and product
-card. Text already shown with a group is not repeated in the chapter block.
-The separate main-post reading dialog remains available.
+project roles, review workflow and reports. Chapter post lists show headings,
+post descriptions, quantities and status without expanded PDF source text.
+When a post is opened, its main-post text and PDF pages are fully visible above
+its underposts in the product card. The separate main-post reading dialog
+remains available. Information-only chapters retain their text, and chapter
+warnings remain visible even when source text is hidden in the post list.
 
 Validation: 1,353 release tests, TypeScript and zero-warning ESLint passed.
