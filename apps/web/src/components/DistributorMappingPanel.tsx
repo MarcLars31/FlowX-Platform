@@ -5,6 +5,7 @@ import { projectRequirementPageLabel } from "@/lib/project-requirement-details";
 
 
 import { cloneElement, type ComponentProps, type ReactElement, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { TECHNICAL_EVALUATOR_VERSION } from "@/lib/technical-evaluation-model";
 import { type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
 import { ChapterTextOrganizer } from "@/components/ChapterTextOrganizer";
@@ -1165,20 +1166,22 @@ function AhlsellPublicMatchPanel({ resource, projectId, requirementId, requireme
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [catalogAttempt, setCatalogAttempt] = useState(0);
+  const evaluationRevision = `${requirementRevision}:${TECHNICAL_EVALUATOR_VERSION}`;
 
   useEffect(() => {
     let current = true;
-    resource.load<AhlsellCatalogResult & { effectiveRequirements?: { revision: string } }>(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates`, requirementRevision)
+    resource.load<AhlsellCatalogResult & { effectiveRequirements?: { revision: string }; evaluatorVersion?: string }>(`/api/projects/${projectId}/requirements/${requirementId}/ahlsell-candidates`, evaluationRevision)
       .then(payload => {
         if (!current) return;
         if (payload.effectiveRequirements?.revision !== requirementRevision) throw new Error("Kravgrunnlaget er endret. Last inn prosjektet på nytt.");
+        if (payload.evaluatorVersion !== TECHNICAL_EVALUATOR_VERSION) throw new Error("Matchingsreglene er oppdatert. Last inn siden på nytt for en ny teknisk kontroll.");
         setCatalogResult(payload);
         const status = ahlsellCatalogStatusFromPayload(payload);
         if (status) onCatalogResult(requirementId, status);
       }).catch(error => { if (current) setCatalogError(error instanceof Error ? error.message : "Produktsøket mislyktes."); })
       .finally(() => { if (current) setLoadingCatalog(false); });
     return () => { current = false; };
-  }, [resource, onCatalogResult, projectId, requirementId, requirementRevision, catalogAttempt]);
+  }, [resource, onCatalogResult, projectId, requirementId, requirementRevision, evaluationRevision, catalogAttempt]);
 
   const usableMemoriesByArticle = new Map<string, Row>();
   for (const memory of memories) {
@@ -1195,7 +1198,8 @@ function AhlsellPublicMatchPanel({ resource, projectId, requirementId, requireme
   ));
   // Server results already contain the combined assessment. Re-merging the
   // initial guide would restore missing-value warnings resolved by Ahlsell.
-  const currentCandidates = catalogResult?.candidates.filter(candidate => candidate.technicalEvaluation?.requirementRevision === requirementRevision);
+  const currentCandidates = catalogResult?.candidates.filter(candidate => candidate.technicalEvaluation?.requirementRevision === requirementRevision
+    && candidate.technicalEvaluation.version === TECHNICAL_EVALUATOR_VERSION);
   const searchTrace = !loadingCatalog && !catalogError && catalogResult?.searchTrace?.requirements.revision === requirementRevision ? catalogResult.searchTrace : undefined;
   const mergedCandidates = (currentCandidates ?? guide.directCandidates)
     .filter(candidate => !pipeMainProduct || isRigidPipeProduct(candidate.productName));

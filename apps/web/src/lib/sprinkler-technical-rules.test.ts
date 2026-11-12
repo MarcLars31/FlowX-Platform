@@ -7,7 +7,17 @@ test("handles English and Swedish negative accessory values and negated free tex
   assert.equal(sprinklerRequiresAccessoryReview({}, "ikke med rosett"), false);
   assert.equal(sprinklerRequiresAccessoryReview({}, "ikke med rosett men med guard"), true);
 });
-import { sprinklerInstallationRequirements, sprinklerRequiresAccessoryReview } from "./sprinkler-technical-rules";
+import { sprinklerInstallationRequirements, sprinklerRequiresAccessoryReview, sprinklerKFactorMatches } from "./sprinkler-technical-rules";
+
+test("nominal K aliases are symmetric and never create a general numeric tolerance or unit conversion", () => {
+  for (const [a, b] of [[80, 80.6], [115, 115.2], [115, 115.5], [115.2, 115.5], [80, 80]]) {
+    assert.equal(sprinklerKFactorMatches(a, b), true);
+    assert.equal(sprinklerKFactorMatches(b, a), true);
+  }
+  for (const [a, b] of [[80, 80.1], [80, 81], [80.6, 81], [80, 115], [5.6, 80.6], [5.6, 5.7], [0, 0], [-80, -80], [Infinity, Infinity], [NaN, 80]]) {
+    assert.equal(sprinklerKFactorMatches(a, b), false, `${a}/${b}`);
+  }
+});
 
 test("recognizes OCR variants of I.R. in accessory values from existing PDF rows", () => {
   for (const value of ["I.R.", "i.r.", "IR", "I. R.", "l.R.", "1.R.", "|.R."]) {
