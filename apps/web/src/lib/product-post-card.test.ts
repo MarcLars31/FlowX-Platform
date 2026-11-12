@@ -3,6 +3,8 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProductPostGroupPanel } from "../components/ProductPostGroupPanel";
+import { ProjectPostSpecification } from "../components/ProjectPostSpecification";
+import { projectRequirementDetails } from "./project-requirement-details";
 import { productPostCardStatus, dimensionMatchedSeriesProducts, type ProductPostCardStatus } from "./product-post-card";
 import type { AhlsellLookupProduct } from "./ahlsell-product-lookup";
 import { TECHNICAL_EVALUATOR_VERSION, type TechnicalStatus } from "./technical-evaluation-model";
@@ -29,21 +31,34 @@ test("series proposals require proven dimensions and reject known conflicts, reg
   assert.equal(dimensionMatchedSeriesProducts([{...good,technicalEvaluation:undefined}]).length,0);
   assert.equal(dimensionMatchedSeriesProducts([{...good,technicalEvaluation:{...good.technicalEvaluation!,checks:[]}}]).length,0);
 });
-test("main card shows common requirements above underposts and status icons are not controls", () => {
-  const html=renderToStaticMarkup(createElement(ProductPostGroupPanel,{
+test("main card shows selected requirements above underposts while preserving the series view and status controls", () => {
+  const props = {
     group:{id:"parent",sourceId:"parent",number:"33.332.6",title:"VANNLEDNING",requirementIds:["a","b"]},
     source:{id:"parent",number:"33.332.6",title:"VANNLEDNING",text:"Materiale: Stål\nTrykk: PN12",pages:[1]},
     rows:[{id:"a",value_text:"DN25",value_json:{postNumber:"33.332.6.1",quantity:12,unit:"m"}},{id:"b",value_text:"DN32",value_json:{postNumber:"33.332.6.2",quantity:4,unit:"m"}}],
     statuses:new Map<string, ProductPostCardStatus>([["a","review"],["b","approved"]]),activeId:"a",seriesOpen:false,disabled:false,onSelect:()=>{},onSearchSeries:()=>{}
-  }));
+  };
+  const seriesHtml = renderToStaticMarkup(createElement(ProductPostGroupPanel, { ...props, seriesOpen: true }));
+  assert.match(seriesHtml, /Trykk: PN12/);
+  assert.match(seriesHtml, /PDF-side 1/);
+  assert.ok(seriesHtml.indexOf("Trykk: PN12") < seriesHtml.indexOf('aria-label="Underposter til'));
+  const selected = { ...props.rows[0], source_page: 2, source_excerpt: "33.332.6.1 DN25\nDimensjon: DN25" };
+  const html = renderToStaticMarkup(createElement(ProductPostGroupPanel, props,
+    createElement(ProjectPostSpecification, { id: selected.id, details: projectRequirementDetails(selected),
+      description: selected.value_text, quantity: { quantity: 12, unit: "m" }, section: "card",
+      sourcePdfHref: "/source.pdf#page=2", sourcePdfFileName: "Sprinkler.pdf" })));
   assert(!html.includes('type="checkbox"'));
   assert.equal((html.match(/<button /g)??[]).length,4);
   assert.match(html,/<header><h3><button[^>]+aria-label="Åpne hovedpost 33.332.6: VANNLEDNING"/);
   assert.match(html,/Vis krav og informasjon/);
   assert.match(html,/aria-haspopup="dialog"/);
-  assert.match(html,/Trykk: PN12/);
-  assert.match(html,/PDF-side 1/);
-  assert.ok(html.indexOf("Trykk: PN12") < html.indexOf('aria-label="Underposter til'));
+  assert.doesNotMatch(html, /Trykk: PN12|PDF-side 1/);
+  assert.match(html, /12 m/);
+  assert.match(html, /Sprinkler.pdf/);
+  assert.match(html, /href="\/source.pdf#page=2"/);
+  assert.equal((html.match(/Teknisk informasjon fra posten/g) ?? []).length, 2); // Accessible label and visible heading.
+  assert.equal((html.match(/Dimensjon: DN25/g) ?? []).length, 1);
+  assert.ok(html.indexOf("Dimensjon: DN25") < html.indexOf('aria-label="Underposter til'));
   assert.match(html,/Til gjennomgang/); assert.match(html,/Godkjent/);
   assert.equal((html.match(/aria-current="true"/g)??[]).length,1);
   assert.match(html,/aria-controls="product-post-candidate-panel"/);
