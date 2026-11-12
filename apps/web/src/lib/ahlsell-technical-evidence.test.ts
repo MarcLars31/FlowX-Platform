@@ -51,6 +51,38 @@ test("same unit-converted evidence agrees while conflicting source values remain
   assert.ok(!technicalEvidenceSpecifications(merged).some(s => s.startsWith("K-faktor")));
 });
 
+test("nominal K-factor aliases agree across the article header, table and merged sources without rewriting values", () => {
+  const saved = { ...snapshot(["K-faktor: 80,6"]), productName: "Sprinkler K80" };
+  const before = structuredClone(saved);
+  const evidence = buildAhlsellTechnicalEvidence(saved);
+  assert.equal(evidence.fields.kFactor?.status, "documented");
+  assert.deepEqual(evidence.fields.kFactor?.observations.map(item => item.value), [80.6, 80]);
+  const merged = mergeAhlsellTechnicalEvidence(evidence, buildAhlsellTechnicalEvidence({ ...saved, specifications: ["K-faktor: 80"] }))!;
+  assert.equal(merged.fields.kFactor?.status, "documented");
+  assert.deepEqual(technicalEvidenceWarnings(article, merged), []);
+  for (const other of [81, 115]) {
+    const conflicting = mergeAhlsellTechnicalEvidence(merged, buildAhlsellTechnicalEvidence({ ...saved, specifications: [`K-faktor: ${other}`] }))!;
+    assert.equal(conflicting.fields.kFactor?.status, "conflict");
+  }
+  assert.deepEqual(saved, before);
+});
+
+test("cached raw K-factor data is reparsed and reassessed with the current nominal rule", async () => {
+  const saved = { ...snapshot(["K-faktor: 80,6"]), productName: "Sprinkler K80" };
+  const before = structuredClone(saved);
+  const details = await fetchAhlsellProductDetails({ items: [{ articleNumber: article, productUrl: url }],
+    fetchImpl: async () => { throw new Error("The cached source should be sufficient"); },
+    store: { read: async () => saved, write: async () => { throw new Error("Read-only fixture"); } }
+  });
+  assert.equal(details[article]?.technicalEvidence?.fields.kFactor?.status, "documented");
+  const requirement = { value_text: "SPRINKLER", value_json: { attributes: { "k-faktor": "80,6" } } };
+  const candidate = { ...product(details[article]!.technicalEvidence), productName: "Sprinkler K80" };
+  const evaluated = evaluateAhlsellCandidates(requirement, [candidate])[0];
+  assert.equal(evaluated.technicalEvaluation.status, "MATCH");
+  assert.equal(evaluated.technicalEvaluation.checks[0].source?.raw, "k-faktor: 80,6");
+  assert.deepEqual(saved, before);
+});
+
 test("extracts only the visible article's table and keeps the original source snapshot", () => {
   const detail = parseAhlsellProductDetails(html(),article,url)!;
   assert.equal(detail.technicalEvidence?.fields.kFactor?.observations[0].value,80);

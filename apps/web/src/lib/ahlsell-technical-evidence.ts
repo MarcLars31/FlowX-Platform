@@ -2,6 +2,7 @@ import { normalizeTechnicalText } from "./ahlsell-requirement-context";
 import { pipeJointTypes, stainlessSteelGrade } from "./pipe-technical-terms";
 import { resolvedSprinklerOrientation } from "./sprinkler-orientation-lexicon";
 import { canonicalProperty, normalizeRequirementValue } from "./technical-evaluation-model";
+import { sprinklerKFactorMatches } from "./sprinkler-technical-rules";
 
 export const AHLSELL_EVIDENCE_VERSION = 1;
 export const AHLSELL_EVIDENCE_TTL_MS = 12 * 60 * 60_000;
@@ -54,7 +55,7 @@ export function buildAhlsellTechnicalEvidence(input: Omit<AhlsellEvidenceSnapsho
     if (!entry.observations.some(o => o.value === value && o.raw === raw)) entry.observations.push({
       value, raw, sourceUrl: input.sourceUrl, sourceKind: input.sourceKind ?? "product_page", retrievedAt: input.retrievedAt
     });
-    entry.status = new Set(entry.observations.map(o => o.value)).size > 1 ? "conflict" : "documented";
+    entry.status = evidenceValuesAgree(field, entry.observations) ? "documented" : "conflict";
     fields[field] = entry;
   }
   for (const raw of input.specifications) {
@@ -116,7 +117,7 @@ export function mergeAhlsellTechnicalEvidence(...items: (AhlsellTechnicalEvidenc
   for (const item of valid.filter(e => e.articleNumber === articleNumber)) for (const key of Object.keys(item.fields) as TechnicalField[]) {
     const observations = [...(fields[key]?.observations ?? []), ...(item.fields[key]?.observations ?? [])];
     const unique = [...new Map(observations.map(o => [JSON.stringify(o), o])).values()];
-    fields[key] = { status: new Set(unique.map(o => o.value)).size > 1 ? "conflict" : "documented", observations: unique };
+    fields[key] = { status: evidenceValuesAgree(key, unique) ? "documented" : "conflict", observations: unique };
   }
   const normalizedProperties = valid.filter(item => item.articleNumber === articleNumber).flatMap(item => item.normalizedProperties ?? []);
   return { version: AHLSELL_EVIDENCE_VERSION, articleNumber, fields,
@@ -155,6 +156,12 @@ export function technicalEvidenceWarnings(article: string, evidence?: AhlsellTec
   }
   if (Object.values(evidence.fields).some(field => field?.observations.some(o => !Number.isFinite(Date.parse(o.retrievedAt)) || now - Date.parse(o.retrievedAt) > AHLSELL_EVIDENCE_TTL_MS))) warnings.push("Produktunderlaget behöver hämtas på nytt; senaste kontrollen är äldre än 12 timmar.");
   return warnings;
+}
+
+function evidenceValuesAgree(field: TechnicalField, observations: TechnicalObservation[]) {
+  const first = observations[0]?.value;
+  return observations.every(({ value }) => value === first || field === "kFactor"
+    && typeof value === "number" && typeof first === "number" && sprinklerKFactorMatches(value, first));
 }
 
 function numeric(text: string, pattern: RegExp) {

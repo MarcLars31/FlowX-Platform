@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { evaluateTechnicalRequirements } from "./technical-evaluator";
 import { resolveEffectiveRequirements, requirementForSearch, withEffectiveRequirements } from "./effective-requirements";
-import { technicalRevision, type EffectiveRequirement, type EffectiveRequirementSet, type ProductObservation } from "./technical-evaluation-model";
+import { TECHNICAL_EVALUATOR_VERSION, technicalRevision, type EffectiveRequirement, type EffectiveRequirementSet, type ProductObservation } from "./technical-evaluation-model";
 import { evaluateAhlsellCandidates } from "./ahlsell-technical-evaluator";
 import { buildAhlsellTechnicalEvidence, mergeAhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
 import { ahlsellCandidateMatchState, isMatchingAhlsellCandidate } from "./ahlsell-candidate-ranking";
@@ -20,6 +20,53 @@ const observation = (property: string, value: ProductObservation["value"], optio
   property, value, productId: "A", source: "manufacturer:sheet:v1", raw: String(value), documented: true, ...options
 });
 const evaluate = (requirements: EffectiveRequirement[], observations: ProductObservation[]) => evaluateTechnicalRequirements(set(...requirements), "A", observations, now);
+
+test("nominal K80/80.6 equality preserves the original PDF values and explains the match", () => {
+  for (const raw of ["80,6", "80.6", "K80,6"]) {
+    const row = { id: "k-post", value_text: "SPRINKLER", value_json: { attributes: { "k-faktor": raw } } };
+    const before = structuredClone(row);
+    const requirements = resolveEffectiveRequirements(row);
+    const result = evaluateTechnicalRequirements(requirements, "A", [observation("kFactor", 80)], now);
+    assert.equal(result.status, "MATCH");
+    assert.equal(result.checks[0].source?.raw, `k-faktor: ${raw}`);
+    assert.equal(result.checks[0].expected, "eq 80.6");
+    assert.equal(result.checks[0].actual, "80");
+    assert.match(result.checks[0].reason, /K80 tilsvarer nominelt K80,6/);
+    assert.deepEqual(row, before);
+  }
+  assert.equal(evaluate([requirement("kFactor", 80)], [observation("kFactor", 80.6)]).status, "MATCH");
+  assert.equal(evaluate([requirement("kFactor", [80.6, 115], { operator: "one_of" })], [observation("kFactor", 80)]).status, "MATCH");
+  assert.equal(evaluate([requirement("kFactor", 80), requirement("kFactor", 80.6)], [observation("kFactor", 80)]).status, "MATCH");
+});
+
+test("nominal aliases do not relax minimum, maximum, range, other properties or undocumented units", () => {
+  for (const [raw, product] of [[">= 80,6", 80], ["≤ 80", 80.6]] as const) {
+    const requirements = resolveEffectiveRequirements({ value_json: { attributes: { "k-faktor": raw } } });
+    assert.equal(evaluateTechnicalRequirements(requirements, "A", [observation("kFactor", product)], now).status, "FAIL");
+  }
+  assert.equal(evaluate([requirement("kFactor", [80.5, 80.7], { operator: "range" })], [observation("kFactor", 80)]).status, "FAIL");
+  const boundedNominal = [requirement("kFactor", 80), requirement("kFactor", 80.6, { operator: "gte" })];
+  assert.equal(evaluate(boundedNominal, [observation("kFactor", 80)]).status, "FAIL");
+  assert.equal(evaluate(boundedNominal, [observation("kFactor", 80.6)]).status, "MATCH");
+  for (const actual of [79.9, 80.1, 81, 115, 5.6]) assert.equal(evaluate([requirement("kFactor", 80.6)], [observation("kFactor", actual)]).status, "FAIL");
+  for (const property of ["dn", "temperatureC", "workingPressureBar"]) {
+    assert.equal(evaluate([requirement(property, 80.6)], [observation(property, 80)]).status, "FAIL");
+  }
+  assert.equal(evaluate([requirement("kFactor", 80.6)], [observation("kFactor", 80, { unit: "US" })]).status, "VERIFY");
+  assert.equal(evaluate([requirement("kFactor", 80.6)], []).status, "VERIFY");
+});
+
+test("nominal evidence agrees only for equality; real evidence conflicts and strict bounds require review", () => {
+  const evidence = [observation("kFactor", 80), observation("kFactor", 80.6)];
+  const before = structuredClone(evidence);
+  const result = evaluate([requirement("kFactor", 80.6)], evidence);
+  assert.equal(result.status, "MATCH");
+  assert.equal(result.checks[0].actual, "80 / 80.6");
+  assert.deepEqual(result.checks[0].evidence, before);
+  assert.equal(evaluate([requirement("kFactor", 80.6, { operator: "gte" })], evidence).status, "VERIFY");
+  assert.equal(evaluate([requirement("kFactor", 80.6)], [...evidence, observation("kFactor", 115)]).status, "VERIFY");
+  assert.deepEqual(evidence, before);
+});
 
 test("mandatory failure wins over matches and missing information; optional failure does not", () => {
   const requirements = [requirement("dn", 20), requirement("finish", "white"), requirement("power", 100)];
@@ -101,6 +148,23 @@ function candidate(id: string, dn: number | null): AhlsellPublicCandidate {
     technicalEvidence: buildAhlsellTechnicalEvidence({ articleNumber: id, sourceUrl: `https://www.ahlsell.no/products/${id}`,
       productName: "Sprinkler", subtitle: null, description: null, specifications: dn ? [`DN: ${dn}`] : [], retrievedAt: now.toISOString() }) };
 }
+
+test("fresh evaluation replaces a previous K-factor FAIL without changing saved candidate data", () => {
+  const row = { value_text: "SPRINKLER", value_json: { attributes: { "k-faktor": "80,6" } } };
+  const product = { ...candidate("nominal-k", null), technicalEvidence: buildAhlsellTechnicalEvidence({
+    articleNumber: "nominal-k", sourceUrl: "https://www.ahlsell.no/products/nominal-k", productName: "Sprinkler K80",
+    subtitle: null, description: null, specifications: ["K-faktor: 80,6"], retrievedAt: now.toISOString()
+  }) };
+  const saved = JSON.parse(JSON.stringify({ ...product, technicalEvaluation: { version: "technical-evaluator-1",
+    requirementRevision: "old", evidenceRevision: "old", productId: product.articleNumber, evaluatedAt: now.toISOString(), status: "FAIL", checks: [] } })) as AhlsellPublicCandidate;
+  const before = structuredClone(saved);
+  const evaluated = evaluateAhlsellCandidates(row, [saved], now)[0];
+  assert.equal(evaluated.technicalEvaluation.version, TECHNICAL_EVALUATOR_VERSION);
+  assert.equal(evaluated.technicalEvaluation.status, "MATCH");
+  assert.equal(evaluated.technicalEvaluation.checks.find(check => check.property === "kFactor")?.status, "MATCH");
+  assert.match(evaluated.technicalEvaluation.checks[0].reason, /nominelt/);
+  assert.deepEqual(saved, before);
+});
 
 test("search score and history cannot promote FAIL or VERIFY; technical rank precedes score", () => {
   const wrong = { ...candidate("wrong", 20), learningEvidence: { kind: "similar_confirmed" as const, supportCount: 1000, similarityScore: 100 } };

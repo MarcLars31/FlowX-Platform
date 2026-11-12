@@ -13,14 +13,20 @@ export type SprinklerCoverageClass =
 
 export type SprinklerMountCapability = "surface" | "recessed" | "concealed";
 
-/**
- * Catalogues do not always use the same rounded SI K-factor. For example,
- * K115 and K115.5 describe the same nominal family. This tolerance is only
- * used for SI-sized sprinkler values; it never changes DN or other criteria.
- */
+// Explicit metric designations, not a numerical tolerance or a unit conversion.
+// Viking F_072508 lists K80/80.6 and K115/115.2 for the same nominal models:
+// https://www.vikinggroupinc.com/sites/default/files/databook/sprinklers/special/072508.pdf
+// Retain the existing K115/115.5 catalogue-family mapping.
+const nominalMetricKFactors: readonly (readonly number[])[] = [[80, 80.6], [115, 115.2, 115.5]];
+
+export function sprinklerKFactorAlternatives(value: number): readonly number[] {
+  return nominalMetricKFactors.find(group => group.includes(value)) ?? [value];
+}
+
+/** Compare nominal equality only. Minimum/maximum/range requirements stay numeric. */
 export function sprinklerKFactorMatches(required: number, candidate: number) {
-  if (Math.abs(required - candidate) < 0.11) return true;
-  return required >= 50 && candidate >= 50 && Math.abs(required - candidate) <= 1.1;
+  return Number.isFinite(required) && Number.isFinite(candidate) && required > 0 && candidate > 0
+    && sprinklerKFactorAlternatives(required).includes(candidate);
 }
 
 export function sprinklerCoverageFromText(value: string): SprinklerCoverageClass | null {

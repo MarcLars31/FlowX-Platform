@@ -1,4 +1,5 @@
 import { TECHNICAL_EVALUATOR_VERSION, normalizeTechnicalNumber, normalizeTechnicalTerm, technicalRevision, type EffectiveRequirement, type EffectiveRequirementSet, type ProductObservation, type TechnicalCheck, type TechnicalEvaluation, type TechnicalStatus, type TechnicalValue } from "./technical-evaluation-model";
+import { sprinklerKFactorAlternatives, sprinklerKFactorMatches } from "./sprinkler-technical-rules";
 
 export function technicalStatus(checks: readonly TechnicalCheck[]): TechnicalStatus {
   const required = checks.filter(check => check.mandatory);
@@ -27,10 +28,10 @@ export function evaluateTechnicalRequirements(set: EffectiveRequirementSet, prod
     }
     const values = normalized.map(item => item!.value);
     check.actual = `${[...new Set(values)].join(" / ")}${requirement.unit ? ` ${requirement.unit}` : ""}`;
-    if (requirement.operator !== "contains" && new Set(values).size !== 1) return { ...check, reason: "Motstridende opplysninger for samme produktvariant. Kontroller kildene." };
+    if (requirement.operator !== "contains" && !values.every(value => equalValue(requirement, value, values[0]))) return { ...check, reason: "Motstridende opplysninger for samme produktvariant. Kontroller kildene." };
     const matches = requirement.operator === "contains" ? values.some(value => satisfies(requirement, value)) : satisfies(requirement, values[0]);
     if (requirement.operator === "contains" && !matches) return { ...check, reason: "Den påkrevde standarden/godkjenningen er ikke dokumentert. Listen kan være ufullstendig." };
-    return { ...check, status: matches ? "MATCH" : "FAIL", reason: matches ? "Dokumentert produktopplysning oppfyller kravet." : "Dokumentert produktopplysning oppfyller ikke kravet." };
+    return { ...check, status: matches ? "MATCH" : "FAIL", reason: matches ? nominalKFactorReason(requirement, values) ?? "Dokumentert produktopplysning oppfyller kravet." : "Dokumentert produktopplysning oppfyller ikke kravet." };
   });
   return { version: TECHNICAL_EVALUATOR_VERSION, requirementRevision: set.revision, productId,
     evidenceRevision: technicalRevision(observations), evaluatedAt: now.toISOString(), status: technicalStatus(checks), checks };
@@ -43,12 +44,27 @@ function validRequirement(requirement: EffectiveRequirement) {
   if (requirement.operator === "range") return values.length === 2 && values.every(value => typeof value === "number") && values[0]! <= values[1]!;
   return requirement.operator === "one_of" || ["eq", "contains"].includes(requirement.operator) && values.length === 1;
 }
+function usesNominalKFactor(requirement: EffectiveRequirement) {
+  return requirement.property === "kFactor" && !requirement.unit && ["eq", "one_of"].includes(requirement.operator);
+}
+function equalValue(requirement: EffectiveRequirement, left: TechnicalValue | null, right: TechnicalValue | null) {
+  return left === right || usesNominalKFactor(requirement) && typeof left === "number" && typeof right === "number"
+    && sprinklerKFactorMatches(left, right);
+}
+function nominalKFactorReason(requirement: EffectiveRequirement, values: TechnicalValue[]) {
+  if (!usesNominalKFactor(requirement)) return null;
+  const options = Array.isArray(requirement.value) ? requirement.value : [requirement.value];
+  const expected = options.find(option => equalValue(requirement, option, values[0]));
+  if (typeof expected !== "number" || values.every(value => value === expected)) return null;
+  const display = (value: TechnicalValue) => `K${String(value).replace(".", ",")}`;
+  return `${[...new Set(values)].map(display).join(" / ")} tilsvarer nominelt ${display(expected)}. Originalverdiene er beholdt.`;
+}
 function satisfies(requirement: EffectiveRequirement, value: TechnicalValue) {
   const expected = requirement.value;
   switch (requirement.operator) {
-    case "eq": return value === expected;
+    case "eq": return !Array.isArray(expected) && equalValue(requirement, value, expected);
     case "contains": return value === expected;
-    case "one_of": return Array.isArray(expected) && expected.includes(value);
+    case "one_of": return Array.isArray(expected) && expected.some(option => equalValue(requirement, value, option));
     case "gte": return typeof value === "number" && typeof expected === "number" && value >= expected;
     case "lte": return typeof value === "number" && typeof expected === "number" && value <= expected;
     case "range": return typeof value === "number" && Array.isArray(expected) && typeof expected[0] === "number" && typeof expected[1] === "number" && value >= expected[0] && value <= expected[1];
@@ -59,7 +75,8 @@ function conflictingRequirements(requirement: EffectiveRequirement, all: Effecti
   const group = all.filter(item => item.mandatory && !item.issue && item.operator !== "contains" && item.property === requirement.property && item.unit === requirement.unit && validRequirement(item));
   const discrete = group.filter(item => item.operator === "eq" || item.operator === "one_of");
   if (discrete.length) {
-    const options = Array.isArray(discrete[0].value) ? discrete[0].value : [discrete[0].value!];
+    const originalOptions = Array.isArray(discrete[0].value) ? discrete[0].value : [discrete[0].value!];
+    const options = originalOptions.flatMap<TechnicalValue>(value => usesNominalKFactor(discrete[0]) && typeof value === "number" ? [...sprinklerKFactorAlternatives(value)] : [value]);
     return !options.some(value => group.every(item => satisfies(item, value)));
   }
   const lower = Math.max(-Infinity, ...group.flatMap(item => item.operator === "gte" ? [Number(item.value)] : item.operator === "range" ? [Number((item.value as TechnicalValue[])[0])] : []));

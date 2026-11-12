@@ -380,6 +380,16 @@ test("treats K115 and K115.5 as the same nominal sprinkler family", () => {
   assert.ok(ranked.matchWarnings?.every((warning) => !warning.includes("Fel K-faktor")));
 });
 
+test("K80.6 retrieval uses the same nominal comparison as the technical check", () => {
+  const [ranked] = rankAhlsellCandidates({ category: "sprinkler_head", value_text: "SPRINKLER", value_json: { attributes: {
+    sprinkleranlegg: "Våtanlegg", "type sprinkler": "Konvensjonell standard coverage sprinkler", plassering: "Hengende",
+    følsomhetsgrad: "Kvikk respons", utløsningstemperatur: "68 °C", "k-faktor": "80,6", "gjengedimensjon (dn)": "DN15"
+  } } }, [{ ...candidate("9991234", "Sprinklerhode QR - Ned", "Standard spray sprinkler", "/sprinkler/9991234/"),
+    specifications: ["K-faktor: 80", "DN15", "68 °C", "Quick response", "Pendent"] }]);
+  assert.ok(ranked.matchReasons?.some(reason => reason.includes("K80")));
+  assert.ok(!ranked.matchWarnings?.some(warning => warning.includes("Fel K-faktor")));
+});
+
 test("rejects an explicitly wet-only sprinkler for a dry system without requiring a dry-type head", () => {
   const ranked = rankAhlsellCandidates({
     category: "sprinkler_head",

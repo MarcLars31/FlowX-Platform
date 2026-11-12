@@ -1,5 +1,5 @@
 /** Source-neutral contract. Search scores and historical choices are deliberately absent. */
-export const TECHNICAL_EVALUATOR_VERSION = "technical-evaluator-1";
+export const TECHNICAL_EVALUATOR_VERSION = "technical-evaluator-2-nominal-k";
 export type TechnicalStatus = "MATCH" | "FAIL" | "VERIFY";
 export type TechnicalValue = string | number | boolean;
 export type RequirementOperator = "eq" | "gte" | "lte" | "one_of" | "range" | "contains";

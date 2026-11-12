@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-11-12.1",
+  "version": "scipx-product-rules-2026-11-12.2",
   "sources": {
     "../../../../supabase/migrations/20261027160000_project_chapter_organization.sql": "264323661ef38ee4a845aae8d710fab605d3e64c090e3f947ad36babf343bec3",
     "../../../../supabase/migrations/20261027200000_individual_chapter_placement.sql": "ed55e62e5b63f0d454fc3199ac83788bb0bdd6baef6c847414df6a1f9ddcc260",
@@ -7,7 +7,7 @@
     "../components/AhlsellCandidateList.tsx": "5c9a69262253bd68df43961ce0930109a581e12c709fac2f34ae39f089c75a34",
     "../components/ChapterTextOrganizer.tsx": "63da2546fd61a1500e7087369d07dd592dc8e2d4d91326fada078d8018790d48",
     "../components/ChapterWorkspaceNavigation.tsx": "20a1482b081e132bafd1748d16d2e4a1ca7dbabe094133df631662a5af9663a9",
-    "../components/DistributorMappingPanel.tsx": "ce2f0152180ccd1ee6bf08f652074fa964c1ea4705a56cf30a820e55ebfe9765",
+    "../components/DistributorMappingPanel.tsx": "205822a06fe096499c9267e44922e9d2b982e708210c0f29025f7b6c01367de1",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
     "../components/MainPostDetailsButton.tsx": "a2f0022a8e842dba2b58efb6c50bf58f904a1d4f41b9a2cce401c4466919cad9",
     "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",
@@ -61,7 +61,7 @@
     "ahlsell-shared-fetch.server.ts": "a912b36d7257b553b6ad064c8d46ce4367c30887bfc06de19e6faa2546e87540",
     "ahlsell-technical-conflicts.ts": "b109648e43b63f2c29c8aae2711ad87bb34488495f079ebb2216f9df0d72916b",
     "ahlsell-technical-evaluator.ts": "a30c489ad7c47825e54ac10041bbdf9eac70f325bc523ec299dc59d51e4e9d8c",
-    "ahlsell-technical-evidence.ts": "0bd5f3c1a9f34c5dbf26c04aaae1ca97fb548a2d0ea498beccab79ea17d23f7f",
+    "ahlsell-technical-evidence.ts": "8a0c2a71bb71ff5d97ff9c750e81137cd4704920559736da0c68fd6555e991c1",
     "assembly-component-lookup.ts": "41d597b7be276c279536bef12ad9060eec68f9e6288c6adfe9554df7d21d72b9",
     "assembly-component-matching.ts": "9de118786bc1b459e1f2ca8308bee5e87ddeb1c7023dc5d2f3515397a7532db8",
     "browser-pdf-ocr.ts": "9c61eaa74e6fa220cb7082fbf632183de169129338c640ec1abaf2aa84b1cc54",
@@ -122,7 +122,7 @@
     "requirement-text-storage.ts": "23570dac94880468e158408a047a41f1de207846a0c29ee3c0fddd6d842462ee",
     "sprinkler-assembly-plan.ts": "eeb01e3108ebd5a7cb42a2c6762def7b1c639bdefbcddd4a6b750c9d484cd049",
     "sprinkler-requirement-context.ts": "f05df1458f4e4d3e361af91a1dbe9d558ccb1b702ab0a6e5f5f8976f90498b20",
-    "sprinkler-technical-rules.ts": "f35a53b23efa0c5c1fd0abf77ae6c0f835e86068ef1704da4d127782ea6d38b4",
+    "sprinkler-technical-rules.ts": "6ea5c4b389331afe1e8a0c775053df5cfd0c9ace23a5ca1143b417ba1d657d66",
     "sprsok-search.ts": "d0e9c876b07f24a6863a8bb9cc2e9cb48cff70027ad330539f205099a99d94c9",
     "supplier-article-identity.ts": "a85b69c73210a681337bc868d2932349c8f101a63e64ae5446f7b5745981764d",
     "technical-description-ocr-payload.ts": "a9578e744f230acab31977a94ee5944c3503557d96abe3d917127bfc47a35a8e",
@@ -131,8 +131,8 @@
     "technical-description-quality.ts": "671259170340351927f64c613a0acc49ada2dc0a65224ae09ab7b250532c0390",
     "technical-description-review-flags.ts": "6a5a59a3f2c58e96496a9d13ce277f12a22a22dc91e87d58b7f34aa8d98f9874",
     "technical-description-source-persistence.ts": "c0883871e3cc462080779f9b0d4361e6aebf73d2198327948e74a1de80bc3c86",
-    "technical-evaluation-model.ts": "fae48d54e166665e007228e34556e2bfd2ed1a7349adc79f38612e40703643a4",
-    "technical-evaluator.ts": "19102ec7800fce845209b7e830cc48ac4309e4e5cbad322994bcfcbac213ae50",
+    "technical-evaluation-model.ts": "6700f2796919e3c495a00b107a7ecdb55752c128b5beb5a9c8547335c6b4cb10",
+    "technical-evaluator.ts": "9c026b721bb2f4c551028d8e757e439decc8fb296109c507693cdb8f96f77b45",
     "victaulic-sprinkler-catalog.ts": "01f3e7694e486d18b357c11565a20bd2c5d2452ce4606eeb9bca7c23ef17239d",
     "victaulic-working-pressure.ts": "a1d66336be6258e02f8e758bf7a5712f1d81f1fee598be9c30dd22e4c9b80e9d"
   }
