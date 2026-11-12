@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-11-11.4",
+  "version": "scipx-product-rules-2026-11-12.1",
   "sources": {
     "../../../../supabase/migrations/20261027160000_project_chapter_organization.sql": "264323661ef38ee4a845aae8d710fab605d3e64c090e3f947ad36babf343bec3",
     "../../../../supabase/migrations/20261027200000_individual_chapter_placement.sql": "ed55e62e5b63f0d454fc3199ac83788bb0bdd6baef6c847414df6a1f9ddcc260",
@@ -7,11 +7,11 @@
     "../components/AhlsellCandidateList.tsx": "5c9a69262253bd68df43961ce0930109a581e12c709fac2f34ae39f089c75a34",
     "../components/ChapterTextOrganizer.tsx": "63da2546fd61a1500e7087369d07dd592dc8e2d4d91326fada078d8018790d48",
     "../components/ChapterWorkspaceNavigation.tsx": "20a1482b081e132bafd1748d16d2e4a1ca7dbabe094133df631662a5af9663a9",
-    "../components/DistributorMappingPanel.tsx": "9c7623d8128e3978fcbe8efec3557b1a954acaeb37752dd6bec426f5119582e5",
+    "../components/DistributorMappingPanel.tsx": "ce2f0152180ccd1ee6bf08f652074fa964c1ea4705a56cf30a820e55ebfe9765",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
     "../components/MainPostDetailsButton.tsx": "a2f0022a8e842dba2b58efb6c50bf58f904a1d4f41b9a2cce401c4466919cad9",
     "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",
-    "../components/ProductPostGroupPanel.tsx": "20cbefe6b67f70f7205efbf7ff3d8aa998fced948755e530083bc2d2612bd32c",
+    "../components/ProductPostGroupPanel.tsx": "1826499899999bd42d286823dee4cda9d7d40abee44540de1f55795fac5e7e41",
     "../components/ProductPostNavigation.tsx": "7d651d7d9ff8541d9058fbcd5fa4e9ddf9b7e0332147bb570a7a339add8c46d7",
     "../components/ProductPostRequirements.tsx": "86947787cc690bbab7ae81c7cdc30b6c46ca45579e6fb185258e4b4315284bdc",
     "../components/ProductSearchDetails.tsx": "1bd9c6e37ba93f2ef833577c18293cf170a3a43fba4d2066886fcc1eb1b2f2a0",

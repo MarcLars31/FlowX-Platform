@@ -4,7 +4,7 @@ import { projectRequirementPageLabel } from "@/lib/project-requirement-details";
 
 
 
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { cloneElement, type ComponentProps, type ReactElement, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { type ProjectDeliveryResource } from "@/lib/project-delivery-resource";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Mail, PackagePlus, Paperclip, Plus, Search, ShieldCheck, Tag, Upload } from "lucide-react";
 import { ChapterTextOrganizer } from "@/components/ChapterTextOrganizer";
@@ -343,7 +343,7 @@ function LazyRequirementProductMappingCard(props: ComponentProps<typeof Requirem
 }
 
 function RequirementProductMappingCard({ projectId, currency, requirement, assignment, sourcePdfHref, sourcePdfFileName, position, memories, resource, groupPanel, mainPostDetails, draft, onDraftChange, onCatalogResult, onSavingChange, onDirtyChange, onSaved, onError }: {
-  groupPanel?: ReactNode;
+  groupPanel?: ReactElement;
   mainPostDetails?: ReactNode;
   draft?: PostProductDraft;
   onDraftChange: (id: string, choices: PostProductChoice[] | undefined, revision: string) => void;
@@ -972,6 +972,12 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
     </section>
   );
 
+  const currentPostRequirements = <>
+    {groupPanel && <h4 className="product-current-post-heading">Krav for valgt underpost</h4>}
+    <h3 className="chapter-active-post-title">{details.postNumber} {String(requirement.value_text ?? "Produktpost")}</h3>
+    <ProjectPostSpecification id={requirement.id} details={details} section="card" description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")} quantity={quantity} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
+  </>;
+
   return (
     <ProductPostComments projectId={projectId} requirementId={requirement.id} productNumber={productNumber} productName={productName}
       disabled={requirement.can_edit === false || saving || attachmentSaving} onDirtyChange={setCommentDraftDirty} onSavingChange={setCommentsSaving}>
@@ -982,10 +988,7 @@ function RequirementProductMappingCard({ projectId, currency, requirement, assig
         <div className="product-panel-caption"><h3 id={`pdf-specification-${requirement.id}`}>Krav fra PDF</h3><span>{projectRequirementPageLabel(details)}</span></div>
         <div className="product-requirement-content">
           {mainPostDetails}
-          {groupPanel}
-          {groupPanel && <h4 className="product-current-post-heading">Krav for valgt underpost</h4>}
-          <h3 className="chapter-active-post-title">{details.postNumber} {String(requirement.value_text ?? "Produktpost")}</h3>
-          <ProjectPostSpecification id={requirement.id} details={details} section="card" description={String(record(requirement.value_json).description ?? requirement.value_text ?? "")} quantity={quantity} sourcePdfHref={sourcePdfHref} sourcePdfFileName={sourcePdfFileName} pdfArticleNumber={pdfArticleNumber} />
+          {groupPanel ? cloneElement(groupPanel, undefined, currentPostRequirements) : currentPostRequirements}
           {dataWarnings.length > 0 && (isApproved ? (
             <details className="mt-4 rounded-md border border-neutral-200 bg-white p-3">
               <summary className="cursor-pointer text-sm font-bold text-neutral-800">Lagrede merknader til PDF-grunnlaget</summary>
