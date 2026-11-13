@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import { initialMaterialReview, materialSearchQueries, materialSearchQuery, parseMaterialQuantity, parseMaterialSheets, validateMaterialSearchInput, type MaterialSearchInput } from "./material-import";
 import { exportMaterialWorkbook, readMaterialWorkbook, validateMaterialWorkbook } from "./material-import-workbook";
 import { fittingDimensionCheck, materialRequirement, matchMaterialRow, pipeHeaderDimensionCheck } from "./material-import-matching";
+import { classifyProductRequirement } from "./product-classification";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { AHLSELL_EVIDENCE_VERSION, buildAhlsellTechnicalEvidence, type AhlsellEvidenceSnapshot } from "./ahlsell-technical-evidence";
 
@@ -250,4 +251,16 @@ test("matching dimensions outside the first six hits are prioritized for page ve
   assert.equal(requested[0], many[7].articleNumber);
   assert.equal(result.candidates[0].articleNumber, many[7].articleNumber);
   assert.equal(result.candidates.length, 8);
+});
+
+
+test("normal-weight steel sprinkler pipe searches preserve the five confirmed DN sizes and pipe identity", () => {
+  for (const dimension of ["100", "150", "200", "25", "32"]) {
+    const pipe = { ...input, description: "KRA.017 3322 Normaltykke Stålrør Sprinkler", dimension, dimensionKind: "dn" as const };
+    assert.deepEqual(materialSearchQueries(pipe), [`stålrør sprinkler DN${dimension}`, `stålrør mellom serie ${dimension}`, `Normaltykke Stålrør Sprinkler DN${dimension}`]);
+    assert.equal(classifyProductRequirement(materialRequirement(pipe)).intent, "pipe");
+    assert.equal(materialRequirement(pipe).value_text, "Normaltykke Stålrør Sprinkler");
+    assert.doesNotMatch(materialSearchQueries({ ...pipe, dimensionKind: "unspecified" }).join(" "), /DN/);
+    assert.deepEqual(materialSearchQueries({ ...pipe, query: "egen rörsökning" }), ["egen rörsökning"]);
+  }
 });

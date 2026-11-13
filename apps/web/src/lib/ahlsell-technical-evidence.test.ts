@@ -204,3 +204,20 @@ test("a page-verified N5 alias remains valid when MLDL evidence is reassessed", 
   assert.equal(result[0].articleNumber,article);
   assert.ok(["exact","matched"].includes(ahlsellCandidateMatchState(result[0])),JSON.stringify(result[0].matchWarnings));
 });
+
+
+test("DN in parentheses after an inch value remains documented DN, not the leading fraction", () => {
+  for (const [label, value, dn] of [["DN", '1 1/4" (32)', 32], ["Nominell diameter", '11/4" (32)', 32],
+    ["DN", '1" (25)', 25], ["Nominell diameter", '4" (100)', 100]] as const) {
+    const raw = `${label}: ${value}`;
+    const evidence = buildAhlsellTechnicalEvidence(snapshot([raw]));
+    assert.equal(evidence.fields.dn?.observations[0].value, dn);
+    assert.equal(evidence.fields.dn?.observations[0].raw, raw);
+    const [ranked] = rankAhlsellCandidates({ category: "pipe", value_text: `Rør DN${dn}`, value_json: { unit: "m" } },
+      [{ ...product(evidence), specifications: [raw] }]);
+    assert.doesNotMatch(ranked.matchWarnings?.join(" ") ?? "", /Fel dimension/);
+  }
+  for (const raw of ['DN: 1 1/4"', 'DN: 25-32', 'DN: 1" (25-32)', 'Ytre rørdiameter: 1" (25)', 'Utvendig gjenge: 1" (25)']) {
+    assert.equal(buildAhlsellTechnicalEvidence(snapshot([raw])).fields.dn, undefined, raw);
+  }
+});

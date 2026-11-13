@@ -1,6 +1,6 @@
 import type { AhlsellPublicCandidate } from "@/lib/ahlsell-public-match";
 import type { ProductSearchAttempt, ProductSearchTrace } from "./product-search-trace";
-import { buildAhlsellTechnicalEvidence } from "./ahlsell-technical-evidence";
+import { buildAhlsellTechnicalEvidence, parseAhlsellNominalDiameter } from "./ahlsell-technical-evidence";
 import { isValveInsulationProduct, nominalDiameterRange } from "./product-search-names";
 
 export type AhlsellMarket = "no" | "se";
@@ -527,6 +527,20 @@ function variantMatchScore(variant: ParsedVariant, query: string) {
     const dimension = [...variant.attributes].find(([key]) => /^(?:dimensjon|dimension|dn)$/.test(key))?.[1];
     const dn = dimension?.match(/^dn\s*-?\s*(\d+)$/)?.[1];
     if (dn) score += Number(dn) >= range[0] && Number(dn) <= range[1] ? 100 : -100;
+  }
+  // An explicit, single DN belongs to the variant, not to the family's active card.
+  // Never turn a bare millimetre value or a fitting's multiple ports into DN.
+  const requestedDns = [...new Set([...query.matchAll(/\bDN\s*(\d+(?:[.,]\d+)?)\b/gi)].map(match => Number(match[1].replace(",", "."))))];
+  if (!range && requestedDns.length === 1 && !/\bDN\s*\d+(?:[.,]\d+)?\s*[-x×/]\s*(?:DN\s*)?\d/i.test(query)) {
+    const variantDns = variant.specifications.flatMap(specification => {
+      const colon = specification.indexOf(":");
+      if (colon < 0 || !/^(?:dn|nominell diameter|dimensjon dn|dimension dn)$/.test(normalize(specification.slice(0, colon)))) return [];
+      const value = specification.slice(colon + 1).trim();
+      const dn = parseAhlsellNominalDiameter(value);
+      return dn === null ? [] : [dn];
+    });
+    const uniqueDns = [...new Set(variantDns)];
+    if (uniqueDns.length === 1) score += uniqueDns[0] === requestedDns[0] ? 120 : -120;
   }
   const kFactor = normalizedQuery.match(/\bk\s*-?\s*(\d+(?:[.,]\d+)?)\b/)?.[1];
   const temperature = normalizedQuery.match(/\b(57|68|79|93|100|121|141|182|260)\b/)?.[1];

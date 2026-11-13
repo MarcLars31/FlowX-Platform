@@ -26,3 +26,12 @@ test("included fittings do not replace the main quantified pipe", () => {
   assert.equal(productRequirementCategory(row), "pipe");
   assert.equal(ahlsellRequirementIntent(row), "pipe");
 });
+
+
+test("normal-weight steel pipe measured in metres is not a sprinkler head", () => {
+  for (const category of ["pipe", "sprinkler_head", "unknown"]) {
+    assert.equal(classifyProductRequirement({ category, value_text: "Normaltykke Stålrør Sprinkler", value_json: { unit: "m" } }).intent, "pipe");
+  }
+  assert.equal(classifyProductRequirement({ value_text: "Normaltykke Stålrør Bend Sprinkler", value_json: { unit: "stk" } }).intent, "bend");
+  assert.equal(classifyProductRequirement({ value_text: "Sprinklerhode K80 QR nedadrettet", value_json: { unit: "stk" } }).intent, "sprinkler_head");
+});

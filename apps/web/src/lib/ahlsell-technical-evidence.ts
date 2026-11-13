@@ -70,7 +70,7 @@ export function buildAhlsellTechnicalEvidence(input: Omit<AhlsellEvidenceSnapsho
       property, ...genericValue, value: genericValue.value, raw, sourceUrl: input.sourceUrl,
       sourceKind: input.sourceKind ?? "product_page", retrievedAt: input.retrievedAt
     });
-    if (/^(?:dn|nominell diameter(?: dn)?|nominell storrelse|tilkobling dn|dimensjon dn|gjengedimensjon dn)$/.test(label)) add("dn", numeric(value, /^(?:DN\s*)?(\d+(?:[.,]\d+)?)$/i), raw);
+    if (/^(?:dn|nominell diameter(?: dn)?|nominell storrelse|tilkobling dn|dimensjon dn|gjengedimensjon dn)$/.test(label)) add("dn", parseAhlsellNominalDiameter(value), raw);
     if (/^(?:ytre (?:ror)?diameter|utvendig (?:ror)?diameter|ytterdiameter|outside diameter)(?: mm)?$/.test(label)) add("outsideDiameterMm", numeric(value, /^(\d+(?:[.,]\d+)?)\s*(?:mm)?$/i), raw);
     if (/^(?:dimensjon|dimension)$/.test(label)) add("dn", numeric(value, /^DN\s*(\d+(?:[.,]\d+)?)$/i), raw);
     if (/^(?:utvendig gjenge|innvendig gjenge|gjengedimensjon|gjenge|thread size)(?: tommer|inch)?$/.test(label)) add("threadInches", thread(value), raw);
@@ -162,6 +162,12 @@ function evidenceValuesAgree(field: TechnicalField, observations: TechnicalObser
   const first = observations[0]?.value;
   return observations.every(({ value }) => value === first || field === "kFactor"
     && typeof value === "number" && typeof first === "number" && sprinklerKFactorMatches(value, first));
+}
+
+/** Only call for a field explicitly labelled DN/nominal diameter. Keep its raw source. */
+export function parseAhlsellNominalDiameter(value: string) {
+  return numeric(value, /^(?:DN\s*)?(\d+(?:[.,]\d+)?)$/i)
+    ?? numeric(value, /^(?:\d+\s+)?(?:\d+\/\d+|\d+)\s*["″]\s*\(\s*(?:DN\s*)?(\d+(?:[.,]\d+)?)\s*\)$/i);
 }
 
 function numeric(text: string, pattern: RegExp) {

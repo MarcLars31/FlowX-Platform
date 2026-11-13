@@ -37,6 +37,28 @@ The 35–35–28 press tee now also finds Mapress 1951076 alongside A-press 1954
 
 Validation: all 44 focused Excel, queue, unrestricted-selection, catalogue and rule-snapshot tests passed; TypeScript and zero-warning ESLint passed. New regressions cover the reported valve, alternative searches, source preservation, exact-query isolation, the 24/6 candidate/detail bounds, prioritizing sizes beyond the first six hits, query display and Excel export. Diagnostic results are retained locally in the primary checkout at `.tmp/material-query-probe.json` and `.tmp/material-search-improved-probe.json`.
 
+## Steel sprinkler pipe follow-up — development, 13 November 2026
+
+The user reported no results for `KRA.017 3322 Normaltykke Stålrør Sprinkler` at 100, 150, 200, 25 and 32, and explicitly confirmed these sizes are DN. All five original descriptive queries returned zero public catalogue hits. This follow-up is **not published**; the live deployment remains unchanged.
+
+Three issues were addressed: the normal-weight pipe heading in metres could be classified as a sprinkler head; the supplier uses other names such as `mellom serie`; and variant selection did not prioritize a requested single DN over the active catalogue card. Searches now include `stålrør sprinkler DN…` and `stålrør mellom serie …`. The latter omits the prefix only in the search phrase because the supplier also indexes inch/parenthetical-DN values. The source requirement and selected measure system remain unchanged. Unknown workbook sizes still require the reviewer to choose **Nominell diameter (DN)**; this conversation's confirmation is not a default for other imports.
+
+Labelled DN values such as `1 1/4" (32)` are parsed as DN32 with the exact source text retained. This prevents the previous false DN1 conflict. An unlabelled inch value, outside diameter, size interval or multi-port tuple does not establish a single DN. Freely selectable alternatives and the supplier request budget remain unchanged; pipe series, wall thickness, finish and connection type remain review points.
+
+Read-only local matching against Ahlsell returned page-verified pipe candidates for all five sizes, including:
+
+| Confirmed size | Example article | Supplier description / heading |
+| --- | --- | --- |
+| DN100 | 1001026 | Blue threaded medium-series steel pipe, 114.3 × 4.5 mm |
+| DN150 | 1118638 | Painted grooved steel pipe, 168.3 × 4.0 mm, 6 m |
+| DN200 | 1118639 | Painted grooved steel pipe, 219.1 × 4.5 mm, 6 m |
+| DN25 | 1001013 | Blue threaded medium-series steel pipe, 33.7 × 3.2 mm |
+| DN32 | 1001015 | Blue threaded medium-series steel pipe, 42.4 × 3.2 mm |
+
+These examples establish catalogue availability and the nominal size, not interchangeable pipe specifications or approval for the installation. The final diagnostic data, including source links and the other candidates, are retained in the primary checkout at `.tmp/material-steel-five-dn-final.json`.
+
+Validation: the full local release check passed for the query, classification and variant-ranking changes (log `.tmp/material-steel-release-tests.log`). After the final parenthetical-DN parser adjustment, all 67 focused catalogue, evidence, classification, Excel, client, selection and rule tests passed; TypeScript and zero-warning ESLint also passed. No production data, migrations, configuration or deployment was changed.
+
 ## Unrestricted-choice release
 
 The unrestricted-choice change removes technical-conflict, identity-verification and acknowledgement-checkbox gates from Excel product selection. It was manually published on 13 November 2026; see the [unrestricted-choice release record](excel-free-choice-release-2026-11-13.md). The earlier release record below describes the initial live version. Validation: all 28 focused Excel/client/rule tests passed, along with TypeScript and zero-warning ESLint. The UI regression covers all combinations of identity verification and technical conflict; workbook tests verify that any selected candidate and its caveats are retained.

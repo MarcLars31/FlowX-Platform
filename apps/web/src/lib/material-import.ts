@@ -189,6 +189,12 @@ export function materialSearchQueries(input: MaterialSearchInput): string[] {
   }
   if (sprinkler) dimension = [description.match(/\bK\s*\d+(?:[.,]\d+)?/i)?.[0]?.replace(/\s/g, ""),
     description.match(/\b(?:QR|SR)\b/i)?.[0], description.match(/\b\d+\s*(?:grader|°)/i)?.[0]?.match(/\d+/)?.[0]].filter(Boolean).join(" ");
+  if (pipe && heading === "stålrør" && !material && /sprinkler/i.test(description)) {
+    // Normaltykke is project wording. Ahlsell uses, among others, mellom serie.
+    // Search alternatives do not establish wall thickness, coating or joint type.
+    return [...new Set([["stålrør sprinkler", dimension].filter(Boolean).join(" "),
+      [/normaltykk/i.test(description) ? "stålrør mellom serie" : "stålrør", dimension.replace(/DN\s*/gi, "")].filter(Boolean).join(" "), original])];
+  }
   const concise = [core, context, dimension].filter(Boolean).join(" ");
   const alternate = heading === "brannskap" ? "brannpost" : context ? [core, dimension].filter(Boolean).join(" ")
     : material === "rustfritt" ? [core.replace("rustfritt", "syrefast").replace(/\s+press$/, ""), dimension].filter(Boolean).join(" ")
@@ -203,6 +209,7 @@ export function materialInputWarnings(input: MaterialSearchInput) {
   if (!input.dimension && !input.fittingDimension) warnings.push("Dimension saknas i listan.");
   if (/bend|böj|boej/.test(text) && !/\b(?:15|22[.,]5|30|45|60|87[.,]5|88[.,]5|90)\s*(?:°|gr|grad)/.test(text)) warnings.push("Böjvinkel saknas. Kontrollera exempelvis 45° eller 90°.");
   if (/press/.test(text)) warnings.push("Kontrollera pressystem, profil och materialkvalitet mot installationen.");
+  if (/normaltykk.*stål/i.test(text)) warnings.push("Kontrollera rörserie/godstjocklek, ytbehandling och gängad, slät eller rillad anslutning. En DN-träff bekräftar inte dessa utföranden.");
   if (/pumpe|pump/.test(text)) warnings.push("Kontrollera pumpens flöde, uppfordringshöjd och driftpunkt.");
   return warnings;
 }

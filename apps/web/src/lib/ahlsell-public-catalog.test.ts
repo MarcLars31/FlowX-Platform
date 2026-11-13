@@ -270,3 +270,24 @@ function variant(articleNumber: string, color: string) {
     }
   };
 }
+
+
+test("an explicit single DN picks the documented pipe variant instead of the active size", async () => {
+  for (const [size, label] of [[100, "DN 100"], [150, "DN150"], [200, "200"], [25, '1" (25)'], [32, '1 1/4" (32)']] as const) {
+    const matching = String(6000000 + size);
+    const fetchImpl: typeof fetch = async url => String(url).includes("/variants?") ? Response.json({
+      settings: { headers: { "0": "DN", "1": "Ytre rørdia." } },
+      items: [
+        { code: "6000050", productName: "Stålrør", url: "/products/6000050/", buyable: true, isActiveVariant: true,
+          attributes: { "0": { value: "DN50", unit: "" }, "1": { value: String(size), unit: "mm" } } },
+        { code: matching, productName: "Stålrør", url: `/products/${matching}/`, buyable: true,
+          attributes: { "0": { value: label, unit: "" } } }
+      ]
+    }) : Response.json({ productCount: 1, productCards: [{ ...product("6000050", "Stålrør", ""), code: "PIPES", numberOfVariants: 2 }] });
+    const search = (queries: string[]) => searchAhlsellPublicCatalogQueries({ market: "no", queries, fetchImpl });
+    assert.equal((await search([`stålrør sprinkler DN${size}`, `stålrør mellom serie DN${size}`])).candidates[0].articleNumber, matching);
+    assert.equal((await search([`stålrør ${size} mm`])).candidates[0].articleNumber, "6000050");
+    assert.equal((await search([`t-rør DN${size} DN65`])).candidates[0].articleNumber, "6000050");
+    assert.equal((await search([`stålrør DN${size}-250`])).candidates[0].articleNumber, "6000050");
+  }
+});
