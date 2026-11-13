@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-13.1";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-13.2";
 export const RULE_CATALOG_DATE = "13 november 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -23,12 +23,12 @@ const table = (columns: string[], rows: string[][]) => ({ columns, rows });
 export const MATCHING_RULE_GROUPS: RuleGroup[] = [
   {
     id: "excel-material", title: "Excelmaterial och NRF", appliesTo: "Uppladdade materiallistor", kind: "review",
-    description: "Bevara källrader och skilj produktförslag från granskade val.",
-    sources: ["material-import.ts", "material-import-workbook.ts", "material-import-matching.ts", "material-import-client.ts"],
+    description: "Bevara källrader och skilj produktförslag från användarens val.",
+    sources: ["material-import.ts", "material-import-workbook.ts", "material-import-matching.ts", "material-import-client.ts", "../components/MaterialExcelImport.tsx"],
     rules: [
       rule("excel-kallrader", "Bevara mängder och källrad", "En Excel-lista läses in.", "Identifiera tabellrubriker på varje blad och behåll beskrivning, mått, enhet, mängd, blad och radnummer. Noll mängd söks inte. Felaktiga indata behålls för rättning och export."),
-      rule("excel-matt", "Anta inte DN från ett ensamt tal", "Listan innehåller dimensioner eller en koppling med flera anslutningar.", "Låt granskaren ange måttsystem. Bevara alla kopplingsmått. Dokumenterade avvikelser mot uttrycklig ytterdiameter spärrar valet; saknade uppgifter och portordning kräver kontroll."),
-      rule("excel-produktval", "Artikelidentitet och granskning krävs", "Produktsökningen hittar kandidater hos Ahlsell Norge.", "Verifiera artikelnumret på produktsidan och behåll tekniska avvikelser. Granskaren måste kontrollera utförande och kompatibilitet innan val. Exportera förslag och val i separata kolumner; välj aldrig automatiskt."),
+      rule("excel-matt", "Anta inte DN från ett ensamt tal", "Listan innehåller dimensioner eller en koppling med flera anslutningar.", "Låt granskaren ange måttsystem. Bevara alla kopplingsmått. Dokumenterade avvikelser mot uttrycklig ytterdiameter, saknade uppgifter och portordning visas som information och spärrar inte produktvalet."),
+      rule("excel-produktval", "Användaren väljer fritt", "Produktsökningen hittar kandidater hos Ahlsell Norge.", "Försök verifiera artikelnumret på produktsidan och visa tekniska avvikelser. Alla sökträffar kan väljas, även med avvikelser eller overifierad artikelidentitet. Ingen bekräftelseruta krävs. Exportera förslag och användarens val i separata kolumner och behåll informationen om avvikelser; välj aldrig automatiskt."),
       rule("excel-kohantering", "Respektera leverantörens sökbudget", "Flera materialrader ska sökas.", "Sök en rad i taget, använd gemensam leverantörsbudget och respektera Retry-After med högst två automatiska återförsök. Bevara tidigare resultat vid avbrott och driftfel.")
     ]
   },

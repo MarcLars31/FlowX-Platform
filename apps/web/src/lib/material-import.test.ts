@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import ExcelJS from "exceljs";
-import { canSelectMaterialCandidate, initialMaterialReview, materialSearchQuery, parseMaterialQuantity, parseMaterialSheets, validateMaterialSearchInput, type MaterialSearchInput } from "./material-import";
+import { initialMaterialReview, materialSearchQuery, parseMaterialQuantity, parseMaterialSheets, validateMaterialSearchInput, type MaterialSearchInput } from "./material-import";
 import { exportMaterialWorkbook, readMaterialWorkbook, validateMaterialWorkbook } from "./material-import-workbook";
 import { fittingDimensionCheck, materialRequirement, matchMaterialRow, pipeHeaderDimensionCheck } from "./material-import-matching";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
@@ -109,10 +109,10 @@ test("fitting evaluation retains all ports and handles unknown measure systems c
 const candidate: AhlsellPublicCandidate = { articleNumber: "5002206", productName: "Kobberrør", manufacturer: "", productUrl: "https://www.ahlsell.no/products/test/5002206", specifications: [], source: "catalog_search" };
 const fakeSearch = async () => ({ candidates: [candidate], query: "Kobberrør 15", queries: ["Kobberrør 15"], searchUrl: "https://www.ahlsell.no/search?q=kobber", searchUrls: [], total: 1, truncated: false });
 
-test("catalog hits without page identity remain unselectable; supplier outage is not a no-match", async () => {
+test("catalog hits retain identity uncertainty as information; supplier outage is not a no-match", async () => {
   const result = await matchMaterialRow(input, {}, { search: fakeSearch, details: async () => ({}) });
   assert.equal(result.candidates[0].identityVerified, false);
-  assert.equal(canSelectMaterialCandidate(result.candidates[0]), false);
+  assert.ok(result.candidates[0].warnings.length > 0);
   assert.equal(result.partial, true);
   await assert.rejects(matchMaterialRow(input, {}, { search: async () => { throw new Error("supplier unavailable"); } }), /supplier unavailable/);
 });
@@ -125,7 +125,6 @@ test("verified exact page identity permits manual review but never automatically
   assert.equal(result.candidates[0].identityVerified, true);
   assert.equal("selected" in result, false);
   assert.match(result.warnings.join(" "), /måttsystem/);
-  assert.equal(canSelectMaterialCandidate({ ...result.candidates[0], conflict: true }), false);
 });
 
 test("aborted requests stop before supplier access", async () => {
@@ -135,7 +134,7 @@ test("aborted requests stop before supplier access", async () => {
   assert.equal(searched, false);
 });
 
-test("documented pipe outside diameter conflicts are blocked even when the search ranked them first", async () => {
+test("documented pipe outside diameter conflicts remain visible even when the search ranked them first", async () => {
   const result = await matchMaterialRow({ ...input, dimensionKind: "outside" }, {}, { search: fakeSearch, details: async () => {
     const snapshot: AhlsellEvidenceSnapshot = { version: AHLSELL_EVIDENCE_VERSION, articleNumber: candidate.articleNumber, sourceUrl: candidate.productUrl,
       retrievedAt: new Date().toISOString(), productName: "Kobberrør", subtitle: "28 x 1.5 mm kobberrør", description: null,
@@ -143,10 +142,10 @@ test("documented pipe outside diameter conflicts are blocked even when the searc
     return { [candidate.articleNumber]: { ...snapshot, description: undefined, snapshot, technicalEvidence: buildAhlsellTechnicalEvidence(snapshot) } };
   } });
   assert.equal(result.candidates[0].conflict, true);
-  assert.equal(canSelectMaterialCandidate(result.candidates[0]), false);
+  assert.ok(result.candidates[0].warnings.length > 0);
 });
 
-test("an exact pipe heading can reject a wrong diameter without a technical table", () => {
+test("an exact pipe heading can flag a wrong diameter without a technical table", () => {
   const row = { ...input, dimensionKind: "outside" as const };
   assert.equal(pipeHeaderDimensionCheck(row, "76.1x2.0mm CuNi pipe 90/10").conflict, true);
   assert.equal(pipeHeaderDimensionCheck(row, "15 x 1.0 mm kobberrør").conflict, false);

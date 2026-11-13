@@ -161,9 +161,5 @@ export function materialInputWarnings(input: MaterialSearchInput) {
 export function materialRowStatus(row: MaterialRow, review: MaterialReview) {
   if (row.issues.length) return "Kontrollera indata";
   if (row.quantity === 0) return "Noll mängd – ej sökt";
-  return { pending: "Ej sökt", searching: "Söker", review: "Granska förslag", empty: "Ingen träff", error: "Sökfel", selected: "Granskat val" }[review.status];
-}
-
-export function canSelectMaterialCandidate(candidate: MaterialCandidate) {
-  return candidate.identityVerified && !candidate.conflict;
+  return { pending: "Ej sökt", searching: "Söker", review: "Granska förslag", empty: "Ingen träff", error: "Sökfel", selected: "Vald produkt" }[review.status];
 }
