@@ -9,4 +9,13 @@ const files = ["src","scripts"].flatMap(directory => readdirSync(directory,{recu
 run(["node_modules/next/dist/bin/next","typegen"]);
 run(["node_modules/typescript/bin/tsc","--noEmit","--incremental","false"]);
 run(["node_modules/eslint/bin/eslint.js",".","--max-warnings=0"]);
-run(["--import","./scripts/register-server-only-test.mjs","--import","tsx","--test","--test-concurrency=4",...files]);
+// Wall-clock database budgets need an uncontended worker. Keep their production
+// thresholds while running the remaining regression tests concurrently.
+const timingTests = new Set([
+  "scripts/direct-project-assignment.test.ts",
+  "scripts/managed-project-read-scope.test.ts",
+  "scripts/project-management-summary.test.ts",
+]);
+const testArgs = ["--import", "./scripts/register-server-only-test.mjs", "--import", "tsx", "--test"];
+run([...testArgs, "--test-concurrency=4", ...files.filter(file => !timingTests.has(file))]);
+run([...testArgs, "--test-concurrency=1", ...files.filter(file => timingTests.has(file))]);
