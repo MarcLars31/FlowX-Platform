@@ -193,14 +193,25 @@ export function MaterialRowReview({ row, review, busy, onInput, onSearch, onRevi
           <a href={review.result.searchUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-800 underline">Öppna sökningen hos Ahlsell<ExternalLink className="h-3 w-3" /></a>
           {(review.result.queries?.length ?? 0) > 0 && <details className="text-xs text-neutral-600"><summary className="cursor-pointer">Använda sökord</summary>
             <ul className="mt-2 list-disc space-y-1 pl-4">{review.result.queries?.map(query => <li key={query}>{query}</li>)}</ul></details>}
-          {review.result.candidates.length > 0 ? <p className="rounded bg-neutral-50 p-3 text-sm">Du kan välja vilken produkt som helst i resultatet. Tekniska avvikelser och saknade uppgifter visas som information.</p>
+          {review.result.candidates.length > 0 ? <p className="rounded bg-neutral-50 p-3 text-sm">Du kan välja vilken produkt som helst i resultatet. Träffarna sorteras efter matchpoäng. Poängen är ett sökstöd, inte ett tekniskt godkännande.</p>
             : <p className="text-sm">Ingen träff. Anpassa sökorden eller sök på ett exakt artikelnummer.</p>}
           {review.result.candidates.map(candidate => <article key={candidate.articleNumber} className={`space-y-2 rounded border p-3 ${review.selected?.articleNumber === candidate.articleNumber ? "border-green-500 bg-green-50" : "border-neutral-200"}`}>
             <a href={candidate.productUrl} target="_blank" rel="noopener noreferrer" className="block text-sm font-bold text-blue-900 underline">{candidate.productName}</a>
             <p className="text-sm">{candidate.subtitle}</p><p className="text-xs font-semibold">NRF / art.nr: {candidate.articleNumber}</p>
+            <div className="rounded bg-neutral-50 p-2 text-xs">
+              <p className="text-sm font-bold">{typeof candidate.score === "number" ? `Matchpoäng: ${candidate.score}/100` : "Poäng saknas – sök igen"}</p>
+              {candidate.dimensionMatch && <div className="mt-2 space-y-1">
+                <p className={`font-semibold ${candidate.dimensionMatch.status === "mismatch" ? "text-red-800" : candidate.dimensionMatch.status === "match" ? "text-green-800" : "text-amber-900"}`}>
+                  {{ match: "Storleken stämmer", mismatch: "Fel storlek", unknown: "Storleken behöver kontrolleras" }[candidate.dimensionMatch.status]}</p>
+                <p>Krav: {candidate.dimensionMatch.expected}</p><p>Produkt: {candidate.dimensionMatch.actual}</p>
+                <p>{candidate.dimensionMatch.explanation}</p>
+              </div>}
+              {(candidate.scoreReasons?.length ?? 0) > 0 && <details className="mt-2"><summary className="cursor-pointer font-semibold">Så räknas poängen</summary>
+                <ul className="mt-1 list-disc pl-4">{candidate.scoreReasons?.map(reason => <li key={reason}>{reason}</li>)}</ul></details>}
+            </div>
             {candidate.conflict && <p className="text-xs font-bold text-red-800">Teknisk avvikelse mot materialraden. Du kan ändå välja produkten.</p>}
             {candidate.warnings.length > 0 && <ul className="list-disc space-y-1 pl-4 text-xs leading-5 text-amber-900">{candidate.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
-            {candidate.specifications.length > 0 && <details className="text-xs"><summary className="cursor-pointer font-semibold">Tekniska uppgifter</summary><ul className="mt-2 space-y-1">{candidate.specifications.map((item, i) => <li key={i}>{item}</li>)}</ul></details>}
+            {candidate.specifications.some(item => item.trim()) && <details className="text-xs"><summary className="cursor-pointer font-semibold">Tekniska uppgifter</summary><ul className="mt-2 space-y-1">{candidate.specifications.filter(item => item.trim()).map((item, i) => <li key={i}>{item}</li>)}</ul></details>}
             {review.selected?.articleNumber === candidate.articleNumber
               ? <Button disabled={busy} variant="secondary" onClick={() => onReview({ ...review, status: "review", selected: undefined })}>Ta bort produktval</Button>
               : <Button disabled={busy} onClick={() => onReview({ ...review, status: "selected", selected: candidate })}>Välj produkt</Button>}

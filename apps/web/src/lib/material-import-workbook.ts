@@ -77,22 +77,26 @@ export async function exportMaterialWorkbook(rows: MaterialRow[], reviews: Recor
     ["Enhet", 10], ["Mengde", 13], ["Kategori", 24], ["Status", 24], ["Valt NRF / art.nr", 21],
     ["Vald produkt", 42], ["Vald produktlänk", 50], ["Förslag NRF / art.nr", 23], ["Föreslagen produkt", 42],
     ["Förslag produktlänk", 50], ["Kontrollpunkter / fel", 70], ["Måttyp", 18], ["Kompletterande krav", 45], ["Sökning", 45],
+    ["Vald matchpoäng / 100", 23], ["Förslag matchpoäng / 100", 25], ["Vald måttjämförelse", 60], ["Förslag måttjämförelse", 60],
   ].map(([header, width]) => ({ header: String(header), width: Number(width) }));
   for (const row of rows) {
     const review = reviews[row.id];
     if (!review) throw new MaterialImportError("Granskningsdata saknas för en materialrad.");
     const selected = review.status === "selected" ? review.selected : undefined;
     const proposed = review.result?.candidates.find(candidate => candidate.identityVerified && !candidate.conflict);
+    const dimensionText = (candidate: typeof selected) => candidate?.dimensionMatch
+      ? `Krav: ${candidate.dimensionMatch.expected} · Produkt: ${candidate.dimensionMatch.actual}. ${candidate.dimensionMatch.explanation}` : "";
     sheet.addRow([row.sheet, row.sourceRow, row.description, row.dimension, row.fittingDimension, row.unit,
       row.quantity ?? row.quantityText, row.category, materialRowStatus(row, review),
       selected?.articleNumber ?? "", selected ? [selected.productName, selected.subtitle].filter(Boolean).join(" · ") : "", selected?.productUrl ?? "",
       proposed?.articleNumber ?? "", proposed ? [proposed.productName, proposed.subtitle].filter(Boolean).join(" · ") : "", proposed?.productUrl ?? "",
       [...new Set([...row.issues, ...(review.result?.warnings ?? []), ...(selected?.warnings ?? proposed?.warnings ?? []), ...(review.error ? [review.error] : [])])].join("\n"),
       { unspecified: "Ej angivet", outside: "Ytterdiameter mm", dn: "DN" }[review.input.dimensionKind], review.input.details, review.result?.queries?.join("\n") ?? review.input.query,
+      selected?.score ?? "", proposed?.score ?? "", dimensionText(selected), dimensionText(proposed),
     ]);
   }
   sheet.views = [{ state: "frozen", ySplit: 1, xSplit: 3 }];
-  sheet.autoFilter = { from: "A1", to: `S${rows.length + 1}` };
+  sheet.autoFilter = { from: "A1", to: `W${rows.length + 1}` };
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF17344B" } };
   sheet.getRow(1).height = 32;

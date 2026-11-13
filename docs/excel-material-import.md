@@ -22,9 +22,24 @@ Open **Excel till NRF** in the organization navigation (`/material-import`). The
 - Product numbers are labelled **NRF / article number** because a supplier article identifier is not always a registered NRF number.
 - The parser rejects unsupported, corrupt, encrypted and oversized ZIP containers. File parsing and workbook generation run in the browser; no server-side workbook upload endpoint is added.
 
-## Search recall improvement — development, 13 November 2026
+## Result scores and visible size comparison — development, 13 November 2026
 
-This follow-up is implemented on `codex/scipx-upgrades` and **has not been published**. The live deployment remains the one recorded in `excel-free-choice-release-2026-11-13.md`. No database, production data, environment or domain changes were made.
+The user requested points on every Excel search result and reported apparent wrong sizes for `KRA.017 3322 Normaltykke Stålrør Sprinkler`. They supplied article 1001126, whose Ahlsell nominal-size field is `4" (100)` and outside diameter is 114.3 mm. Those are different measure systems: this article matches DN100, while the installation's pipe series, wall, finish and connection still require review.
+
+This follow-up is implemented on `codex/scipx-upgrades` and **has not been published**. The current live application remains the [Excel fixes release](excel-fixes-release-2026-11-13.md).
+
+- Every newly returned result includes a 0–100 match score based on the existing product/requirement ranker, with an explanation of conservative limits. A wrong size caps the score at 24, unknown size at 59, technical conflict at 34, unverified page identity at 69 and remaining technical checks at 89; the lowest applicable cap wins. Results are sorted by the displayed score, with stable technical/size/identity tie-breaks. Points are search support, not a probability or approval.
+- Each card shows the requested measure, the product's DN and outside diameter separately, and whether the size matches, differs or needs checking. Compare DN with DN and outside diameter with outside diameter; do not derive one from the other. A bare workbook number remains unspecified until the reviewer chooses a measure system. Explicit DN/mm in the dimension cell is recognized. Foreign, conflicting, expired, interval and multi-size DN evidence cannot establish a confirmed single-size match. Fittings retain every connection size and still require port-order review.
+- Exact size candidates are prioritized for the existing six page-detail requests. A stale prose warning claiming a missing DN is removed only when the same measure comparison confirms it. Original technical differences remain visible. Blank specification entries are omitted.
+- Selection stays unrestricted, including low-scoring results. Legacy API results without scores request a new search instead of inventing a score. Excel export appends separate selected/proposed scores and size comparisons while retaining the original fields and the user's actual choice.
+
+Verification: 53 focused Excel, queue, selection, scoring, workbook and rule tests passed. The complete release check passed TypeScript, zero-warning ESLint and **1,413 tests (1,399 standard plus 14 isolated timing/database tests)**. The local Next.js production build passed. The real review component was visually inspected in a local static fixture preview; user selection and export behavior were covered by regressions. No production data or saved choices were changed, no supplier batch was run and no deployment was performed.
+
+In the locally replayed DN100 example, article 1001126 scored **89/100** and a DN80 alternative scored **24/100**. These points depend on the row's requirements and available evidence and are not hard-coded per article. Logs and preview artifacts are retained in the primary checkout: `.tmp/material-scoring-release-tests.log`, `.tmp/material-scoring-build.log`, `.tmp/material-scoring-preview-results.json` and `.tmp/material-scoring-preview.png`. The reviewed rule catalogue is `scipx-product-rules-2026-11-13.6`.
+
+## Search recall improvement — published 13 November 2026
+
+This follow-up was manually published with the steel-pipe/DN and queue fixes; see the [Excel fixes release record](excel-fixes-release-2026-11-13.md). No database migration, production data change or environment-variable change was required.
 
 - Automatic Excel matching now uses up to three catalogue queries: a concise product-family/size query, an alternative catalogue wording or broader family query, and the previous descriptive query. Classification codes, project-purpose wording, repeated fitting sizes and descriptive dimension ranges no longer have to appear in every query. Examples include compressed-air ball valves, press fittings, PP pipes, sprinkler heads and fire cabinets searched also as `brannpost`.
 - The full original description, dimension fields and fitting port sequence remain the technical comparison input. Alternative wording is a search hint, not a material-grade equivalence or an approved substitution. Bare sizes are not converted to DN; an explicit DN in the description is reused only when it agrees with the size field.
@@ -37,9 +52,9 @@ The 35–35–28 press tee now also finds Mapress 1951076 alongside A-press 1954
 
 Validation: all 44 focused Excel, queue, unrestricted-selection, catalogue and rule-snapshot tests passed; TypeScript and zero-warning ESLint passed. New regressions cover the reported valve, alternative searches, source preservation, exact-query isolation, the 24/6 candidate/detail bounds, prioritizing sizes beyond the first six hits, query display and Excel export. Diagnostic results are retained locally in the primary checkout at `.tmp/material-query-probe.json` and `.tmp/material-search-improved-probe.json`.
 
-## Steel sprinkler pipe follow-up — development, 13 November 2026
+## Steel sprinkler pipe follow-up — published 13 November 2026
 
-The user reported no results for `KRA.017 3322 Normaltykke Stålrør Sprinkler` at 100, 150, 200, 25 and 32, and explicitly confirmed these sizes are DN. All five original descriptive queries returned zero public catalogue hits. This follow-up is **not published**; the live deployment remains unchanged.
+The user reported no results for `KRA.017 3322 Normaltykke Stålrør Sprinkler` at 100, 150, 200, 25 and 32, and explicitly confirmed these sizes are DN. All five original descriptive queries returned zero public catalogue hits. This follow-up was manually published with the [Excel fixes release](excel-fixes-release-2026-11-13.md).
 
 Three issues were addressed: the normal-weight pipe heading in metres could be classified as a sprinkler head; the supplier uses other names such as `mellom serie`; and variant selection did not prioritize a requested single DN over the active catalogue card. Searches now include `stålrør sprinkler DN…` and `stålrør mellom serie …`. The latter omits the prefix only in the search phrase because the supplier also indexes inch/parenthetical-DN values. The source requirement and selected measure system remain unchanged. Unknown workbook sizes still require the reviewer to choose **Nominell diameter (DN)**; this conversation's confirmation is not a default for other imports.
 
@@ -57,11 +72,11 @@ Read-only local matching against Ahlsell returned page-verified pipe candidates 
 
 These examples establish catalogue availability and the nominal size, not interchangeable pipe specifications or approval for the installation. The final diagnostic data, including source links and the other candidates, are retained in the primary checkout at `.tmp/material-steel-five-dn-final.json`.
 
-Validation: the full local release check passed for the query, classification and variant-ranking changes (log `.tmp/material-steel-release-tests.log`). After the final parenthetical-DN parser adjustment, all 67 focused catalogue, evidence, classification, Excel, client, selection and rule tests passed; TypeScript and zero-warning ESLint also passed. No production data, migrations, configuration or deployment was changed.
+Validation: the full local release check passed for the query, classification and variant-ranking changes (log `.tmp/material-steel-release-tests.log`). After the final parenthetical-DN parser adjustment, all 67 focused catalogue, evidence, classification, Excel, client, selection and rule tests passed; TypeScript and zero-warning ESLint also passed. Those development checks did not change production data, migrations, configuration or deployments; subsequent publication is recorded separately.
 
-## Batch-search stall follow-up — development, 13 November 2026
+## Batch-search stall follow-up — published 13 November 2026
 
-The user reported row 24 remaining at **Söker**, without a pause message. Their pasted list contains 20 completed searches before that row, excluding two zero-quantity rows. This aligns with the endpoint's existing 20 requests/minute limit, but it is not proof of the live request's failure: no production trace was captured. Source inspection also found that the browser had no request/body-read deadline and stopped the entire batch after an individual gateway failure. **This fix has not been published.**
+The user reported row 24 remaining at **Söker**, without a pause message. Their pasted list contains 20 completed searches before that row, excluding two zero-quantity rows. This aligns with the endpoint's existing 20 requests/minute limit, but it is not proof of the live request's failure: no production trace was captured. Source inspection also found that the browser had no request/body-read deadline and stopped the entire batch after an individual gateway failure. This fix was manually published with the [Excel fixes release](excel-fixes-release-2026-11-13.md).
 
 - The client now bounds each fetch plus JSON body read to 65 seconds. A hanging request is aborted and recorded as a retryable row error; the next row continues.
 - The whole batch runs serially with at least 3.1 seconds between row starts. Empty results count as completed searches and never stop the batch. Table pagination and row filters do not truncate the queue.
@@ -71,7 +86,7 @@ The user reported row 24 remaining at **Söker**, without a pause message. Their
 
 A deterministic local test ran all **242 rows** through the actual 20/minute limiter with a simulated clock and fixture responses: 242 completed, zero rejected by that limit, at most one request in flight. Separate tests cover stalled fetch and body streams, countdown/resumption, manual cancellation, isolated errors followed by successful rows, three-error pausing and unchanged unrestricted selection. This is a queue test, not 242 public supplier searches or a measured catalogue match rate.
 
-The endpoint's production rate limit, shared supplier budget, database and deployment are unchanged. Validation passed: TypeScript, zero-warning ESLint, all 1,404 release tests (1,390 standard plus 14 isolated timing/database tests), and the local Next.js production build. Logs are retained in the primary checkout at `.tmp/material-queue-release-tests.log` and `.tmp/material-queue-build.log`. The combined search-recall, steel-pipe/DN and queue changes are ready for a separately authorized publication.
+The endpoint's production rate limit, shared supplier budget and database are unchanged. Validation passed: TypeScript, zero-warning ESLint, all 1,404 release tests (1,390 standard plus 14 isolated timing/database tests), and the local Next.js production build. Logs are retained in the primary checkout at `.tmp/material-queue-release-tests.log` and `.tmp/material-queue-build.log`. The combined search-recall, steel-pipe/DN and queue changes were explicitly authorized and manually published; see the [release record](excel-fixes-release-2026-11-13.md) for the live commit, deployment and post-publication checks.
 
 ## Unrestricted-choice release
 

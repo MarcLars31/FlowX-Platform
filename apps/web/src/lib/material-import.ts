@@ -24,6 +24,12 @@ export type MaterialSearchInput = {
   details: string;
   query: string;
 };
+export type MaterialDimensionMatch = {
+  status: "match" | "mismatch" | "unknown";
+  expected: string;
+  actual: string;
+  explanation: string;
+};
 export type MaterialCandidate = {
   articleNumber: string;
   productName: string;
@@ -33,6 +39,10 @@ export type MaterialCandidate = {
   warnings: string[];
   identityVerified: boolean;
   conflict: boolean;
+  /** Optional for results returned by an earlier deployment; every new result includes these. */
+  score?: number;
+  scoreReasons?: string[];
+  dimensionMatch?: MaterialDimensionMatch;
 };
 export type MaterialSearchResult = {
   candidates: MaterialCandidate[];

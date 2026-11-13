@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-11-13.5",
+  "version": "scipx-product-rules-2026-11-13.6",
   "sources": {
     "../../../../supabase/migrations/20261027160000_project_chapter_organization.sql": "264323661ef38ee4a845aae8d710fab605d3e64c090e3f947ad36babf343bec3",
     "../../../../supabase/migrations/20261027200000_individual_chapter_placement.sql": "ed55e62e5b63f0d454fc3199ac83788bb0bdd6baef6c847414df6a1f9ddcc260",
@@ -10,6 +10,7 @@
     "../components/DistributorMappingPanel.tsx": "205822a06fe096499c9267e44922e9d2b982e708210c0f29025f7b6c01367de1",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
     "../components/MainPostDetailsButton.tsx": "a2f0022a8e842dba2b58efb6c50bf58f904a1d4f41b9a2cce401c4466919cad9",
+    "../components/MaterialExcelImport.tsx": "145e1ada399c0aeea6ab9a4a322696e63e6834aa0ef09a1284f6ecafcc6a5a3d",
     "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",
     "../components/ProductPostGroupPanel.tsx": "1826499899999bd42d286823dee4cda9d7d40abee44540de1f55795fac5e7e41",
     "../components/ProductPostNavigation.tsx": "7d651d7d9ff8541d9058fbcd5fa4e9ddf9b7e0332147bb570a7a339add8c46d7",
@@ -79,9 +80,10 @@
     "effective-requirements.ts": "eb7ce72939c0188f3f8d30a625ea3e3ff5407b1ba09877ddffb44b2d37f91ece",
     "inherited-product-requirements.ts": "acb530f489af1ad3a4ef2bf28bfcf37d5190e3431bce9c643eea545d33d38932",
     "material-import-client.ts": "0911abc5136381a136ff6870b43181d229ebb200bbfe6a97f6f7107b9438baed",
-    "material-import-matching.ts": "5fe25d0883c95d40e4736180eb65b7c3dcbac5bac53d116fee98a8701c516298",
-    "material-import-workbook.ts": "c68d25c684f5356660d97ecf6cf3da2a13ccc193f0ab8b541eba7845c49ab5d9",
-    "material-import.ts": "73712ea1ee80bedb14be610f737dd32197b5ca07a28a08c62cc01746a9db3d16",
+    "material-import-matching.ts": "7bdf0dad48ec7efea0f736c9d28b82eeb821266bc29ac7fa2dd231b54c346141",
+    "material-import-scoring.ts": "1b1d78e326b1c072dc906eca610643f4000f3f53f3666e8dae1aff77e6abb51a",
+    "material-import-workbook.ts": "b1cd90a833842b84cc6f243d5dc111d68383f14be44fb59c962ab20be02dfd78",
+    "material-import.ts": "0c7e86738c09896706d8b4211f6dca4eec0ca49fe34bb55ade6388b8fd0e20be",
     "ns3420-product-classification.ts": "4275a2b785a701bb1ee44b9dbf59a423180150d48f83736795da65e07e51d16d",
     "ocr-failure-pages.ts": "03d88340b0ebbab6eb1819093d161759631d26da2def4f630714bfdd5734a440",
     "own-requirement-text.ts": "e08ca20381ac48a5268fe67d5673b8db0e6ff2d4a31d3231d4acef4898be650c",
@@ -138,7 +140,6 @@
     "technical-evaluation-model.ts": "6700f2796919e3c495a00b107a7ecdb55752c128b5beb5a9c8547335c6b4cb10",
     "technical-evaluator.ts": "9c026b721bb2f4c551028d8e757e439decc8fb296109c507693cdb8f96f77b45",
     "victaulic-sprinkler-catalog.ts": "01f3e7694e486d18b357c11565a20bd2c5d2452ce4606eeb9bca7c23ef17239d",
-    "victaulic-working-pressure.ts": "a1d66336be6258e02f8e758bf7a5712f1d81f1fee598be9c30dd22e4c9b80e9d",
-    "../components/MaterialExcelImport.tsx": "a852e71938c16b1951ff66d4a1a6a986aa2b6572a1c3ef4c4d1eb8b1358a06dd"
+    "victaulic-working-pressure.ts": "a1d66336be6258e02f8e758bf7a5712f1d81f1fee598be9c30dd22e4c9b80e9d"
   }
 }
