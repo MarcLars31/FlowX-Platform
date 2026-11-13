@@ -8,7 +8,7 @@ Open **Excel till NRF** in the organization navigation (`/material-import`). The
 
 1. Select an `.xlsx` workbook, at most 5 MB and 1,000 material rows. The browser reads the file with the existing ExcelJS dependency. It scans every worksheet for a header containing description, unit and quantity; Norwegian, Swedish and English header aliases are supported. Titles, leading blank rows, repeated headers and multiple sheets are supported.
 2. Search all remaining rows, or one row. Each request sends one material description, dimensions, unit, category and reviewer additions to the authenticated API. The supplier receives product search terms, not the workbook or quantities. Search uses the existing public Ahlsell Norway catalogue, variant expansion, technical evaluation, shared supplier budget and evidence cache.
-3. Review alternatives. Only articles whose exact identity has been verified on an Ahlsell product page can be selected. Documented technical conflicts disable selection. The reviewer must acknowledge checking dimensions, product configuration and compatibility. There is no automatic approval.
+3. Choose freely among search results, including articles with technical conflicts or an unverified page identity. No acknowledgement checkbox is required. The comparison details remain visible as information and accompany the chosen product in the export. Search by another description or exact article number to find other products. Nothing is selected automatically.
 4. Download a new Excel workbook. Original material fields, sheet names and row numbers accompany separate **proposed** and **selected** article columns, product URLs, status, checks and errors. The original workbook is never modified.
 
 ## Data and failure handling
@@ -17,10 +17,14 @@ Open **Excel till NRF** in the organization navigation (`/material-import`). The
 - Quantity zero is preserved and does not initiate a supplier search. Missing/invalid quantities, units, descriptions and Excel errors stay visible and are exported; fix them in the source workbook before searching.
 - Formula cells use saved Excel results. Missing cached results are flagged. ScipX does not recalculate formulas.
 - A bare dimension is not assumed to be DN. The reviewer can specify nominal diameter or outside diameter. Fitting tuples retain all ports; matching numeric tuples still require port-order and system checks.
-- Clearly conflicting documented diameters and fitting tuples are blocked. Missing material grades, bend angles, press systems and operating points remain review items.
+- Conflicting documented diameters and fitting tuples are shown as information without blocking selection. Missing material grades, bend angles, press systems and operating points remain review items.
 - One row is searched at a time. Rate-limit responses respect `Retry-After` with at most two automatic retries. Cancellation restores the current row's previous state; later rows remain pending. Service/authentication failures stop the batch with previous results retained.
 - Product numbers are labelled **NRF / article number** because a supplier article identifier is not always a registered NRF number.
 - The parser rejects unsupported, corrupt, encrypted and oversized ZIP containers. File parsing and workbook generation run in the browser; no server-side workbook upload endpoint is added.
+
+## Development update after the initial release
+
+The unrestricted-choice change removes technical-conflict, identity-verification and acknowledgement-checkbox gates from Excel product selection. It is not yet published; the release record below describes the initial live version. Validation: all 28 focused Excel/client/rule tests passed, along with TypeScript and zero-warning ESLint. The UI regression covers all combinations of identity verification and technical conflict; workbook tests verify that any selected candidate and its caveats are retained.
 
 ## Verification
 

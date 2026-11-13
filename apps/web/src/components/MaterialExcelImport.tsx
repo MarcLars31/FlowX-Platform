@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, FileSpreadsheet, Loader2, Search, Square, Upload } from "lucide-react";
 import { Button } from "./Button";
-import { canSelectMaterialCandidate, initialMaterialReview, MATERIAL_IMPORT_MAX_BYTES, materialRowStatus, materialSearchQuery,
+import { initialMaterialReview, MATERIAL_IMPORT_MAX_BYTES, materialRowStatus, materialSearchQuery,
   type MaterialReview, type MaterialRow, type MaterialSearchInput } from "@/lib/material-import";
 import { MaterialSearchRequestError, requestMaterialMatch } from "@/lib/material-import-client";
 
@@ -93,7 +93,7 @@ export function MaterialExcelImport() {
       const link = document.createElement("a");
       link.href = url; link.download = `${fileName.replace(/\.xlsx$/i, "")}-NRF.xlsx`; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000); dirty.current = false;
-      setMessage("Excel-filen har skapats med separata kolumner för förslag och granskade produktval.");
+      setMessage("Excel-filen har skapats med separata kolumner för förslag och valda produkter.");
     } catch { setError("Excel-filen kunde inte skapas. Försök igen."); }
     finally { setExporting(false); }
   }
@@ -135,7 +135,7 @@ export function MaterialExcelImport() {
     {rows.length > 0 && <>
       <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">{fileName}</h2>
-          <p className="text-sm text-neutral-600">{rows.length} rader · {selectedCount} granskade val · {remaining.length} återstående sökningar</p></div>
+          <p className="text-sm text-neutral-600">{rows.length} rader · {selectedCount} valda produkter · {remaining.length} återstående sökningar</p></div>
           <div className="flex flex-wrap gap-2">{running ? <Button onClick={() => controller.current?.abort()} variant="secondary"><Square className="h-4 w-4" />Stoppa sökningen</Button>
             : <Button disabled={busy || !remaining.length} onClick={() => void searchRows(remaining.map(row => row.id))}><Search className="h-4 w-4" />Sök återstående ({remaining.length})</Button>}
             <Button variant="secondary" disabled={busy} onClick={() => setReplace(true)}><Upload className="h-4 w-4" />Byt fil</Button></div></div>
@@ -147,7 +147,7 @@ export function MaterialExcelImport() {
           <h2 className="mb-3 font-bold">2. Materialrader</h2>
           <div className="mb-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold">Filtrera rader<input className={`${fieldClass} mt-1`} value={textFilter} onChange={event => { setTextFilter(event.target.value); setPage(0); }} placeholder="Beskrivning, dimension eller blad" /></label>
             <label className="text-xs font-semibold">Visa<select className={`${fieldClass} mt-1`} value={filter} onChange={event => { setFilter(event.target.value); setPage(0); }}>
-              <option value="all">Alla rader</option><option value="review">Förslag att granska</option><option value="selected">Granskade val</option><option value="problems">Fel och saknade träffar</option>
+              <option value="all">Alla rader</option><option value="review">Förslag att granska</option><option value="selected">Valda produkter</option><option value="problems">Fel och saknade träffar</option>
             </select></label></div>
           <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b bg-neutral-50 text-xs text-neutral-600">
             <th className="p-2">Material</th><th className="p-2">Mått</th><th className="p-2">Mängd</th><th className="p-2">Status</th></tr></thead>
@@ -171,11 +171,10 @@ export function MaterialExcelImport() {
   </div>;
 }
 
-function MaterialRowReview({ row, review, busy, onInput, onSearch, onReview }: {
+export function MaterialRowReview({ row, review, busy, onInput, onSearch, onReview }: {
   row: MaterialRow; review: MaterialReview; busy: boolean; onInput: (input: MaterialSearchInput) => void; onSearch: () => void; onReview: (review: MaterialReview) => void;
 }) {
-  const [checked, setChecked] = useState(false);
-  const update = (patch: Partial<MaterialSearchInput>) => { setChecked(false); onInput({ ...review.input, ...patch }); };
+  const update = (patch: Partial<MaterialSearchInput>) => onInput({ ...review.input, ...patch });
   return <section className="min-w-0 space-y-4 rounded-lg border border-neutral-200 bg-white p-4" aria-label="Granska materialrad">
     <div><h2 className="font-bold">3. Granska produktval</h2><p className="mt-2 text-sm font-semibold">{row.description || "Beskrivning saknas"}</p>
       <p className="mt-1 text-xs text-neutral-600">{row.sheet} · rad {row.sourceRow} · {row.quantityText} {row.unit}</p></div>
@@ -189,24 +188,23 @@ function MaterialRowReview({ row, review, busy, onInput, onSearch, onReview }: {
           onChange={event => update({ details: event.target.value })} placeholder="Exempel: 90° böj, pressprofil M, materialkvalitet…" /></label>
         <label className="block text-xs font-semibold">Sökord eller exakt NRF / artikelnummer<input className={`${fieldClass} mt-1`} maxLength={180} disabled={busy}
           value={review.input.query} onChange={event => update({ query: event.target.value })} placeholder={materialSearchQuery(review.input)} /></label>
-        <Button disabled={busy} onClick={() => { setChecked(false); onSearch(); }}><Search className="h-4 w-4" />{review.status === "pending" ? "Sök denna rad" : "Sök igen"}</Button>
+        <Button disabled={busy} onClick={onSearch}><Search className="h-4 w-4" />{review.status === "pending" ? "Sök denna rad" : "Sök igen"}</Button>
         {review.error && <p role="alert" className="text-sm text-red-800">{review.error}</p>}
         {review.result && <>
           {review.result.partial && <p className="rounded bg-amber-50 p-2 text-sm text-amber-950">Alla produktuppgifter kunde inte hämtas. Försök igen vid behov.</p>}
           {review.result.warnings.length > 0 && <ul className="list-disc space-y-1 pl-5 text-xs leading-5 text-amber-900">{review.result.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
           <a href={review.result.searchUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-800 underline">Öppna sökningen hos Ahlsell<ExternalLink className="h-3 w-3" /></a>
-          {review.result.candidates.length > 0 ? <label className="flex items-start gap-2 rounded bg-neutral-50 p-3 text-sm"><input type="checkbox" className="mt-1" checked={checked} disabled={busy}
-            onChange={event => setChecked(event.target.checked)} />Jag har kontrollerat mått, utförande och kompatibilitet innan jag väljer produkt.</label>
+          {review.result.candidates.length > 0 ? <p className="rounded bg-neutral-50 p-3 text-sm">Du kan välja vilken produkt som helst i resultatet. Tekniska avvikelser och saknade uppgifter visas som information.</p>
             : <p className="text-sm">Ingen träff. Anpassa sökorden eller sök på ett exakt artikelnummer.</p>}
           {review.result.candidates.map(candidate => <article key={candidate.articleNumber} className={`space-y-2 rounded border p-3 ${review.selected?.articleNumber === candidate.articleNumber ? "border-green-500 bg-green-50" : "border-neutral-200"}`}>
             <a href={candidate.productUrl} target="_blank" rel="noopener noreferrer" className="block text-sm font-bold text-blue-900 underline">{candidate.productName}</a>
             <p className="text-sm">{candidate.subtitle}</p><p className="text-xs font-semibold">NRF / art.nr: {candidate.articleNumber}</p>
-            {candidate.conflict && <p className="text-xs font-bold text-red-800">Teknisk avvikelse – kan inte väljas för denna rad.</p>}
+            {candidate.conflict && <p className="text-xs font-bold text-red-800">Teknisk avvikelse mot materialraden. Du kan ändå välja produkten.</p>}
             {candidate.warnings.length > 0 && <ul className="list-disc space-y-1 pl-4 text-xs leading-5 text-amber-900">{candidate.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
             {candidate.specifications.length > 0 && <details className="text-xs"><summary className="cursor-pointer font-semibold">Tekniska uppgifter</summary><ul className="mt-2 space-y-1">{candidate.specifications.map((item, i) => <li key={i}>{item}</li>)}</ul></details>}
             {review.selected?.articleNumber === candidate.articleNumber
               ? <Button disabled={busy} variant="secondary" onClick={() => onReview({ ...review, status: "review", selected: undefined })}>Ta bort produktval</Button>
-              : <Button disabled={busy || !checked || !canSelectMaterialCandidate(candidate)} onClick={() => onReview({ ...review, status: "selected", selected: candidate })}>Välj granskad produkt</Button>}
+              : <Button disabled={busy} onClick={() => onReview({ ...review, status: "selected", selected: candidate })}>Välj produkt</Button>}
           </article>)}
         </>}
       </>}

@@ -64,7 +64,7 @@ export async function matchMaterialRow(input: MaterialSearchInput, options: { fe
     return [{ articleNumber: candidate.articleNumber, productName: candidate.productName, subtitle: candidate.subtitle ?? detail?.subtitle ?? "",
       productUrl, specifications: candidate.specifications.slice(0, 30), identityVerified, conflict,
       warnings: [...new Set([...pipeDiameter.warnings, ...fitting.warnings, ...(candidate.matchWarnings ?? []), ...(candidate.technicalEvaluation?.checks.filter(check => check.status !== "MATCH").map(check => check.reason) ?? []),
-        ...(!identityVerified ? ["Artikelnumret kunde inte verifieras på produktsidan. Sök igen innan du väljer produkten."] : [])])].map(warning => warning.replace(/PDF-kravet/g, "Materialkravet").replace(/PDF kräver/g, "Materiallistan kräver")) }];
+        ...(!identityVerified ? ["Artikelnumret kunde inte verifieras på produktsidan. Du kan ändå välja produkten."] : [])])].map(warning => warning.replace(/PDF-kravet/g, "Materialkravet").replace(/PDF kräver/g, "Materiallistan kräver")) }];
   });
   candidates.sort((a, b) => Number(a.conflict) - Number(b.conflict) || Number(b.identityVerified) - Number(a.identityVerified)
     || (dimensionScores.get(b.articleNumber) ?? 0) - (dimensionScores.get(a.articleNumber) ?? 0));
