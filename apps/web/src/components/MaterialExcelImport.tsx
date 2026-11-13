@@ -76,7 +76,7 @@ export function MaterialExcelImport() {
       setError(autoSelect ? result.error.replace(/Välj Sök återstående/gi, "Välj Fortsätt automatval") : result.error);
       setMessage(`${result.completed} rader söktes · ${result.failed} sökfel.${autoSelect ? ` ${result.selectedCount} produkter valdes automatiskt.${result.unscored ? ` ${result.unscored} rader saknar giltiga poäng och behöver manuellt val eller ny sökning.` : ""}` : ""} ${(result.cancelled || result.stopped) && result.remainingIds.length > 0
         ? `Sökningen är pausad. Välj ${autoSelect ? "Fortsätt automatval" : "Sök återstående"} för att fortsätta.`
-        : "Sökningen är klar. Granska produktval och förslag; rader med sökfel kan sökas igen."}`);
+        : "Sökningen är klar. Granska produktval och förslag; rader med bestående fel behöver kontrolleras."}`);
     } finally { controller.current = null; setRunning(false); setProgress(null); }
   }
 
@@ -107,8 +107,8 @@ export function MaterialExcelImport() {
   const active = rows.find(row => row.id === activeId);
 
   const elapsed = progress ? Math.max(0, Math.floor((clock - progress.startedAt) / 1000)) : 0;
-  const progressText = progress ? `Rad ${progress.index} av ${progress.total}. ${progress.phase === "waiting"
-    ? `${progress.reason === "pace" ? "Nästa sökning" : progress.reason === "retry" ? "Nytt försök" : "Paus för sökgränsen"} om ${progress.seconds} s. Fortsätter automatiskt.`
+  const progressText = progress ? `Rad ${progress.index} av ${progress.total}. ${(progress.attempt ?? 1) > 1 ? `Omsökning efter sökfel, försök ${progress.attempt}. ` : ""}${progress.phase === "waiting"
+    ? `${progress.reason === "pace" ? "Nästa sökning" : progress.reason === "retry" ? "Nytt försök" : progress.reason === "recovery" ? "Återupptar efter sökfel" : "Paus för sökgränsen"} om ${progress.seconds} s. Fortsätter automatiskt.`
     : `Söker (${elapsed} s). Ett försök får ta högst 65 sekunder.`}` : "";
 
   return <div className="space-y-5">
@@ -146,7 +146,7 @@ export function MaterialExcelImport() {
               <Button variant="secondary" disabled={busy || !remaining.length} onClick={() => void searchRows(remaining.map(row => row.id))}>Sök återstående ({remaining.length})</Button>
             </>}
             <Button variant="secondary" disabled={busy} onClick={() => setReplace(true)}><Upload className="h-4 w-4" />Byt fil</Button></div></div>
-        <p className="text-xs leading-5 text-neutral-600">Sökningen går rad för rad. Stora listor kan ta flera minuter; pauser visas med nedräkning. Låt fliken vara öppen och ladda ner Excel innan du lämnar sidan. Rader med noll mängd eller felaktiga indata söks inte.</p>
+        <p className="text-xs leading-5 text-neutral-600">Sökningen går rad för rad. Tillfälliga sökfel söks om automatiskt och även längre pauser fortsätter med nedräkning. Vid återkommande fel ökar väntetiden; du kan stoppa när som helst. Förlorad inloggning eller behörighet behöver åtgärdas innan sökningen kan fortsätta. Låt fliken vara öppen och ladda ner Excel innan du lämnar sidan. Rader med noll mängd eller felaktiga indata söks inte.</p>
         <p className="text-xs leading-5 text-neutral-700"><strong>Sök alla och välj högst</strong> söker hela listan och ersätter tidigare val med träffen som har högst poäng på varje rad. Vid lika poäng väljs första träffen i sorteringen. Även låga poäng och tekniska avvikelser kan väljas; granska valen och ändra dem vid behov. Sök återstående ger förslag utan automatval.</p>
       </section>
 

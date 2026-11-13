@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-11-13.7",
+  "version": "scipx-product-rules-2026-11-13.8",
   "sources": {
     "../../../../supabase/migrations/20261027160000_project_chapter_organization.sql": "264323661ef38ee4a845aae8d710fab605d3e64c090e3f947ad36babf343bec3",
     "../../../../supabase/migrations/20261027200000_individual_chapter_placement.sql": "ed55e62e5b63f0d454fc3199ac83788bb0bdd6baef6c847414df6a1f9ddcc260",
@@ -10,7 +10,7 @@
     "../components/DistributorMappingPanel.tsx": "205822a06fe096499c9267e44922e9d2b982e708210c0f29025f7b6c01367de1",
     "../components/ExtractionQualityNotice.tsx": "6de8271c7ca47bfc61122b439cc712273dec1f09f99d5288b1cc74e4de49da24",
     "../components/MainPostDetailsButton.tsx": "a2f0022a8e842dba2b58efb6c50bf58f904a1d4f41b9a2cce401c4466919cad9",
-    "../components/MaterialExcelImport.tsx": "b85e390141fb0319e276ceb14b2b32c57aff4a0142c89b246afb84fd459161f8",
+    "../components/MaterialExcelImport.tsx": "70ea72c148fcd5e8322965f55a66fbf32edd0465bf70c62ed5e8c3487e907d34",
     "../components/PdfRequirementSource.tsx": "cf06f01f9d5d1bed04efab1a4d92eb8ee7cbba19fa55985bf8b61ef6a892eb88",
     "../components/ProductPostGroupPanel.tsx": "1826499899999bd42d286823dee4cda9d7d40abee44540de1f55795fac5e7e41",
     "../components/ProductPostNavigation.tsx": "7d651d7d9ff8541d9058fbcd5fa4e9ddf9b7e0332147bb570a7a339add8c46d7",
@@ -79,7 +79,7 @@
     "effective-requirements.server.ts": "648b7ae7837b5729cf0a2b6d95401b620368df11330d39794994621614d18bdc",
     "effective-requirements.ts": "eb7ce72939c0188f3f8d30a625ea3e3ff5407b1ba09877ddffb44b2d37f91ece",
     "inherited-product-requirements.ts": "acb530f489af1ad3a4ef2bf28bfcf37d5190e3431bce9c643eea545d33d38932",
-    "material-import-client.ts": "d6ebaa0032bfe1febba3b46a3005b87e9a30673df434537284ad2c190d1ce78a",
+    "material-import-client.ts": "9c4ddc3a14d68c997acb53deac4bea70f505384041235bfc9bdf9e598fddc7e0",
     "material-import-matching.ts": "7bdf0dad48ec7efea0f736c9d28b82eeb821266bc29ac7fa2dd231b54c346141",
     "material-import-scoring.ts": "1b1d78e326b1c072dc906eca610643f4000f3f53f3666e8dae1aff77e6abb51a",
     "material-import-workbook.ts": "d14ba515c2e09e359c298651f6312c9949971416de1b43f6f72ae59d83226a15",

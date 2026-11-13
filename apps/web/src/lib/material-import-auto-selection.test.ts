@@ -105,11 +105,12 @@ test("cancellation preserves completed automatic choices and resumes even previo
 });
 
 test("failed rows and unvisited rows remain resumable while an earlier choice survives a failed repeat search", async () => {
-  const data = fixture(4);
+  const data = fixture(4), controller = new AbortController();
   data.reviews["row-0"] = { ...data.reviews["row-0"], status: "selected", selected: low, selectionMode: "manual" };
-  const summary = await runMaterialSearchQueue({ ...data, autoSelect: true, signal: new AbortController().signal, onProgress: () => {}, wait: noWait,
+  const summary = await runMaterialSearchQueue({ ...data, autoSelect: true, signal: controller.signal, onProgress: () => {},
+    wait: async (ms, signal) => { if (ms >= 30000) { controller.abort(); signal.throwIfAborted(); } },
     match: async () => { throw new MaterialSearchRequestError("Unavailable", false); } });
-  assert.equal(summary.failed, 3); assert.equal(summary.stopped, true);
+  assert.equal(summary.failed, 3); assert.equal(summary.cancelled, true);
   assert.deepEqual(summary.remainingIds, data.ids);
   assert.equal(data.state["row-0"].selected, low);
   assert.equal(data.state["row-0"].status, "error");
@@ -136,4 +137,35 @@ test("automatic choice remains visibly distinct from approval and exports its ac
   assert.equal(sheet.getCell("J2").value, high.articleNumber);
   assert.equal(sheet.getCell("T2").value, 89);
   assert.equal(sheet.getCell("X2").value, "Automatiskt efter poäng");
+});
+
+test("242 rows retain automatic highest-score selection through faults, long throttling and recovery", async () => {
+  const data = fixture(242), visits = new Map<string, number>(), progress: import("./material-import-client").MaterialQueueProgress[] = [];
+  let clock = 1000000, calls = 0, inFlight = 0, peak = 0, rejections = 0;
+  const key = crypto.randomUUID();
+  const wait = async (ms: number) => { clock += ms; };
+  const summary = await runMaterialSearchQueue({ ...data, autoSelect: true, signal: new AbortController().signal,
+    now: () => clock, wait, onProgress: value => progress.push(value),
+    match: async (input, signal, notice) => {
+      const id = progress.at(-1)!.id;
+      const visit = (visits.get(id) ?? 0) + 1; visits.set(id, visit);
+      if (["row-20", "row-21", "row-22", "row-241"].includes(id) && visit === 1) throw new MaterialSearchRequestError("Gateway unavailable", false);
+      inFlight++; peak = Math.max(peak, inFlight);
+      let throttled = false;
+      try { return await requestMaterialMatch(input, signal, notice, async () => {
+        calls++;
+        if (!consumeRateLimit(key, 20, 60000, clock).allowed) {
+          rejections++; return new Response(null, {status:429,headers:{"Retry-After":"5"}});
+        }
+        if (id === "row-100" && !throttled) { throttled = true; return new Response(null, {status:429,headers:{"Retry-After":"900"}}); }
+        return Response.json(result);
+      }, wait); } finally { inFlight--; }
+    }
+  });
+  assert.equal(summary.completed, 242); assert.equal(summary.selectedCount, 242); assert.equal(summary.failed, 0);
+  assert.deepEqual(summary.remainingIds, []); assert.equal(peak, 1); assert.equal(calls, 243); assert.equal(rejections, 0);
+  assert.equal(visits.get("row-0"), 1); assert.equal(visits.get("row-241"), 2);
+  assert.ok(progress.some(value => value.seconds === 900 && value.reason === "rate-limit"));
+  assert.ok(progress.some(value => value.reason === "recovery"));
+  assert.ok(Object.values(data.state).every(review => review.status === "selected" && review.selectionMode === "automatic" && review.selected?.articleNumber === high.articleNumber));
 });

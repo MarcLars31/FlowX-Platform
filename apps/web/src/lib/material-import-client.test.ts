@@ -18,13 +18,15 @@ test("row requests respect Retry-After and announce resumption after the pause",
   assert.equal(calls, 2); assert.deepEqual(waits, [17000]); assert.deepEqual(notices, [17, 0]); assert.deepEqual(result, empty);
 });
 
-test("persistent supplier throttling stops after bounded retries without shortening long backoff", async () => {
-  for (const seconds of [1, 900]) {
+test("persistent throttling and pauses longer than five minutes resume automatically", async () => {
+  for (const status of [429, 503]) {
     let calls = 0;
-    await assert.rejects(requestMaterialMatch(input, new AbortController().signal, () => {}, async () => {
-      calls++; return new Response("busy", { status: 429, headers: { "Retry-After": String(seconds) } });
-    }, noWait), error => error instanceof MaterialSearchRequestError && error.stopQueue);
-    assert.equal(calls, seconds === 1 ? 3 : 1);
+    const waits: number[] = [];
+    const result = await requestMaterialMatch(input, new AbortController().signal, () => {}, async () => ++calls <= 4
+      ? new Response("busy", { status, headers: { "Retry-After": calls === 1 ? "900" : "1" } }) : Response.json(empty),
+    async ms => { waits.push(ms); });
+    assert.deepEqual(result, empty); assert.equal(calls, 5);
+    assert.deepEqual(waits, [900000, 1000, 30000, 60000]);
   }
 });
 
@@ -81,7 +83,7 @@ test("invalid individual input is not retried or treated as a service outage", a
   let calls = 0;
   await assert.rejects(requestMaterialMatch(input, new AbortController().signal, () => {}, async () => {
     calls++; return Response.json({ error: "Invalid row" }, { status: 400 });
-  }), error => error instanceof MaterialSearchRequestError && !error.stopQueue);
+  }), error => error instanceof MaterialSearchRequestError && !error.stopQueue && !error.retryable);
   assert.equal(calls, 1);
 });
 
@@ -129,23 +131,32 @@ test("all 242 rows finish across the twenty-per-minute limit, including empty re
   assert.ok(progress.some(value => value.index === 242 && value.phase === "searching"));
 });
 
-test("one hung row becomes a retryable error and later rows still finish", async () => {
-  const data = batch(4);
+test("a hung row does not block later rows and automatically recovers on the retry pass", async () => {
+  const data = batch(4), visited: string[] = [];
   const result = await runMaterialSearchQueue({ ...data, signal: new AbortController().signal, onProgress: () => {}, wait: noWait,
-    match: async (row, signal, onWait) => requestMaterialMatch(row, signal, onWait, async () => row.description === "Rör 1"
-      ? new Promise<Response>(() => {}) : Response.json(empty), noWait, 5)
+    match: async (row, signal, onWait) => {
+      visited.push(row.description);
+      return requestMaterialMatch(row, signal, onWait, async () => row.description === "Rör 1" && visited.length === 2
+        ? new Promise<Response>(() => {}) : Response.json(empty), noWait, 5);
+    }
   });
-  assert.equal(result.completed, 3); assert.equal(result.failed, 1); assert.equal(result.stopped, false);
-  assert.equal(data.state["1"].status, "error"); assert.equal(data.state["3"].status, "empty");
+  assert.deepEqual(visited, ["Rör 0", "Rör 1", "Rör 2", "Rör 3", "Rör 1"]);
+  assert.equal(result.completed, 4); assert.equal(result.failed, 0); assert.equal(result.stopped, false);
+  assert.deepEqual(result.remainingIds, []);
 });
 
-test("three consecutive failures pause the batch and leave later rows pending", async () => {
-  const data = batch(6);
-  const result = await runMaterialSearchQueue({ ...data, signal: new AbortController().signal, onProgress: () => {}, wait: noWait,
-    match: async () => { throw new MaterialSearchRequestError("Unavailable", false); }
+test("three consecutive failures wait and continue automatically, then retry only failed rows", async () => {
+  const data = batch(6), visited: string[] = [], waits: number[] = [], progress: MaterialQueueProgress[] = [];
+  let clock = 1000;
+  const result = await runMaterialSearchQueue({ ...data, signal: new AbortController().signal, now: () => clock,
+    onProgress: value => progress.push(value), wait: async ms => { clock += ms; waits.push(ms); },
+    match: async row => { visited.push(row.description); if (visited.length <= 3) throw new MaterialSearchRequestError("Unavailable", false); return empty; }
   });
-  assert.equal(result.failed, 3); assert.equal(result.stopped, true);
-  assert.equal(data.state["2"].status, "error"); assert.equal(data.state["3"].status, "pending");
+  assert.equal(result.completed, 6); assert.equal(result.failed, 0); assert.equal(result.stopped, false);
+  assert.deepEqual(visited, ["Rör 0", "Rör 1", "Rör 2", "Rör 3", "Rör 4", "Rör 5", "Rör 0", "Rör 1", "Rör 2"]);
+  assert.equal(waits.filter(ms => ms === 30000).length, 2);
+  assert.ok(progress.some(value => value.id === "0" && value.index === 1 && value.total === 6 && value.attempt === 2));
+  assert.ok(progress.some(value => value.reason === "recovery" && value.seconds === 30));
 });
 
 test("cancellation during pacing restores the row and keeps earlier results", async () => {
@@ -186,4 +197,68 @@ test("stopping during a stalled response restores the current row instead of rec
   const result = await pending;
   assert.equal(calls, 1); assert.equal(result.failed, 0); assert.equal(result.cancelled, true);
   assert.equal(data.state["0"], data.reviews["0"]); assert.equal(data.state["1"].status, "pending");
+});
+
+test("persistent failures use increasing capped pauses until explicitly stopped", async () => {
+  const data = batch(1), controller = new AbortController(), pauses: number[] = [];
+  let calls = 0, clock = 1000;
+  const result = await runMaterialSearchQueue({ ...data, signal: controller.signal, now: () => clock, onProgress: () => {},
+    match: async () => { calls++; throw new MaterialSearchRequestError("Unavailable", false); },
+    wait: async (ms, signal) => { pauses.push(ms); clock += ms; if (pauses.length === 6) { controller.abort(); signal.throwIfAborted(); } }
+  });
+  assert.deepEqual(pauses, [30000, 60000, 120000, 240000, 300000, 300000]);
+  assert.equal(calls, 6); assert.equal(result.failed, 1); assert.equal(result.cancelled, true);
+  assert.equal(data.state["0"].status, "error"); assert.deepEqual(result.remainingIds, ["0"]);
+});
+
+test("invalid row responses are skipped while authentication alone stops automatic recovery", async () => {
+  for (const status of [400, 401, 403]) {
+    const data = batch(3), visited: string[] = [];
+    const result = await runMaterialSearchQueue({ ...data, signal: new AbortController().signal, onProgress: () => {}, wait: noWait,
+      match: async (row, signal, notice) => {
+        visited.push(row.description);
+        return requestMaterialMatch(row, signal, notice, async () => row.description === "Rör 1"
+          ? Response.json({error:"Cannot search"}, {status}) : Response.json(empty), noWait);
+      }
+    });
+    assert.equal(result.failed, 1); assert.equal(result.stopped, status !== 400);
+    assert.equal(visited.length, status === 400 ? 3 : 2);
+    assert.equal(data.state["0"].status, "empty");
+    assert.equal(data.state["2"].status, status === 400 ? "empty" : "pending");
+  }
+});
+
+test("long waits cannot overflow the browser timer and remain cancellable", async t => {
+  t.mock.timers.enable({apis:["setTimeout"],now:1000});
+  const controller = new AbortController();
+  let finished = false;
+  const pending = waitForMaterialRetry(2_147_483_647 + 5000, controller.signal).then(() => { finished = true; });
+  t.mock.timers.tick(2_147_483_647);
+  await nextTurn();
+  assert.equal(finished, false);
+  t.mock.timers.tick(4999);
+  await nextTurn();
+  assert.equal(finished, false);
+  t.mock.timers.tick(1);
+  await pending;
+  assert.equal(finished, true);
+  const cancelled = waitForMaterialRetry(2_147_483_647 + 5000, controller.signal);
+  controller.abort();
+  await assert.rejects(cancelled, /abort/i);
+});
+
+test("a fifteen-minute supplier delay counts down and resumes without manual continuation", async t => {
+  t.mock.timers.enable({apis:["Date","setTimeout","setInterval"],now:1000});
+  let calls = 0;
+  const notices: number[] = [];
+  const pending = requestMaterialMatch(input, new AbortController().signal, seconds => notices.push(seconds), async () => ++calls === 1
+    ? new Response(null, {status:429,headers:{"Retry-After":"900"}}) : Response.json(empty));
+  await nextTurn();
+  assert.equal(notices[0], 900); assert.equal(calls, 1);
+  t.mock.timers.tick(899000);
+  await nextTurn();
+  assert.equal(calls, 1);
+  t.mock.timers.tick(1000);
+  assert.deepEqual(await pending, empty);
+  assert.equal(calls, 2); assert.equal(notices.at(-1), 0);
 });
