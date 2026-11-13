@@ -1,5 +1,5 @@
 {
-  "version": "scipx-product-rules-2026-11-13.4",
+  "version": "scipx-product-rules-2026-11-13.5",
   "sources": {
     "../../../../supabase/migrations/20261027160000_project_chapter_organization.sql": "264323661ef38ee4a845aae8d710fab605d3e64c090e3f947ad36babf343bec3",
     "../../../../supabase/migrations/20261027200000_individual_chapter_placement.sql": "ed55e62e5b63f0d454fc3199ac83788bb0bdd6baef6c847414df6a1f9ddcc260",
@@ -78,7 +78,7 @@
     "effective-requirements.server.ts": "648b7ae7837b5729cf0a2b6d95401b620368df11330d39794994621614d18bdc",
     "effective-requirements.ts": "eb7ce72939c0188f3f8d30a625ea3e3ff5407b1ba09877ddffb44b2d37f91ece",
     "inherited-product-requirements.ts": "acb530f489af1ad3a4ef2bf28bfcf37d5190e3431bce9c643eea545d33d38932",
-    "material-import-client.ts": "102fb7102e020faed9c7bc8423b41948b0e7b5ae7796e44c6f61c2ab6ebce568",
+    "material-import-client.ts": "0911abc5136381a136ff6870b43181d229ebb200bbfe6a97f6f7107b9438baed",
     "material-import-matching.ts": "5fe25d0883c95d40e4736180eb65b7c3dcbac5bac53d116fee98a8701c516298",
     "material-import-workbook.ts": "c68d25c684f5356660d97ecf6cf3da2a13ccc193f0ab8b541eba7845c49ab5d9",
     "material-import.ts": "73712ea1ee80bedb14be610f737dd32197b5ca07a28a08c62cc01746a9db3d16",
@@ -139,6 +139,6 @@
     "technical-evaluator.ts": "9c026b721bb2f4c551028d8e757e439decc8fb296109c507693cdb8f96f77b45",
     "victaulic-sprinkler-catalog.ts": "01f3e7694e486d18b357c11565a20bd2c5d2452ce4606eeb9bca7c23ef17239d",
     "victaulic-working-pressure.ts": "a1d66336be6258e02f8e758bf7a5712f1d81f1fee598be9c30dd22e4c9b80e9d",
-    "../components/MaterialExcelImport.tsx": "7f913322685f14d64e47c0067ee98b873e8a52f31a818fae52e2876e5f36966d"
+    "../components/MaterialExcelImport.tsx": "a852e71938c16b1951ff66d4a1a6a986aa2b6572a1c3ef4c4d1eb8b1358a06dd"
   }
 }

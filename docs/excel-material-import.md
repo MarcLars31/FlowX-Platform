@@ -59,6 +59,20 @@ These examples establish catalogue availability and the nominal size, not interc
 
 Validation: the full local release check passed for the query, classification and variant-ranking changes (log `.tmp/material-steel-release-tests.log`). After the final parenthetical-DN parser adjustment, all 67 focused catalogue, evidence, classification, Excel, client, selection and rule tests passed; TypeScript and zero-warning ESLint also passed. No production data, migrations, configuration or deployment was changed.
 
+## Batch-search stall follow-up — development, 13 November 2026
+
+The user reported row 24 remaining at **Söker**, without a pause message. Their pasted list contains 20 completed searches before that row, excluding two zero-quantity rows. This aligns with the endpoint's existing 20 requests/minute limit, but it is not proof of the live request's failure: no production trace was captured. Source inspection also found that the browser had no request/body-read deadline and stopped the entire batch after an individual gateway failure. **This fix has not been published.**
+
+- The client now bounds each fetch plus JSON body read to 65 seconds. A hanging request is aborted and recorded as a retryable row error; the next row continues.
+- The whole batch runs serially with at least 3.1 seconds between row starts. Empty results count as completed searches and never stop the batch. Table pagination and row filters do not truncate the queue.
+- Rate-limit pauses respect `Retry-After` (seconds or HTTP date), show a countdown both above the table and in the active row, and resume automatically. A delay over five minutes pauses for manual continuation instead of shortening the supplier's requested wait. Persistent throttling still stops after two automatic retries.
+- Transient network/gateway/invalid-response errors get at most two retries with short delays. Three consecutive row failures pause the batch with an explanation. Authentication/permission loss stops immediately. An explicit user stop restores the current row, preserving earlier results and leaving later rows pending.
+- The active row shows elapsed seconds during a request. The completion summary distinguishes searched rows, failed rows, completion and pause. Browser-tab state is still temporary; keep the tab open and download the workbook before leaving.
+
+A deterministic local test ran all **242 rows** through the actual 20/minute limiter with a simulated clock and fixture responses: 242 completed, zero rejected by that limit, at most one request in flight. Separate tests cover stalled fetch and body streams, countdown/resumption, manual cancellation, isolated errors followed by successful rows, three-error pausing and unchanged unrestricted selection. This is a queue test, not 242 public supplier searches or a measured catalogue match rate.
+
+The endpoint's production rate limit, shared supplier budget, database and deployment are unchanged. Validation passed: TypeScript, zero-warning ESLint, all 1,404 release tests (1,390 standard plus 14 isolated timing/database tests), and the local Next.js production build. Logs are retained in the primary checkout at `.tmp/material-queue-release-tests.log` and `.tmp/material-queue-build.log`. The combined search-recall, steel-pipe/DN and queue changes are ready for a separately authorized publication.
+
 ## Unrestricted-choice release
 
 The unrestricted-choice change removes technical-conflict, identity-verification and acknowledgement-checkbox gates from Excel product selection. It was manually published on 13 November 2026; see the [unrestricted-choice release record](excel-free-choice-release-2026-11-13.md). The earlier release record below describes the initial live version. Validation: all 28 focused Excel/client/rule tests passed, along with TypeScript and zero-warning ESLint. The UI regression covers all combinations of identity verification and technical conflict; workbook tests verify that any selected candidate and its caveats are retained.

@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-13.4";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-13.5";
 export const RULE_CATALOG_DATE = "13 november 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -31,7 +31,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
       rule("excel-sokord", "Sök också med kortare produktnamn", "En materialrad söks utan egna sökord.", "Använd upp till tre sökningar med produktfamilj, angivna mått och alternativa katalogord. Projektspecifika beskrivningar behålls i kravkontrollen. Ett ensamt mått görs inte om till DN. Prioritera kandidater med angivna mått utan att godkänna dem automatiskt. Visa upp till 24 kandidater och hämta produktsidor för högst sex. Egna sökord, artikelnummer och produktlänkar breddas inte. Visa sökfraserna och ta med dem i Excel-exporten.", { kind: "search" }),
       rule("excel-stalror", "Sök stålrör för sprinkler som rör", "Materiallistan anger Normaltykke Stålrør Sprinkler i meter.", "Klassificera huvudprodukten som rör och sök även stålrør sprinkler samt stålrør mellom serie. Återanvänd bekräftat DN; jämför även katalogens skrivsätt utan DN-prefix i sökfrasen. Källmåttet och dess måttyp ändras inte. Kontrollera rörserie/godstjocklek, ytbehandling och anslutning separat.", { kind: "search" }),
       rule("excel-produktval", "Användaren väljer fritt", "Produktsökningen hittar kandidater hos Ahlsell Norge.", "Försök verifiera artikelnumret på produktsidan och visa tekniska avvikelser. Alla sökträffar kan väljas, även med avvikelser eller overifierad artikelidentitet. Ingen bekräftelseruta krävs. Exportera förslag och användarens val i separata kolumner och behåll informationen om avvikelser; välj aldrig automatiskt."),
-      rule("excel-kohantering", "Respektera leverantörens sökbudget", "Flera materialrader ska sökas.", "Sök en rad i taget, använd gemensam leverantörsbudget och respektera Retry-After med högst två automatiska återförsök. Bevara tidigare resultat vid avbrott och driftfel.")
+      rule("excel-kohantering", "Respektera leverantörens sökbudget", "Flera materialrader ska sökas.", "Sök hela kön en rad i taget med minst 3,1 sekunder mellan radstarter och gemensam leverantörsbudget. Visa söktid och nedräkning vid pauser. Ett nätanrop inklusive svarskropp får ta högst 65 sekunder. Respektera Retry-After med högst två automatiska återförsök; förkorta inte en längre begärd paus. Tillfälliga nät- och serverfel får högst två återförsök. Markera en tidsöverskriden eller misslyckad rad och fortsätt; pausa vid tre sökfel i följd, inloggnings-/behörighetsfel eller kvarstående sökbegränsning. Tomma träfflistor stoppar inte kön. Vid användaravbrott återställs den aktuella raden och tidigare resultat bevaras.")
     ]
   },
   {

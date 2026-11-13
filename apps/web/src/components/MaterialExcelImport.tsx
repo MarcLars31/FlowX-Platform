@@ -5,7 +5,7 @@ import { Download, ExternalLink, FileSpreadsheet, Loader2, Search, Square, Uploa
 import { Button } from "./Button";
 import { initialMaterialReview, MATERIAL_IMPORT_MAX_BYTES, materialRowStatus, materialSearchQuery,
   type MaterialReview, type MaterialRow, type MaterialSearchInput } from "@/lib/material-import";
-import { MaterialSearchRequestError, requestMaterialMatch } from "@/lib/material-import-client";
+import { runMaterialSearchQueue, type MaterialQueueProgress } from "@/lib/material-import-client";
 
 const fieldClass = "w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 focus:outline-2 focus:outline-blue-600 disabled:bg-neutral-100";
 
@@ -18,6 +18,8 @@ export function MaterialExcelImport() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<MaterialQueueProgress | null>(null);
+  const [clock, setClock] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [activeId, setActiveId] = useState("");
   const [filter, setFilter] = useState("all");
@@ -33,6 +35,12 @@ export function MaterialExcelImport() {
     window.addEventListener("beforeunload", unload);
     return () => { window.removeEventListener("beforeunload", unload); controller.current?.abort(); };
   }, []);
+
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
 
   async function loadFile(file: File) {
     setError(""); setMessage("");
@@ -57,31 +65,14 @@ export function MaterialExcelImport() {
   async function searchRows(ids: string[]) {
     if (controller.current || busy) return;
     const abort = new AbortController();
-    controller.current = abort; setRunning(true); setError("");
-    let completed = 0;
+    controller.current = abort; setRunning(true); setError(""); setMessage("");
     try {
-      for (const id of ids) {
-        if (abort.signal.aborted) break;
-        const original = reviews[id];
-        setReviews(previous => ({ ...previous, [id]: { input: original.input, status: "searching" } }));
-        try {
-          setMessage(`Söker rad ${completed + 1} av ${ids.length}. Du kan stoppa och fortsätta senare i denna flik.`);
-          const payload = await requestMaterialMatch(original.input, abort.signal, seconds => setMessage(`Ahlsell-sökningen behöver en paus. Fortsätter automatiskt om ${seconds} sekunder. Du kan stoppa sökningen under tiden.`));
-          setReviews(previous => ({ ...previous, [id]: { input: original.input, result: payload, status: payload.candidates.length ? "review" : "empty" } }));
-          completed++; dirty.current = true;
-        } catch (cause) {
-          if (abort.signal.aborted) {
-            setReviews(previous => ({ ...previous, [id]: original }));
-            break;
-          }
-          const rowError = cause instanceof Error ? cause.message : "Sökningen misslyckades.";
-          setReviews(previous => ({ ...previous, [id]: { ...original, status: "error", error: rowError } }));
-          setError(rowError); dirty.current = true;
-          if (cause instanceof MaterialSearchRequestError && cause.stopQueue) break;
-        }
-      }
-      setMessage(`${completed} rader söktes. Tidigare resultat finns kvar. Granska förslagen eller fortsätt med återstående rader.`);
-    } finally { controller.current = null; setRunning(false); }
+      const result = await runMaterialSearchQueue({ ids, reviews, signal: abort.signal,
+        onReview: (id, review) => { setReviews(previous => ({ ...previous, [id]: review })); dirty.current = true; },
+        onProgress: setProgress });
+      setError(result.error);
+      setMessage(`${result.completed} rader söktes · ${result.failed} sökfel. ${result.cancelled || result.stopped ? "Sökningen är pausad. Välj Sök återstående för att fortsätta." : "Sökningen är klar. Granska förslagen; rader med sökfel kan sökas igen."}`);
+    } finally { controller.current = null; setRunning(false); setProgress(null); }
   }
 
   async function download() {
@@ -109,6 +100,11 @@ export function MaterialExcelImport() {
   const currentPage = Math.min(page, Math.max(0, Math.ceil(visible.length / 25) - 1));
   const active = rows.find(row => row.id === activeId);
 
+  const elapsed = progress ? Math.max(0, Math.floor((clock - progress.startedAt) / 1000)) : 0;
+  const progressText = progress ? `Rad ${progress.index} av ${progress.total}. ${progress.phase === "waiting"
+    ? `${progress.reason === "pace" ? "Nästa sökning" : progress.reason === "retry" ? "Nytt försök" : "Paus för sökgränsen"} om ${progress.seconds} s. Fortsätter automatiskt.`
+    : `Söker (${elapsed} s). Ett försök får ta högst 65 sekunder.`}` : "";
+
   return <div className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 className="text-2xl font-bold text-neutral-950">Excel till NRF</h1>
@@ -129,6 +125,7 @@ export function MaterialExcelImport() {
     </section>}
     {loading && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Läser materiallistan…</p>}
     {error && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-900">{error}</p>}
+    {progressText && <p role="status" className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">{progressText}</p>}
     {message && <p role="status" className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">{message}</p>}
     {warnings.length > 0 && <ul className="list-disc space-y-1 rounded border border-amber-200 bg-amber-50 py-3 pl-8 pr-3 text-sm text-amber-950">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
 
@@ -139,7 +136,7 @@ export function MaterialExcelImport() {
           <div className="flex flex-wrap gap-2">{running ? <Button onClick={() => controller.current?.abort()} variant="secondary"><Square className="h-4 w-4" />Stoppa sökningen</Button>
             : <Button disabled={busy || !remaining.length} onClick={() => void searchRows(remaining.map(row => row.id))}><Search className="h-4 w-4" />Sök återstående ({remaining.length})</Button>}
             <Button variant="secondary" disabled={busy} onClick={() => setReplace(true)}><Upload className="h-4 w-4" />Byt fil</Button></div></div>
-        <p className="text-xs leading-5 text-neutral-600">Listan och produktvalen finns i denna flik. Ladda ner Excel innan du lämnar sidan. Rader med noll mängd eller felaktiga indata söks inte. Inga produkter väljs automatiskt.</p>
+        <p className="text-xs leading-5 text-neutral-600">Sökningen går rad för rad. Stora listor kan ta flera minuter; pauser visas med nedräkning. Låt fliken vara öppen och ladda ner Excel innan du lämnar sidan. Rader med noll mängd eller felaktiga indata söks inte. Inga produkter väljs automatiskt.</p>
       </section>
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(350px,1fr)]">
@@ -156,7 +153,7 @@ export function MaterialExcelImport() {
                 <p className="mt-1 text-xs text-neutral-500">{row.sheet} · rad {row.sourceRow}</p></td>
               <td className="p-2">{[row.dimension, row.fittingDimension].filter(Boolean).join(" / ") || "—"}</td>
               <td className="whitespace-nowrap p-2">{row.quantityText} {row.unit}</td>
-              <td className="p-2 text-xs">{materialRowStatus(row, reviews[row.id])}{reviews[row.id].selected && <p className="mt-1 font-bold">{reviews[row.id].selected?.articleNumber}</p>}</td>
+              <td className="p-2 text-xs">{progress?.id === row.id && reviews[row.id].status === "searching" ? (progress.phase === "waiting" ? `Väntar (${progress.seconds} s)` : `Söker (${elapsed} s)`) : materialRowStatus(row, reviews[row.id])}{reviews[row.id].selected && <p className="mt-1 font-bold">{reviews[row.id].selected?.articleNumber}</p>}</td>
             </tr>)}</tbody></table></div>
           {!visible.length && <p className="py-4 text-sm text-neutral-600">Inga rader motsvarar filtret.</p>}
           <div className="mt-3 flex items-center justify-between gap-2 text-xs"><Button variant="secondary" disabled={!currentPage} onClick={() => setPage(currentPage - 1)}>Föregående</Button>
