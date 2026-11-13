@@ -88,7 +88,7 @@ export async function exportMaterialWorkbook(rows: MaterialRow[], reviews: Recor
       selected?.articleNumber ?? "", selected ? [selected.productName, selected.subtitle].filter(Boolean).join(" · ") : "", selected?.productUrl ?? "",
       proposed?.articleNumber ?? "", proposed ? [proposed.productName, proposed.subtitle].filter(Boolean).join(" · ") : "", proposed?.productUrl ?? "",
       [...new Set([...row.issues, ...(review.result?.warnings ?? []), ...(selected?.warnings ?? proposed?.warnings ?? []), ...(review.error ? [review.error] : [])])].join("\n"),
-      { unspecified: "Ej angivet", outside: "Ytterdiameter mm", dn: "DN" }[review.input.dimensionKind], review.input.details, review.input.query,
+      { unspecified: "Ej angivet", outside: "Ytterdiameter mm", dn: "DN" }[review.input.dimensionKind], review.input.details, review.result?.queries?.join("\n") ?? review.input.query,
     ]);
   }
   sheet.views = [{ state: "frozen", ySplit: 1, xSplit: 3 }];

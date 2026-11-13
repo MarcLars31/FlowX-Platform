@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import ExcelJS from "exceljs";
-import { initialMaterialReview, materialSearchQuery, parseMaterialQuantity, parseMaterialSheets, validateMaterialSearchInput, type MaterialSearchInput } from "./material-import";
+import { initialMaterialReview, materialSearchQueries, materialSearchQuery, parseMaterialQuantity, parseMaterialSheets, validateMaterialSearchInput, type MaterialSearchInput } from "./material-import";
 import { exportMaterialWorkbook, readMaterialWorkbook, validateMaterialWorkbook } from "./material-import-workbook";
 import { fittingDimensionCheck, materialRequirement, matchMaterialRow, pipeHeaderDimensionCheck } from "./material-import-matching";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
@@ -168,4 +168,86 @@ test("export separates proposals from choices, preserves zero/error rows and wri
   reviews[rows[0].id] = { ...reviews[rows[0].id], status: "selected", selected: proposed };
   await workbook.xlsx.load(await exportMaterialWorkbook(rows, reviews) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   assert.equal(workbook.worksheets[0].getCell("J2").value, "5002206");
+});
+
+
+test("compressed-air valve searches strip project wording without losing the source requirement", () => {
+  const valve = { ...input, description: "SMB.003.04 3454 Stengeventil Teknisk Trykkluft Kuleventil 22mm", dimension: "22", unit: "stk", category: "Deler" };
+  const before = structuredClone(valve);
+  assert.deepEqual(materialSearchQueries(valve), ["kuleventil trykkluft 22", "kuleventil 22", "Stengeventil Teknisk Trykkluft Kuleventil 22mm 22"]);
+  assert.match(String(materialRequirement(valve).value_text), /Teknisk Trykkluft Kuleventil 22mm/);
+  assert.deepEqual(valve, before);
+  assert.doesNotMatch(materialSearchQueries(valve).join(" "), /DN22/);
+  assert.equal(materialSearchQueries({ ...valve, description: "Kuleventil DN20", dimension: "20" })[0], "kuleventil DN20");
+});
+
+test("search alternatives handle pipe roles, repeated ports, source ranges and unnamed sprinkler heads", () => {
+  assert.equal(materialSearchQueries({ ...input, description: "Pressfittingsystem rustfritt_varme", dimension: "35" })[0], "stålrør rustfritt 35");
+  const tee = { ...input, unit: "stk", description: "Pressfittingsystem Rustfritt T-Rør Varme", dimension: "", fittingDimension: "35-35-28" };
+  assert.deepEqual(materialSearchQueries(tee), ["t-rør rustfritt press 35 28", "t-rør syrefast 35 28", "press Rustfritt T-Rør 35-35-28"]);
+  assert.equal(tee.fittingDimension, "35-35-28");
+  assert.equal(materialSearchQueries({ ...input, description: "PP - Avløpsrør Spillvann 32-50mm", dimension: "40" })[0], "rør PP 40");
+  assert.equal(materialSearchQueries({ ...input, unit: "stk", description: 'Nedadrettet standard 1/2" SSP K80 QR Messing 68 grader', dimension: '1/2"' })[0], "sprinklerhode K80 QR 68");
+  assert.deepEqual(materialSearchQueries({ ...input, unit: "stk", description: "Spesialprodukt for montering", dimension: "" }), ["Spesialprodukt", "Spesialprodukt for montering"]);
+});
+
+test("custom searches, exact articles and links never acquire automatic alternatives", async () => {
+  for (const query of ["min egen ventil", "5670637", "https://www.ahlsell.no/products/test/5670637/"]) {
+    assert.deepEqual(materialSearchQueries({ ...input, query }), [query]);
+  }
+  let lookedUp = "";
+  const result = await matchMaterialRow({ ...input, query: "5670637" }, {}, {
+    lookup: async options => { lookedUp = String(options.query); return { products: [], searchUrl: "https://www.ahlsell.no/search" }; },
+    search: async () => { throw new Error("exact lookup must not broaden"); }, details: async () => ({})
+  });
+  assert.equal(lookedUp, "5670637");
+  assert.deepEqual(result.queries, ["5670637"]);
+});
+
+test("broader catalogue results survive the old six-card cut while detail requests remain bounded", async () => {
+  const many = Array.from({ length: 30 }, (_, index) => ({ ...candidate, articleNumber: String(5002200 + index), productUrl: `https://www.ahlsell.no/products/test/${5002200 + index}` }));
+  let detailCount = 0;
+  let searchedQueries: string[] = [];
+  const result = await matchMaterialRow(input, {}, {
+    search: async options => {
+      searchedQueries = options.queries;
+      assert.equal(options.maxPages, 1);
+      assert.equal(options.maxVariantFamilies, 3);
+      return { ...await fakeSearch(), candidates: many, failedQueries: [options.queries[0]] };
+    },
+    details: async options => { detailCount = options.items.length; return {}; }
+  });
+  assert.equal(detailCount, 6);
+  assert.equal(result.candidates.length, 24);
+  assert.ok(result.candidates.some(item => item.articleNumber === many[12].articleNumber));
+  assert.ok(searchedQueries.length > 1 && searchedQueries.length <= 3);
+  assert.deepEqual(result.queries, searchedQueries);
+  assert.equal(result.partial, true);
+  assert.match(result.warnings.join(" "), /ofullständig/);
+});
+
+test("Excel export retains the actual automatic searches as well as the original row", async () => {
+  const { rows } = parse([header, copper]);
+  const review = initialMaterialReview(rows[0]);
+  const queries = materialSearchQueries(review.input);
+  review.result = { candidates: [], queries, warnings: [], searchUrl: "", partial: false };
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await exportMaterialWorkbook(rows, { [rows[0].id]: review }) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  assert.equal(workbook.worksheets[0].getCell("C2").value, copper[0]);
+  assert.equal(workbook.worksheets[0].getCell("S2").value, queries.join("\n"));
+});
+
+
+test("matching dimensions outside the first six hits are prioritized for page verification", async () => {
+  const many = Array.from({ length: 8 }, (_, index) => ({ ...candidate, articleNumber: String(5002300 + index),
+    productUrl: `https://www.ahlsell.no/products/test/${5002300 + index}`, subtitle: `${index === 7 ? 15 : 28} x 1 mm kobberrør` }));
+  let requested: string[] = [];
+  const result = await matchMaterialRow({ ...input, dimensionKind: "outside" }, {}, {
+    search: async () => ({ ...await fakeSearch(), candidates: many }),
+    details: async options => { requested = options.items.map(item => item.articleNumber); return {}; }
+  });
+  assert.equal(requested.length, 6);
+  assert.equal(requested[0], many[7].articleNumber);
+  assert.equal(result.candidates[0].articleNumber, many[7].articleNumber);
+  assert.equal(result.candidates.length, 8);
 });

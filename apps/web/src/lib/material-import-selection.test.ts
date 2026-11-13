@@ -16,7 +16,7 @@ const candidates: MaterialCandidate[] = [true, false].flatMap(identityVerified =
     ...(!identityVerified ? ["Artikelnumret är inte verifierat."] : [])],
 })));
 const review: MaterialReview = { ...initialMaterialReview(row), status: "review",
-  result: { candidates, warnings: [], partial: true, searchUrl: "https://www.ahlsell.no/search?q=kobber" } };
+  result: { candidates, queries: ["kobberrør 15", "kobberrør"], warnings: [], partial: true, searchUrl: "https://www.ahlsell.no/search?q=kobber" } };
 
 test("all Excel search results offer an enabled choice without an acknowledgement gate", () => {
   const render = (busy: boolean) => renderToStaticMarkup(createElement(MaterialRowReview, {
@@ -29,6 +29,8 @@ test("all Excel search results offer an enabled choice without an acknowledgemen
   assert.doesNotMatch(html, /type="checkbox"/);
   assert.match(html, /Teknisk avvikelse mot materialraden/);
   assert.match(html, /Artikelnumret är inte verifierat/);
+  assert.match(html, /Använda sökord/);
+  assert.match(html, /<li>kobberrør 15<\/li>/);
   const busyChoices = [...render(true).matchAll(/<button\b([^>]*)>Välj produkt<\/button>/g)];
   assert.equal(busyChoices.length, 4);
   assert.ok(busyChoices.every(([, attributes]) => /\sdisabled(?:=|\s|$)/.test(attributes)));

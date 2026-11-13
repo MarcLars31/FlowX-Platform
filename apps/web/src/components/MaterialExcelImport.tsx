@@ -194,6 +194,8 @@ export function MaterialRowReview({ row, review, busy, onInput, onSearch, onRevi
           {review.result.partial && <p className="rounded bg-amber-50 p-2 text-sm text-amber-950">Alla produktuppgifter kunde inte hämtas. Försök igen vid behov.</p>}
           {review.result.warnings.length > 0 && <ul className="list-disc space-y-1 pl-5 text-xs leading-5 text-amber-900">{review.result.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
           <a href={review.result.searchUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-800 underline">Öppna sökningen hos Ahlsell<ExternalLink className="h-3 w-3" /></a>
+          {(review.result.queries?.length ?? 0) > 0 && <details className="text-xs text-neutral-600"><summary className="cursor-pointer">Använda sökord</summary>
+            <ul className="mt-2 list-disc space-y-1 pl-4">{review.result.queries?.map(query => <li key={query}>{query}</li>)}</ul></details>}
           {review.result.candidates.length > 0 ? <p className="rounded bg-neutral-50 p-3 text-sm">Du kan välja vilken produkt som helst i resultatet. Tekniska avvikelser och saknade uppgifter visas som information.</p>
             : <p className="text-sm">Ingen träff. Anpassa sökorden eller sök på ett exakt artikelnummer.</p>}
           {review.result.candidates.map(candidate => <article key={candidate.articleNumber} className={`space-y-2 rounded border p-3 ${review.selected?.articleNumber === candidate.articleNumber ? "border-green-500 bg-green-50" : "border-neutral-200"}`}>

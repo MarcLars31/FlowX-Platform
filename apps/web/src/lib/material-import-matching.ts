@@ -2,9 +2,10 @@ import { assessAhlsellLookupCandidates } from "./ahlsell-hybrid-matching";
 import { lookupAhlsellProduct } from "./ahlsell-product-lookup";
 import { searchAhlsellPublicCatalogQueries } from "./ahlsell-public-catalog";
 import { applyAhlsellProductDetails, fetchAhlsellProductDetails, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
+import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { technicalConflictWarnings } from "./ahlsell-technical-conflicts";
 import type { AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
-import { materialInputWarnings, materialSearchQuery, type MaterialCandidate, type MaterialSearchInput, type MaterialSearchResult } from "./material-import";
+import { materialInputWarnings, materialSearchQueries, materialSearchQuery, type MaterialCandidate, type MaterialSearchInput, type MaterialSearchResult } from "./material-import";
 
 export function materialRequirement(input: MaterialSearchInput): Record<string, unknown> {
   const attributes: Record<string, string> = {};
@@ -37,15 +38,21 @@ export async function matchMaterialRow(input: MaterialSearchInput, options: { fe
   };
   signal?.throwIfAborted();
   const query = materialSearchQuery(input);
+  const queries = materialSearchQueries(input);
   const exact = /^\d{6,12}$/.test(query) || /^https:\/\//i.test(query);
   const search = exact
     ? await (dependencies.lookup ?? lookupAhlsellProduct)({ query, market: "no", fetchImpl, signal, store }).then(result => ({ candidates: result.products, searchUrl: result.searchUrl, failedQueries: [] as string[], message: result.message }))
-    : await (dependencies.search ?? searchAhlsellPublicCatalogQueries)({ market: "no", queries: [query], fetchImpl, maxCandidates: 24, maxPages: 1, maxVariantFamilies: 3 });
+    : await (dependencies.search ?? searchAhlsellPublicCatalogQueries)({ market: "no", queries, fetchImpl, maxCandidates: 24, maxPages: 1, maxVariantFamilies: 3 });
   const requirement = materialRequirement(input);
-  const ranked = assessAhlsellLookupCandidates(requirement, search.candidates);
+  // Assess every hit before limiting the display. The old six-card cut discarded
+  // useful alternatives before their dimensions or product family were considered.
+  const ranked = assessAhlsellLookupCandidates(requirement, search.candidates).sort((a, b) =>
+    Number(a.technicalEvaluation?.status === "FAIL") - Number(b.technicalEvaluation?.status === "FAIL")
+    || materialDimensionHint(input, b) - materialDimensionHint(input, a)
+    || (b.matchScore ?? 0) - (a.matchScore ?? 0)).slice(0, 24);
   const details = await (dependencies.details ?? fetchAhlsellProductDetails)({ items: ranked.slice(0, 6), fetchImpl, signal, store });
   signal?.throwIfAborted();
-  const enriched = ranked.slice(0, 6).map(candidate => applyAhlsellProductDetails(candidate, details[candidate.articleNumber]));
+  const enriched = ranked.map(candidate => applyAhlsellProductDetails(candidate, details[candidate.articleNumber]));
   const evaluated = assessAhlsellLookupCandidates(requirement, enriched);
   const dimensionScores = new Map<string, number>();
   const candidates: MaterialCandidate[] = evaluated.flatMap(candidate => {
@@ -55,22 +62,36 @@ export async function matchMaterialRow(input: MaterialSearchInput, options: { fe
     const identityVerified = Boolean(detail?.snapshot && detail.snapshot.articleNumber === candidate.articleNumber);
     const fitting = fittingDimensionCheck(input, [candidate.subtitle ?? detail?.subtitle ?? "", candidate.productName, ...candidate.specifications].join("\n"));
     const pipeDiameter = pipeHeaderDimensionCheck(input, detail?.subtitle ?? "");
-    const requested = input.dimension.replace(/^DN\s*/i, "").replace(/\s*mm$/i, "").trim();
-    const documentedDimensions = [candidate.technicalEvidence?.fields.dn, candidate.technicalEvidence?.fields.outsideDiameterMm]
-      .flatMap(field => field?.status === "documented" ? field.observations.map(observation => Number(observation.value)) : []);
-    const dimensionMatches = /^\d+(?:[.,]\d+)?$/.test(requested) && documentedDimensions.includes(Number(requested.replace(",", ".")));
-    dimensionScores.set(candidate.articleNumber, fitting.matches || dimensionMatches ? 1 : 0);
+    dimensionScores.set(candidate.articleNumber, materialDimensionHint(input, candidate));
     const conflict = pipeDiameter.conflict || fitting.conflict || candidate.technicalEvaluation?.status === "FAIL" || technicalConflictWarnings(candidate).length > 0;
     return [{ articleNumber: candidate.articleNumber, productName: candidate.productName, subtitle: candidate.subtitle ?? detail?.subtitle ?? "",
       productUrl, specifications: candidate.specifications.slice(0, 30), identityVerified, conflict,
       warnings: [...new Set([...pipeDiameter.warnings, ...fitting.warnings, ...(candidate.matchWarnings ?? []), ...(candidate.technicalEvaluation?.checks.filter(check => check.status !== "MATCH").map(check => check.reason) ?? []),
         ...(!identityVerified ? ["Artikelnumret kunde inte verifieras på produktsidan. Du kan ändå välja produkten."] : [])])].map(warning => warning.replace(/PDF-kravet/g, "Materialkravet").replace(/PDF kräver/g, "Materiallistan kräver")) }];
   });
-  candidates.sort((a, b) => Number(a.conflict) - Number(b.conflict) || Number(b.identityVerified) - Number(a.identityVerified)
-    || (dimensionScores.get(b.articleNumber) ?? 0) - (dimensionScores.get(a.articleNumber) ?? 0));
-  return { candidates, searchUrl: search.searchUrl, partial: Boolean(search.failedQueries?.length) || candidates.some(candidate => !candidate.identityVerified),
-    warnings: [...materialInputWarnings(input), ...("message" in search && search.message ? [search.message] : []),
+  candidates.sort((a, b) => Number(a.conflict) - Number(b.conflict)
+    || (dimensionScores.get(b.articleNumber) ?? 0) - (dimensionScores.get(a.articleNumber) ?? 0)
+    || Number(b.identityVerified) - Number(a.identityVerified));
+  return { candidates, searchUrl: search.searchUrl, queries, partial: Boolean(search.failedQueries?.length) || candidates.some(candidate => !candidate.identityVerified),
+    warnings: [...materialInputWarnings(input), ...(queries.length > 1 ? ["Sökningen använder även kortare produktnamn. Kontrollera dimension, anslutning och användningsområde mot materialraden."] : []), ...("message" in search && search.message ? [search.message] : []),
       ...(search.failedQueries?.length ? ["Sökningen blev ofullständig. Försök igen för att hämta fler uppgifter."] : [])] };
+}
+
+/** Prioritize a stated size before spending six detail requests; this is not an approval. */
+function materialDimensionHint(input: MaterialSearchInput, candidate: AhlsellPublicCandidate) {
+  if (input.fittingDimension) return Number(fittingDimensionCheck(input,
+    [candidate.subtitle ?? "", candidate.productName, ...candidate.specifications].join("\n")).matches);
+  const requested = input.dimension.replace(/^DN\s*/i, "").replace(/\s*mm$/i, "").trim();
+  if (!/^\d+(?:[.,]\d+)?$/.test(requested)) return 0;
+  const size = Number(requested.replace(",", "."));
+  const fields = input.dimensionKind === "dn" ? [candidate.technicalEvidence?.fields.dn]
+    : input.dimensionKind === "outside" ? [candidate.technicalEvidence?.fields.outsideDiameterMm]
+      : [candidate.technicalEvidence?.fields.dn, candidate.technicalEvidence?.fields.outsideDiameterMm];
+  if (fields.some(field => field?.status === "documented" && field.observations.some(observation => Number(observation.value) === size))) return 1;
+  const subtitle = candidate.subtitle ?? "";
+  const heading = input.dimensionKind === "dn" ? /^\s*DN\s*(\d+(?:[.,]\d+)?)\b/i.exec(subtitle)
+    : /^\s*(\d+(?:[.,]\d+)?)\s*(?:[x×]\s*\d+(?:[.,]\d+)?)?\s*mm\b/i.exec(subtitle);
+  return Number(Boolean(heading && Number(heading[1].replace(",", ".")) === size));
 }
 
 /** The exact pipe variant's diameter × wall heading also documents its outer size. */

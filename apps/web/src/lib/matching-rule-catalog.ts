@@ -1,5 +1,5 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-13.2";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-13.3";
 export const RULE_CATALOG_DATE = "13 november 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
@@ -28,6 +28,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     rules: [
       rule("excel-kallrader", "Bevara mängder och källrad", "En Excel-lista läses in.", "Identifiera tabellrubriker på varje blad och behåll beskrivning, mått, enhet, mängd, blad och radnummer. Noll mängd söks inte. Felaktiga indata behålls för rättning och export."),
       rule("excel-matt", "Anta inte DN från ett ensamt tal", "Listan innehåller dimensioner eller en koppling med flera anslutningar.", "Låt granskaren ange måttsystem. Bevara alla kopplingsmått. Dokumenterade avvikelser mot uttrycklig ytterdiameter, saknade uppgifter och portordning visas som information och spärrar inte produktvalet."),
+      rule("excel-sokord", "Sök också med kortare produktnamn", "En materialrad söks utan egna sökord.", "Använd upp till tre sökningar med produktfamilj, angivna mått och alternativa katalogord. Projektspecifika beskrivningar behålls i kravkontrollen. Ett ensamt mått görs inte om till DN. Prioritera kandidater med angivna mått utan att godkänna dem automatiskt. Visa upp till 24 kandidater och hämta produktsidor för högst sex. Egna sökord, artikelnummer och produktlänkar breddas inte. Visa sökfraserna och ta med dem i Excel-exporten.", { kind: "search" }),
       rule("excel-produktval", "Användaren väljer fritt", "Produktsökningen hittar kandidater hos Ahlsell Norge.", "Försök verifiera artikelnumret på produktsidan och visa tekniska avvikelser. Alla sökträffar kan väljas, även med avvikelser eller overifierad artikelidentitet. Ingen bekräftelseruta krävs. Exportera förslag och användarens val i separata kolumner och behåll informationen om avvikelser; välj aldrig automatiskt."),
       rule("excel-kohantering", "Respektera leverantörens sökbudget", "Flera materialrader ska sökas.", "Sök en rad i taget, använd gemensam leverantörsbudget och respektera Retry-After med högst två automatiska återförsök. Bevara tidigare resultat vid avbrott och driftfel.")
     ]
