@@ -56,6 +56,7 @@ export type MaterialReview = {
   status: "pending" | "searching" | "review" | "empty" | "error" | "selected";
   result?: MaterialSearchResult;
   selected?: MaterialCandidate;
+  selectionMode?: "manual" | "automatic";
   error?: string;
 };
 
@@ -224,8 +225,24 @@ export function materialInputWarnings(input: MaterialSearchInput) {
   return warnings;
 }
 
+/** Work on every valid row, independently of the visible page or filter. */
+export function materialBatchRows(rows: MaterialRow[], reviews: Record<string, MaterialReview>, all = false) {
+  return rows.filter(row => !row.issues.length && row.quantity !== null && row.quantity > 0 && reviews[row.id]
+    && (all || ["pending", "error"].includes(reviews[row.id].status)));
+}
+
+/** Ties retain the server's technical tie-break order. No score means no automatic choice. */
+export function highestScoredMaterialCandidate(candidates: MaterialCandidate[]) {
+  return candidates.reduce<MaterialCandidate | undefined>((best, candidate) => {
+    const score = candidate.score;
+    if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 100) return best;
+    return !best || score > best.score! ? candidate : best;
+  }, undefined);
+}
+
 export function materialRowStatus(row: MaterialRow, review: MaterialReview) {
   if (row.issues.length) return "Kontrollera indata";
   if (row.quantity === 0) return "Noll mängd – ej sökt";
+  if (review.status === "selected" && review.selectionMode === "automatic") return "Automatiskt vald produkt";
   return { pending: "Ej sökt", searching: "Söker", review: "Granska förslag", empty: "Ingen träff", error: "Sökfel", selected: "Vald produkt" }[review.status];
 }

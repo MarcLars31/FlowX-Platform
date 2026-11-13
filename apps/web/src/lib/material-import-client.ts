@@ -1,4 +1,4 @@
-import type { MaterialReview, MaterialSearchInput, MaterialSearchResult } from "./material-import";
+import { highestScoredMaterialCandidate, type MaterialReview, type MaterialSearchInput, type MaterialSearchResult } from "./material-import";
 import { withCallerAbort } from "./single-flight";
 
 export const MATERIAL_MATCH_TIMEOUT_MS = 65_000;
@@ -92,19 +92,20 @@ export type MaterialQueueProgress = {
 
 /** Process the entire supplied batch, independent of table pagination or filters. */
 export async function runMaterialSearchQueue({ ids, reviews, signal, onReview, onProgress,
-  match = requestMaterialMatch, wait = waitForMaterialRetry, now = Date.now }: {
-  ids: string[]; reviews: Record<string, MaterialReview>; signal: AbortSignal;
+  autoSelect = false, match = requestMaterialMatch, wait = waitForMaterialRetry, now = Date.now }: {
+  ids: string[]; reviews: Record<string, MaterialReview>; signal: AbortSignal; autoSelect?: boolean;
   onReview: (id: string, review: MaterialReview) => void; onProgress: (progress: MaterialQueueProgress) => void;
   match?: typeof requestMaterialMatch; wait?: typeof waitForMaterialRetry; now?: () => number;
 }) {
-  let completed = 0, failed = 0, consecutiveFailures = 0;
+  let completed = 0, failed = 0, consecutiveFailures = 0, selectedCount = 0, unscored = 0, nextIndex = 0;
+  const retryIds: string[] = [];
   let lastStarted: number | null = null;
   let error = "";
   let stopped = false;
   for (const [index, id] of ids.entries()) {
     if (signal.aborted) break;
     const original = reviews[id];
-    if (!original) continue;
+    if (!original) { nextIndex = index + 1; continue; }
     const notice: WaitNotice = (seconds, reason) => onProgress({ id, index: index + 1, total: ids.length,
       phase: seconds > 0 ? "waiting" : "searching", seconds, reason, startedAt: now() });
     onReview(id, { ...original, status: "searching", error: undefined });
@@ -115,18 +116,24 @@ export async function runMaterialSearchQueue({ ids, reviews, signal, onReview, o
       lastStarted = now(); notice(0);
       const result = await match(original.input, signal, notice);
       signal.throwIfAborted();
-      onReview(id, { input: original.input, result, status: result.candidates.length ? "review" : "empty" });
-      completed++; consecutiveFailures = 0;
+      const selected = autoSelect ? highestScoredMaterialCandidate(result.candidates) : undefined;
+      if (selected) selectedCount++;
+      if (autoSelect && result.candidates.length && !selected) unscored++;
+      onReview(id, { input: original.input, result: autoSelect && result.candidates.length && !selected
+        ? { ...result, warnings: [...result.warnings, "Automatiskt val kunde inte göras eftersom träffarna saknar giltiga poäng. Sök igen eller välj manuellt."] } : result,
+        status: selected ? "selected" : result.candidates.length ? "review" : "empty",
+        ...(selected ? { selected, selectionMode: "automatic" as const } : {}) });
+      completed++; consecutiveFailures = 0; nextIndex = index + 1;
     } catch (cause) {
       if (signal.aborted) { onReview(id, original); break; }
       const rowError = cause instanceof Error ? cause.message : "Sökningen misslyckades.";
       onReview(id, { ...original, status: "error", error: rowError });
-      failed++; consecutiveFailures++;
+      failed++; consecutiveFailures++; nextIndex = index + 1; retryIds.push(id);
       if ((cause instanceof MaterialSearchRequestError && cause.stopQueue) || consecutiveFailures >= 3) {
         error = consecutiveFailures >= 3 ? "Sökningen pausades efter tre sökfel i följd. Tidigare resultat finns kvar. Välj Sök återstående för att fortsätta." : rowError;
         stopped = true; break;
       }
     }
   }
-  return { completed, failed, stopped, error, cancelled: signal.aborted };
+  return { completed, failed, selectedCount, unscored, remainingIds: [...retryIds, ...ids.slice(nextIndex)], stopped, error, cancelled: signal.aborted };
 }

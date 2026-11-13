@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, FileSpreadsheet, Loader2, Search, Square, Upload } from "lucide-react";
 import { Button } from "./Button";
-import { initialMaterialReview, MATERIAL_IMPORT_MAX_BYTES, materialRowStatus, materialSearchQuery,
+import { initialMaterialReview, MATERIAL_IMPORT_MAX_BYTES, materialBatchRows, materialRowStatus, materialSearchQuery,
   type MaterialReview, type MaterialRow, type MaterialSearchInput } from "@/lib/material-import";
 import { runMaterialSearchQueue, type MaterialQueueProgress } from "@/lib/material-import-client";
 
@@ -18,6 +18,7 @@ export function MaterialExcelImport() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [autoResumeIds, setAutoResumeIds] = useState<string[]>([]);
   const [progress, setProgress] = useState<MaterialQueueProgress | null>(null);
   const [clock, setClock] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -50,7 +51,7 @@ export function MaterialExcelImport() {
       const { readMaterialWorkbook } = await import("@/lib/material-import-workbook");
       const result = await readMaterialWorkbook(new Uint8Array(await file.arrayBuffer()), file.name);
       setRows(result.rows); setReviews(Object.fromEntries(result.rows.map(row => [row.id, initialMaterialReview(row)])));
-      setWarnings(result.warnings); setFileName(file.name); setActiveId(result.rows[0].id); setReplace(false);
+      setWarnings(result.warnings); setFileName(file.name); setActiveId(result.rows[0].id); setReplace(false); setAutoResumeIds([]);
       setPage(0); setFilter("all"); setTextFilter(""); dirty.current = true;
       setMessage(`${result.rows.length} rader har lästs in. Kontrollera listan och starta sökningen.`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Filen kunde inte läsas."); }
@@ -62,16 +63,20 @@ export function MaterialExcelImport() {
     dirty.current = true;
   }
 
-  async function searchRows(ids: string[]) {
+  async function searchRows(ids: string[], autoSelect = false) {
     if (controller.current || busy) return;
     const abort = new AbortController();
     controller.current = abort; setRunning(true); setError(""); setMessage("");
     try {
-      const result = await runMaterialSearchQueue({ ids, reviews, signal: abort.signal,
+      const result = await runMaterialSearchQueue({ ids, reviews, signal: abort.signal, autoSelect,
         onReview: (id, review) => { setReviews(previous => ({ ...previous, [id]: review })); dirty.current = true; },
         onProgress: setProgress });
-      setError(result.error);
-      setMessage(`${result.completed} rader söktes · ${result.failed} sökfel. ${result.cancelled || result.stopped ? "Sökningen är pausad. Välj Sök återstående för att fortsätta." : "Sökningen är klar. Granska förslagen; rader med sökfel kan sökas igen."}`);
+      if (autoSelect) setAutoResumeIds(result.remainingIds);
+      else setAutoResumeIds(previous => previous.filter(id => !ids.includes(id)));
+      setError(autoSelect ? result.error.replace(/Välj Sök återstående/gi, "Välj Fortsätt automatval") : result.error);
+      setMessage(`${result.completed} rader söktes · ${result.failed} sökfel.${autoSelect ? ` ${result.selectedCount} produkter valdes automatiskt.${result.unscored ? ` ${result.unscored} rader saknar giltiga poäng och behöver manuellt val eller ny sökning.` : ""}` : ""} ${(result.cancelled || result.stopped) && result.remainingIds.length > 0
+        ? `Sökningen är pausad. Välj ${autoSelect ? "Fortsätt automatval" : "Sök återstående"} för att fortsätta.`
+        : "Sökningen är klar. Granska produktval och förslag; rader med sökfel kan sökas igen."}`);
     } finally { controller.current = null; setRunning(false); setProgress(null); }
   }
 
@@ -89,7 +94,8 @@ export function MaterialExcelImport() {
     finally { setExporting(false); }
   }
 
-  const remaining = rows.filter(row => !row.issues.length && row.quantity !== 0 && ["pending", "error"].includes(reviews[row.id].status));
+  const searchable = materialBatchRows(rows, reviews, true);
+  const remaining = materialBatchRows(rows, reviews);
   const selectedCount = rows.filter(row => reviews[row.id].status === "selected").length;
   const visible = rows.filter(row => {
     const review = reviews[row.id];
@@ -134,9 +140,14 @@ export function MaterialExcelImport() {
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">{fileName}</h2>
           <p className="text-sm text-neutral-600">{rows.length} rader · {selectedCount} valda produkter · {remaining.length} återstående sökningar</p></div>
           <div className="flex flex-wrap gap-2">{running ? <Button onClick={() => controller.current?.abort()} variant="secondary"><Square className="h-4 w-4" />Stoppa sökningen</Button>
-            : <Button disabled={busy || !remaining.length} onClick={() => void searchRows(remaining.map(row => row.id))}><Search className="h-4 w-4" />Sök återstående ({remaining.length})</Button>}
+            : <>
+              <Button disabled={busy || !searchable.length} onClick={() => void searchRows(searchable.map(row => row.id), true)}><Search className="h-4 w-4" />Sök alla och välj högst ({searchable.length})</Button>
+              {autoResumeIds.length > 0 && <Button disabled={busy} onClick={() => void searchRows(autoResumeIds, true)}>Fortsätt automatval ({autoResumeIds.length})</Button>}
+              <Button variant="secondary" disabled={busy || !remaining.length} onClick={() => void searchRows(remaining.map(row => row.id))}>Sök återstående ({remaining.length})</Button>
+            </>}
             <Button variant="secondary" disabled={busy} onClick={() => setReplace(true)}><Upload className="h-4 w-4" />Byt fil</Button></div></div>
-        <p className="text-xs leading-5 text-neutral-600">Sökningen går rad för rad. Stora listor kan ta flera minuter; pauser visas med nedräkning. Låt fliken vara öppen och ladda ner Excel innan du lämnar sidan. Rader med noll mängd eller felaktiga indata söks inte. Inga produkter väljs automatiskt.</p>
+        <p className="text-xs leading-5 text-neutral-600">Sökningen går rad för rad. Stora listor kan ta flera minuter; pauser visas med nedräkning. Låt fliken vara öppen och ladda ner Excel innan du lämnar sidan. Rader med noll mängd eller felaktiga indata söks inte.</p>
+        <p className="text-xs leading-5 text-neutral-700"><strong>Sök alla och välj högst</strong> söker hela listan och ersätter tidigare val med träffen som har högst poäng på varje rad. Vid lika poäng väljs första träffen i sorteringen. Även låga poäng och tekniska avvikelser kan väljas; granska valen och ändra dem vid behov. Sök återstående ger förslag utan automatval.</p>
       </section>
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(350px,1fr)]">
@@ -153,7 +164,7 @@ export function MaterialExcelImport() {
                 <p className="mt-1 text-xs text-neutral-500">{row.sheet} · rad {row.sourceRow}</p></td>
               <td className="p-2">{[row.dimension, row.fittingDimension].filter(Boolean).join(" / ") || "—"}</td>
               <td className="whitespace-nowrap p-2">{row.quantityText} {row.unit}</td>
-              <td className="p-2 text-xs">{progress?.id === row.id && reviews[row.id].status === "searching" ? (progress.phase === "waiting" ? `Väntar (${progress.seconds} s)` : `Söker (${elapsed} s)`) : materialRowStatus(row, reviews[row.id])}{reviews[row.id].selected && <p className="mt-1 font-bold">{reviews[row.id].selected?.articleNumber}</p>}</td>
+              <td className="p-2 text-xs">{progress?.id === row.id && reviews[row.id].status === "searching" ? (progress.phase === "waiting" ? `Väntar (${progress.seconds} s)` : `Söker (${elapsed} s)`) : materialRowStatus(row, reviews[row.id])}{reviews[row.id].selected && <p className="mt-1 font-bold">{reviews[row.id].selected?.articleNumber}{typeof reviews[row.id].selected?.score === "number" ? ` · ${reviews[row.id].selected?.score}/100` : ""}</p>}</td>
             </tr>)}</tbody></table></div>
           {!visible.length && <p className="py-4 text-sm text-neutral-600">Inga rader motsvarar filtret.</p>}
           <div className="mt-3 flex items-center justify-between gap-2 text-xs"><Button variant="secondary" disabled={!currentPage} onClick={() => setPage(currentPage - 1)}>Föregående</Button>
@@ -212,9 +223,10 @@ export function MaterialRowReview({ row, review, busy, onInput, onSearch, onRevi
             {candidate.conflict && <p className="text-xs font-bold text-red-800">Teknisk avvikelse mot materialraden. Du kan ändå välja produkten.</p>}
             {candidate.warnings.length > 0 && <ul className="list-disc space-y-1 pl-4 text-xs leading-5 text-amber-900">{candidate.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
             {candidate.specifications.some(item => item.trim()) && <details className="text-xs"><summary className="cursor-pointer font-semibold">Tekniska uppgifter</summary><ul className="mt-2 space-y-1">{candidate.specifications.filter(item => item.trim()).map((item, i) => <li key={i}>{item}</li>)}</ul></details>}
+            {review.selected?.articleNumber === candidate.articleNumber && review.selectionMode === "automatic" && <p className="text-xs font-semibold">Automatiskt vald efter högsta poäng. Du kan välja en annan produkt nedan.</p>}
             {review.selected?.articleNumber === candidate.articleNumber
-              ? <Button disabled={busy} variant="secondary" onClick={() => onReview({ ...review, status: "review", selected: undefined })}>Ta bort produktval</Button>
-              : <Button disabled={busy} onClick={() => onReview({ ...review, status: "selected", selected: candidate })}>Välj produkt</Button>}
+              ? <Button disabled={busy} variant="secondary" onClick={() => onReview({ ...review, status: "review", selected: undefined, selectionMode: undefined })}>Ta bort produktval</Button>
+              : <Button disabled={busy} onClick={() => onReview({ ...review, status: "selected", selected: candidate, selectionMode: "manual" })}>Välj produkt</Button>}
           </article>)}
         </>}
       </>}
