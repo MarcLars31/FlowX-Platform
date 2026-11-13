@@ -22,9 +22,9 @@ Open **Excel till NRF** in the organization navigation (`/material-import`). The
 - Product numbers are labelled **NRF / article number** because a supplier article identifier is not always a registered NRF number.
 - The parser rejects unsupported, corrupt, encrypted and oversized ZIP containers. File parsing and workbook generation run in the browser; no server-side workbook upload endpoint is added.
 
-## Development update after the initial release
+## Unrestricted-choice release
 
-The unrestricted-choice change removes technical-conflict, identity-verification and acknowledgement-checkbox gates from Excel product selection. It is not yet published; the release record below describes the initial live version. Validation: all 28 focused Excel/client/rule tests passed, along with TypeScript and zero-warning ESLint. The UI regression covers all combinations of identity verification and technical conflict; workbook tests verify that any selected candidate and its caveats are retained.
+The unrestricted-choice change removes technical-conflict, identity-verification and acknowledgement-checkbox gates from Excel product selection. It was manually published on 13 November 2026; see the [unrestricted-choice release record](excel-free-choice-release-2026-11-13.md). The earlier release record below describes the initial live version. Validation: all 28 focused Excel/client/rule tests passed, along with TypeScript and zero-warning ESLint. The UI regression covers all combinations of identity verification and technical conflict; workbook tests verify that any selected candidate and its caveats are retained.
 
 ## Verification
 
