@@ -71,7 +71,7 @@ export function buildAhlsellTechnicalEvidence(input: Omit<AhlsellEvidenceSnapsho
       sourceKind: input.sourceKind ?? "product_page", retrievedAt: input.retrievedAt
     });
     if (/^(?:dn|nominell diameter(?: dn)?|nominell storrelse|tilkobling dn|dimensjon dn|gjengedimensjon dn)$/.test(label)) add("dn", numeric(value, /^(?:DN\s*)?(\d+(?:[.,]\d+)?)$/i), raw);
-    if (/^(?:ytre diameter|utvendig diameter|ytterdiameter|outside diameter)(?: mm)?$/.test(label)) add("outsideDiameterMm", numeric(value, /^(\d+(?:[.,]\d+)?)\s*(?:mm)?$/i), raw);
+    if (/^(?:ytre (?:ror)?diameter|utvendig (?:ror)?diameter|ytterdiameter|outside diameter)(?: mm)?$/.test(label)) add("outsideDiameterMm", numeric(value, /^(\d+(?:[.,]\d+)?)\s*(?:mm)?$/i), raw);
     if (/^(?:dimensjon|dimension)$/.test(label)) add("dn", numeric(value, /^DN\s*(\d+(?:[.,]\d+)?)$/i), raw);
     if (/^(?:utvendig gjenge|innvendig gjenge|gjengedimensjon|gjenge|thread size)(?: tommer|inch)?$/.test(label)) add("threadInches", thread(value), raw);
     if (/^(?:materiale|material|materiale hus|husmateriale|ventilhus|ror materiale)$/.test(label)) add("material", material(normalized), raw);

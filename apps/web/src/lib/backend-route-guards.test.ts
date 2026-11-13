@@ -59,6 +59,7 @@ test("organization mutation and customer product APIs use server authorization",
     "api/organizations/members/[id]/role/route.ts",
     "api/organizations/members/[id]/status/route.ts",
     "api/products/search/route.ts",
+    "api/material-import/match/route.ts",
     "api/products/documents/[id]/file/route.ts",
     "api/technical-descriptions/route.ts",
     "api/technical-descriptions/estimate/route.ts"
