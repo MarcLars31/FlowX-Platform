@@ -1,6 +1,6 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-12.2";
-export const RULE_CATALOG_DATE = "12 november 2026";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-13.1";
+export const RULE_CATALOG_DATE = "13 november 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
@@ -21,6 +21,17 @@ const rule = (id: string, title: string, when: string, result: string, extra: Pa
 const table = (columns: string[], rows: string[][]) => ({ columns, rows });
 
 export const MATCHING_RULE_GROUPS: RuleGroup[] = [
+  {
+    id: "excel-material", title: "Excelmaterial och NRF", appliesTo: "Uppladdade materiallistor", kind: "review",
+    description: "Bevara källrader och skilj produktförslag från granskade val.",
+    sources: ["material-import.ts", "material-import-workbook.ts", "material-import-matching.ts", "material-import-client.ts"],
+    rules: [
+      rule("excel-kallrader", "Bevara mängder och källrad", "En Excel-lista läses in.", "Identifiera tabellrubriker på varje blad och behåll beskrivning, mått, enhet, mängd, blad och radnummer. Noll mängd söks inte. Felaktiga indata behålls för rättning och export."),
+      rule("excel-matt", "Anta inte DN från ett ensamt tal", "Listan innehåller dimensioner eller en koppling med flera anslutningar.", "Låt granskaren ange måttsystem. Bevara alla kopplingsmått. Dokumenterade avvikelser mot uttrycklig ytterdiameter spärrar valet; saknade uppgifter och portordning kräver kontroll."),
+      rule("excel-produktval", "Artikelidentitet och granskning krävs", "Produktsökningen hittar kandidater hos Ahlsell Norge.", "Verifiera artikelnumret på produktsidan och behåll tekniska avvikelser. Granskaren måste kontrollera utförande och kompatibilitet innan val. Exportera förslag och val i separata kolumner; välj aldrig automatiskt."),
+      rule("excel-kohantering", "Respektera leverantörens sökbudget", "Flera materialrader ska sökas.", "Sök en rad i taget, använd gemensam leverantörsbudget och respektera Retry-After med högst två automatiska återförsök. Bevara tidigare resultat vid avbrott och driftfel.")
+    ]
+  },
   {
     id: "technical-evaluation", title: "Gemensam teknisk kontroll", appliesTo: "Alla produktkandidater efter sökningen", kind: "requirement",
     description: "Sökningen hittar kandidater. En separat kontroll jämför varje faktiskt krav med dokumenterade produktdata.",
@@ -240,7 +251,7 @@ export const MATCHING_RULE_GROUPS: RuleGroup[] = [
     sources: ["ahlsell-technical-evidence.ts", "ahlsell-product-subtitle.ts", "ahlsell-candidate-merge.ts", "victaulic-sprinkler-catalog.ts", "victaulic-working-pressure.ts", "ahlsell-public-match.ts"],
     rules: [
       rule("artikelidentitet", "Tekniska data måste höra till rätt artikel", "En produktsida eller variantlista hämtas.", "Kontrollera synlig artikelidentitet och märkta specifikationer. Rekommenderade produkter, en annan variant eller värden från sökfrasen är inte bevis för artikelns egenskaper.", { notes: ["Produktsidor hämtas endast från tillåtna leverantörsadresser, med högst två omdirigeringar, 3 MB och fyra sekunders timeout.", "Högst 60 märkta specifikationsfält läses från en produktsida."] }),
-      rule("sparad-evidens", "Behåll källa och hämtningstid", "Tekniska egenskaper hämtas från leverantören.", "Spara råvärde, URL, källtyp och tid. Underlaget omfattar DN, Ø, gänga, material, kvalitet, anslutning, PN, arbetstryck, K, temperatur, respons, riktning och finish."),
+      rule("sparad-evidens", "Behåll källa och hämtningstid", "Tekniska egenskaper hämtas från leverantören.", "Spara råvärde, URL, källtyp och tid. Underlaget omfattar DN, Ø, gänga, material, kvalitet, anslutning, PN, arbetstryck, K, temperatur, respons, riktning och finish. Märkta fält för ytre/utvendig rørdiameter tolkas som ytterdiameter, inte DN."),
       rule("evidens-konflikt", "Motstridiga uppgifter kräver kontroll", "Underlaget innehåller olika värden, fel NRF eller för gamla uppgifter.", "Behåll osäkerheten. Underlag äldre än 12 timmar kan behöva hämtas om. Gissa inte saknade egenskaper utifrån familjen.", { kind: "review" }),
       rule("sammanfoga", "Slå ihop samma NRF utan att dölja varningar", "MLDL och offentlig katalog beskriver samma normaliserade artikelnummer.", "Komplettera text och specifikationer. Behåll olösta konflikter, tillbehörskrav och variantval. Om ny säker data fyller en lucka kan motsvarande saknas-varning omprövas."),
       rule("direkt-katalog", "Direkta sprinklerförslag har strikta villkor", "Sökguiden kan använda en inlagd standardartikel.", "För norskt underlag används Victaulic-katalogen. Annat underlag kan använda standardlistan när K, DN, temperatur, riktning, respons och finish stämmer utan motsägelser eller specialutförande.", { notes: ["Direkta kandidater begränsas sedan till MLDL-artiklar; ren PDF-hänvisning räcker inte.", "Offentlig sökning kan komplettera med andra artiklar."] }),
