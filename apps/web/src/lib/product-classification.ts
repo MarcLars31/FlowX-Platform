@@ -111,13 +111,14 @@ export function inferProductIntent(requirement: Record<string, unknown>): Produc
   // A stale category alone must not turn an unrecognized named product into a valve.
   if (category === "valve" && /^(?:dn\s*\d+|dimensjon\b|(?:innendors )?(?:ventil|armatur))/.test(primaryDescription)) return "shutoff_valve";
   if (has(/\b(overgang fra pe til stal|flens pa pe rille|flensadapter|flenseadapter)\b/)) return "flange_adapter";
+  if (has(/\b(?:kryss|cross)\b/)) return "generic";
   if (has(/\b(blindflens|endelokk|endebunn|plugg)\b/)) return "cap";
-  if (has(/\b(anboringsklammer|anborring|avstikk|utlopskupling)\b/)) return "branch";
-  if (has(/\b(dimensjonsovergang|reduksjonskupling|reduksjon|reducer)\b/)) return "reducer";
+  if (has(/\b(anbor{1,2}ingsklammer|anb klammer|anborring|avstikk|utlopskupling)\b/)) return "branch";
+  if (has(/\b(dimensjonsovergang|overgang|overg muffe|reduksjonskupling|reduksjon|reducer)\b/)) return "reducer";
   if (has(/\b(t ror|t klave|t stykke|t stykker|tee)\b/)) return "tee";
   if (has(/\bbend\b/) && /\b(flens|flanged)\b/.test(primaryDescription)) return "flanged_bend";
   if (has(/\b(bend|albue|rorboy|elbow)\b/)) return "bend";
-  if (has(/\b(kupling|rillekobling|hurtigrillekobling|coupling)\b/)) return "coupling";
+  if (has(/\b(kupling|rillekupling|rillekobling|hurtigrillekobling|coupling)\b/)) return "coupling";
   if (has(/\b(dren(?:erings)?kar|oppsamlingskar|utjevningskar|specialtilvirk)\b/)) return "custom_fabrication";
   if (/^(?:(?:red|sorte|rillede|innendors|utendors|lopemeter)\s+)*(?:pipe|ror|rorledning|avlopsledning|stalror|rilleror|sprinklerror)\b/.test(mainProductText(description))
     && !explicitFitting && codeFamily !== "sprinkler_hose") return "pipe";

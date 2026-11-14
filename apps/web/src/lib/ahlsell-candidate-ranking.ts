@@ -267,7 +267,7 @@ function requirementProfile(requirement: Record<string, unknown>): TechnicalProf
 }
 
 function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: TechnicalProfile): AhlsellPublicCandidate {
-  const candidateName = normalize(candidate.productName);
+  const candidateName = normalize(candidate.productName).replace(/\b(\d+(?:[.,]\d+)?)bend\b/g, "$1 bend");
   const candidateText = normalize(flattenText({
     productName: candidate.productName,
     manufacturer: candidate.manufacturer,
@@ -529,6 +529,14 @@ function scoreCandidate(candidate: AhlsellPublicCandidate, requirement: Technica
     && warnings.length === 0
     && hasCompleteTechnicalEvidence(candidateText, candidateName, requirement)
   ));
+  if (requirement.intent === "coupling") {
+    const flexible = /\b(?:fleksibel|flexibel|flexible)\b/;
+    const rigid = /\b(?:fast|stiv|rigid)\b/;
+    const product = normalize([candidate.productName, candidate.subtitle ?? "", ...candidate.specifications.filter(spec => /^rillekuplingstype:/i.test(spec))].join(" "));
+    if (flexible.test(requirement.text) && rigid.test(product) || rigid.test(requirement.text) && flexible.test(product)) {
+      warnings.push("Fel anslutning: fast och flexibel rillekoppling är olika utföranden.");
+    }
+  }
   return withTechnicalConflictAssessment({ ...candidate, matchScore, matchReasons: reasons,
     matchWarnings: [...new Set(warnings)], recommendation, exactMatch, requiresAccessoryReview });
 }
@@ -588,7 +596,7 @@ export function hasAhlsellProductFamilyMismatch(intent: ProductIntent, productNa
       || !/\b(?:sprinkler(?:hode[rt]?|huvud| head)?|sprinkelhode[rt]?|v\d{4})\b/.test(main);
   }
   const pattern = PRODUCT_FAMILY_PATTERNS[intent];
-  return pattern !== undefined && (!pattern.test(mainProductText(productName))
+  return pattern !== undefined && (!pattern.test(mainProductText(productName.replace(/\b(\d+(?:[.,]\d+)?)bend\b/gi, "$1 bend")))
     || isAhlsellSignageCandidate({ productName, specifications: [] }));
 }
 
@@ -1123,7 +1131,7 @@ function extractKFactor(value: string) {
 
 function extractTemperature(value: string) {
   return numberAfterLabel(value, /\b(?:utlosningstemperatur|responstemperatur|temperature)\s*(\d+(?:[.,]\d+)?)\s*(?:c\b)?/)
-    ?? numberAfterLabel(value, /\b(57|68|79|93|100|121|141|182|260)\s*(?:c\b)/);
+    ?? numberAfterLabel(value, /\b(57|68|79|93|100|121|141|182|260)\s*(?:c|grader)\b/);
 }
 
 function extractSprinklerResponse(value: string): TechnicalProfile["response"] {
@@ -1168,7 +1176,7 @@ function extractSprinklerSystem(value: string): TechnicalProfile["sprinklerSyste
 }
 
 function extractRequiredSprinklerHeadType(value: string): TechnicalProfile["sprinklerHeadType"] {
-  if (/\b(torrsprinkler|torrorssprinkler|dry sprinkler|dry type sprinkler)\b/.test(value)) return "dry";
+  if (/\b(torrhode|torrsprinkler|torrorssprinkler|dry sprinkler|dry type sprinkler)\b/.test(value)) return "dry";
   if (/\b(window sprinkler|vindussprinkler|vindu sprinkler|apen sprinkler|open sprinkler|uten termisk element)\b/.test(value)) return "open";
   if (/\b(konvensjonell|konventionell|conventional|spraysprinkler|standard spray|utvidet dekning(?:sareal)?|extended coverage|institusjonssprinkler|institutionssprinkler|korridorsprinkler)\b/.test(value)) return "standard";
   return null;

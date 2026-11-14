@@ -1,3 +1,4 @@
+import { sprinklerReferenceSearchHints } from "./sprinkler-reference-search";
 import { withAhlsellOfferCandidates, offerRequirementIdentity, offerVariantCompatible, type AhlsellOfferCatalog } from "./ahlsell-offer-catalog";
 import { attachAhlsellAccessorySuggestions } from "./ahlsell-accessory-suggestions";
 import { mergeAhlsellCandidates } from "./ahlsell-candidate-merge";
@@ -29,7 +30,7 @@ export async function findAhlsellHybridCandidates(requirement: Record<string, un
   const market = ahlsellMarketFromSearchUrl(guide.searchUrl);
   const value = requirement.value_json as { attributes?: Record<string, unknown> } | undefined;
   const commentArticle = String(value?.attributes?.["pdf-kommentar"] ?? "").match(/\b\d{6,8}(?:N5)?\b/i)?.[0];
-  const primaryArticle = commentArticle ?? local.find(candidate => technicalConflictWarnings(candidate).length === 0)?.articleNumber;
+  const primaryArticle = commentArticle ?? sprinklerReferenceSearchHints(requirement)[0] ?? local.find(candidate => technicalConflictWarnings(candidate).length === 0)?.articleNumber;
   const queries = [...new Set([...(primaryArticle ? [primaryArticle] : []), ...guide.searchQueries])];
   const attempts: ProductSearchAttempt[] = [];
   // Check the leading MLDL article by its exact NRF, independently of the

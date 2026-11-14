@@ -58,6 +58,13 @@ export function buildAhlsellTechnicalEvidence(input: Omit<AhlsellEvidenceSnapsho
     entry.status = evidenceValuesAgree(field, entry.observations) ? "documented" : "conflict";
     fields[field] = entry;
   }
+  const portDimensions = input.specifications.flatMap(raw => {
+    const match = /^Nominell diameter (?:tilkobling|anslutning) [123]:\s*(.+)$/i.exec(raw);
+    return match ? [{ raw, value: parseAhlsellNominalDiameter(match[1]) }] : [];
+  });
+  if (portDimensions.length && portDimensions.every(port => port.value !== null && port.value === portDimensions[0].value)) {
+    for (const port of portDimensions) add("dn", port.value, port.raw);
+  }
   for (const raw of input.specifications) {
     const separator = raw.indexOf(":");
     if (separator < 0) continue;

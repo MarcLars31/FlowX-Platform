@@ -1,3 +1,6 @@
+import { hasSprinklerHeadEvidence } from "./sprinkler-requirement-context";
+import { resolvedSprinklerOrientation } from "./sprinkler-orientation-lexicon";
+import { sprinklerReferenceSearchHints } from "./sprinkler-reference-search";
 import { fittingDimensionCheck, materialCandidateScore, materialDimensionKind, materialDimensionMatch } from "./material-import-scoring";
 export { fittingDimensionCheck } from "./material-import-scoring";
 import { assessAhlsellLookupCandidates } from "./ahlsell-hybrid-matching";
@@ -12,19 +15,44 @@ import { materialInputWarnings, materialSearchQueries, materialSearchQuery, type
 export function materialRequirement(input: MaterialSearchInput): Record<string, unknown> {
   const attributes: Record<string, string> = {};
   const dimensionKind = materialDimensionKind(input);
+  const originalHeading = input.description.replace(/^\s*[A-Z]{2,5}\.\d+(?:\.\d+)*\s+(?:\d{3,4}\s+)?/i, "").replace(/_/g, " ");
+  // In this schedule syntax "Stålrør Bend" names a fitting for steel pipe;
+  // it does not specify the fitting body's material. Preserve the source text.
+  const fittingForSteelPipe = /^(?:Stålrør|Stålrör)\s+(?:Bend|T-Rør|T-Rör|Overgang|Endelokk|Kryss)\b/i.test(originalHeading);
+  const heading = fittingForSteelPipe ? originalHeading.replace(/^(?:Stålrør|Stålrör)\s+/i, "") + " for stålrør" : originalHeading;
   if (/\b(?:kobber|koppar)/i.test(input.description)) attributes.Materiale = "Kobber";
   else if (/\b(?:rustfri|syrefast)/i.test(input.description)) attributes.Materiale = "Rustfritt stål";
-  else if (/\b(?:stål|stålrør|stålror|stålrör)/i.test(input.description)) attributes.Materiale = "Stål";
+  else if (!fittingForSteelPipe && /\b(?:stål|stålrør|stålror|stålrör)/i.test(input.description)) attributes.Materiale = "Stål";
   const pipe = /^r[øö]r\b/i.test(input.category) && input.unit.toLowerCase() === "m";
   if (pipe) attributes["Type produkt"] = "Rør";
   // A bare dimension in a material schedule is not evidence of DN.
   if (dimensionKind === "dn" && /^\s*(?:DN\s*)?\d+(?:[.,]\d+)?\s*$/i.test(input.dimension)) attributes.DN = input.dimension.replace(/^\s*DN\s*/i, "");
   if (dimensionKind === "outside" && /^\s*\d+(?:[.,]\d+)?\s*(?:mm)?\s*$/i.test(input.dimension)) attributes["Ytterdiameter"] = input.dimension.replace(/\s*mm\s*$/i, "") + " mm";
   // Keep every fitting port, in order. Unknown units remain a review point.
-  if (input.fittingDimension) attributes["Fittingdimensjon (källa)"] = input.fittingDimension;
+  if (input.fittingDimension) {
+    attributes["Fittingdimensjon (källa)"] = input.fittingDimension;
+    if (dimensionKind === "dn") attributes["Fittingdimensjon DN"] = input.fittingDimension;
+  }
+  if (hasSprinklerHeadEvidence({ value_text: heading })) {
+    const unique = (pattern: RegExp) => { const values = [...new Set([...heading.matchAll(pattern)].map(match => match[1]))]; return values.length === 1 ? values[0] : null; };
+    const k = unique(/\bK\s*(\d+(?:[.,]\d+)?)/gi);
+    const temperature = unique(/\b(\d+(?:[.,]\d+)?)\s*(?:grader\b|°\s*C?\b|C\b)/gi);
+    const response = unique(/\b(QR|SR)\b/gi);
+    const thread = unique(/\b((?:\d+\s+)?\d+(?:\/\d+)?)\s*["″]/g);
+    const orientation = resolvedSprinklerOrientation(heading);
+    if (k) attributes["K-faktor"] = k;
+    if (temperature) attributes["Utløsningstemperatur"] = `${temperature} °C`;
+    if (response) attributes.Respons = response;
+    if (orientation.orientation && !orientation.mixed) attributes.Plassering = orientation.orientation;
+    if (thread) {
+      attributes.Gjengedimensjon = `${thread}"`;
+      const threadDn = ({ "1/2": "15", "3/4": "20", "1": "25" } as Record<string, string>)[thread];
+      if (!input.dimension && !input.fittingDimension && threadDn) attributes.DN = threadDn;
+    }
+  }
   return { category: pipe ? "pipe" : undefined,
-    value_text: input.description.replace(/^\s*[A-Z]{2,5}\.\d+(?:\.\d+)*\s+(?:\d{3,4}\s+)?/i, "").replace(/_/g, " "),
-    value_json: { attributes, unit: input.unit, technicalSpecification: input.details, sourceType: "excel_material" } };
+    value_text: heading,
+    value_json: { attributes, unit: input.unit, technicalSpecification: input.details, sourceType: "excel_material", sourceDescription: input.description } };
 }
 
 type Dependencies = {
@@ -44,13 +72,22 @@ export async function matchMaterialRow(input: MaterialSearchInput, options: { fe
   const query = materialSearchQuery(input);
   const queries = materialSearchQueries(input);
   const exact = /^\d{6,12}$/.test(query) || /^https:\/\//i.test(query);
+  const requirement = materialRequirement(input);
+  const references = !input.query && !exact ? sprinklerReferenceSearchHints(requirement) : [];
+  const referenceResults = await Promise.allSettled(references.map(query =>
+    (dependencies.lookup ?? lookupAhlsellProduct)({ query, market: "no", fetchImpl, signal, store })));
+  signal?.throwIfAborted();
+  // A redirect/replacement may not inherit a reference identity. Only a freshly
+  // retrieved exact article enters the ordinary technical assessment.
+  const referenceCandidates = referenceResults.flatMap((result, index) => result.status === "fulfilled"
+    ? result.value.products.filter(product => product.articleNumber === references[index]) : []);
   const search = exact
     ? await (dependencies.lookup ?? lookupAhlsellProduct)({ query, market: "no", fetchImpl, signal, store }).then(result => ({ candidates: result.products, searchUrl: result.searchUrl, failedQueries: [] as string[], message: result.message }))
     : await (dependencies.search ?? searchAhlsellPublicCatalogQueries)({ market: "no", queries, fetchImpl, maxCandidates: 24, maxPages: 1, maxVariantFamilies: 3 });
-  const requirement = materialRequirement(input);
+  const retrieved = [...new Map([...search.candidates, ...referenceCandidates].map(candidate => [candidate.articleNumber, candidate])).values()];
   // Assess every hit before limiting the display. The old six-card cut discarded
   // useful alternatives before their dimensions or product family were considered.
-  const ranked = assessAhlsellLookupCandidates(requirement, search.candidates).sort((a, b) =>
+  const ranked = assessAhlsellLookupCandidates(requirement, retrieved).sort((a, b) =>
     Number(a.technicalEvaluation?.status === "FAIL") - Number(b.technicalEvaluation?.status === "FAIL")
     || materialDimensionHint(input, b) - materialDimensionHint(input, a)
     || (b.matchScore ?? 0) - (a.matchScore ?? 0)).slice(0, 24);
@@ -79,7 +116,7 @@ export async function matchMaterialRow(input: MaterialSearchInput, options: { fe
     || Number(b.dimensionMatch?.status === "match") - Number(a.dimensionMatch?.status === "match")
     || Number(b.identityVerified) - Number(a.identityVerified)
     || a.articleNumber.localeCompare(b.articleNumber));
-  return { candidates, searchUrl: search.searchUrl, queries, partial: Boolean(search.failedQueries?.length) || candidates.some(candidate => !candidate.identityVerified),
+  return { candidates, searchUrl: search.searchUrl, queries: [...queries, ...references], partial: Boolean(search.failedQueries?.length) || candidates.some(candidate => !candidate.identityVerified),
     warnings: [...materialInputWarnings(input), ...(queries.length > 1 ? ["Sökningen använder även kortare produktnamn. Kontrollera dimension, anslutning och användningsområde mot materialraden."] : []), ...("message" in search && search.message ? [search.message] : []),
       ...(search.failedQueries?.length ? ["Sökningen blev ofullständig. Försök igen för att hämta fler uppgifter."] : [])] };
 }

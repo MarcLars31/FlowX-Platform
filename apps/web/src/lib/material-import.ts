@@ -7,6 +7,8 @@ export type MaterialRow = {
   sourceRow: number;
   description: string;
   dimension: string;
+  /** Only an explicitly labelled source column establishes DN. */
+  dimensionKind?: "unspecified" | "outside" | "dn";
   fittingDimension: string;
   unit: string;
   quantity: number | null;
@@ -65,6 +67,7 @@ export class MaterialImportError extends Error {}
 const aliases = {
   description: ["description", "beskrivelse", "beskrivning", "produktbeskrivelse", "produktnamn"],
   dimension: ["dimensjon", "dimension"],
+  nominalDiameter: ["dn", "nominelldiameter"],
   fittingDimension: ["fittingdimensjon", "fittingdimension", "kopplingsdimension"],
   unit: ["enhet", "unit"],
   quantity: ["mengde", "mangd", "quantity", "antal", "antall"],
@@ -114,8 +117,15 @@ export function parseMaterialSheets(sheets: { name: string; rows: { number: numb
       if (!field("unit")) issues.push("Enhet saknas.");
       if (quantity === null) issues.push("Mängden saknas eller är ogiltig. Använd ett positivt tal eller noll.");
       if (source.cells.some(cell => cell.length > 2000)) issues.push("En cell är för lång för produktsökning (högst 2 000 tecken).");
+      const nominal = field("nominalDiameter");
+      const dimension = field("dimension");
+      const tuple = /\d\s*[-x×]\s*\d/i.test(dimension);
+      if (nominal && dimension && !tuple && nominal.replace(/^DN\s*/i, "") !== dimension.replace(/^DN\s*/i, "")) {
+        issues.push("DN och dimensionskolumnen anger olika mått. Kontrollera måttsystemet före sökning.");
+      }
       rows.push({ id: `${sheet.name}:${source.number}`, sheet: sheet.name, sourceRow: source.number,
-        description, dimension: field("dimension"), fittingDimension: field("fittingDimension"),
+        description, dimension: nominal || (tuple ? "" : dimension), dimensionKind: nominal ? "dn" : "unspecified",
+        fittingDimension: field("fittingDimension") || (tuple ? dimension : ""),
         unit: field("unit"), quantity, quantityText, category: field("category"), issues });
       if (rows.length > MATERIAL_IMPORT_MAX_ROWS) throw new MaterialImportError(`Filen innehåller fler än ${MATERIAL_IMPORT_MAX_ROWS} rader. Dela upp den i mindre filer.`);
     }
@@ -127,7 +137,7 @@ export function parseMaterialSheets(sheets: { name: string; rows: { number: numb
 
 export function initialMaterialReview(row: MaterialRow): MaterialReview {
   return { status: "pending", input: { description: row.description, unit: row.unit, category: row.category, dimension: row.dimension,
-    fittingDimension: row.fittingDimension, dimensionKind: "unspecified", details: "", query: "" } };
+    fittingDimension: row.fittingDimension, dimensionKind: row.dimensionKind ?? "unspecified", details: "", query: "" } };
 }
 
 export function validateMaterialSearchInput(value: unknown): MaterialSearchInput {

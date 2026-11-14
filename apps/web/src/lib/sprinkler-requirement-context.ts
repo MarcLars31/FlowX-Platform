@@ -11,6 +11,8 @@ export function hasSprinklerText(text: string) {
 export function hasSprinklerHeadText(text: string) {
   const main = mainProductText(positiveSprinklerText(text));
   return /\b(?:sprinkler(?:hode[rt]?|huvud| head)?|sprinkelhode[rt]?|spraysprinkler|boligsprinkler|torrsprinkler|institusjonssprinkler|korridorsprinkler|vindussprinkler|standard spray)\b/.test(main)
+    || /\b(?:ssp|ssu|hsw|oppadrettet|nedadrettet|torrhode)\b/.test(main)
+      && /\bk\s*\d+\b/.test(main) && /\b(?:qr|sr)\b/.test(main)
     || /\bv\d{4}\b/.test(main) && /\bk\s*\d+\b/.test(main) && /\b(?:qr|sr|pendent|upright)\b/.test(main);
 }
 
