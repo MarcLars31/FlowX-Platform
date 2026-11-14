@@ -29,6 +29,7 @@ export function MaterialExcelImport() {
   const [replace, setReplace] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const dirty = useRef(false);
+  const sourceWorkbook = useRef<Uint8Array | null>(null);
   const busy = loading || running || exporting;
 
   useEffect(() => {
@@ -49,7 +50,9 @@ export function MaterialExcelImport() {
     setLoading(true);
     try {
       const { readMaterialWorkbook } = await import("@/lib/material-import-workbook");
-      const result = await readMaterialWorkbook(new Uint8Array(await file.arrayBuffer()), file.name);
+      const source = new Uint8Array(await file.arrayBuffer());
+      const result = await readMaterialWorkbook(source, file.name);
+      sourceWorkbook.current = source;
       setRows(result.rows); setReviews(Object.fromEntries(result.rows.map(row => [row.id, initialMaterialReview(row)])));
       setWarnings(result.warnings); setFileName(file.name); setActiveId(result.rows[0].id); setReplace(false); setAutoResumeIds([]);
       setPage(0); setFilter("all"); setTextFilter(""); dirty.current = true;
@@ -84,13 +87,14 @@ export function MaterialExcelImport() {
     setExporting(true); setError("");
     try {
       const { exportMaterialWorkbook } = await import("@/lib/material-import-workbook");
-      const bytes = await exportMaterialWorkbook(rows, reviews);
+      if (!sourceWorkbook.current) throw new Error("Originalfilen saknas. Läs in Excel-filen igen.");
+      const bytes = await exportMaterialWorkbook(sourceWorkbook.current, rows, reviews);
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const link = document.createElement("a");
       link.href = url; link.download = `${fileName.replace(/\.xlsx$/i, "")}-NRF.xlsx`; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000); dirty.current = false;
-      setMessage("Excel-filen har skapats med separata kolumner för förslag och valda produkter.");
-    } catch { setError("Excel-filen kunde inte skapas. Försök igen."); }
+      setMessage("Excel-filen har skapats med originalets layout och valda NRF-nummer i kolumn G. Rader utan produktval har en tom NRF-cell.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Excel-filen kunde inte skapas. Försök igen."); }
     finally { setExporting(false); }
   }
 
@@ -114,7 +118,7 @@ export function MaterialExcelImport() {
   return <div className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 className="text-2xl font-bold text-neutral-950">Excel till NRF</h1>
-        <p className="mt-2 max-w-3xl text-sm text-neutral-700">Läs in materiallistan, hitta produkter hos Ahlsell Norge och granska förslagen. Ladda sedan ner Excel med NRF / artikelnummer och produktlänkar.</p></div>
+        <p className="mt-2 max-w-3xl text-sm text-neutral-700">Läs in materiallistan, hitta produkter hos Ahlsell Norge och granska förslagen. Ladda sedan ner en kopia med samma layout och endast valda NRF / artikelnummer i kolumn G. Rader utan produktval lämnas tomma i G.</p></div>
       {rows.length > 0 && <Button disabled={busy} onClick={() => void download()}><Download className="h-4 w-4" />{exporting ? "Skapar Excel…" : "Ladda ner Excel"}</Button>}
     </div>
 

@@ -1,3 +1,4 @@
+import { materialWorkbookFixture } from "./material-import-workbook.test-fixtures";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createElement } from "react";
@@ -36,17 +37,15 @@ test("all Excel search results offer an enabled choice without an acknowledgemen
   assert.ok(busyChoices.every(([, attributes]) => /\sdisabled(?:=|\s|$)/.test(attributes)));
 });
 
-test("Excel export preserves any user choice and its caveats without replacing it with the recommendation", async () => {
+test("Excel export preserves any user choice in G without replacing it with the recommendation", async () => {
   for (const selected of candidates) {
     const workbook = new ExcelJS.Workbook();
     const reviews = { [row.id]: { ...review, status: "selected" as const, selected } };
-    await workbook.xlsx.load(await exportMaterialWorkbook([row], reviews) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    await workbook.xlsx.load(await exportMaterialWorkbook(await materialWorkbookFixture([row]), [row], reviews) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
     const sheet = workbook.worksheets[0];
-    assert.equal(sheet.getCell("I2").value, "Vald produkt");
-    assert.equal(sheet.getCell("J2").value, selected.articleNumber);
-    assert.equal(sheet.getCell("M2").value, candidates[0].articleNumber);
-    for (const warning of selected.warnings) assert.ok(String(sheet.getCell("P2").value).includes(warning));
-    assert.equal(sheet.getCell("D2").value, "15");
-    assert.equal(sheet.getCell("G2").value, 2);
+    assert.equal(sheet.getCell("G2").value, selected.articleNumber);
+    assert.equal(sheet.getCell("B2").value, "15");
+    assert.equal(sheet.getCell("E2").value, 2);
+    assert.equal(sheet.columnCount, 7);
   }
 });

@@ -1,3 +1,4 @@
+import { materialWorkbookFixture } from "./material-import-workbook.test-fixtures";
 import assert from "node:assert/strict";
 import test from "node:test";
 import ExcelJS from "exceljs";
@@ -153,22 +154,22 @@ test("an exact pipe heading can flag a wrong diameter without a technical table"
   assert.equal(pipeHeaderDimensionCheck({ ...row, dimensionKind: "dn" }, "21.3x2.0mm stålrør").conflict, false);
 });
 
-test("export separates proposals from choices, preserves zero/error rows and writes text instead of formulas", async () => {
+test("export writes only choices in G while preserving original zero/error rows and literal text", async () => {
   const { rows } = parse([header, copper, ["=HYPERLINK(\"https://invalid\")", "", "", "stk", "0", ""], ["Pump", "", "", "stk", "oops", ""]]);
   const reviews = Object.fromEntries(rows.map(row => [row.id, initialMaterialReview(row)]));
   const proposed = { articleNumber: candidate.articleNumber, productName: candidate.productName, productUrl: candidate.productUrl, subtitle: "15mm", warnings: [], specifications: [], identityVerified: true, conflict: false };
   reviews[rows[0].id] = { ...reviews[rows[0].id], status: "review", result: { candidates: [proposed], warnings: ["Kontrollera mått"], searchUrl: "", partial: false } };
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await exportMaterialWorkbook(rows, reviews) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  await workbook.xlsx.load(await exportMaterialWorkbook(await materialWorkbookFixture(rows), rows, reviews) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   const sheet = workbook.worksheets[0];
-  assert.equal(sheet.getCell("J2").value, "");
-  assert.equal(sheet.getCell("M2").value, "5002206");
-  assert.equal(sheet.getCell("G3").value, 0);
-  assert.equal(sheet.getCell("C3").type, ExcelJS.ValueType.String);
-  assert.equal(sheet.getCell("G4").value, "oops");
+  assert.equal(sheet.getCell("G2").value, null);
+  assert.equal(sheet.columnCount, 7);
+  assert.equal(sheet.getCell("E3").value, 0);
+  assert.equal(sheet.getCell("A3").type, ExcelJS.ValueType.String);
+  assert.equal(sheet.getCell("E4").value, "oops");
   reviews[rows[0].id] = { ...reviews[rows[0].id], status: "selected", selected: proposed };
-  await workbook.xlsx.load(await exportMaterialWorkbook(rows, reviews) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
-  assert.equal(workbook.worksheets[0].getCell("J2").value, "5002206");
+  await workbook.xlsx.load(await exportMaterialWorkbook(await materialWorkbookFixture(rows), rows, reviews) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  assert.equal(workbook.worksheets[0].getCell("G2").value, "5002206");
 });
 
 
@@ -227,15 +228,16 @@ test("broader catalogue results survive the old six-card cut while detail reques
   assert.match(result.warnings.join(" "), /ofullständig/);
 });
 
-test("Excel export retains the actual automatic searches as well as the original row", async () => {
+test("Excel export retains the source row without adding search metadata", async () => {
   const { rows } = parse([header, copper]);
   const review = initialMaterialReview(rows[0]);
   const queries = materialSearchQueries(review.input);
   review.result = { candidates: [], queries, warnings: [], searchUrl: "", partial: false };
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await exportMaterialWorkbook(rows, { [rows[0].id]: review }) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
-  assert.equal(workbook.worksheets[0].getCell("C2").value, copper[0]);
-  assert.equal(workbook.worksheets[0].getCell("S2").value, queries.join("\n"));
+  await workbook.xlsx.load(await exportMaterialWorkbook(await materialWorkbookFixture(rows), rows, { [rows[0].id]: review }) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  assert.equal(workbook.worksheets[0].getCell("A2").value, copper[0]);
+  assert.equal(workbook.worksheets[0].getCell("G2").value, null);
+  assert.equal(workbook.worksheets[0].columnCount, 7);
 });
 
 

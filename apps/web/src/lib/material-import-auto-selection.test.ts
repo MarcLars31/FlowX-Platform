@@ -1,3 +1,4 @@
+import { materialWorkbookFixture } from "./material-import-workbook.test-fixtures";
 import assert from "node:assert/strict";
 import test from "node:test";
 import ExcelJS from "exceljs";
@@ -115,13 +116,12 @@ test("failed rows and unvisited rows remain resumable while an earlier choice su
   assert.equal(data.state["row-0"].selected, low);
   assert.equal(data.state["row-0"].status, "error");
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await exportMaterialWorkbook(data.rows, data.state) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
-  assert.equal(workbook.worksheets[0].getCell("J2").value, low.articleNumber);
-  assert.match(String(workbook.worksheets[0].getCell("P2").value), /Unavailable/);
-  assert.equal(workbook.worksheets[0].getCell("X2").value, "Manuellt");
+  await workbook.xlsx.load(await exportMaterialWorkbook(await materialWorkbookFixture(data.rows), data.rows, data.state) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  assert.equal(workbook.worksheets[0].getCell("G2").value, low.articleNumber);
+  assert.equal(workbook.worksheets[0].columnCount, 7);
 });
 
-test("automatic choice remains visibly distinct from approval and exports its actual score and selection mode", async () => {
+test("automatic choice remains visibly distinct from approval and exports only its article number", async () => {
   const data = fixture(1);
   await runMaterialSearchQueue({ ...data, autoSelect: true, signal: new AbortController().signal, onProgress: () => {}, wait: noWait, match: async () => result });
   const review = data.state["row-0"];
@@ -131,12 +131,10 @@ test("automatic choice remains visibly distinct from approval and exports its ac
   assert.match(html, />Ta bort produktval<\/button>/);
   assert.match(html, />Välj produkt<\/button>/);
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await exportMaterialWorkbook([row], data.state) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  await workbook.xlsx.load(await exportMaterialWorkbook(await materialWorkbookFixture([row]), [row], data.state) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   const sheet = workbook.worksheets[0];
-  assert.equal(sheet.getCell("I2").value, "Automatiskt vald produkt");
-  assert.equal(sheet.getCell("J2").value, high.articleNumber);
-  assert.equal(sheet.getCell("T2").value, 89);
-  assert.equal(sheet.getCell("X2").value, "Automatiskt efter poäng");
+  assert.equal(sheet.getCell("G2").value, high.articleNumber);
+  assert.equal(sheet.columnCount, 7);
 });
 
 test("242 rows retain automatic highest-score selection through faults, long throttling and recovery", async () => {

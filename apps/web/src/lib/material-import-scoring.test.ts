@@ -1,3 +1,4 @@
+import { materialWorkbookFixture } from "./material-import-workbook.test-fixtures";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createElement } from "react";
@@ -125,17 +126,15 @@ test("cards show points, both measure systems and mismatches while every result 
   assert.ok(choices.every(([, attributes]) => !/\sdisabled(?:=|\s|$)/.test(attributes)));
 });
 
-test("workbook keeps the selected low-score product and exports points separately from the proposal", async () => {
+test("workbook keeps the selected low-score product in its original row without score columns", async () => {
   const result = await matchPipes();
   const selected = result.candidates[1];
   const review = { ...initialMaterialReview(row), input, result, status: "selected" as const, selected };
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await exportMaterialWorkbook([row], { [row.id]: review }) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  await workbook.xlsx.load(await exportMaterialWorkbook(await materialWorkbookFixture([row]), [row], { [row.id]: review }) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   const sheet = workbook.worksheets[0];
-  assert.equal(sheet.getCell("J2").value, selected.articleNumber);
-  assert.equal(sheet.getCell("T2").value, selected.score);
-  assert.equal(sheet.getCell("U2").value, result.candidates[0].score);
-  assert.match(String(sheet.getCell("V2").value), /DN 80/);
-  assert.match(String(sheet.getCell("W2").value), /ytterdiameter 114,3 mm/);
-  assert.equal(sheet.getCell("D2").value, "100");
+  assert.equal(sheet.getCell("G18").value, selected.articleNumber);
+  assert.equal(sheet.getCell("B18").value, "100");
+  assert.equal(sheet.getCell("A18").value, row.description);
+  assert.equal(sheet.columnCount, 7);
 });

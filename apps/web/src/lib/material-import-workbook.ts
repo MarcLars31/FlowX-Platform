@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { MATERIAL_IMPORT_MAX_BYTES, MaterialImportError, materialRowStatus, parseMaterialSheets, type MaterialReview, type MaterialRow } from "./material-import";
+import { MATERIAL_IMPORT_MAX_BYTES, MaterialImportError, materialHeader, parseMaterialSheets, type MaterialReview, type MaterialRow } from "./material-import";
 
 /** Reject oversized/unsupported ZIP containers before ExcelJS inflates a browser upload. */
 export function validateMaterialWorkbook(bytes: Uint8Array, fileName: string) {
@@ -68,41 +68,49 @@ export async function readMaterialWorkbook(bytes: Uint8Array, fileName: string) 
   return result;
 }
 
-export async function exportMaterialWorkbook(rows: MaterialRow[], reviews: Record<string, MaterialReview>) {
+/** Fill a fresh copy of the upload; never rebuild or renumber the material list. */
+export async function exportMaterialWorkbook(source: Uint8Array, rows: MaterialRow[], reviews: Record<string, MaterialReview>) {
+  validateMaterialWorkbook(source, "original.xlsx");
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "ScipX";
-  const sheet = workbook.addWorksheet("Material med NRF");
-  sheet.columns = [
-    ["Källblad", 22], ["Källrad", 10], ["Description", 55], ["Dimensjon", 16], ["Fittingdimensjon", 21],
-    ["Enhet", 10], ["Mengde", 13], ["Kategori", 24], ["Status", 24], ["Valt NRF / art.nr", 21],
-    ["Vald produkt", 42], ["Vald produktlänk", 50], ["Förslag NRF / art.nr", 23], ["Föreslagen produkt", 42],
-    ["Förslag produktlänk", 50], ["Kontrollpunkter / fel", 70], ["Måttyp", 18], ["Kompletterande krav", 45], ["Sökning", 45],
-    ["Vald matchpoäng / 100", 23], ["Förslag matchpoäng / 100", 25], ["Vald måttjämförelse", 60], ["Förslag måttjämförelse", 60], ["Valsätt", 24],
-  ].map(([header, width]) => ({ header: String(header), width: Number(width) }));
+  await workbook.xlsx.load(source as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  // ExcelJS reads a default first page number even when the source leaves numbering automatic.
+  // Its writer otherwise turns that default into a forced page restart on every sheet.
+  for (const sheet of workbook.worksheets) {
+    const setup = sheet.pageSetup as Partial<ExcelJS.PageSetup> & { useFirstPageNumber?: boolean };
+    if (setup.useFirstPageNumber === false) delete setup.firstPageNumber;
+  }
+  const materialSheets = new Set(rows.map(row => row.sheet));
+  for (const name of materialSheets) {
+    const sheet = workbook.getWorksheet(name);
+    if (!sheet) throw new MaterialImportError(`Källbladet ”${name}” saknas i originalfilen. Läs in filen igen.`);
+    sheet.eachRow(row => {
+      const cells = Array.from({ length: row.cellCount }, (_, index) => row.getCell(index + 1).text);
+      const header = materialHeader(cells);
+      if (!header) return;
+      if (Object.values(header).includes(6)) throw new MaterialImportError(`Kolumn G i ”${name}” innehåller ett materialfält. Flytta det till en annan kolumn i originalfilen och läs in filen igen så att G kan användas för NRF-nummer.`);
+      const target = row.getCell(7);
+      if (target.isMerged) throw new MaterialImportError(`Rubriken i kolumn G på ”${name}” är sammanfogad. Dela upp rubrikcellen i originalfilen och läs in filen igen.`);
+      target.value = "NRF-nummer";
+      target.style = structuredClone(row.getCell(6).style);
+      target.numFmt = "@";
+    });
+    sheet.getColumn(7).width = Math.max(sheet.getColumn(7).width ?? sheet.properties.defaultColWidth ?? 9, 14);
+  }
   for (const row of rows) {
     const review = reviews[row.id];
     if (!review) throw new MaterialImportError("Granskningsdata saknas för en materialrad.");
-    // A failed repeat search retains the previous choice and exports the search error alongside it.
-    const selected = review.selected;
-    const proposed = review.result?.candidates.find(candidate => candidate.identityVerified && !candidate.conflict);
-    const dimensionText = (candidate: typeof selected) => candidate?.dimensionMatch
-      ? `Krav: ${candidate.dimensionMatch.expected} · Produkt: ${candidate.dimensionMatch.actual}. ${candidate.dimensionMatch.explanation}` : "";
-    sheet.addRow([row.sheet, row.sourceRow, row.description, row.dimension, row.fittingDimension, row.unit,
-      row.quantity ?? row.quantityText, row.category, materialRowStatus(row, review),
-      selected?.articleNumber ?? "", selected ? [selected.productName, selected.subtitle].filter(Boolean).join(" · ") : "", selected?.productUrl ?? "",
-      proposed?.articleNumber ?? "", proposed ? [proposed.productName, proposed.subtitle].filter(Boolean).join(" · ") : "", proposed?.productUrl ?? "",
-      [...new Set([...row.issues, ...(review.result?.warnings ?? []), ...(selected?.warnings ?? proposed?.warnings ?? []), ...(review.error ? [review.error] : [])])].join("\n"),
-      { unspecified: "Ej angivet", outside: "Ytterdiameter mm", dn: "DN" }[review.input.dimensionKind], review.input.details, review.result?.queries?.join("\n") ?? review.input.query,
-      selected?.score ?? "", proposed?.score ?? "", dimensionText(selected), dimensionText(proposed),
-      selected ? review.selectionMode === "automatic" ? "Automatiskt efter poäng" : "Manuellt" : "",
-    ]);
+    const sheet = workbook.getWorksheet(row.sheet)!;
+    const target = sheet.getCell(row.sourceRow, 7);
+    // Section headings can span A:G. Never write through a merged cell into its title.
+    if (target.isMerged) {
+      if (review.selected) throw new MaterialImportError(`Cell G${row.sourceRow} i ”${row.sheet}” är sammanfogad. Dela upp cellen i originalfilen och läs in filen igen.`);
+      continue;
+    }
+    if (!Object.keys(target.style).length) target.style = structuredClone(sheet.getCell(row.sourceRow, 6).style);
+    // Keep actual choices, including a retained choice after a failed repeat search.
+    // No proposal, status, score, URL or error is written into the source workbook.
+    target.value = review.selected?.articleNumber ?? null;
+    target.numFmt = "@";
   }
-  sheet.views = [{ state: "frozen", ySplit: 1, xSplit: 3 }];
-  sheet.autoFilter = { from: "A1", to: `X${rows.length + 1}` };
-  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF17344B" } };
-  sheet.getRow(1).height = 32;
-  sheet.eachRow(row => { row.alignment = { vertical: "top", wrapText: true }; });
-  sheet.getColumn(7).numFmt = "0.###";
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
