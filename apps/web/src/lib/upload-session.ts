@@ -186,6 +186,8 @@ export function useActiveUploadDocument() {
   });
 
   useEffect(() => {
+    // sessionStorage is browser-only and must be read after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(readActiveUploadDocument());
   }, []);
 
@@ -339,7 +341,7 @@ function buildCompatibleProducts(item: DemoMaterialLine) {
   const dimension = item.dimension ? ` ${item.dimension}` : "";
 
   return [
-    `Ahlsell equivalent${dimension}`,
+    `Equivalent product${dimension}`,
     `Victaulic compatible${dimension}`
   ];
 }

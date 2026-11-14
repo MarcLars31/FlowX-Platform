@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Framework and build output
+.next/
+**/.next/
+.open-next/
+**/.open-next/
+.flowx-next/
+**/.flowx-next/
+dist/
+**/dist/
+build/
+**/build/
+out/
+**/out/
+*.tsbuildinfo
+
+# Local runtime and tool state
+.codex-tmp-*/
+supabase/.temp/
+tmp/
+**/__pycache__/
+*.py[cod]
+*.log
+*.traineddata
+
+# Local secrets
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+!**/.env.example
+!**/.env.test.example

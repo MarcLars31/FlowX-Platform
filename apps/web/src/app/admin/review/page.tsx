@@ -113,6 +113,8 @@ export default function ProductReviewQueuePage() {
   }
 
   useEffect(() => {
+    // Initial data loading intentionally updates this client view after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadProducts();
   }, []);
 

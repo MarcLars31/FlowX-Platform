@@ -1,7 +1,0 @@
-{
-  "/api/pkms/products/route": "app/api/pkms/products/route.js",
-  "/api/pkms/review-queue/route": "app/api/pkms/review-queue/route.js",
-  "/admin/page": "app/admin/page.js",
-  "/products/page": "app/products/page.js",
-  "/admin/review/page": "app/admin/review/page.js"
-}

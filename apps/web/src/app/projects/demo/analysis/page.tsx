@@ -294,10 +294,10 @@ export default function AnalysisPage() {
                   </div>
                   {index === 0 && (
                     <select
-                      defaultValue="Ahlsell"
+                      defaultValue="Grossist"
                       className="mt-3 block h-10 w-full rounded-lg border-ink-200 bg-white text-sm text-ink-900 shadow-sm focus:border-flow-500 focus:ring-flow-500"
                     >
-                      <option>Ahlsell</option>
+                      <option>Grossist</option>
                       <option>Onninen</option>
                       <option>Victaulic</option>
                     </select>
@@ -330,12 +330,80 @@ export default function AnalysisPage() {
                 Ready for product matching
               </div>
               <p className="text-sm leading-6 text-ink-700">
-                FlowX has enough reviewed context to map requirements to
+                Scipx has enough reviewed context to map requirements to
                 supplier products and compliant alternatives.
               </p>
             </div>
           </div>
         </div>
+      </section>
+    </div>
+  );
+}
+
+function buildUploadedAnalysisSummary(
+  result: PdfExtractionResult,
+  averageConfidence: number
+): DemoSummaryItem[] {
+  const systems = Array.from(
+    new Set(result.systems.map((system) => system.name).filter(Boolean))
+  );
+  const standards = Array.from(
+    new Set(result.standards.map((standard) => standard.code).filter(Boolean))
+  );
+
+  return [
+    {
+      label: "Detected systems",
+      value: systems.length > 0 ? systems.join(", ") : "No system detected"
+    },
+    {
+      label: "Standards detected",
+      value: standards.length > 0 ? standards.join(", ") : "No standard detected"
+    },
+    {
+      label: "Extracted material lines",
+      value: `${result.lineItems.length}`
+    },
+    {
+      label: "Technical requirements",
+      value: `${result.requirements.length}`
+    },
+    {
+      label: "Warnings for review",
+      value: `${result.warnings.length}`
+    },
+    {
+      label: "Average confidence",
+      value: `${averageConfidence}%`
+    }
+  ];
+}
+
+function DocumentState({
+  title,
+  message
+}: {
+  title: string;
+  message?: string;
+}) {
+  return (
+    <div className="space-y-6">
+      <DemoFlowNav />
+      <section className="rounded-lg border border-ink-200 bg-white p-6 shadow-sm">
+        <h1 className="text-xl font-semibold text-ink-950">{title}</h1>
+        {message && (
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-600">
+            {message}
+          </p>
+        )}
+        <Link
+          href="/projects/demo/upload"
+          className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-flow-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-flow-700"
+        >
+          Open document upload
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
       </section>
     </div>
   );

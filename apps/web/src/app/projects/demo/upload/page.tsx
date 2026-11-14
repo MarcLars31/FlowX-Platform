@@ -119,7 +119,7 @@ export default function UploadTechnicalSpecificationPage() {
               Technical Specification Extraction
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-600">
-              FlowX reads the sprinkler specification, extracts source-backed
+              Scipx reads the sprinkler specification, extracts source-backed
               material requirements and keeps every result reviewable before
               any product matching or procurement work begins.
             </p>

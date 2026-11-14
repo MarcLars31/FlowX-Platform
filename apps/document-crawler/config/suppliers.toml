@@ -1,0 +1,106 @@
+[settings]
+data_dir = "data"
+database_path = "data/crawler.sqlite3"
+user_agent = "ScipxDocumentCrawler/0.1 (+https://www.scipx.ai/crawler)"
+request_timeout_seconds = 30.0
+rate_delay_seconds = 2.0
+retry_attempts = 3
+retry_backoff_seconds = 1.0
+max_redirects = 8
+max_depth = 4
+max_requests = 1000
+max_pages = 500
+max_files = 100
+max_html_bytes = 5242880
+max_document_bytes = 52428800
+robots_fail_open = false
+relevance_threshold = 4.0
+review_threshold = 1.0
+
+[extractor]
+enabled = false
+service_url = ""
+timeout_seconds = 120.0
+max_attempts = 3
+file_field = "file"
+
+[flowx_ingest]
+enabled = false
+service_url = ""
+timeout_seconds = 120.0
+max_attempts = 3
+
+[relevance]
+include_keywords = [
+  "sprinkler", "fire protection", "fire suppression", "brandskydd",
+  "sprinkler head", "sprinkler system", "valve", "ventil", "nozzle",
+  "munstycke", "pipe", "piping", "rör", "coupling", "koppling",
+  "fire pump", "brandpump", "alarm", "detection", "detektering",
+  "foam", "water mist", "technical data", "data sheet", "datasheet",
+  "installation", "manual", "certificate", "certification", "approval",
+  "listing", "submittal", "bulletin", "product data"
+]
+exclude_keywords = [
+  "career", "job opening", "investor", "privacy", "cookie policy",
+  "press release", "event", "webinar", "training course", "price list"
+]
+
+[[suppliers]]
+id = "viking"
+name = "Viking Group Inc."
+enabled = true
+allowed_domains = ["www.vikinggroupinc.com"]
+start_urls = [
+  "https://www.vikinggroupinc.com/products/fire-sprinklers/standard-coverage-sr/upright-conventional",
+  "https://www.vikinggroupinc.com/products/fire-sprinklers",
+  "https://www.vikinggroupinc.com/resources/technical-resources",
+  "https://www.vikinggroupinc.com/resources/technical/viking-sprinklers-special-bulletins"
+]
+sitemaps = ["https://www.vikinggroupinc.com/sitemap.xml"]
+javascript = false
+notes = "Officiell resurs- och produktwebb. Körningen är alltid underordnad robots.txt."
+terms_url = ""
+
+[[suppliers]]
+id = "reliable"
+name = "Reliable Automatic Sprinkler Co."
+enabled = false
+allowed_domains = ["reliablesprinkler.com", "www.reliablesprinkler.com"]
+start_urls = ["https://www.reliablesprinkler.com/quick-add-bulletins/"]
+sitemaps = []
+javascript = false
+notes = "Avstängd tills avsedd automatiserad användning har godkänts manuellt mot webbplatsens villkor."
+terms_url = "https://www.reliablesprinkler.com/terms-conditions/"
+
+[[suppliers]]
+id = "victaulic"
+name = "Victaulic"
+enabled = false
+allowed_domains = ["victaulic.com", "www.victaulic.com"]
+start_urls = ["https://www.victaulic.com/resources/"]
+sitemaps = []
+javascript = false
+notes = "Avstängd: publicerade webbplatsvillkor förbjuder robot/spider/page-scrape. Aktivera inte utan skriftligt tillstånd."
+terms_url = "https://www.victaulic.com/victaulic-company-website-terms-of-use-and-legal-restrictions/"
+
+[[suppliers]]
+id = "tyco"
+name = "Tyco Fire"
+enabled = false
+allowed_domains = ["tyco-fire.com", "www.tyco-fire.com"]
+start_urls = ["https://www.tyco-fire.com/Resources"]
+sitemaps = []
+javascript = false
+notes = "Avstängd: JCI:s publicerade webbplatsvillkor förbjuder robot/spider och annan automatisk sidinsamling. Aktivera inte utan skriftligt tillstånd."
+terms_url = "https://www.johnsoncontrols.com/Legal/Terms"
+
+[[suppliers]]
+id = "potter"
+name = "Potter Electric Signal Company"
+enabled = false
+allowed_domains = ["pottersignal.com", "www.pottersignal.com"]
+start_urls = ["https://www.pottersignal.com/products/sprinkler-monitoring"]
+sitemaps = []
+javascript = false
+notes = "Avstängd: publicerade webbplatsvillkor förbjuder robot/spider och andra automatiska metoder. Aktivera inte utan skriftligt tillstånd."
+terms_url = "https://www.pottersignal.com/terms"

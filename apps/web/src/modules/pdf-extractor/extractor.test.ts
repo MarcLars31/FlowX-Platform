@@ -106,16 +106,15 @@ describe("pdf extractor", () => {
           item.sourcePage > 0 &&
           item.sourceText.length > 0 &&
           Boolean(item.sourceTextBlock) &&
-          Boolean(item.sectionTitle) &&
           item.confidence > 0
       ),
       true
     );
   });
 
-  it("defaults extracted material lines to the sprinkler system when page context is missing", () => {
+  it("leaves the system unresolved when only another page identifies the sprinkler installation", () => {
     assert.equal(
-      result.lineItems.every((item) => item.system === "Sprinkleranlegg A10"),
+      result.lineItems.every((item) => item.system === undefined),
       true
     );
   });

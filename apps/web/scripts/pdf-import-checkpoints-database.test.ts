@@ -1,0 +1,73 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+import { randomUUID, createHash } from "node:crypto";
+import { PGlite } from "@electric-sql/pglite";
+const migration=(name:string)=>readFileSync(new URL(`../../../supabase/migrations/${name}.sql`,import.meta.url),"utf8");
+
+test("301-page OCR resumes with private metadata, owner checks, idempotency and terminal cleanup",async()=>{
+ const db=new PGlite();const org=randomUUID(),user=randomUUID(),other=randomUUID(),project=randomUUID();
+ try {
+ await db.exec(`create role authenticated;create role anon;create role service_role;
+ create schema auth;create schema storage;
+ create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+ create table storage.objects(id uuid primary key,bucket_id text);
+ alter table storage.objects enable row level security;
+ grant select,insert on storage.objects to authenticated;
+ grant usage on schema storage to authenticated;
+ create policy broad_test_policy on storage.objects for all to authenticated using(true) with check(true);
+ create table auth.users(id uuid primary key);create table organizations(id uuid primary key,name text);
+ create table projects(id uuid primary key,organization_id uuid,deleted_at timestamptz,status text default 'analysis',current_stage text default 'products');
+ create table document_pages(id uuid primary key);
+ create table project_documents(id uuid primary key);
+ create table test_members(user_id uuid,organization_id uuid,active boolean);
+ create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+ create function has_permission(uuid,text) returns boolean language sql stable security definer as $$ select exists(select 1 from public.test_members where user_id=auth.uid() and organization_id=$1 and active) $$;
+ create function can_access_project(uuid) returns boolean language sql stable security definer as $$ select exists(select 1 from public.projects where id=$1 and deleted_at is null and public.has_permission(organization_id,'project.view')) $$;
+ insert into organizations values('${org}','Local');insert into auth.users values('${user}'),('${other}');
+ insert into test_members values('${user}','${org}',true),('${other}','${org}',true);
+ insert into projects(id,organization_id,deleted_at) values('${project}','${org}',null);select set_config('request.jwt.claim.sub','${user}',false);`);
+ await db.exec(migration("20260927153000_durable_import_jobs"));
+ await db.exec(migration("20261012100000_pdf_import_checkpoints"));
+ const job=(await db.query<{job:{id:string}}>("select to_jsonb(enqueue_technical_description_job($1,$2,$3,'test.pdf',false,null)) job",[org,project,randomUUID()])).rows[0].job;
+ const required=Array.from({length:301},(_,i)=>i+1);
+ await db.query("update technical_description_jobs set status='awaiting_ocr',result=$2 where id=$1",[job.id,JSON.stringify({code:"OCR_REQUIRED",pageCount:301,pageNumbers:required})]);
+ let hashCounter=0;
+ const reserve=async(pages:number[],owner=user,hash=createHash('sha256').update(String(++hashCounter)).digest('hex'))=>(await db.query<{item:{id:string;ready:boolean;storage_path:string}}>(
+  "select to_jsonb(reserve_pdf_ocr_checkpoint($1,$2,$3,$4)) item",[job.id,owner,hash,pages])).rows[0].item;
+ const finish=async(id:string,owner=user)=>(await db.query<{result:{status:string}}>("select finish_pdf_ocr_checkpoint($1,$2) result",[id,owner])).rows[0].result;
+ await assert.rejects(reserve([1],other),/denied/);
+ await assert.rejects(reserve([302]),/Invalid/);
+ await assert.rejects(reserve(Array.from({length:11},(_,i)=>i+1)),/Invalid/);
+ const pending=await reserve([1]);
+ const first=await reserve(required.slice(0,10));assert.equal(first.ready,false);
+ assert.ok(first.storage_path.startsWith(`${org}/${project}/${job.id}/ocr/`));
+ assert.equal((await db.query("select id from technical_description_checkpoints where ready")).rows.length,0,"a failed Storage upload is not usable");
+ await db.exec(`update test_members set active=false where user_id='${user}'`);
+ await assert.rejects(finish(first.id),/denied/);
+ await db.exec(`update test_members set active=true where user_id='${user}'`);
+ assert.equal((await finish(first.id)).status,"awaiting_ocr");
+ assert.equal((await finish(first.id)).status,"awaiting_ocr","repeated finish is harmless");
+ assert.equal((await db.query<{n:number}>("select jsonb_array_length(result->'pageNumbers') n from technical_description_jobs where id=$1",[job.id])).rows[0].n,291);
+ for(let offset=10;offset<301;offset+=10){const item=await reserve(required.slice(offset,offset+10));await finish(item.id);}
+ const saved=(await db.query<{status:string;ocr_pages:unknown;result:{pageNumbers:number[]}}>("select status,ocr_pages,result from technical_description_jobs where id=$1",[job.id])).rows[0];
+ assert.equal(saved.status,"queued");assert.equal(saved.ocr_pages,null);assert.deepEqual(saved.result.pageNumbers,[]);
+ assert.equal((await finish(first.id)).status,"queued","late duplicate cannot reset a queued job");
+ assert.equal((await db.query("select * from pdf_import_checkpoints_to_clean()")).rows.length,0,"active checkpoints retained");
+ await db.exec(`update technical_description_jobs set status='completed' where id='${job.id}'`);
+ assert.equal((await db.query("select * from pdf_import_checkpoints_to_clean()")).rows.length,25,"cleanup is bounded per invocation");
+ await db.exec("insert into storage.objects values(gen_random_uuid(),'pdf-import-cache'),(gen_random_uuid(),'project-files')");
+ await db.exec('set role authenticated');
+ assert.deepEqual((await db.query<{bucket_id:string}>("select bucket_id from storage.objects")).rows.map(row=>row.bucket_id),["project-files"]);
+ await assert.rejects(db.query("insert into storage.objects values(gen_random_uuid(),'pdf-import-cache')"),/row-level security/);
+ await assert.rejects(db.query("select * from technical_description_checkpoints"),/permission denied/);
+ await assert.rejects(reserve([1]),/permission denied/);
+ await assert.rejects(finish(first.id),/permission denied/);
+ await db.exec('reset role');
+ await db.exec("delete from technical_description_checkpoints where ready");
+ assert.equal((await db.query("select * from pdf_import_checkpoints_to_clean()")).rows.length,0,"allow in-flight uploads to finish before cleanup");
+ await db.query("update technical_description_checkpoints set created_at=now()-interval '11 minutes' where id=$1",[pending.id]);
+ assert.equal((await db.query("select * from pdf_import_checkpoints_to_clean()")).rows.length,1,"abandoned reservations are eventually removed");
+ assert.equal((await db.query<{public:boolean}>("select public from storage.buckets where id='pdf-import-cache'")).rows[0].public,false);
+ } finally {await db.close();}
+});

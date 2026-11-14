@@ -121,7 +121,7 @@ function CategoryHeader({
     <div className="flex items-center justify-between gap-3 bg-ink-50 px-4 py-3">
       <div className="flex items-center gap-2">
         <PackageCheck
-          className={tone === "green" ? "h-4 w-4 text-emerald-700" : "h-4 w-4 text-amber-700"}
+          className={tone === "green" ? "h-4 w-4 text-ink-700" : "h-4 w-4 text-amber-700"}
           aria-hidden="true"
         />
         <h3 className="text-sm font-semibold text-ink-950">

@@ -1,6 +1,7 @@
 export type ExtractedPageText = {
   pageNumber: number;
   text: string;
+  priceColumns?: import("../technical-description-extractor/pdf-price-columns").PriceColumnAudit;
 };
 
 export type PdfExtractionResult = {

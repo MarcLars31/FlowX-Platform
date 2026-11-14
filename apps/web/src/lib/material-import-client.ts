@@ -1,0 +1,169 @@
+import { highestScoredMaterialCandidate, type MaterialReview, type MaterialSearchInput, type MaterialSearchResult } from "./material-import";
+import { withCallerAbort } from "./single-flight";
+
+export const MATERIAL_MATCH_TIMEOUT_MS = 65_000;
+export const MATERIAL_QUEUE_INTERVAL_MS = 3_100;
+const recoveryDelay = (attempt: number) => Math.min(300_000, 30_000 * 2 ** Math.min(attempt, 4));
+
+export class MaterialSearchRequestError extends Error {
+  constructor(message: string, readonly stopQueue: boolean, readonly retryable = !stopQueue) { super(message); }
+}
+
+export function waitForMaterialRetry(milliseconds: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    signal.throwIfAborted();
+    let remaining = milliseconds;
+    let timer: ReturnType<typeof setTimeout>;
+    const aborted = () => { clearTimeout(timer); reject(signal.reason); };
+    // Browsers turn oversized timeouts into near-immediate timers. Split, never shorten, a long wait.
+    const schedule = () => {
+      const chunk = Math.min(remaining, 2_147_483_647);
+      timer = setTimeout(() => {
+        remaining -= chunk;
+        if (remaining > 0) schedule();
+        else { signal.removeEventListener("abort", aborted); resolve(); }
+      }, chunk);
+    };
+    signal.addEventListener("abort", aborted, { once: true });
+    schedule();
+  });
+}
+
+type WaitReason = "rate-limit" | "retry" | "pace" | "recovery";
+type WaitNotice = (seconds: number, reason?: WaitReason) => void;
+
+async function waitWithCountdown(milliseconds: number, signal: AbortSignal, onWait: WaitNotice,
+  reason: WaitReason, wait: typeof waitForMaterialRetry, now = Date.now) {
+  signal.throwIfAborted();
+  const deadline = now() + milliseconds;
+  onWait(Math.ceil(milliseconds / 1000), reason);
+  const timer = setInterval(() => onWait(Math.max(0, Math.ceil((deadline - now()) / 1000)), reason), 1000);
+  try { await wait(milliseconds, signal); signal.throwIfAborted(); }
+  finally { clearInterval(timer); }
+  onWait(0, reason);
+}
+
+function retryAfterSeconds(value: string | null) {
+  if (!value) return 30;
+  const seconds = /^\d+$/.test(value) ? Number(value) : Math.ceil((Date.parse(value) - Date.now()) / 1000);
+  return Number.isSafeInteger(seconds * 1000) ? Math.max(1, seconds) : 30;
+}
+
+/** Bound every request; supplier pauses resume automatically until success or explicit cancellation. */
+export async function requestMaterialMatch(input: MaterialSearchInput, signal: AbortSignal, onWait: WaitNotice,
+  fetchImpl: typeof fetch = fetch, wait = waitForMaterialRetry, timeoutMs = MATERIAL_MATCH_TIMEOUT_MS): Promise<MaterialSearchResult> {
+  let attempt = 0, throttles = 0;
+  for (;;) {
+    signal.throwIfAborted();
+    const timeout = new AbortController();
+    const timer = setTimeout(() => timeout.abort(new DOMException("Sökningen tog för lång tid.", "TimeoutError")), timeoutMs);
+    const requestSignal = AbortSignal.any([signal, timeout.signal]);
+    let response: Response;
+    let payload: (MaterialSearchResult & { error?: string }) | null | undefined;
+    try {
+      ({ response, payload } = await withCallerAbort((async () => {
+        const response = await fetchImpl("/api/material-import/match", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input), signal: requestSignal });
+        if ([401, 403, 404, 429].includes(response.status) || (response.status === 503 && response.headers.has("Retry-After"))) return { response, payload: null };
+        return { response, payload: await response.json().catch(() => null) as (MaterialSearchResult & { error?: string }) | null };
+      })(), requestSignal));
+    } catch (error) {
+      clearTimeout(timer);
+      signal.throwIfAborted();
+      if (timeout.signal.aborted) throw new MaterialSearchRequestError("Raden tog för lång tid och söks automatiskt igen senare.", false);
+      if (attempt < 2) {
+        await waitWithCountdown(++attempt * 2000, signal, onWait, "retry", wait);
+        continue;
+      }
+      throw new MaterialSearchRequestError(error instanceof Error ? error.message : "Anslutningen avbröts. Raden söks automatiskt igen senare.", false);
+    } finally { clearTimeout(timer); }
+    signal.throwIfAborted();
+    if (response.status === 401 || response.status === 403) throw new MaterialSearchRequestError("Sökningen pausades. Kontrollera inloggningen och behörigheten innan du fortsätter.", true);
+    if (response.status === 429 || (response.status === 503 && response.headers.has("Retry-After"))) {
+      const requested = retryAfterSeconds(response.headers.get("Retry-After")) * 1000;
+      // Persistent throttling gets a longer pause without truncating the supplier's requested delay.
+      const delay = Math.max(requested, throttles < 2 ? 0 : recoveryDelay(throttles - 2));
+      throttles++;
+      await waitWithCountdown(delay, signal, onWait, "rate-limit", wait);
+      continue;
+    }
+    const invalidResponse = !payload || !Array.isArray(payload.candidates);
+    if (response.status >= 500 || response.status === 404 || (response.ok && invalidResponse)) {
+      if (attempt < 2) {
+        await waitWithCountdown(++attempt * 2000, signal, onWait, "retry", wait);
+        continue;
+      }
+      throw new MaterialSearchRequestError(payload?.error ?? "Söktjänsten kunde inte besvara raden. Den söks automatiskt igen senare.", false);
+    }
+    // Invalid individual input cannot recover just by repeating the same request.
+    if (!payload || !response.ok || invalidResponse) throw new MaterialSearchRequestError(payload?.error ?? "Sökningen kunde inte slutföras.", false, false);
+    return payload;
+  }
+}
+
+export type MaterialQueueProgress = {
+  id: string; index: number; total: number; phase: "searching" | "waiting"; seconds: number; reason?: WaitReason; startedAt: number; attempt?: number;
+};
+
+/** Finish unvisited rows, then retry transient failures without repeating successful rows. */
+export async function runMaterialSearchQueue({ ids, reviews, signal, onReview, onProgress,
+  autoSelect = false, match = requestMaterialMatch, wait = waitForMaterialRetry, now = Date.now }: {
+  ids: string[]; reviews: Record<string, MaterialReview>; signal: AbortSignal; autoSelect?: boolean;
+  onReview: (id: string, review: MaterialReview) => void; onProgress: (progress: MaterialQueueProgress) => void;
+  match?: typeof requestMaterialMatch; wait?: typeof waitForMaterialRetry; now?: () => number;
+}) {
+  const allIds = [...new Set(ids)], unfinished = new Set(allIds), failures = new Set<string>();
+  const positions = new Map(allIds.map((id, index) => [id, index + 1]));
+  const latest = { ...reviews }, attempts = new Map<string, number>();
+  const publish = (id: string, review: MaterialReview) => { latest[id] = review; onReview(id, review); };
+  let queue = allIds, completed = 0, consecutiveFailures = 0, selectedCount = 0, unscored = 0, recoveryAttempt = 0, round = 0;
+  let lastStarted: number | null = null;
+  let error = "", stopped = false;
+  batches: while (queue.length) {
+    const retryIds: string[] = [];
+    for (const [index, id] of queue.entries()) {
+      if (signal.aborted) break batches;
+      const original = latest[id];
+      if (!original) { unfinished.delete(id); continue; }
+      const attempt = (attempts.get(id) ?? 0) + 1;
+      const notice: WaitNotice = (seconds, reason) => {
+        // A request retried after a long wait starts later than the original row request.
+        if (seconds === 0 && (reason === "rate-limit" || reason === "retry")) lastStarted = now();
+        onProgress({ id, index: positions.get(id)!, total: allIds.length,
+          phase: seconds > 0 ? "waiting" : "searching", seconds, reason, startedAt: now(), attempt });
+      };
+      publish(id, { ...original, status: "searching", error: undefined });
+      try {
+        if ((round > 0 && index === 0) || consecutiveFailures >= 3) {
+          await waitWithCountdown(recoveryDelay(recoveryAttempt++), signal, notice, "recovery", wait, now);
+          consecutiveFailures = 0;
+        }
+        const delay = lastStarted === null ? 0 : Math.max(0, MATERIAL_QUEUE_INTERVAL_MS - (now() - lastStarted));
+        if (delay) await waitWithCountdown(delay, signal, notice, "pace", wait, now);
+        signal.throwIfAborted();
+        attempts.set(id, attempt); lastStarted = now(); notice(0);
+        const result = await match(original.input, signal, notice);
+        signal.throwIfAborted();
+        const selected = autoSelect ? highestScoredMaterialCandidate(result.candidates) : undefined;
+        if (selected) selectedCount++;
+        if (autoSelect && result.candidates.length && !selected) unscored++;
+        publish(id, { input: original.input, result: autoSelect && result.candidates.length && !selected
+          ? { ...result, warnings: [...result.warnings, "Automatiskt val kunde inte göras eftersom träffarna saknar giltiga poäng. Sök igen eller välj manuellt."] } : result,
+          status: selected ? "selected" : result.candidates.length ? "review" : "empty",
+          ...(selected ? { selected, selectionMode: "automatic" as const } : {}) });
+        completed++; consecutiveFailures = 0; recoveryAttempt = 0; unfinished.delete(id); failures.delete(id);
+      } catch (cause) {
+        if (signal.aborted) { publish(id, original); break batches; }
+        const rowError = cause instanceof Error ? cause.message : "Sökningen misslyckades.";
+        publish(id, { ...original, status: "error", error: rowError });
+        failures.add(id);
+        if (cause instanceof MaterialSearchRequestError && cause.stopQueue) { error = rowError; stopped = true; break batches; }
+        if (!(cause instanceof MaterialSearchRequestError) || cause.retryable) { consecutiveFailures++; retryIds.push(id); }
+        else { unfinished.delete(id); consecutiveFailures = 0; }
+      }
+    }
+    queue = retryIds; round++;
+  }
+  return { completed, failed: failures.size, selectedCount, unscored,
+    remainingIds: allIds.filter(id => unfinished.has(id) || failures.has(id)), stopped, error, cancelled: signal.aborted };
+}
