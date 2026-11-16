@@ -82,7 +82,7 @@ export function MaterialExcelImport() {
       if (autoSelect) setAutoResumeIds(result.remainingIds);
       else setAutoResumeIds(previous => previous.filter(id => !ids.includes(id)));
       setError(autoSelect ? result.error.replace(/Välj Sök återstående/gi, "Välj Fortsätt automatval") : result.error);
-      setMessage(`${result.completed} rader söktes · ${result.failed} sökfel.${autoSelect ? ` ${result.selectedCount} produkter valdes automatiskt.${result.unscored ? ` ${result.unscored} rader saknar giltiga poäng och behöver manuellt val eller ny sökning.` : ""}` : ""} ${(result.cancelled || result.stopped) && result.remainingIds.length > 0
+      setMessage(`${result.completed} rader söktes · ${result.failed} sökfel.${autoSelect ? ` ${result.selectedCount} produkter valdes automatiskt.${result.unscored ? ` ${result.unscored} rader behöver manuell granskning eller ny sökning.` : ""}` : ""} ${(result.cancelled || result.stopped) && result.remainingIds.length > 0
         ? `Sökningen är pausad. Välj ${autoSelect ? "Fortsätt automatval" : "Sök återstående"} för att fortsätta.`
         : "Sökningen är klar. Granska produktval och förslag; rader med bestående fel behöver kontrolleras."}`);
     } finally { controller.current = null; setRunning(false); setProgress(null); }
@@ -152,13 +152,15 @@ export function MaterialExcelImport() {
           <p className="text-sm text-neutral-600">{rows.length} rader · {selectedCount} valda produkter · {remaining.length} återstående sökningar</p></div>
           <div className="flex flex-wrap gap-2">{running ? <Button onClick={() => controller.current?.abort()} variant="secondary"><Square className="h-4 w-4" />Stoppa sökningen</Button>
             : <>
-              <Button disabled={busy || !searchable.length} onClick={() => void searchRows(searchable.map(row => row.id), true)}><Search className="h-4 w-4" />Sök alla och välj högst ({searchable.length})</Button>
+              <Button disabled={busy || !searchable.length} onClick={() => void searchRows(searchable.map(row => row.id), true)}><Search className="h-4 w-4" />{rows.some(row => row.rfqSource) ? "Sök och välj verifierade" : "Sök alla och välj högst"} ({searchable.length})</Button>
               {autoResumeIds.length > 0 && <Button disabled={busy} onClick={() => void searchRows(autoResumeIds, true)}>Fortsätt automatval ({autoResumeIds.length})</Button>}
               <Button variant="secondary" disabled={busy || !remaining.length} onClick={() => void searchRows(remaining.map(row => row.id))}>Sök återstående ({remaining.length})</Button>
             </>}
             <Button variant="secondary" disabled={busy} onClick={() => setReplace(true)}><Upload className="h-4 w-4" />Byt fil</Button></div></div>
         <p className="text-xs leading-5 text-neutral-600">Sökningen går rad för rad. Tillfälliga sökfel söks om automatiskt och även längre pauser fortsätter med nedräkning. Vid återkommande fel ökar väntetiden; du kan stoppa när som helst. Förlorad inloggning eller behörighet behöver åtgärdas innan sökningen kan fortsätta. Låt fliken vara öppen och ladda ner Excel innan du lämnar sidan. Rader med noll mängd eller felaktiga indata söks inte.</p>
-        <p className="text-xs leading-5 text-neutral-700"><strong>Sök alla och välj högst</strong> söker hela listan och ersätter tidigare val med träffen som har högst poäng på varje rad. Vid lika poäng väljs första träffen i sorteringen. Även låga poäng och tekniska avvikelser kan väljas; granska valen och ändra dem vid behov. Sök återstående ger förslag utan automatval.</p>
+        {rows.some(row => row.rfqSource)
+          ? <p className="text-xs leading-5 text-neutral-700"><strong>Sök och välj verifierade</strong> söker hela listan och ersätter tidigare val. Automatval görs bara när exakt modell och artikelidentitet är verifierade och alla visade kontrollpunkter stämmer. Alternativ och saknade uppgifter lämnas för granskning. Qty ändras inte. Sök återstående ger förslag utan automatval.</p>
+          : <p className="text-xs leading-5 text-neutral-700"><strong>Sök alla och välj högst</strong> söker hela listan och ersätter tidigare val med träffen som har högst poäng på varje rad. Vid lika poäng väljs första träffen i sorteringen. Även låga poäng och tekniska avvikelser kan väljas; granska valen och ändra dem vid behov. Sök återstående ger förslag utan automatval.</p>}
       </section>
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(350px,1fr)]">
@@ -202,10 +204,11 @@ export function MaterialRowReview({ row, review, busy, onInput, onSearch, onRevi
         {row.rfqSource.supplierPartNumber && <p>Supplier Part No.: {row.rfqSource.supplierPartNumber}</p>}</div>}</div>
     {row.issues.length > 0 ? <div className="rounded bg-amber-50 p-3 text-sm text-amber-950"><p className="font-semibold">Rätta raden i originalfilen och läs in den igen.</p><ul className="mt-2 list-disc pl-5">{row.issues.map(issue => <li key={issue}>{issue}</li>)}</ul></div>
       : row.quantity === 0 ? <p className="text-sm text-neutral-600">Raden har noll mängd. Den följer med i exporten utan produktsökning.</p> : <>
-        <label className="block text-xs font-semibold">Hur ska listans mått tolkas?<select className={`${fieldClass} mt-1`} disabled={busy} value={review.input.dimensionKind}
+        {!row.rfqSource && <label className="block text-xs font-semibold">Hur ska listans mått tolkas?<select className={`${fieldClass} mt-1`} disabled={busy} value={review.input.dimensionKind}
           onChange={event => update({ dimensionKind: event.target.value as MaterialSearchInput["dimensionKind"] })}>
           <option value="unspecified">Ej angivet – behöver kontrolleras</option><option value="outside">Ytterdiameter i mm</option><option value="dn">Nominell diameter (DN)</option>
-        </select></label>
+        </select></label>}
+        {row.rfqSource && <p className="text-xs text-neutral-600">Modell, mått, färg och förpackningskrav kontrolleras från beskrivningen. Sökord ändrar inte kraven.</p>}
         <label className="block text-xs font-semibold">Kompletterande krav<textarea className={`${fieldClass} mt-1`} rows={2} maxLength={1000} disabled={busy} value={review.input.details}
           onChange={event => update({ details: event.target.value })} placeholder="Exempel: 90° böj, pressprofil M, materialkvalitet…" /></label>
         <label className="block text-xs font-semibold">Sökord eller exakt NRF / artikelnummer<input className={`${fieldClass} mt-1`} maxLength={180} disabled={busy}
@@ -225,6 +228,14 @@ export function MaterialRowReview({ row, review, busy, onInput, onSearch, onRevi
             <p className="text-sm">{candidate.subtitle}</p><p className="text-xs font-semibold">NRF / art.nr: {candidate.articleNumber}</p>
             <div className="rounded bg-neutral-50 p-2 text-xs">
               <p className="text-sm font-bold">{typeof candidate.score === "number" ? `Matchpoäng: ${candidate.score}/100` : "Poäng saknas – sök igen"}</p>
+              {candidate.rfqMatch && <div className="mt-2 space-y-2">
+                <p className={`font-semibold ${candidate.rfqMatch.status === "verified" ? "text-green-800" : candidate.rfqMatch.status === "mismatch" ? "text-red-800" : "text-amber-900"}`}>
+                  {{ verified: "Exakt modell och kontrollerade krav verifierade", mismatch: "Avvikelse – inget automatval", review: "Behöver granskas – inget automatval" }[candidate.rfqMatch.status]}</p>
+                <ul className="space-y-2">{candidate.rfqMatch.checks.map((check, i) => <li key={i}>
+                  <strong>{check.name}: {{ match: "stämmer", mismatch: "avviker", unknown: "ej verifierat" }[check.status]}</strong>
+                  <p>Krav: {check.expected}</p><p>Produkt: {check.actual}</p>
+                </li>)}</ul>
+              </div>}
               {candidate.dimensionMatch && <div className="mt-2 space-y-1">
                 <p className={`font-semibold ${candidate.dimensionMatch.status === "mismatch" ? "text-red-800" : candidate.dimensionMatch.status === "match" ? "text-green-800" : "text-amber-900"}`}>
                   {{ match: "Storleken stämmer", mismatch: "Fel storlek", unknown: "Storleken behöver kontrolleras" }[candidate.dimensionMatch.status]}</p>

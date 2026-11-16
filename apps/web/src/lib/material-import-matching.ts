@@ -5,12 +5,13 @@ import { fittingDimensionCheck, materialCandidateScore, materialDimensionKind, m
 export { fittingDimensionCheck } from "./material-import-scoring";
 import { assessAhlsellLookupCandidates } from "./ahlsell-hybrid-matching";
 import { lookupAhlsellProduct } from "./ahlsell-product-lookup";
-import { searchAhlsellPublicCatalogQueries } from "./ahlsell-public-catalog";
+import { searchAhlsellPublicCatalogQueries, fetchAhlsellCandidateVariants } from "./ahlsell-public-catalog";
 import { applyAhlsellProductDetails, fetchAhlsellProductDetails, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
 import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
 import { technicalConflictWarnings } from "./ahlsell-technical-conflicts";
 import type { AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
 import { materialInputWarnings, materialSearchQueries, materialSearchQuery, type MaterialCandidate, type MaterialSearchInput, type MaterialSearchResult } from "./material-import";
+import { assessRfqProduct } from "./rfq-product-requirements";
 
 export function materialRequirement(input: MaterialSearchInput): Record<string, unknown> {
   const attributes: Record<string, string> = {};
@@ -59,6 +60,7 @@ type Dependencies = {
   search?: typeof searchAhlsellPublicCatalogQueries;
   lookup?: typeof lookupAhlsellProduct;
   details?: typeof fetchAhlsellProductDetails;
+  variants?: typeof fetchAhlsellCandidateVariants;
 };
 
 export async function matchMaterialRow(input: MaterialSearchInput, options: { fetchImpl?: typeof fetch; signal?: AbortSignal; store?: AhlsellEvidenceStore } = {}, dependencies: Dependencies = {}): Promise<MaterialSearchResult> {
@@ -71,7 +73,8 @@ export async function matchMaterialRow(input: MaterialSearchInput, options: { fe
   signal?.throwIfAborted();
   const query = materialSearchQuery(input);
   const queries = materialSearchQueries(input);
-  const exact = /^\d{6,12}$/.test(query) || /^https:\/\//i.test(query);
+  const rfq = input.articleReferences !== undefined;
+  const exact = (!rfq || Boolean(input.query)) && (/^\d{6,12}$/.test(query) || /^https:\/\//i.test(query));
   const requirement = materialRequirement(input);
   const references = !input.query && !exact ? sprinklerReferenceSearchHints(requirement) : [];
   const referenceResults = await Promise.allSettled(references.map(query =>
@@ -83,8 +86,39 @@ export async function matchMaterialRow(input: MaterialSearchInput, options: { fe
     ? result.value.products.filter(product => product.articleNumber === references[index]) : []);
   const search = exact
     ? await (dependencies.lookup ?? lookupAhlsellProduct)({ query, market: "no", fetchImpl, signal, store }).then(result => ({ candidates: result.products, searchUrl: result.searchUrl, failedQueries: [] as string[], message: result.message }))
-    : await (dependencies.search ?? searchAhlsellPublicCatalogQueries)({ market: "no", queries, fetchImpl, maxCandidates: 24, maxPages: 1, maxVariantFamilies: 3 });
+    : await (dependencies.search ?? searchAhlsellPublicCatalogQueries)({ market: "no", queries, fetchImpl, maxCandidates: 24, maxPages: 1, maxVariantFamilies: rfq ? 0 : 3 });
   const retrieved = [...new Map([...search.candidates, ...referenceCandidates].map(candidate => [candidate.articleNumber, candidate])).values()];
+  if (rfq) {
+    const families = [...new Map(retrieved.filter(c => c.familyCode && (c.variantCount ?? 0) > 1 && assessRfqProduct(input, c, false).relevant)
+      .map(c => [c.familyCode, c])).values()].slice(0, 3);
+    const variants = await Promise.allSettled(families.map(candidate => (dependencies.variants ?? fetchAhlsellCandidateVariants)({
+      candidate: { ...candidate, subtitle: undefined, description: undefined, technicalEvidence: undefined,
+        specifications: candidate.specifications.filter(s => /^Tillverkare:/i.test(s)) }, market: "no", fetchImpl })));
+    const expanded = [...new Map([...retrieved, ...variants.flatMap(v => v.status === "fulfilled" ? v.value : [])].map(c => [c.articleNumber, c])).values()];
+    // Evaluate actual model/package evidence before choosing which variants to enrich.
+    // The plumbing ranker's vocabulary and unknown-diameter cap do not apply to industrial RFQs.
+    const rankedRfq = expanded.map(candidate => ({ candidate, assessment: assessRfqProduct(input, candidate, false) }))
+      .filter(item => item.assessment.relevant)
+      .sort((a, b) => b.assessment.score - a.assessment.score).slice(0, 24);
+    const details = await (dependencies.details ?? fetchAhlsellProductDetails)({ items: rankedRfq.slice(0, 6).map(item => item.candidate), fetchImpl, signal });
+    signal?.throwIfAborted();
+    const candidates: MaterialCandidate[] = rankedRfq.flatMap(({ candidate }) => {
+      const detail = details[candidate.articleNumber];
+      const identityVerified = Boolean(detail?.snapshot && detail.snapshot.articleNumber === candidate.articleNumber);
+      const enriched = identityVerified && detail?.snapshot ? { ...candidate, productName: detail.snapshot.productName, subtitle: detail.subtitle ?? undefined,
+        specifications: detail.specifications } : candidate;
+      const productUrl = safeAhlsellProductUrl(enriched.productUrl);
+      if (!productUrl || !new URL(productUrl).hostname.endsWith(".no")) return [];
+      const assessment = assessRfqProduct(input, enriched, identityVerified);
+      return [{ articleNumber: enriched.articleNumber, productName: enriched.productName, subtitle: enriched.subtitle ?? "", productUrl,
+        specifications: enriched.specifications, identityVerified, conflict: assessment.match.status === "mismatch", score: assessment.score,
+        scoreReasons: assessment.match.checks.map(c => `${c.name}: ${c.status === "match" ? "stämmer" : c.status === "mismatch" ? "avviker" : "behöver verifieras"}. Krav: ${c.expected}. Produkt: ${c.actual}.`),
+        warnings: assessment.match.checks.filter(c => c.status !== "match").map(c => `${c.name}: ${c.status === "mismatch" ? "avvikelse" : "ej verifierat"}. Krav: ${c.expected}. Produkt: ${c.actual}.`), rfqMatch: assessment.match }];
+    }).sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.articleNumber.localeCompare(b.articleNumber));
+    return { candidates, searchUrl: search.searchUrl, queries, partial: Boolean(search.failedQueries?.length) || candidates.some(c => !c.identityVerified),
+      warnings: ["Exakt modell och alla visade kontrollpunkter måste vara verifierade för automatval. Alternativ och avvikelser kräver manuell granskning. Qty ändras inte och förpackningar räknas inte om.",
+        ...(search.failedQueries?.length ? ["En del sökningar misslyckades. Försök igen innan raden bedöms."] : [])] };
+  }
   // Assess every hit before limiting the display. The old six-card cut discarded
   // useful alternatives before their dimensions or product family were considered.
   const ranked = assessAhlsellLookupCandidates(requirement, retrieved).sort((a, b) =>

@@ -1,3 +1,5 @@
+import { rfqSearchQueries, type RfqProductMatch } from "./rfq-product-requirements";
+
 export const MATERIAL_IMPORT_MAX_ROWS = 1000;
 export const MATERIAL_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -48,6 +50,7 @@ export type MaterialCandidate = {
   score?: number;
   scoreReasons?: string[];
   dimensionMatch?: MaterialDimensionMatch;
+  rfqMatch?: RfqProductMatch;
 };
 export type MaterialSearchResult = {
   candidates: MaterialCandidate[];
@@ -179,14 +182,10 @@ export function materialSearchQuery(input: MaterialSearchInput) {
 
 /** Search hints only: the unchanged source row remains the technical requirement. */
 export function materialSearchQueries(input: MaterialSearchInput): string[] {
+  if (input.articleReferences !== undefined) return rfqSearchQueries(input);
   const original = materialSearchQuery(input);
   // A reviewer-supplied query, article number or URL must stay under their control.
   if (input.query || /^\d{6,12}$|^https:\/\//i.test(original)) return [original];
-  if (input.articleReferences?.length) {
-    // External part numbers may belong to a different supplier. Keep descriptive
-    // fallback searches and the full source requirement for ordinary assessment.
-    return [...new Set([...input.articleReferences.slice(0, 2), ...materialSearchQueries({ ...input, articleReferences: undefined })])].slice(0, 3);
-  }
   const description = input.description.replace(/^\s*[A-Z]{2,5}\.\d+(?:\.\d+)*\s+(?:\d{3,4}\s+)?/i, "").replace(/_/g, " ");
   const pipe = /^r[øö]r\b/i.test(input.category) && input.unit.toLowerCase() === "m";
   const sprinkler = /\bK\s*\d+/i.test(description) && /sprinkler|SSP|SSU|HSW|oppadrettet|nedadrettet|tørrhode/i.test(description);
@@ -255,8 +254,9 @@ export function materialBatchRows(rows: MaterialRow[], reviews: Record<string, M
 }
 
 /** Ties retain the server's technical tie-break order. No score means no automatic choice. */
-export function highestScoredMaterialCandidate(candidates: MaterialCandidate[]) {
+export function highestScoredMaterialCandidate(candidates: MaterialCandidate[], requireRfqVerification = false) {
   return candidates.reduce<MaterialCandidate | undefined>((best, candidate) => {
+    if ((requireRfqVerification || candidate.rfqMatch) && (candidate.rfqMatch?.status !== "verified" || !candidate.rfqMatch.autoSelect || !candidate.identityVerified || candidate.conflict)) return best;
     const score = candidate.score;
     if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 100) return best;
     return !best || score > best.score! ? candidate : best;

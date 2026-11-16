@@ -265,6 +265,9 @@ export function parseAhlsellProductDetails(html: string, requestedArticle: strin
   const technicalList = /Teknisk[ae] data\s*(?:<\/[^>]+>\s*)*<ul\b[^>]*>([\s\S]*?)<\/ul>/i.exec(information)?.[1] ?? "";
   const specifications = [...technicalList.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
     .slice(0, 60).map(match => stripMarkup(match[1]).slice(0, 400)).filter(Boolean);
+  const productHeader = visible.split(/<h1\b[^>]*>/i)[1]?.split(/<h2\b|data-test=["']information-table/i)[0] ?? "";
+  const manufacturerArticle = /Lev\.\s*artikkelnr\s*:[\s\S]{0,700}?<span\b[^>]*class=["'][^"']*text-card-item-number[^"']*["'][^>]*>\s*(?:<span[^>]*>)?\s*([^<]{1,80})/i.exec(productHeader)?.[1]?.trim();
+  if (manufacturerArticle) specifications.unshift(`Tillverkarens artikelnummer: ${stripMarkup(manufacturerArticle)}`);
   const subtitle = parseAhlsellProductSubtitle(visible);
   if (!sourceUrl) return { articleNumber, subtitle, specifications };
   const safeUrl = safeAhlsellProductUrl(sourceUrl, requestedArticle) ?? safeAhlsellProductUrl(sourceUrl, articleNumber);

@@ -144,11 +144,13 @@ export async function runMaterialSearchQueue({ ids, reviews, signal, onReview, o
         attempts.set(id, attempt); lastStarted = now(); notice(0);
         const result = await match(original.input, signal, notice);
         signal.throwIfAborted();
-        const selected = autoSelect ? highestScoredMaterialCandidate(result.candidates) : undefined;
+        const selected = autoSelect ? highestScoredMaterialCandidate(result.candidates, original.input.articleReferences !== undefined) : undefined;
         if (selected) selectedCount++;
         if (autoSelect && result.candidates.length && !selected) unscored++;
         publish(id, { input: original.input, result: autoSelect && result.candidates.length && !selected
-          ? { ...result, warnings: [...result.warnings, "Automatiskt val kunde inte göras eftersom träffarna saknar giltiga poäng. Sök igen eller välj manuellt."] } : result,
+          ? { ...result, warnings: [...result.warnings, original.input.articleReferences !== undefined
+            ? "Inget automatval: modell och alla visade kontrollpunkter måste vara verifierade. Granska förslagen manuellt."
+            : "Automatiskt val kunde inte göras eftersom träffarna saknar giltiga poäng. Sök igen eller välj manuellt."] } : result,
           status: selected ? "selected" : result.candidates.length ? "review" : "empty",
           ...(selected ? { selected, selectionMode: "automatic" as const } : {}) });
         completed++; consecutiveFailures = 0; recoveryAttempt = 0; unfinished.delete(id); failures.delete(id);
