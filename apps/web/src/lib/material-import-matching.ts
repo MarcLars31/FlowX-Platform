@@ -1,0 +1,172 @@
+import { hasSprinklerHeadEvidence } from "./sprinkler-requirement-context";
+import { resolvedSprinklerOrientation } from "./sprinkler-orientation-lexicon";
+import { sprinklerReferenceSearchHints } from "./sprinkler-reference-search";
+import { fittingDimensionCheck, materialCandidateScore, materialDimensionKind, materialDimensionMatch } from "./material-import-scoring";
+export { fittingDimensionCheck } from "./material-import-scoring";
+import { assessAhlsellLookupCandidates } from "./ahlsell-hybrid-matching";
+import { lookupAhlsellProduct } from "./ahlsell-product-lookup";
+import { searchAhlsellPublicCatalogQueries, fetchAhlsellCandidateVariants } from "./ahlsell-public-catalog";
+import { applyAhlsellProductDetails, fetchAhlsellProductDetails, safeAhlsellProductUrl } from "./ahlsell-product-subtitle";
+import type { AhlsellPublicCandidate } from "./ahlsell-public-match";
+import { technicalConflictWarnings } from "./ahlsell-technical-conflicts";
+import type { AhlsellEvidenceStore } from "./ahlsell-technical-evidence";
+import { materialInputWarnings, materialSearchQueries, materialSearchQuery, type MaterialCandidate, type MaterialSearchInput, type MaterialSearchResult } from "./material-import";
+import { assessRfqProduct } from "./rfq-product-requirements";
+
+export function materialRequirement(input: MaterialSearchInput): Record<string, unknown> {
+  const attributes: Record<string, string> = {};
+  const dimensionKind = materialDimensionKind(input);
+  const originalHeading = input.description.replace(/^\s*[A-Z]{2,5}\.\d+(?:\.\d+)*\s+(?:\d{3,4}\s+)?/i, "").replace(/_/g, " ");
+  // In this schedule syntax "Stålrør Bend" names a fitting for steel pipe;
+  // it does not specify the fitting body's material. Preserve the source text.
+  const fittingForSteelPipe = /^(?:Stålrør|Stålrör)\s+(?:Bend|T-Rør|T-Rör|Overgang|Endelokk|Kryss)\b/i.test(originalHeading);
+  const heading = fittingForSteelPipe ? originalHeading.replace(/^(?:Stålrør|Stålrör)\s+/i, "") + " for stålrør" : originalHeading;
+  if (/\b(?:kobber|koppar)/i.test(input.description)) attributes.Materiale = "Kobber";
+  else if (/\b(?:rustfri|syrefast)/i.test(input.description)) attributes.Materiale = "Rustfritt stål";
+  else if (!fittingForSteelPipe && /\b(?:stål|stålrør|stålror|stålrör)/i.test(input.description)) attributes.Materiale = "Stål";
+  const pipe = /^r[øö]r\b/i.test(input.category) && input.unit.toLowerCase() === "m";
+  if (pipe) attributes["Type produkt"] = "Rør";
+  // A bare dimension in a material schedule is not evidence of DN.
+  if (dimensionKind === "dn" && /^\s*(?:DN\s*)?\d+(?:[.,]\d+)?\s*$/i.test(input.dimension)) attributes.DN = input.dimension.replace(/^\s*DN\s*/i, "");
+  if (dimensionKind === "outside" && /^\s*\d+(?:[.,]\d+)?\s*(?:mm)?\s*$/i.test(input.dimension)) attributes["Ytterdiameter"] = input.dimension.replace(/\s*mm\s*$/i, "") + " mm";
+  // Keep every fitting port, in order. Unknown units remain a review point.
+  if (input.fittingDimension) {
+    attributes["Fittingdimensjon (källa)"] = input.fittingDimension;
+    if (dimensionKind === "dn") attributes["Fittingdimensjon DN"] = input.fittingDimension;
+  }
+  if (hasSprinklerHeadEvidence({ value_text: heading })) {
+    const unique = (pattern: RegExp) => { const values = [...new Set([...heading.matchAll(pattern)].map(match => match[1]))]; return values.length === 1 ? values[0] : null; };
+    const k = unique(/\bK\s*(\d+(?:[.,]\d+)?)/gi);
+    const temperature = unique(/\b(\d+(?:[.,]\d+)?)\s*(?:grader\b|°\s*C?\b|C\b)/gi);
+    const response = unique(/\b(QR|SR)\b/gi);
+    const thread = unique(/\b((?:\d+\s+)?\d+(?:\/\d+)?)\s*["″]/g);
+    const orientation = resolvedSprinklerOrientation(heading);
+    if (k) attributes["K-faktor"] = k;
+    if (temperature) attributes["Utløsningstemperatur"] = `${temperature} °C`;
+    if (response) attributes.Respons = response;
+    if (orientation.orientation && !orientation.mixed) attributes.Plassering = orientation.orientation;
+    if (thread) {
+      attributes.Gjengedimensjon = `${thread}"`;
+      const threadDn = ({ "1/2": "15", "3/4": "20", "1": "25" } as Record<string, string>)[thread];
+      if (!input.dimension && !input.fittingDimension && threadDn) attributes.DN = threadDn;
+    }
+  }
+  return { category: pipe ? "pipe" : undefined,
+    value_text: heading,
+    value_json: { attributes, unit: input.unit, technicalSpecification: input.details, sourceType: input.articleReferences ? "rfq_material" : "excel_material", sourceDescription: input.description } };
+}
+
+type Dependencies = {
+  search?: typeof searchAhlsellPublicCatalogQueries;
+  lookup?: typeof lookupAhlsellProduct;
+  details?: typeof fetchAhlsellProductDetails;
+  variants?: typeof fetchAhlsellCandidateVariants;
+};
+
+export async function matchMaterialRow(input: MaterialSearchInput, options: { fetchImpl?: typeof fetch; signal?: AbortSignal; store?: AhlsellEvidenceStore } = {}, dependencies: Dependencies = {}): Promise<MaterialSearchResult> {
+  const { signal, store } = options;
+  const baseFetch = options.fetchImpl ?? fetch;
+  const fetchImpl: typeof fetch = (url, init) => {
+    signal?.throwIfAborted();
+    return baseFetch(url, { ...init, signal: signal ? AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]) : init?.signal });
+  };
+  signal?.throwIfAborted();
+  const query = materialSearchQuery(input);
+  const queries = materialSearchQueries(input);
+  const rfq = input.articleReferences !== undefined;
+  const exact = (!rfq || Boolean(input.query)) && (/^\d{6,12}$/.test(query) || /^https:\/\//i.test(query));
+  const requirement = materialRequirement(input);
+  const references = !input.query && !exact ? sprinklerReferenceSearchHints(requirement) : [];
+  const referenceResults = await Promise.allSettled(references.map(query =>
+    (dependencies.lookup ?? lookupAhlsellProduct)({ query, market: "no", fetchImpl, signal, store })));
+  signal?.throwIfAborted();
+  // A redirect/replacement may not inherit a reference identity. Only a freshly
+  // retrieved exact article enters the ordinary technical assessment.
+  const referenceCandidates = referenceResults.flatMap((result, index) => result.status === "fulfilled"
+    ? result.value.products.filter(product => product.articleNumber === references[index]) : []);
+  const search = exact
+    ? await (dependencies.lookup ?? lookupAhlsellProduct)({ query, market: "no", fetchImpl, signal, store }).then(result => ({ candidates: result.products, searchUrl: result.searchUrl, failedQueries: [] as string[], message: result.message }))
+    : await (dependencies.search ?? searchAhlsellPublicCatalogQueries)({ market: "no", queries, fetchImpl, maxCandidates: 24, maxPages: 1, maxVariantFamilies: rfq ? 0 : 3 });
+  const retrieved = [...new Map([...search.candidates, ...referenceCandidates].map(candidate => [candidate.articleNumber, candidate])).values()];
+  if (rfq) {
+    const families = [...new Map(retrieved.filter(c => c.familyCode && (c.variantCount ?? 0) > 1 && assessRfqProduct(input, c, false).relevant)
+      .map(c => [c.familyCode, c])).values()].slice(0, 3);
+    const variants = await Promise.allSettled(families.map(candidate => (dependencies.variants ?? fetchAhlsellCandidateVariants)({
+      candidate: { ...candidate, subtitle: undefined, description: undefined, technicalEvidence: undefined,
+        specifications: candidate.specifications.filter(s => /^Tillverkare:/i.test(s)) }, market: "no", fetchImpl })));
+    const expanded = [...new Map([...retrieved, ...variants.flatMap(v => v.status === "fulfilled" ? v.value : [])].map(c => [c.articleNumber, c])).values()];
+    // Evaluate actual model/package evidence before choosing which variants to enrich.
+    // The plumbing ranker's vocabulary and unknown-diameter cap do not apply to industrial RFQs.
+    const rankedRfq = expanded.map(candidate => ({ candidate, assessment: assessRfqProduct(input, candidate, false) }))
+      .filter(item => item.assessment.relevant)
+      .sort((a, b) => b.assessment.score - a.assessment.score).slice(0, 24);
+    const details = await (dependencies.details ?? fetchAhlsellProductDetails)({ items: rankedRfq.slice(0, 6).map(item => item.candidate), fetchImpl, signal });
+    signal?.throwIfAborted();
+    const candidates: MaterialCandidate[] = rankedRfq.flatMap(({ candidate }) => {
+      const detail = details[candidate.articleNumber];
+      const identityVerified = Boolean(detail?.snapshot && detail.snapshot.articleNumber === candidate.articleNumber);
+      const enriched = identityVerified && detail?.snapshot ? { ...candidate, productName: detail.snapshot.productName, subtitle: detail.subtitle ?? undefined,
+        specifications: detail.specifications } : candidate;
+      const productUrl = safeAhlsellProductUrl(enriched.productUrl);
+      if (!productUrl || !new URL(productUrl).hostname.endsWith(".no")) return [];
+      const assessment = assessRfqProduct(input, enriched, identityVerified);
+      return [{ articleNumber: enriched.articleNumber, productName: enriched.productName, subtitle: enriched.subtitle ?? "", productUrl,
+        specifications: enriched.specifications, identityVerified, conflict: assessment.match.status === "mismatch", score: assessment.score,
+        scoreReasons: assessment.match.checks.map(c => `${c.name}: ${c.status === "match" ? "stämmer" : c.status === "mismatch" ? "avviker" : "behöver verifieras"}. Krav: ${c.expected}. Produkt: ${c.actual}.`),
+        warnings: assessment.match.checks.filter(c => c.status !== "match").map(c => `${c.name}: ${c.status === "mismatch" ? "avvikelse" : "ej verifierat"}. Krav: ${c.expected}. Produkt: ${c.actual}.`), rfqMatch: assessment.match }];
+    }).sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.articleNumber.localeCompare(b.articleNumber));
+    return { candidates, searchUrl: search.searchUrl, queries, partial: Boolean(search.failedQueries?.length) || candidates.some(c => !c.identityVerified),
+      warnings: ["Exakt modell och alla visade kontrollpunkter måste vara verifierade för automatval. Alternativ och avvikelser kräver manuell granskning. Qty ändras inte och förpackningar räknas inte om.",
+        ...(search.failedQueries?.length ? ["En del sökningar misslyckades. Försök igen innan raden bedöms."] : [])] };
+  }
+  // Assess every hit before limiting the display. The old six-card cut discarded
+  // useful alternatives before their dimensions or product family were considered.
+  const ranked = assessAhlsellLookupCandidates(requirement, retrieved).sort((a, b) =>
+    Number(a.technicalEvaluation?.status === "FAIL") - Number(b.technicalEvaluation?.status === "FAIL")
+    || materialDimensionHint(input, b) - materialDimensionHint(input, a)
+    || (b.matchScore ?? 0) - (a.matchScore ?? 0)).slice(0, 24);
+  const details = await (dependencies.details ?? fetchAhlsellProductDetails)({ items: ranked.slice(0, 6), fetchImpl, signal, store });
+  signal?.throwIfAborted();
+  const enriched = ranked.map(candidate => applyAhlsellProductDetails(candidate, details[candidate.articleNumber]));
+  const evaluated = assessAhlsellLookupCandidates(requirement, enriched);
+  const candidates: MaterialCandidate[] = evaluated.flatMap(candidate => {
+    const productUrl = safeAhlsellProductUrl(candidate.productUrl);
+    if (!productUrl || !new URL(productUrl).hostname.endsWith(".no")) return [];
+    const detail = Object.values(details).find(value => value?.articleNumber === candidate.articleNumber);
+    const identityVerified = Boolean(detail?.snapshot && detail.snapshot.articleNumber === candidate.articleNumber);
+    const fitting = fittingDimensionCheck(input, [candidate.subtitle ?? detail?.subtitle ?? "", candidate.productName, ...candidate.specifications].join("\n"));
+    const pipeDiameter = pipeHeaderDimensionCheck(input, detail?.subtitle ?? "");
+    const dimensionMatch = materialDimensionMatch(input, candidate);
+    const conflict = dimensionMatch.status === "mismatch" || pipeDiameter.conflict || fitting.conflict || candidate.technicalEvaluation?.status === "FAIL" || technicalConflictWarnings(candidate).length > 0;
+    return [{ articleNumber: candidate.articleNumber, productName: candidate.productName, subtitle: candidate.subtitle ?? detail?.subtitle ?? "",
+      productUrl, specifications: candidate.specifications.filter(item => item.trim()).slice(0, 30), identityVerified, conflict,
+      dimensionMatch, ...materialCandidateScore(candidate, dimensionMatch, identityVerified, conflict),
+      warnings: [...new Set([...(dimensionMatch.status === "mismatch" ? [dimensionMatch.explanation] : []), ...pipeDiameter.warnings, ...fitting.warnings, ...(candidate.matchWarnings ?? []), ...(candidate.technicalEvaluation?.checks.filter(check => check.status !== "MATCH").map(check => check.reason) ?? []),
+        ...(!identityVerified ? ["Artikelnumret kunde inte verifieras på produktsidan. Du kan ändå välja produkten."] : [])])].filter(warning => !(dimensionMatch.status === "match" && materialDimensionKind(input) === "dn"
+        && /^Produktens dimension saknas; PDF kräver DN\d/.test(warning))).map(warning => warning.replace(/PDF-kravet/g, "Materialkravet").replace(/PDF kräver/g, "Materiallistan kräver")) }];
+  });
+  candidates.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)
+    || Number(a.conflict) - Number(b.conflict)
+    || Number(b.dimensionMatch?.status === "match") - Number(a.dimensionMatch?.status === "match")
+    || Number(b.identityVerified) - Number(a.identityVerified)
+    || a.articleNumber.localeCompare(b.articleNumber));
+  return { candidates, searchUrl: search.searchUrl, queries: [...queries, ...references], partial: Boolean(search.failedQueries?.length) || candidates.some(candidate => !candidate.identityVerified),
+    warnings: [...materialInputWarnings(input), ...(queries.length > 1 ? ["Sökningen använder även kortare produktnamn. Kontrollera dimension, anslutning och användningsområde mot materialraden."] : []), ...("message" in search && search.message ? [search.message] : []),
+      ...(search.failedQueries?.length ? ["Sökningen blev ofullständig. Försök igen för att hämta fler uppgifter."] : [])] };
+}
+
+/** Prioritize matching sizes before spending six detail requests. */
+function materialDimensionHint(input: MaterialSearchInput, candidate: AhlsellPublicCandidate) {
+  const status = materialDimensionMatch(input, candidate).status;
+  return status === "match" ? 2 : status === "mismatch" ? -1 : 0;
+}
+
+/** The exact pipe variant's diameter × wall heading also documents its outer size. */
+export function pipeHeaderDimensionCheck(input: MaterialSearchInput, subtitle: string) {
+  const requested = Number(input.dimension.replace(/\s*mm$/i, "").replace(",", "."));
+  const diameter = /^\s*(\d+(?:[.,]\d+)?)\s*(?:mm)?\s*[x×]\s*\d+(?:[.,]\d+)?\s*mm\b/i.exec(subtitle)?.[1];
+  const actual = diameter ? Number(diameter.replace(",", ".")) : null;
+  const conflict = input.dimensionKind === "outside" && input.unit.toLowerCase() === "m" && !input.fittingDimension
+    && requested > 0 && actual !== null && Math.abs(requested - actual) > 0.001;
+  return { conflict, warnings: conflict ? [`Produktsidan anger rördiameter ${actual} mm, men materialraden kräver ${requested} mm.`] : [] };
+}

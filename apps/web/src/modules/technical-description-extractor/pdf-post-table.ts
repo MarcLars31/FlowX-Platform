@@ -1,0 +1,172 @@
+import { priceColumnsFromPdfItems, type PriceTable } from "./pdf-price-columns";
+import { isPdfTableTotalFooter } from "@/lib/pdf-post-text";
+import { normalizeQuantityUnit, parseQuantityNumber } from "@/lib/quantity-value";
+import type { TechnicalDescriptionPage } from "./types";
+import { pdfPostColumnLayout } from "./post-inventory";
+
+type Item = { text: string; x: number; y: number; width: number; height: number };
+type Row = { y: number; items: Item[] };
+
+function headerLabel(value: string) {
+  return value.toLocaleLowerCase().replace(/[\s.:]/g, "");
+}
+
+/** A PDF can split a label into adjacent text fragments. Join only nearby
+ * fragments on the already verified header row, never words from the body. */
+function findColumnHeader(items: Item[], labels: readonly string[]): Item | undefined {
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  for (let start = 0; start < sorted.length; start += 1) {
+    const first = sorted[start];
+    let text = "";
+    for (let end = start; end < Math.min(start + 4, sorted.length); end += 1) {
+      const item = sorted[end];
+      const previous = sorted[end - 1];
+      if (end > start && item.x - (previous.x + previous.width) > Math.max(first.height, item.height) * .6) break;
+      text += item.text;
+      if (labels.includes(headerLabel(text))) {
+        return { ...first, text, width: item.x + item.width - first.x };
+      }
+    }
+  }
+  return undefined;
+}
+
+/** Verified post columns establish row boundaries independently of the document
+ * template. Numbers inside the description column remain ordinary prose.
+ */
+export function sitePostTableFromPdfItems(input: readonly unknown[], cellsSeparated = false, tables?: readonly PriceTable[]): TechnicalDescriptionPage["postTable"] {
+  const separated = cellsSeparated ? undefined : priceColumnsFromPdfItems(input);
+  const source = separated?.items ?? input;
+  const items: Item[] = source.flatMap(value => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as { str?: string; transform?: number[]; width?: number; height?: number };
+    if (!item.str?.trim() || !item.transform || item.transform.length < 6) return [];
+    return [{ text: item.str.trim(), x: item.transform[4], y: item.transform[5],
+      width: item.width ?? 0, height: item.height || Math.abs(item.transform[3]) || 10 }];
+  });
+  const layout = pdfPostColumnLayout(source);
+  const header = items.find(item => /^Post\s*(?:nr|nummer)[.:]?$/i.test(item.text));
+  const site = items.find(item => /^Sted:\s*\d+\s+\S/.test(item.text));
+  if (!header || !layout || (site && site.y <= header.y)) return undefined;
+  const siteMatch = site?.text.match(/^Sted:\s*(\d+)\s+(.+)$/);
+  const headerItems = items.filter(item => Math.abs(item.y - header.y) < 3);
+  const descriptionHeader = headerItems.find(item => /^(?:Beskrivelse|Beskrivning|(?:NS\s*(?:3420\s*)?[- ]?kode\s*\/\s*)?Spesifikasjon)$/i.test(item.text));
+  if (!descriptionHeader) return undefined;
+  const columnItems = headerItems.filter(item => item.x >= descriptionHeader.x + descriptionHeader.width);
+  const unitCandidate = findColumnHeader(columnItems, ["enh", "enhet", "enhed"]);
+  const amountCandidate = findColumnHeader(columnItems, ["mengde", "mengd", "mängd", "antall", "antal"]);
+  const priceCandidate = findColumnHeader(columnItems, ["pris", "enhetspris", "à-pris", "àpris", "á-pris", "apris"]);
+  const tableLayout = (tables ?? separated?.audit.tables)?.find(table => Math.abs(table.bounds.y0 + header.y) < header.height * 2);
+  const unitColumn = tableLayout?.columns.find(column => column.role === "unit");
+  const amountColumn = tableLayout?.columns.find(column => column.role === "quantity");
+  const verifiedFinancialBoundary = amountColumn && tableLayout?.columns.some(column => ["price", "sum"].includes(column.role) && column.left >= amountColumn.right);
+  const columnsVerified = Boolean(unitCandidate && amountCandidate
+    && unitCandidate.x + unitCandidate.width < amountCandidate.x
+    && ((priceCandidate && amountCandidate.x + amountCandidate.width < priceCandidate.x) || verifiedFinancialBoundary));
+  const quantityColumnsUnrecognized = columnItems.length > 0 && !columnsVerified;
+  // Keep the post and its source text if a header is ambiguous, but do not
+  // infer amounts from prices or report an unverified table as complete.
+  const unitHeader = columnsVerified ? unitCandidate : undefined;
+  const amountHeader = columnsVerified ? amountCandidate : undefined;
+  const priceHeader = columnsVerified ? priceCandidate : undefined;
+  const footer = items.filter(item => item.y < header.y && isPdfTableTotalFooter(item.text));
+  const bottom = footer.length ? Math.max(...footer.map(item => item.y)) + 3 : -Infinity;
+  const body = items.filter(item => item.y < header.y - 4 && item.y > bottom);
+  const postItems = body.filter(item => layout.column.some(cell => cell.x === item.x && cell.y === item.y && cell.str === item.text));
+  const anchors = layout.anchors.map(anchor => ({postNumber: anchor.postNumber.replace(/\.$/, ""), y: anchor.y}));
+  if (siteMatch && anchors.some(anchor => anchor.postNumber !== siteMatch[1] && !anchor.postNumber.startsWith(siteMatch[1] + "."))) return undefined;
+  // A raised exponent can sit above the normal row tolerance. Attach only
+  // a small 2/3 glyph immediately after its own m, before grouping rows.
+  for (const exponent of body) {
+    if (!unitHeader || !amountHeader || exponent.x < unitHeader.x - unitHeader.height
+      || exponent.x >= amountHeader.x || !/^[23]$/.test(exponent.text)) continue;
+    const metre = body.find(item => /m$/.test(item.text) && exponent.height < item.height * .85
+      && exponent.y > item.y && exponent.y - item.y < item.height
+      && exponent.x >= item.x + item.width - 1 && exponent.x - item.x - item.width < item.height * .6);
+    if (metre) exponent.y = metre.y;
+  }
+  const consumed = new Set(postItems);
+  const rows: Row[] = [];
+  for (const item of body.filter(item => !consumed.has(item)).sort((a, b) => b.y - a.y || a.x - b.x)) {
+    const row = rows.find(row => Math.abs(row.y - item.y) < 4.5);
+    if (row) row.items.push(item);
+    else rows.push({ y: item.y, items: [item] });
+  }
+  // Add empty anchors too: a post number may be followed by its description.
+  for (const anchor of anchors) if (!rows.some(row => Math.abs(row.y - anchor.y) < 4.5)) rows.push({ y: anchor.y, items: [] });
+  rows.sort((a, b) => b.y - a.y);
+  const lines: string[] = [];
+  const posts: NonNullable<TechnicalDescriptionPage["postTable"]>["posts"] = [];
+  const quantities: NonNullable<TechnicalDescriptionPage["postTable"]>["quantities"] = [];
+  const unitLeft = unitColumn?.left ?? (unitHeader ? unitHeader.x - unitHeader.height : Infinity);
+  const unitRight = unitColumn?.right ?? (unitHeader && amountHeader ? (unitHeader.x + unitHeader.width + amountHeader.x) / 2 : Infinity);
+  const amountRight = amountColumn?.right ?? (amountHeader && priceHeader ? (amountHeader.x + amountHeader.width + priceHeader.x) / 2 : Infinity);
+  for (const row of rows) {
+    const sorted = row.items.sort((a, b) => a.x - b.x);
+    // Unit text is inside its own column, including raised ²/³ glyphs. Never
+    // concatenate those glyphs with a quantity from the next column.
+    const unitItems = unitHeader ? sorted.filter(item => item.x >= unitLeft && item.x < unitRight) : [];
+    const amountItems = amountHeader ? sorted.filter(item => item.x >= unitRight && item.x < amountRight) : [];
+    const unitText = unitItems.map(item => item.text).join("").replace(/m2/i, "m²").replace(/m3/i, "m³");
+    const amountText = amountItems.map(item => item.text).join("");
+    const value = /^RS$/i.test(unitText) ? 1 : parseQuantityNumber(amountText);
+    const isQuantity = Boolean(unitText) && value !== null;
+    // Financial cells have already been classified. Preserve every other
+    // item, including uncertain cells; never discard the rest of a row.
+    const descriptionItems = isQuantity ? sorted.filter(item => !unitItems.includes(item) && !amountItems.includes(item)) : sorted;
+    const description = descriptionItems.reduce((text, item, index) => {
+      const previous = descriptionItems[index - 1];
+      if (previous && /m$/.test(previous.text) && /^[23]$/.test(item.text)
+        && item.height < previous.height * .85 && item.y > previous.y) {
+        return text + (item.text === "2" ? "²" : "³");
+      }
+      return `${text} ${item.text}`;
+    }, "").replace(/\s+/g, " ").trim();
+    const anchor = anchors.find(anchor => Math.abs(anchor.y - row.y) < 4.5);
+    if (anchor) {
+      posts.push({ lineIndex: lines.length, postNumber: anchor.postNumber, description,
+        chapter: anchor.postNumber.split(".").length <= 3 });
+      lines.push(`${anchor.postNumber}${description ? ` ${description}` : ""}`);
+    } else if (description) lines.push(description);
+    if (isQuantity) {
+      const unit = normalizeQuantityUnit(unitText);
+      const label: Record<string, string> = { st: "Antall", m: "Lengde", m2: "Areal", m3: "Volum", kg: "Vekt", l: "Volum", RS: "Rund sum" };
+      const quantity = { quantity: value!, unit, text: `${label[unit] ?? "Antall"} ${amountText || "1"} ${unitText}`,
+        lineIndex: lines.length, descriptionPrefix: "", sourceUnitText: unitText, sourceAmountText: amountText };
+      quantities.push(quantity);
+      lines.push(`${label[unit] ?? "Antall"} ${unit} ${amountText || "1"}`);
+    }
+  }
+  for (const [index, post] of posts.entries()) {
+    const end = posts[index + 1]?.lineIndex ?? lines.length;
+    post.quantity = quantities.find(quantity => quantity.lineIndex >= post.lineIndex && quantity.lineIndex < end);
+    if (post.quantity) post.chapter = false;
+  }
+  return { text: lines.join("\n"), siteTitle: siteMatch ? `${siteMatch[1]} ${siteMatch[2]}` : "", posts, quantities, quantityColumnsVerified: columnsVerified,
+    ...(quantityColumnsUnrecognized ? { quantityColumnsUnrecognized: true } : {}) };
+}
+
+/** Some chapter introductions use a full-width short heading ("365 ...")
+ * instead of a post cell. Require the following real post to confirm its full
+ * path, so unrelated section headings cannot acquire a fabricated identity. */
+export function withSiteTableChapterHeadings(pages: TechnicalDescriptionPage[]) {
+  return pages.map((page, index) => {
+    const table = page.postTable;
+    if (!table?.siteTitle || table.posts.length) return page;
+    const heading = table.text.match(/^(\d{3})\s+([A-ZÆØÅ][^\n]+)\n/);
+    if (!heading) return page;
+    let nextPost: string | undefined;
+    for (const following of pages.slice(index + 1)) {
+      if (following.postTable?.siteTitle !== table.siteTitle) break;
+      nextPost = following.postTable.posts[0]?.postNumber;
+      if (nextPost) break;
+    }
+    const parts = nextPost?.split(".");
+    if (!parts || parts.length < 4 || parts[2] !== heading[1]) return page;
+    const postNumber = parts.slice(0, 3).join(".");
+    return { ...page, postTable: { ...table,
+      text: `${postNumber} ${heading[2]}\n${table.text.slice(heading[0].length)}`,
+      posts: [{ lineIndex: 0, postNumber, description: heading[2], chapter: true }]
+    } };
+  });
+}

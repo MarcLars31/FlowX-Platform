@@ -1,0 +1,11 @@
+{
+  "name": "flowx-supabase-schema",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify:empty": "node scripts/verify-empty-database.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14"
+  }
+}

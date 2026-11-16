@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { requireOrganizationApi } from "@/lib/organization-api-authorization";
+import { isPlatformAdmin } from "@/lib/platform-role";
+import { getCurrentUser } from "@/lib/supabase-auth";
 import {
   getSupabaseDiagnostics,
   selectSupabaseRows
@@ -22,6 +25,22 @@ type ApprovalRow = {
 };
 
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: "Authentication is required." },
+      { status: 401 }
+    );
+  }
+
+  if (!isPlatformAdmin(user)) {
+    const authorization = await requireOrganizationApi([
+      "product.search",
+      "product.view"
+    ]);
+    if (authorization.error) return authorization.error;
+  }
+
   try {
     const approvedProducts = await selectSupabaseRows<ProductRow>(
       "approved_products"
@@ -32,11 +51,10 @@ export async function GET() {
       products: await attachApprovals(products),
       supabase: getSupabaseDiagnostics()
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         error: "Could not load products from Supabase.",
-        detail: error instanceof Error ? error.message : "Unknown Supabase error.",
         products: [],
         supabase: getSupabaseDiagnostics()
       },

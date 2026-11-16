@@ -1,16 +1,42 @@
 import { NextResponse } from "next/server";
+import { requireOrganizationApi } from "@/lib/organization-api-authorization";
+import { getCurrentUser } from "@/lib/supabase-auth";
+import { isPlatformAdmin } from "@/lib/platform-role";
 import { extractTechnicalSpecificationFromPages } from "@/modules/pdf-extractor/extractor";
 import {
   samplePdfFileName,
   samplePdfPages
 } from "@/modules/pdf-extractor/sample-text";
 import type { ExtractionWarning } from "@/modules/pdf-extractor/types";
+import { consumeRateLimit, requestRateLimitKey } from "@/lib/request-rate-limit";
+import { hasPdfSignature } from "@/lib/pdf-security";
 
 export const runtime = "nodejs";
 
 const maxPdfBytes = 30 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: "Authentication is required." },
+      { status: 401 }
+    );
+  }
+
+  if (!isPlatformAdmin(user)) {
+    const authorization = await requireOrganizationApi(["analysis.create"]);
+    if (authorization.error) return authorization.error;
+  }
+
+  const limit = consumeRateLimit(requestRateLimitKey(request, "pdf-extract", user.id), 8, 60_000);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "För många extraktioner på kort tid. Försök igen senare." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
+  }
+
   try {
     const formData = await request.formData();
     const useSample = formData.get("sample") === "true";
@@ -42,6 +68,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const signature = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    if (!hasPdfSignature(signature)) {
+      return NextResponse.json({ error: "Filen är inte en giltig PDF." }, { status: 415 });
+    }
+
     const { extractPdfTextPages } = await import("@/modules/pdf-extractor/pdf-text");
     const buffer = Buffer.from(await file.arrayBuffer());
     const pages = await extractPdfTextPages(buffer);
@@ -50,16 +81,10 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(result);
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown PDF extraction failure.";
-
+  } catch {
     return NextResponse.json(
       {
-        error: "PDF extraction failed.",
-        detail: message
+        error: "PDF extraction failed."
       },
       { status: 500 }
     );
