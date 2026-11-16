@@ -1,6 +1,6 @@
 /** Read-only explanation of the audited engine, never executable customer configuration. */
-export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-14.2";
-export const RULE_CATALOG_DATE = "14 november 2026";
+export const RULE_CATALOG_VERSION = "scipx-product-rules-2026-11-16.1";
+export const RULE_CATALOG_DATE = "16 november 2026";
 
 export type RuleKind = "requirement" | "search" | "ranking" | "review" | "assumption" | "gap";
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
@@ -22,10 +22,13 @@ const table = (columns: string[], rows: string[][]) => ({ columns, rows });
 
 export const MATCHING_RULE_GROUPS: RuleGroup[] = [
   {
-    id: "excel-material", title: "Excelmaterial och NRF", appliesTo: "Uppladdade materiallistor", kind: "review",
+    id: "excel-material", title: "Excel, RFQ och NRF", appliesTo: "Uppladdade materiallistor och ShipServ RFQ", kind: "review",
     description: "Bevara källrader och skilj produktförslag från användarens val.",
-    sources: ["material-import.ts", "material-import-workbook.ts", "material-import-matching.ts", "material-import-client.ts", "material-import-scoring.ts", "sprinkler-reference-search.ts", "../data/sprinkler-reference-products.json", "../components/MaterialExcelImport.tsx"],
+    sources: ["material-import.ts", "material-import-rfq.ts", "material-import-workbook.ts", "material-import-matching.ts", "material-import-client.ts", "material-import-scoring.ts", "sprinkler-reference-search.ts", "../data/sprinkler-reference-products.json", "../components/MaterialExcelImport.tsx"],
     rules: [
+      rule("rfq-kallrader", "Läs ShipServ-tabellens egna kolumner", "En textbaserad ShipServ RFQ i PDF läses in.", "Bevara RFQ-radnummer, PDF-sida, Part Number, Supplier Part No., beskrivning, UoM och Qty. Håll ihop radbrutna celler och lämna tomma artikelnummer tomma. Antal hämtas från Qty utan omräkning av förpackningar. Omslagets kontakter och affärsvillkor blir inte produktrader. Dokumenttext är underlag, inte instruktioner att utföra. Varna för oläsbara sidor och luckor eller upprepningar i numreringen. Skannade PDF-filer stöds inte. Gränser: 5 MB, 50 sidor och 1 000 rader."),
+      rule("rfq-referenser", "Använd RFQ-referenser som sökledtrådar", "RFQ-raden innehåller ett eller flera externa artikelnummer.", "Bevara upp till åtta referenser och sök högst två av dem tillsammans med en beskrivande sökning, inom gränsen tre katalogsökningar. Externa referenser är inte verifierade Ahlsell- eller NRF-identiteter och ger inget tekniskt godkännande. Saknat artikelnummer ger sökning via beskrivningen. Egna sökord har företräde. Samma produktkontroll, poäng, köhantering och valregler används som för Excel.", { kind: "search" }),
+      rule("rfq-export", "Exportera RFQ med ursprungsreferenser", "Produktförslag från en RFQ har granskats.", "Skapa en ny Excel-lista med alla lästa RFQ-rader, originalreferenser, beskrivning, enhet, antal och PDF-sida. Endast faktiska produktval ger NRF / artikelnummer i kolumn G. Vald produkt, länk, poäng och manuellt eller automatiskt valsätt följer med. Artikelnummer lagras som text och rader utan val lämnas tomma i G. Detta gäller RFQ-exporten; Excel-import behåller sin ursprungliga arbetsbok och exportregel."),
       rule("excel-kallrader", "Bevara mängder och källrad", "En Excel-lista läses in.", "Identifiera tabellrubriker på varje blad och behåll beskrivning, mått, enhet, mängd, blad och radnummer. Noll mängd söks inte. Felaktiga indata behålls för rättning och export."),
       rule("excel-matt", "Anta inte DN från ett ensamt tal", "Listan innehåller dimensioner eller en koppling med flera anslutningar.", "En uttrycklig DN-kolumn bevaras som nominellt mått. Annars får granskaren ange måttsystem. Bevara alla kopplingsmått och deras ordning; en omärkt tuple blir inte automatiskt DN. Motstridiga DN- och dimensionskolumner behöver rättas före sökning. Dokumenterade avvikelser mot uttrycklig ytterdiameter, saknade uppgifter och portordning visas som information och spärrar inte produktvalet."),
       rule("excel-sokord", "Sök också med kortare produktnamn", "En materialrad söks utan egna sökord.", "Använd upp till tre sökningar med produktfamilj, angivna mått och alternativa katalogord. Projektspecifika beskrivningar behålls i kravkontrollen. Ett ensamt mått görs inte om till DN. Prioritera kandidater med angivna mått utan att godkänna dem automatiskt. Visa upp till 24 kandidater och hämta produktsidor för högst sex. Egna sökord, artikelnummer och produktlänkar breddas inte. Visa sökfraserna i granskningen.", { kind: "search" }),

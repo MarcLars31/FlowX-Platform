@@ -40,7 +40,7 @@ export const ORGANIZATION_NAVIGATION: readonly OrganizationNavigationItem[] = [
     anyPermissions: ["project.requirement.view", "project.product_suggestion.view"]
   },
   {
-    name: "Excel till NRF",
+    name: "Excel / RFQ till NRF",
     href: "/material-import",
     icon: "products",
     anyPermissions: ["project.product_suggestion.view"]

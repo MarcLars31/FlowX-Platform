@@ -15,6 +15,7 @@ export type MaterialRow = {
   quantityText: string;
   category: string;
   issues: string[];
+  rfqSource?: { page: number; lineNumber: string; partType: string; partNumber: string; supplierPartNumber: string };
 };
 export type MaterialSearchInput = {
   description: string;
@@ -25,6 +26,8 @@ export type MaterialSearchInput = {
   dimensionKind: "unspecified" | "outside" | "dn";
   details: string;
   query: string;
+  /** Buyer/supplier references are search hints, never verified catalogue identities. */
+  articleReferences?: string[];
 };
 export type MaterialDimensionMatch = {
   status: "match" | "mismatch" | "unknown";
@@ -137,7 +140,9 @@ export function parseMaterialSheets(sheets: { name: string; rows: { number: numb
 
 export function initialMaterialReview(row: MaterialRow): MaterialReview {
   return { status: "pending", input: { description: row.description, unit: row.unit, category: row.category, dimension: row.dimension,
-    fittingDimension: row.fittingDimension, dimensionKind: row.dimensionKind ?? "unspecified", details: "", query: "" } };
+    fittingDimension: row.fittingDimension, dimensionKind: row.dimensionKind ?? "unspecified", details: "", query: "",
+    ...(row.rfqSource ? { articleReferences: [...new Set([row.rfqSource.partNumber, row.rfqSource.supplierPartNumber]
+      .flatMap(value => value.split(/\s+[-/]\s*|\s*\/\s+/)).map(value => value.trim()).filter(value => value && value.length <= 80))].slice(0, 8) } : {}) } };
 }
 
 export function validateMaterialSearchInput(value: unknown): MaterialSearchInput {
@@ -151,7 +156,10 @@ export function validateMaterialSearchInput(value: unknown): MaterialSearchInput
     fittingDimension: field("fittingDimension", 120), details: field("details", 1000), query: field("query", 180) };
   if (input.description.length < 2) throw new MaterialImportError("Beskrivningen måste innehålla minst två tecken.");
   if (!["unspecified", "outside", "dn"].includes(String(raw.dimensionKind))) throw new MaterialImportError("Välj en giltig måttyp.");
-  return { ...input, dimensionKind: raw.dimensionKind as MaterialSearchInput["dimensionKind"] };
+  if (raw.articleReferences !== undefined && (!Array.isArray(raw.articleReferences) || raw.articleReferences.length > 8
+    || raw.articleReferences.some(value => typeof value !== "string" || !value.trim() || value.length > 80))) throw new MaterialImportError("Artikelreferenserna är ogiltiga.");
+  return { ...input, dimensionKind: raw.dimensionKind as MaterialSearchInput["dimensionKind"],
+    ...(raw.articleReferences !== undefined ? { articleReferences: [...new Set((raw.articleReferences as string[]).map(value => value.trim()))] } : {}) };
 }
 
 export function materialSearchQuery(input: MaterialSearchInput) {
@@ -174,6 +182,11 @@ export function materialSearchQueries(input: MaterialSearchInput): string[] {
   const original = materialSearchQuery(input);
   // A reviewer-supplied query, article number or URL must stay under their control.
   if (input.query || /^\d{6,12}$|^https:\/\//i.test(original)) return [original];
+  if (input.articleReferences?.length) {
+    // External part numbers may belong to a different supplier. Keep descriptive
+    // fallback searches and the full source requirement for ordinary assessment.
+    return [...new Set([...input.articleReferences.slice(0, 2), ...materialSearchQueries({ ...input, articleReferences: undefined })])].slice(0, 3);
+  }
   const description = input.description.replace(/^\s*[A-Z]{2,5}\.\d+(?:\.\d+)*\s+(?:\d{3,4}\s+)?/i, "").replace(/_/g, " ");
   const pipe = /^r[øö]r\b/i.test(input.category) && input.unit.toLowerCase() === "m";
   const sprinkler = /\bK\s*\d+/i.test(description) && /sprinkler|SSP|SSU|HSW|oppadrettet|nedadrettet|tørrhode/i.test(description);

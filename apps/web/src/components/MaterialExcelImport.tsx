@@ -13,6 +13,7 @@ export function MaterialExcelImport() {
   const [rows, setRows] = useState<MaterialRow[]>([]);
   const [reviews, setReviews] = useState<Record<string, MaterialReview>>({});
   const [fileName, setFileName] = useState("");
+  const [sourceKind, setSourceKind] = useState<"xlsx" | "pdf">("xlsx");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -46,13 +47,17 @@ export function MaterialExcelImport() {
 
   async function loadFile(file: File) {
     setError(""); setMessage("");
-    if (file.size > MATERIAL_IMPORT_MAX_BYTES) { setError("Excel-filen får vara högst 5 MB."); return; }
+    if (!/\.(?:xlsx|pdf)$/i.test(file.name)) { setError("Välj en Excel-fil (.xlsx) eller en ShipServ RFQ (.pdf)."); return; }
+    if (file.size > MATERIAL_IMPORT_MAX_BYTES) { setError("Filen får vara högst 5 MB."); return; }
     setLoading(true);
     try {
-      const { readMaterialWorkbook } = await import("@/lib/material-import-workbook");
       const source = new Uint8Array(await file.arrayBuffer());
-      const result = await readMaterialWorkbook(source, file.name);
-      sourceWorkbook.current = source;
+      const pdf = /\.pdf$/i.test(file.name);
+      const result = pdf
+        ? await (await import("@/lib/material-import-rfq")).readRfqMaterialPdf(source, file.name)
+        : await (await import("@/lib/material-import-workbook")).readMaterialWorkbook(source, file.name);
+      sourceWorkbook.current = pdf ? null : source;
+      setSourceKind(pdf ? "pdf" : "xlsx");
       setRows(result.rows); setReviews(Object.fromEntries(result.rows.map(row => [row.id, initialMaterialReview(row)])));
       setWarnings(result.warnings); setFileName(file.name); setActiveId(result.rows[0].id); setReplace(false); setAutoResumeIds([]);
       setPage(0); setFilter("all"); setTextFilter(""); dirty.current = true;
@@ -86,14 +91,16 @@ export function MaterialExcelImport() {
   async function download() {
     setExporting(true); setError("");
     try {
-      const { exportMaterialWorkbook } = await import("@/lib/material-import-workbook");
-      if (!sourceWorkbook.current) throw new Error("Originalfilen saknas. Läs in Excel-filen igen.");
-      const bytes = await exportMaterialWorkbook(sourceWorkbook.current, rows, reviews);
+      const { exportMaterialWorkbook, exportRfqMaterialWorkbook } = await import("@/lib/material-import-workbook");
+      if (sourceKind === "xlsx" && !sourceWorkbook.current) throw new Error("Originalfilen saknas. Läs in Excel-filen igen.");
+      const bytes = sourceKind === "pdf" ? await exportRfqMaterialWorkbook(rows, reviews)
+        : await exportMaterialWorkbook(sourceWorkbook.current!, rows, reviews);
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const link = document.createElement("a");
-      link.href = url; link.download = `${fileName.replace(/\.xlsx$/i, "")}-NRF.xlsx`; link.click();
+      link.href = url; link.download = `${fileName.replace(/\.(?:xlsx|pdf)$/i, "")}-NRF.xlsx`; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000); dirty.current = false;
-      setMessage("Excel-filen har skapats med originalets layout och valda NRF-nummer i kolumn G. Rader utan produktval har en tom NRF-cell.");
+      setMessage(sourceKind === "pdf" ? "Excel-listan har skapats med RFQ-rader, artikelreferenser, sidnummer och valda produkter. Rader utan produktval har en tom NRF-cell."
+        : "Excel-filen har skapats med originalets layout och valda NRF-nummer i kolumn G. Rader utan produktval har en tom NRF-cell.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Excel-filen kunde inte skapas. Försök igen."); }
     finally { setExporting(false); }
   }
@@ -105,7 +112,7 @@ export function MaterialExcelImport() {
     const review = reviews[row.id];
     const matchesStatus = filter === "all" || (filter === "selected" && review.status === "selected") || (filter === "review" && review.status === "review")
       || (filter === "problems" && (row.issues.length > 0 || ["error", "empty"].includes(review.status)));
-    return matchesStatus && `${row.description} ${row.dimension} ${row.fittingDimension} ${row.sheet}`.toLowerCase().includes(textFilter.toLowerCase());
+    return matchesStatus && `${row.description} ${row.dimension} ${row.fittingDimension} ${row.sheet} ${row.rfqSource?.partNumber ?? ""} ${row.rfqSource?.supplierPartNumber ?? ""}`.toLowerCase().includes(textFilter.toLowerCase());
   });
   const currentPage = Math.min(page, Math.max(0, Math.ceil(visible.length / 25) - 1));
   const active = rows.find(row => row.id === activeId);
@@ -117,17 +124,17 @@ export function MaterialExcelImport() {
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 className="text-2xl font-bold text-neutral-950">Excel till NRF</h1>
-        <p className="mt-2 max-w-3xl text-sm text-neutral-700">Läs in materiallistan, hitta produkter hos Ahlsell Norge och granska förslagen. Ladda sedan ner en kopia med samma layout och endast valda NRF / artikelnummer i kolumn G. Rader utan produktval lämnas tomma i G.</p></div>
+      <div><h1 className="text-2xl font-bold text-neutral-950">Excel / RFQ till NRF</h1>
+        <p className="mt-2 max-w-3xl text-sm text-neutral-700">Läs in en Excel-materiallista eller en ShipServ RFQ i PDF, hitta produkter hos Ahlsell Norge och granska förslagen. Excel behåller sin layout med valda artikelnummer i kolumn G. En RFQ exporteras som en Excel-lista med ursprungsreferenser och valda produkter.</p></div>
       {rows.length > 0 && <Button disabled={busy} onClick={() => void download()}><Download className="h-4 w-4" />{exporting ? "Skapar Excel…" : "Ladda ner Excel"}</Button>}
     </div>
 
     {(!rows.length || replace) && <section className="rounded-lg border border-dashed border-neutral-400 bg-white p-6">
       <div className="flex items-center gap-3"><FileSpreadsheet className="h-7 w-7 text-blue-800" /><h2 className="text-lg font-bold">{replace ? "Ersätt den öppna listan" : "1. Välj materiallista"}</h2></div>
-      <p id="material-file-help" className="my-3 text-sm text-neutral-700">.xlsx, högst 5 MB och 1 000 materialrader. Rubriker kan ligga efter en titel. Description/Beskrivning, Enhet och Mengde/Mängd krävs. Dimensjon, Fittingdimensjon och Kategori läses om de finns. Alla blad kontrolleras.</p>
+      <p id="material-file-help" className="my-3 text-sm text-neutral-700">.xlsx eller .pdf, högst 5 MB och 1 000 materialrader. Excel behöver Description/Beskrivning, Enhet och Mengde/Mängd. PDF stöder textbaserade ShipServ-offertförfrågningar med Part Number, Description, UoM och Qty, högst 50 sidor.</p>
       {replace && <p className="mb-3 text-sm font-semibold text-amber-900">När en ny fil har lästs in ersätts listan och dess produktval. Ladda ner ditt arbete först.</p>}
-      <label className="block text-sm font-semibold" htmlFor="material-file">Excel-fil</label>
-      <input id="material-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy}
+      <label className="block text-sm font-semibold" htmlFor="material-file">Excel- eller RFQ-fil</label>
+      <input id="material-file" type="file" accept=".xlsx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy}
         aria-describedby="material-file-help" className="mt-2 block max-w-full text-sm" onChange={event => {
           const file = event.target.files?.[0]; event.target.value = ""; if (file) void loadFile(file);
         }} />
@@ -165,7 +172,8 @@ export function MaterialExcelImport() {
             <th className="p-2">Material</th><th className="p-2">Mått</th><th className="p-2">Mängd</th><th className="p-2">Status</th></tr></thead>
             <tbody>{visible.slice(currentPage * 25, currentPage * 25 + 25).map(row => <tr key={row.id} className={`border-b align-top ${activeId === row.id ? "bg-blue-50" : ""}`}>
               <td className="p-2"><button className="text-left font-semibold text-blue-900 underline decoration-blue-200 underline-offset-2" onClick={() => setActiveId(row.id)}>{row.description || "Beskrivning saknas"}</button>
-                <p className="mt-1 text-xs text-neutral-500">{row.sheet} · rad {row.sourceRow}</p></td>
+                <p className="mt-1 text-xs text-neutral-500">{materialSourceLabel(row)}</p>
+                {row.rfqSource?.partNumber && <p className="mt-1 break-words text-xs text-neutral-600">Referens: {row.rfqSource.partNumber}</p>}</td>
               <td className="p-2">{[row.dimension, row.fittingDimension].filter(Boolean).join(" / ") || "—"}</td>
               <td className="whitespace-nowrap p-2">{row.quantityText} {row.unit}</td>
               <td className="p-2 text-xs">{progress?.id === row.id && reviews[row.id].status === "searching" ? (progress.phase === "waiting" ? `Väntar (${progress.seconds} s)` : `Söker (${elapsed} s)`) : materialRowStatus(row, reviews[row.id])}{reviews[row.id].selected && <p className="mt-1 font-bold">{reviews[row.id].selected?.articleNumber}{typeof reviews[row.id].selected?.score === "number" ? ` · ${reviews[row.id].selected?.score}/100` : ""}</p>}</td>
@@ -189,7 +197,9 @@ export function MaterialRowReview({ row, review, busy, onInput, onSearch, onRevi
   const update = (patch: Partial<MaterialSearchInput>) => onInput({ ...review.input, ...patch });
   return <section className="min-w-0 space-y-4 rounded-lg border border-neutral-200 bg-white p-4" aria-label="Granska materialrad">
     <div><h2 className="font-bold">3. Granska produktval</h2><p className="mt-2 text-sm font-semibold">{row.description || "Beskrivning saknas"}</p>
-      <p className="mt-1 text-xs text-neutral-600">{row.sheet} · rad {row.sourceRow} · {row.quantityText} {row.unit}</p></div>
+      <p className="mt-1 text-xs text-neutral-600">{materialSourceLabel(row)} · {row.quantityText} {row.unit}</p>
+      {row.rfqSource && <div className="mt-2 space-y-1 break-words text-xs text-neutral-700"><p>Part Number: {row.rfqSource.partNumber || "Saknas – sökning via beskrivning"}</p>
+        {row.rfqSource.supplierPartNumber && <p>Supplier Part No.: {row.rfqSource.supplierPartNumber}</p>}</div>}</div>
     {row.issues.length > 0 ? <div className="rounded bg-amber-50 p-3 text-sm text-amber-950"><p className="font-semibold">Rätta raden i originalfilen och läs in den igen.</p><ul className="mt-2 list-disc pl-5">{row.issues.map(issue => <li key={issue}>{issue}</li>)}</ul></div>
       : row.quantity === 0 ? <p className="text-sm text-neutral-600">Raden har noll mängd. Den följer med i exporten utan produktsökning.</p> : <>
         <label className="block text-xs font-semibold">Hur ska listans mått tolkas?<select className={`${fieldClass} mt-1`} disabled={busy} value={review.input.dimensionKind}
@@ -235,4 +245,8 @@ export function MaterialRowReview({ row, review, busy, onInput, onSearch, onRevi
         </>}
       </>}
   </section>;
+}
+
+function materialSourceLabel(row: MaterialRow) {
+  return row.rfqSource ? `PDF sida ${row.rfqSource.page} · RFQ-rad ${row.rfqSource.lineNumber}` : `${row.sheet} · rad ${row.sourceRow}`;
 }

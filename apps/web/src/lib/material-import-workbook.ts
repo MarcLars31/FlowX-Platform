@@ -114,3 +114,25 @@ export async function exportMaterialWorkbook(source: Uint8Array, rows: MaterialR
   }
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
+
+/** RFQs have no source workbook: export a traceable list with original references. */
+export async function exportRfqMaterialWorkbook(rows: MaterialRow[], reviews: Record<string, MaterialReview>) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("RFQ");
+  sheet.addRow(["RFQ-rad", "Part Number", "Supplier Part No.", "Description", "UoM", "Qty", "NRF / artikelnummer", "PDF-sida", "Vald produkt", "Produktlänk", "Matchpoäng", "Valmetod"]);
+  for (const row of rows) {
+    const review = reviews[row.id];
+    if (!review || !row.rfqSource) throw new MaterialImportError("RFQ-underlag eller granskningsdata saknas. Läs in PDF-filen igen.");
+    sheet.addRow([row.rfqSource.lineNumber, row.rfqSource.partNumber, row.rfqSource.supplierPartNumber, row.description,
+      row.unit, row.quantity ?? row.quantityText, review.selected?.articleNumber ?? null, row.rfqSource.page,
+      review.selected?.productName ?? null, review.selected?.productUrl ?? null, review.selected?.score ?? null,
+      review.selected ? review.selectionMode === "automatic" ? "Automatiskt val - granska" : "Manuellt val" : null]);
+  }
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  sheet.autoFilter = { from: "A1", to: "L1" };
+  [12, 28, 25, 85, 10, 10, 22, 12, 55, 45, 14, 24].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+  for (const column of [1, 2, 3, 7]) sheet.getColumn(column).numFmt = "@";
+  sheet.getRow(1).font = { bold: true };
+  sheet.eachRow(row => { row.alignment = { vertical: "top", wrapText: true }; });
+  return new Uint8Array(await workbook.xlsx.writeBuffer());
+}

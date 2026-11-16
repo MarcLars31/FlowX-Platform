@@ -52,7 +52,7 @@ export function materialRequirement(input: MaterialSearchInput): Record<string, 
   }
   return { category: pipe ? "pipe" : undefined,
     value_text: heading,
-    value_json: { attributes, unit: input.unit, technicalSpecification: input.details, sourceType: "excel_material", sourceDescription: input.description } };
+    value_json: { attributes, unit: input.unit, technicalSpecification: input.details, sourceType: input.articleReferences ? "rfq_material" : "excel_material", sourceDescription: input.description } };
 }
 
 type Dependencies = {
